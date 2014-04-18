@@ -1,6 +1,10 @@
 # Changelog for [`base` package](http://hackage.haskell.org/package/base)
 
-## 4.7.0.0  *Feb 2014*
+## 4.7.1.0 *TBA*
+
+  * Add `Data.List.sortOn` sorting function
+
+## 4.7.0.0  *Apr 2014*
 
   * Bundled with GHC 7.8.1
 
