@@ -8,6 +8,8 @@
 
   * Weaken RealFloat constraints on some `Data.Complex` functions
 
+  * Add `Control.Monad.(<$!>)` as a strict version of `(<$>)`
+
 ## 4.7.0.0  *Apr 2014*
 
   * Bundled with GHC 7.8.1
