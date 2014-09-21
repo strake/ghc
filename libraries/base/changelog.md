@@ -25,6 +25,13 @@
 
   * Add `Data.List.uncons` list destructor (#9550)
 
+  * Export `Monoid(..)` from `Prelude`
+
+  * Export `Foldable(..)` from `Prelude`
+    (hiding `fold`, `foldl'`, `foldr'`, and `toList`)
+
+  * Export `Traversable(..)` from `Prelude`
+
   * Set fixity for `Data.Foldable.{elem,notElem}` to match the
     conventional one set for `Data.List.{elem,notElem}` (#9610)
 
