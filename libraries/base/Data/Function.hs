@@ -29,13 +29,28 @@ infixl 0 `on`
 
 -- | @'fix' f@ is the least fixed point of the function @f@,
 -- i.e. the least defined @x@ such that @f x = x@.
+--
+-- For example, we can write the factorial function using direct recursion as
+--
+-- >>> let fac n = if n <= 1 then 1 else n * fac (n-1) in fac 5
+-- 120
+--
+-- This uses the fact that Haskell’s @let@ introduces recursive bindings. We can
+-- rewrite this definition using 'fix',
+--
+-- >>> fix (\rec n -> if n <= 1 then 1 else n * rec (n-1)) 5
+-- 120
+--
+-- Instead of making a recursive call, we introduce a dummy parameter @rec@;
+-- when used within 'fix', this parameter then refers to 'fix'' argument, hence
+-- the recursion is reintroduced.
 fix :: (a -> a) -> a
 fix f = let x = f x in x
 
--- | @(*) \`on\` f = \\x y -> f x * f y@.
+-- | @((==) \`on\` f) x y = f x == f y@
 --
 -- Typical usage: @'Data.List.sortBy' ('compare' \`on\` 'fst')@.
---
+
 -- Algebraic properties:
 --
 -- * @(*) \`on\` 'id' = (*)@ (if @(*) &#x2209; {&#x22a5;, 'const' &#x22a5;}@)
@@ -87,3 +102,5 @@ fix f = let x = f x in x
 on :: (b -> b -> c) -> (a -> b) -> a -> a -> c
 (.*.) `on` f = \x y -> f x .*. f y
 
+-- $setup
+-- >>> import Prelude
