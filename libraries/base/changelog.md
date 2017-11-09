@@ -355,6 +355,10 @@
 
   * Bundled with GHC 7.10.1
 
+  * Make `Applicative` a superclass of `Monad`
+
+  * Add reverse application operator `Data.Function.(&)`
+
   * Add `Data.List.sortOn` sorting function
 
   * Add `System.Exit.die`
