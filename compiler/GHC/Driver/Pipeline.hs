@@ -1937,7 +1937,13 @@ linkStaticLib dflags o_files dep_packages = do
   output_exists <- doesFileExist full_output_fn
   (when output_exists) $ removeFile full_output_fn
 
-  pkg_cfgs <- getPreloadPackagesAnd dflags dep_packages
+  pkg_cfgs_init <- getPreloadPackagesAnd dflags dep_packages
+
+  let pkg_cfgs
+        | gopt Opt_LinkRts dflags
+        = pkg_cfgs_init
+        | otherwise
+        = filter ((/= rtsUnitId) . mkUnit) pkg_cfgs_init
   archives <- concatMapM (collectArchives dflags) pkg_cfgs
 
   ar <- foldl mappend

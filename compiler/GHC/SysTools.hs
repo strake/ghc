@@ -274,6 +274,8 @@ linkDynLib dflags0 o_files dep_packages
         pkgs_no_rts = case os of
                       OSMinGW32 ->
                           pkgs
+                      _ | gopt Opt_LinkRts dflags ->
+                          pkgs
                       _ ->
                           filter ((/= rtsUnitId) . mkUnit) pkgs
     let pkg_link_opts = let (package_hs_libs, extra_libs, other_flags) = collectLinkOpts dflags pkgs_no_rts
