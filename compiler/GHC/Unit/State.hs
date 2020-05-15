@@ -488,12 +488,12 @@ initPackages dflags = withTiming dflags
          | gopt Opt_DistrustAllPackages dflags = map distrust_all read_pkg_dbs
          | otherwise                           = read_pkg_dbs
 
-  (pkg_state, preload, insts)
-        <- mkPackageState dflags pkg_dbs []
+  (pkg_state, insts)
+        <- mkPackageState dflags pkg_dbs
   return (dflags{ pkgDatabase = Just read_pkg_dbs,
                   pkgState = pkg_state,
                   homeUnitInstantiations = insts },
-          preload)
+          preloadPackages pkg_state)
   where
     forcePkgDb (dflags, _) = unitInfoMap (pkgState dflags) `seq` ()
 
@@ -1307,12 +1307,10 @@ mkPackageState
     -- initial databases, in the order they were specified on
     -- the command line (later databases shadow earlier ones)
     -> [PackageDatabase UnitId]
-    -> [UnitId]              -- preloaded packages
     -> IO (PackageState,
-           [UnitId],         -- new packages to preload
            [(ModuleName, Module)])
 
-mkPackageState dflags dbs preload0 = do
+mkPackageState dflags dbs = do
 {-
    Plan.
 
@@ -1531,7 +1529,6 @@ mkPackageState dflags dbs preload0 = do
 
   -- Close the preload packages with their dependencies
   dep_preload <- closeDeps dflags pkg_db (zip (map toUnitId preload3) (repeat Nothing))
-  let new_dep_preload = filter (`notElem` preload0) dep_preload
 
   let mod_map1 = mkModuleNameProvidersMap dflags pkg_db vis_map
       mod_map2 = mkUnusableModuleNameProvidersMap unusable
@@ -1558,7 +1555,7 @@ mkPackageState dflags dbs preload0 = do
          , allowVirtualUnits            = homeUnitIsIndefinite dflags
          }
   let new_insts = map (fmap (upd_wired_in_mod wired_map)) (homeUnitInstantiations dflags)
-  return (pstate, new_dep_preload, new_insts)
+  return (pstate, new_insts)
 
 -- | Given a wired-in 'Unit', "unwire" it into the 'Unit'
 -- that it was recorded as in the package database.
