@@ -506,7 +506,7 @@ dsMcStmt (ApplicativeStmt body_ty args mb_join) stmts = do
     let (pats, rhss) = unzip (do_arg . snd <$> args)
         do_arg = \ case
             ApplicativeArgOne _ pat expr _ -> (pat, dsLExpr expr)
-            ApplicativeArgMany _ stmts ret pat -> (pat, dsMonadComp (stmts ++ [noLoc $ LastStmt noExtField (noLoc ret) Nothing (SyntaxExprTc
+            ApplicativeArgMany _ stmts ret pat _ -> (pat, dsMonadComp (stmts ++ [noLoc $ LastStmt noExtField (noLoc ret) Nothing (SyntaxExprTc
               { syn_expr = ret
               , syn_arg_wraps = []
               , syn_res_wrap = WpHole
@@ -644,7 +644,7 @@ dsMcBindStmt :: LPat GhcTc
 dsMcBindStmt pat rhs' bind_op fail_op res1_ty stmts
   = do  { body     <- dsMcStmts stmts
         ; var      <- selectSimpleMatchVarL pat
-        ; match <- matchSinglePatVar var (StmtCtxt DoExpr) pat
+        ; match <- matchSinglePatVar var (StmtCtxt (DoExpr Nothing)) pat
                                   res1_ty (cantFailMatchResult body)
         ; match_code <- dsHandleMonadicFailure pat match fail_op
         ; dsSyntaxExpr bind_op [rhs', Lam var match_code] }
