@@ -172,8 +172,9 @@ definiteUnitInfoId p =
         _               -> Nothing
 
 -- | Create a UnitPprInfo from a UnitInfo
-mkUnitPprInfo :: GenUnitInfo u -> UnitPprInfo
-mkUnitPprInfo i = UnitPprInfo
+mkUnitPprInfo :: (u -> FastString) -> GenUnitInfo u -> UnitPprInfo
+mkUnitPprInfo ufs i = UnitPprInfo
+   (ufs (unitId i))
    (unitPackageNameString i)
    (unitPackageVersion i)
    ((unpackFS . unPackageName) <$> unitComponentName i)

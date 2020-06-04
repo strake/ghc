@@ -5,6 +5,7 @@ module GHC.Unit.Ppr
 where
 
 import GHC.Prelude
+import GHC.Data.FastString
 import GHC.Utils.Outputable
 import Data.Version
 
@@ -14,13 +15,16 @@ import Data.Version
 --    package-version:componentname
 --
 data UnitPprInfo = UnitPprInfo
-   { unitPprPackageName    :: String       -- ^ Source package name
+   { unitPprId             :: FastString   -- ^ Identifier
+   , unitPprPackageName    :: String       -- ^ Source package name
    , unitPprPackageVersion :: Version      -- ^ Source package version
    , unitPprComponentName  :: Maybe String -- ^ Component name
    }
 
 instance Outputable UnitPprInfo where
-  ppr pprinfo = text $ mconcat
+  ppr pprinfo = getPprDebug $ \case
+    True -> ftext (unitPprId pprinfo)
+    False -> text $ mconcat
       [ unitPprPackageName pprinfo
       , case unitPprPackageVersion pprinfo of
          Version [] [] -> ""
