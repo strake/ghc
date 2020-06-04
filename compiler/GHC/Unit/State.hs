@@ -27,7 +27,6 @@ module GHC.Unit.State (
         searchPackageId,
         unsafeLookupUnit,
         getInstalledPackageDetails,
-        displayUnitId,
         listVisibleModuleNames,
         lookupModuleInAllPackages,
         lookupModuleWithSuggestions,
@@ -55,9 +54,13 @@ module GHC.Unit.State (
         mkIndefUnitId,
         updateIndefUnitId,
         unwireUnit,
+
+        -- * Pretty-printing
         pprFlag,
         pprPackages,
         pprPackagesSimple,
+        pprUnitIdForUser,
+        pprUnitInfoForUser,
         pprModuleMap,
         homeUnitIsIndefinite,
         homeUnitIsDefinite,
@@ -70,6 +73,7 @@ import GHC.Prelude
 
 import GHC.Unit.Database
 import GHC.Unit.Info
+import GHC.Unit.Ppr
 import GHC.Unit.Types
 import GHC.Unit.Module
 import GHC.Unit.Subst
@@ -869,7 +873,7 @@ findPackages prec_map pkg_db arg pkgs unusable
         else Right (sortByPreference prec_map ps)
   where
     finder (PackageArg str) p
-      = if str == unitPackageIdString p || str == unitPackageNameString p
+      = if matchingStr str p
           then Just p
           else Nothing
     finder (UnitIdArg uid) p
@@ -2091,6 +2095,8 @@ missingDependencyMsg (Just parent)
 
 -- -----------------------------------------------------------------------------
 
+-- | Pretty-print a UnitId for the user.
+--
 -- Cabal packages may contain several components (programs, libraries, etc.).
 -- As far as GHC is concerned, installed package components ("units") are
 -- identified by an opaque IndefUnitId string provided by Cabal. As the string
@@ -2102,25 +2108,28 @@ missingDependencyMsg (Just parent)
 --
 -- Component name is only displayed if it isn't the default library
 --
--- To do this we need to query the database (cached in DynFlags). We cache
--- these details in the IndefUnitId itself because we don't want to query
--- DynFlags each time we pretty-print the IndefUnitId
---
+-- To do this we need to query a unit database.
+pprUnitIdForUser :: PackageState -> UnitId -> SDoc
+pprUnitIdForUser state uid@(UnitId fs) =
+   case lookupUnitPprInfo state uid of
+      Nothing -> ftext fs -- we didn't find the unit at all
+      Just i  -> ppr i
+
+pprUnitInfoForUser :: UnitInfo -> SDoc
+pprUnitInfoForUser = ppr . mkUnitPprInfo unitIdFS
+
+lookupUnitPprInfo :: PackageState -> UnitId -> Maybe UnitPprInfo
+lookupUnitPprInfo state = fmap (mkUnitPprInfo unitIdFS) . lookupInstalledPackage state
+
+-- | Create a IndefUnitId.
 mkIndefUnitId :: PackageState -> FastString -> IndefUnitId
-mkIndefUnitId pkgstate raw =
+mkIndefUnitId state raw =
     let uid = UnitId raw
-    in case lookupInstalledPackage pkgstate uid of
-         Nothing -> Indefinite uid Nothing -- we didn't find the unit at all
-         Just c  -> Indefinite uid $ Just $ mkUnitPprInfo c
+    in Indefinite uid $! lookupUnitPprInfo state uid
 
 -- | Update component ID details from the database
 updateIndefUnitId :: PackageState -> IndefUnitId -> IndefUnitId
 updateIndefUnitId pkgstate uid = mkIndefUnitId pkgstate (unitIdFS (indefUnit uid))
-
-
-displayUnitId :: PackageState -> UnitId -> Maybe String
-displayUnitId pkgstate uid =
-    fmap unitPackageIdString (lookupInstalledPackage pkgstate uid)
 
 -- -----------------------------------------------------------------------------
 -- Displaying packages
