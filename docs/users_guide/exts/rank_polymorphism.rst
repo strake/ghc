@@ -128,7 +128,7 @@ You construct values of types ``T1, MonadT, Swizzle`` by applying the
 constructor to suitable values, just as usual. For example, ::
 
         a1 :: T Int
-        a1 = T1 (\xy->x) 3
+        a1 = T1 (\x y->x) 3
 
         a2, a3 :: Swizzle
         a2 = MkSwizzle sort
@@ -142,7 +142,7 @@ constructor to suitable values, just as usual. For example, ::
              in
              MkMonad r b
 
-        mkTs :: (forall b. b -> b -> b) -> a -> [T a]
+        mkTs :: (forall b. b -> b -> b) -> a -> a -> [T a]
         mkTs f x y = [T1 f x, T1 f y]
 
 The type of the argument can, as usual, be more general than the type
