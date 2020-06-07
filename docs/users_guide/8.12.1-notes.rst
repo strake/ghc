@@ -40,7 +40,7 @@ Language
 
 * Record field selectors are now given type signatures that preserve the
   user-written order of quantified type variables. Moreover, field selector
-  type signatures no longer make inferred type variables avaiable for explicit
+  type signatures no longer make inferred type variables available for explicit
   type application. See :ref:`field-selectors-and-type-applications` for more
   details.
 
