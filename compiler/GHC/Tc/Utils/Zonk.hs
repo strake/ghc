@@ -401,11 +401,7 @@ zonkEvBndr :: ZonkEnv -> EvVar -> TcM EvVar
 -- Works for dictionaries and coercions
 -- Does not extend the ZonkEnv
 zonkEvBndr env var
-  = do { let var_ty = varType var
-       ; ty <-
-           {-# SCC "zonkEvBndr_zonkTcTypeToType" #-}
-           zonkTcTypeToTypeX env var_ty
-       ; return (setVarType var ty) }
+  = updateVarTypeM ({-# SCC "zonkEvBndr_zonkTcTypeToType" #-} zonkTcTypeToTypeX env) var
 
 {-
 zonkEvVarOcc :: ZonkEnv -> EvVar -> TcM EvTerm

@@ -5,7 +5,8 @@
 \section{@Vars@: Variables}
 -}
 
-{-# LANGUAGE CPP, FlexibleContexts, MultiWayIf, FlexibleInstances, DeriveDataTypeable, PatternSynonyms #-}
+{-# LANGUAGE CPP, FlexibleContexts, MultiWayIf, FlexibleInstances, DeriveDataTypeable,
+             PatternSynonyms, BangPatterns #-}
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns   #-}
 {-# OPTIONS_GHC -Wno-incomplete-record-updates #-}
 
@@ -47,14 +48,15 @@ module GHC.Types.Var (
         varName, varUnique, varType,
 
         -- ** Modifying 'Var's
-        setVarName, setVarUnique, setVarType, updateVarType,
-        updateVarTypeM,
+        setVarName, setVarUnique, setVarType,
+        updateVarType, updateVarTypeM,
 
         -- ** Constructing, taking apart, modifying 'Id's
         mkGlobalVar, mkLocalVar, mkExportedLocalVar, mkCoVar,
         idInfo, idDetails,
         lazySetIdInfo, setIdDetails, globaliseId,
         setIdExported, setIdNotExported,
+        updateIdType, updateIdTypeM,
 
         -- ** Predicates
         isId, isTyVar, isTcTyVar,
@@ -99,7 +101,6 @@ import {-# SOURCE #-}   GHC.Core.TyCo.Ppr( pprKind )
 import {-# SOURCE #-}   GHC.Tc.Utils.TcType( TcTyVarDetails, pprTcTyVarDetails, vanillaSkolemTv )
 import {-# SOURCE #-}   GHC.Types.Id.Info( IdDetails, IdInfo, coVarDetails, isCoVarDetails,
                                            vanillaIdInfo, pprIdDetails )
-
 import GHC.Types.Name hiding (varName)
 import GHC.Types.Unique ( Uniquable, Unique, getKey, getUnique
                         , mkUniqueGrimily, nonDetCmpUnique )
@@ -377,7 +378,7 @@ setVarName var new_name
   = var { realUnique = getKey (getUnique new_name),
           varName = new_name }
 
-setVarType :: Id -> Type -> Id
+setVarType :: Var -> Type -> Var
 setVarType id ty = id { varType = ty }
 
 updateVarType :: (Type -> Type) -> Id -> Id
@@ -525,7 +526,7 @@ where isPredTy is defined in GHC.Core.Type, and sees if t1's
 kind is Constraint.  See GHC.Core.TyCo.Rep
 Note [Types for coercions, predicates, and evidence]
 
-GHC.Core.Type.mkFunctionType :: Type -> Type -> Type
+GHC.Core.Utils.mkFunctionType :: Type -> Type -> Type
 uses isPredTy to decide the AnonArgFlag for the FunTy.
 
 The term (Lam b e), and coercion (FunCo co1 co2) don't carry
@@ -808,6 +809,15 @@ setIdNotExported :: Id -> Id
 -- ^ We can only do this to LocalIds
 setIdNotExported id = ASSERT( isLocalId id )
                       id { idScope = LocalId NotExported }
+
+-----------------------
+updateIdType :: (Type -> Type) -> Id -> Id
+updateIdType f id = id { varType = f (varType id) }
+
+updateIdTypeM :: Monad m => (Type -> m Type) -> Id -> m Id
+updateIdTypeM f id@(Id { varType = ty })
+  = [id { varType = ty' } | !ty' <- f ty]
+updateIdTypeM _ other = pprPanic "updateIdTypeM" (ppr other)
 
 {-
 ************************************************************************

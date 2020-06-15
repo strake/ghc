@@ -52,8 +52,7 @@ tidyVarBndr tidy_env@(occ_env, subst) var
       (occ_env', occ') -> ((occ_env', subst'), var')
         where
           subst' = extendVarEnv subst var var'
-          var'   = setVarType (setVarName var name') type'
-          type'  = tidyType tidy_env (varType var)
+          var'   = updateVarType (tidyType tidy_env) (setVarName var name')
           name'  = tidyNameOcc name occ'
           name   = varName var
 

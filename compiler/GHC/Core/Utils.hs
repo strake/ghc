@@ -22,7 +22,9 @@ module GHC.Core.Utils (
         filterAlts, combineIdenticalAlts, refineDefaultAlt,
 
         -- * Properties of expressions
-        exprType, coreAltType, coreAltsType, isExprLevPoly,
+        exprType, coreAltType, coreAltsType, mkLamType, mkLamTypes,
+        mkFunctionType,
+        isExprLevPoly,
         exprIsDupable, exprIsTrivial, getIdFromTrivialExpr, exprIsDeadEnd,
         getIdFromTrivialExpr_maybe,
         exprIsCheap, exprIsExpandable, exprIsCheapX, CheapAppFun,
@@ -148,6 +150,37 @@ coreAltsType :: [CoreAlt] -> Type
 -- ^ Returns the type of the first alternative, which should be the same as for all alternatives
 coreAltsType (alt:_) = coreAltType alt
 coreAltsType []      = panic "corAltsType"
+
+mkLamType  :: Var -> Type -> Type
+-- ^ Makes a @(->)@ type or an implicit forall type, depending
+-- on whether it is given a type variable or a term variable.
+-- This is used, for example, when producing the type of a lambda.
+-- Always uses Inferred binders.
+mkLamTypes :: [Var] -> Type -> Type
+-- ^ 'mkLamType' for multiple type or value arguments
+
+mkLamType v body_ty
+   | isTyVar v
+   = mkForAllTy v Inferred body_ty
+
+   | isCoVar v
+   , v `elemVarSet` tyCoVarsOfType body_ty
+   = mkForAllTy v Required body_ty
+
+   | otherwise
+   = mkFunctionType (varType v) body_ty
+
+mkFunctionType :: Type -> Type -> Type
+-- This one works out the AnonArgFlag from the argument type
+-- See GHC.Types.Var Note [AnonArgFlag]
+mkFunctionType arg_ty res_ty
+   | isPredTy arg_ty -- See GHC.Types.Var Note [AnonArgFlag]
+   = mkInvisFunTy arg_ty res_ty
+
+   | otherwise
+   = mkVisFunTy arg_ty res_ty
+
+mkLamTypes vs ty = foldr mkLamType ty vs
 
 -- | Is this expression levity polymorphic? This should be the
 -- same as saying (isKindLevPoly . typeKind . exprType) but

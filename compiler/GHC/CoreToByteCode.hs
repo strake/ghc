@@ -28,7 +28,6 @@ import GHC.Platform
 import GHC.Types.Name
 import GHC.Types.Id.Make
 import GHC.Types.Id
-import GHC.Types.Var ( updateVarType )
 import GHC.Types.ForeignCall
 import GHC.Driver.Types
 import GHC.Core.Utils
@@ -55,6 +54,7 @@ import GHC.Runtime.Heap.Layout hiding (WordOff, ByteOff, wordsToBytes)
 import GHC.Data.Bitmap
 import GHC.Data.OrdList
 import GHC.Data.Maybe
+import GHC.Types.Var ( updateVarType )
 import GHC.Types.Var.Env
 import GHC.Builtin.Names ( unsafeEqualityProofName )
 

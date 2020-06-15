@@ -152,6 +152,8 @@ Library
 
     -- we use an explicit Prelude
     Default-Extensions:
+        LambdaCase
+        MonadComprehensions
         NoImplicitPrelude
         NoMonomorphismRestriction
 

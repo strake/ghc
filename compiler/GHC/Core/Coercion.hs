@@ -132,6 +132,7 @@ import GHC.Core.TyCo.Tidy
 import GHC.Core.Type
 import GHC.Core.TyCon
 import GHC.Core.Coercion.Axiom
+import {-# SOURCE #-} GHC.Core.Utils ( mkFunctionType )
 import GHC.Types.Var
 import GHC.Types.Var.Env
 import GHC.Types.Var.Set

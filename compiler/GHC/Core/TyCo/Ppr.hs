@@ -35,8 +35,7 @@ import {-# SOURCE #-} GHC.Core.DataCon
    ( dataConFullSig , dataConUserTyVarBinders
    , DataCon )
 
-import {-# SOURCE #-} GHC.Core.Type
-   ( isLiftedTypeKind )
+import GHC.Core.Type ( isLiftedTypeKind )
 
 import GHC.Core.TyCon
 import GHC.Core.TyCo.Rep

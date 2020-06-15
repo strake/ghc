@@ -49,6 +49,7 @@ module GHC.Core.TyCo.Rep (
         mkFunTy, mkVisFunTy, mkInvisFunTy, mkVisFunTys, mkInvisFunTys,
         mkForAllTy, mkForAllTys, mkInvisForAllTys,
         mkPiTy, mkPiTys,
+        mkTyConApp,
 
         -- * Functions over binders
         TyCoBinder(..), TyCoVarBinder, TyBinder,
@@ -65,7 +66,7 @@ module GHC.Core.TyCo.Rep (
         TyCoFolder(..), foldTyCo,
 
         -- * Sizes
-        typeSize, coercionSize, provSize
+        typeSize, coercionSize, provSize,
     ) where
 
 #include "HsVersions.h"
@@ -87,7 +88,10 @@ import GHC.Core.TyCon
 import GHC.Core.Coercion.Axiom
 
 -- others
+import GHC.Builtin.Names ( liftedTypeKindTyConKey )
+import {-# SOURCE #-} GHC.Builtin.Types ( liftedTypeKindTyCon )
 import GHC.Types.Basic ( LeftOrRight(..), pickLR )
+import GHC.Types.Unique ( hasKey )
 import GHC.Utils.Outputable
 import GHC.Data.FastString
 import GHC.Utils.Misc
@@ -1017,6 +1021,53 @@ mkPiTys tbs ty = foldr mkPiTy ty tbs
 -- | Create the plain type constructor type which has been applied to no type arguments at all.
 mkTyConTy :: TyCon -> Type
 mkTyConTy tycon = TyConApp tycon []
+
+-- | A key function: builds a 'TyConApp' or 'FunTy' as appropriate to
+-- its arguments.  Applies its arguments to the constructor from left to right.
+mkTyConApp :: TyCon -> [Type] -> Type
+mkTyConApp tycon tys
+  | isFunTyCon tycon
+  , [_rep1,_rep2,ty1,ty2] <- tys
+  -- The FunTyCon (->) is always a visible one
+  = FunTy { ft_af = VisArg, ft_arg = ty1, ft_res = ty2 }
+
+  -- Note [mkTyConApp and Type]
+  | tycon `hasKey` liftedTypeKindTyConKey
+  = ASSERT2( null tys, ppr tycon $$ ppr tys )
+    liftedTypeKindTyConApp
+  | otherwise
+  = TyConApp tycon tys
+
+-- This is a single, global definition of the type `Type`
+-- Defined here so it is only allocated once.
+-- See Note [mkTyConApp and Type]
+liftedTypeKindTyConApp :: Type
+liftedTypeKindTyConApp = TyConApp liftedTypeKindTyCon []
+
+{-
+Note [mkTyConApp and Type]
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+Whilst benchmarking it was observed in #17292 that GHC allocated a lot
+of `TyConApp` constructors. Upon further inspection a large number of these
+TyConApp constructors were all duplicates of `Type` applied to no arguments.
+
+```
+(From a sample of 100000 TyConApp closures)
+0x45f3523    - 28732 - `Type`
+0x420b840702 - 9629  - generic type constructors
+0x42055b7e46 - 9596
+0x420559b582 - 9511
+0x420bb15a1e - 9509
+0x420b86c6ba - 9501
+0x42055bac1e - 9496
+0x45e68fd    - 538 - `TYPE ...`
+```
+
+Therefore in `mkTyConApp` we have a special case for `Type` to ensure that
+only one `TyConApp 'Type []` closure is allocated during the course of
+compilation. In order to avoid a potentially expensive series of checks in
+`mkTyConApp` only this egregious case is special cased at the moment.
+-}
 
 {-
 %************************************************************************

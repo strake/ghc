@@ -48,6 +48,7 @@ module GHC.Types.Id (
 
         -- ** Modifying an Id
         setIdName, setIdUnique, GHC.Types.Id.setIdType,
+        updateIdType, updateIdTypeM,
         setIdExported, setIdNotExported,
         globaliseId, localiseId,
         setIdInfo, lazySetIdInfo, modifyIdInfo, maybeModifyIdInfo,
@@ -133,7 +134,8 @@ import GHC.Types.Var( Id, CoVar, JoinId,
             InId,  InVar,
             OutId, OutVar,
             idInfo, idDetails, setIdDetails, globaliseId,
-            isId, isLocalId, isGlobalId, isExportedId )
+            isId, isLocalId, isGlobalId, isExportedId,
+            updateIdType, updateIdTypeM)
 import qualified GHC.Types.Var as Var
 
 import GHC.Core.Type
