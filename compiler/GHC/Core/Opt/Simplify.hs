@@ -1133,8 +1133,8 @@ simplCoercionF env co cont
 
 simplCoercion :: SimplEnv -> InCoercion -> SimplM OutCoercion
 simplCoercion env co
-  = do { dflags <- getDynFlags
-       ; let opt_co = optCoercion dflags (getTCvSubst env) co
+  = do { opts <- getOptCoercionOpts
+       ; let opt_co = optCoercion opts (getTCvSubst env) co
        ; seqCo opt_co `seq` return opt_co }
 
 -----------------------------------
