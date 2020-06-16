@@ -151,6 +151,7 @@ getCoreToDo dflags
     base_mode = SimplMode { sm_phase      = panic "base_mode"
                           , sm_names      = []
                           , sm_dflags     = dflags
+                          , sm_uf_opts    = unfoldingOpts dflags
                           , sm_rules      = rules_on
                           , sm_eta_expand = eta_expand_on
                           , sm_inline     = True

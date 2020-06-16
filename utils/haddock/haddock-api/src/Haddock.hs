@@ -70,6 +70,7 @@ import GHC.Settings.Config
 import GHC.Driver.Session hiding (projectVersion, verbosity)
 import GHC.Utils.Error
 import GHC.Unit
+import GHC.Unit.State (unwireUnit)
 import GHC.Utils.Panic (handleGhcException)
 import GHC.Data.FastString
 import qualified GHC.Runtime.Loader
