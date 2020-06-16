@@ -40,6 +40,7 @@ module GHC.Driver.Pipeline (
 import GHC.Prelude
 
 import GHC.Driver.Pipeline.Monad
+import GHC.Unit
 import GHC.Unit.State
 import GHC.Driver.Ways
 import GHC.Parser.Header
