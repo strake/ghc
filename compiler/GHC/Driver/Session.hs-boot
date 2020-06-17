@@ -8,7 +8,6 @@ import {-# SOURCE #-} GHC.Unit.State
 data DynFlags
 
 targetPlatform           :: DynFlags -> Platform
-pprUserLength            :: DynFlags -> Int
 pkgState                 :: DynFlags -> PackageState
 unsafeGlobalDynFlags     :: DynFlags
 hasPprDebug              :: DynFlags -> Bool
