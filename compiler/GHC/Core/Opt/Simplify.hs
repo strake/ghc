@@ -1877,7 +1877,7 @@ completeCall env var cont
 
     log_inlining doc
       = liftIO $ dumpAction dflags
-           (mkUserStyle alwaysQualify AllTheWay)
+           (mkDumpStyle alwaysQualify)
            (dumpOptionsFromFlag Opt_D_dump_inlinings)
            "" FormatText doc
 
