@@ -244,7 +244,7 @@ originEmpty _ = False
 -- | Map from 'UnitId' to 'UnitInfo', plus
 -- the transitive closure of preload units.
 data UnitInfoMap = UnitInfoMap
-   { unUnitInfoMap :: UniqDFM UnitInfo
+   { unUnitInfoMap :: UniqDFM UnitId UnitInfo
       -- ^ Map from 'UnitId' to 'UnitInfo'
 
    , preloadClosure :: UniqSet UnitId
@@ -401,12 +401,12 @@ lookupUnit pkgs = lookupUnit' (allowVirtualUnits pkgs) (unitInfoMap pkgs)
 -- just a 'UnitInfoMap' rather than a 'PackageState' (so it can
 -- be used while we're initializing 'DynFlags'
 lookupUnit' :: Bool -> UnitInfoMap -> Unit -> Maybe UnitInfo
-lookupUnit' False (UnitInfoMap pkg_map _) uid  = lookupUDFM pkg_map uid
+lookupUnit' False (UnitInfoMap pkg_map _) uid  = lookupUDFM pkg_map (toUnitId uid)
 lookupUnit' True m@(UnitInfoMap pkg_map _) uid = case uid of
    HoleUnit   -> error "Hole unit"
-   RealUnit _ -> lookupUDFM pkg_map uid
+   RealUnit _ -> lookupUDFM pkg_map (toUnitId uid)
    VirtUnit i -> fmap (renamePackage m (instUnitInsts i))
-                      (lookupUDFM pkg_map (instUnitInstanceOf i))
+                      (lookupUDFM pkg_map (indefUnit (instUnitInstanceOf i)))
 
 -- | Find the package we know about with the given package name (e.g. @foo@), if any
 -- (NB: there might be a locally defined unit name which overrides this)
@@ -425,7 +425,7 @@ extendUnitInfoMap (UnitInfoMap pkg_map closure) new_pkgs
   = UnitInfoMap (foldl' add pkg_map new_pkgs) closure
     -- We also add the expanded version of the mkUnit, so that
     -- 'improveUnit' can find it.
-  where add pkg_map p = addToUDFM (addToUDFM pkg_map (expandedUnitInfoId p) p)
+  where add pkg_map p = addToUDFM (addToUDFM pkg_map (toUnitId (expandedUnitInfoId p)) p)
                                   (unitId p) p
 
 -- | Looks up the package with the given id in the package state, panicing if it is
@@ -1515,7 +1515,7 @@ mkPackageState dflags dbs = do
       -- add base & rts to the preload packages
       basicLinkedPackages
        | gopt Opt_AutoLinkPackages dflags
-          = filter (flip elemUDFM (unUnitInfoMap pkg_db))
+          = filter (flip elemUDFM (unUnitInfoMap pkg_db) . toUnitId)
                 [baseUnitId, rtsUnitId]
        | otherwise = []
       -- but in any case remove the current package from the set of
@@ -1642,7 +1642,7 @@ mkModuleNameProvidersMap dflags pkg_db vis_map =
             in (pk', m', fromReexportedModules e pkg')
      return (m, mkModMap pk' m' origin')
 
-    esmap :: UniqFM (Map Module ModuleOrigin)
+    esmap :: UniqFM ModuleName (Map Module ModuleOrigin)
     esmap = listToUFM (es False) -- parameter here doesn't matter, orig will
                                  -- be overwritten
 

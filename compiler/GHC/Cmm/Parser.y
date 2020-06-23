@@ -908,7 +908,7 @@ exprOp name args_code = do
         mo <- nameToMachOp name
         return $ mkMachOp mo args_code
 
-exprMacros :: DynFlags -> UniqFM ([CmmExpr] -> CmmExpr)
+exprMacros :: DynFlags -> UniqFM FastString ([CmmExpr] -> CmmExpr)
 exprMacros dflags = listToUFM [
   ( fsLit "ENTRY_CODE",   \ [x] -> entryCode platform x ),
   ( fsLit "INFO_PTR",     \ [x] -> closureInfoPtr dflags x ),
@@ -991,7 +991,7 @@ machOps = listToUFM $
         ( "i2f64",    flip MO_SF_Conv W64 )
         ]
 
-callishMachOps :: UniqFM ([CmmExpr] -> (CallishMachOp, [CmmExpr]))
+callishMachOps :: UniqFM FastString ([CmmExpr] -> (CallishMachOp, [CmmExpr]))
 callishMachOps = listToUFM $
         map (\(x, y) -> (mkFastString x, y)) [
         ( "read_barrier", (MO_ReadBarrier,)),
@@ -1086,7 +1086,7 @@ stmtMacro fun args_code = do
         args <- sequence args_code
         code (fcode args)
 
-stmtMacros :: UniqFM ([CmmExpr] -> FCode ())
+stmtMacros :: UniqFM FastString ([CmmExpr] -> FCode ())
 stmtMacros = listToUFM [
   ( fsLit "CCS_ALLOC",             \[words,ccs]  -> profAlloc words ccs ),
   ( fsLit "ENTER_CCS_THUNK",       \[e] -> enterCostCentreThunk e ),
