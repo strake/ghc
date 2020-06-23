@@ -43,7 +43,6 @@ import GHC.Iface.Env
 import GHC.Types.Name
 import GHC.Types.Unique.FM
 import GHC.Types.Unique.Supply
-import GHC.Types.Unique
 
 
 data InterfaceFile = InterfaceFile {
@@ -276,8 +275,7 @@ putName BinSymbolTable{
 
 data BinSymbolTable = BinSymbolTable {
         bin_symtab_next :: !FastMutInt, -- The next index to use
-        bin_symtab_map  :: !(IORef (UniqFM (Int,Name)))
-                                -- indexed by Name
+        bin_symtab_map  :: !(IORef (UniqFM Name (Int,Name)))
   }
 
 
@@ -286,24 +284,22 @@ putFastString BinDictionary { bin_dict_next = j_r,
                               bin_dict_map  = out_r}  bh f
   = do
     out <- readIORef out_r
-    let unique = getUnique f
-    case lookupUFM out unique of
+    case lookupUFM out f of
         Just (j, _)  -> put_ bh (fromIntegral j :: Word32)
         Nothing -> do
            j <- readFastMutInt j_r
            put_ bh (fromIntegral j :: Word32)
            writeFastMutInt j_r (j + 1)
-           writeIORef out_r $! addToUFM out unique (j, f)
+           writeIORef out_r $! addToUFM out f (j, f)
 
 
 data BinDictionary = BinDictionary {
         bin_dict_next :: !FastMutInt, -- The next index to use
-        bin_dict_map  :: !(IORef (UniqFM (Int,FastString)))
-                                -- indexed by FastString
+        bin_dict_map  :: !(IORef (UniqFM FastString (Int,FastString)))
   }
 
 
-putSymbolTable :: BinHandle -> Int -> UniqFM (Int,Name) -> IO ()
+putSymbolTable :: BinHandle -> Int -> UniqFM Name (Int,Name) -> IO ()
 putSymbolTable bh next_off symtab = do
   put_ bh next_off
   let names = elems (array (0,next_off-1) (eltsUFM symtab))
@@ -346,7 +342,7 @@ fromOnDiskName _ nc (pid, mod_name, occ) =
         }
 
 
-serialiseName :: BinHandle -> Name -> UniqFM (Int,Name) -> IO ()
+serialiseName :: BinHandle -> Name -> UniqFM Name (Int,Name) -> IO ()
 serialiseName bh name _ = do
   let modu = nameModule name
   put_ bh (moduleUnit modu, moduleName modu, nameOccName name)
