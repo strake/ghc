@@ -34,6 +34,7 @@ import GHC.Core.Type
 import GHC.Core.Coercion ( Coercion, coVarsOfCo )
 import GHC.Core.FamInstEnv
 import GHC.Utils.Misc
+import GHC.Utils.Panic
 import GHC.Data.Maybe         ( isJust )
 import GHC.Builtin.PrimOps
 import GHC.Builtin.Types.Prim ( realWorldStatePrimTy )

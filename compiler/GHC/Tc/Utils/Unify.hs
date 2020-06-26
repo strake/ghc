@@ -69,6 +69,7 @@ import GHC.Data.Bag
 import GHC.Utils.Misc
 import qualified GHC.LanguageExtensions as LangExt
 import GHC.Utils.Outputable as Outputable
+import GHC.Utils.Panic
 
 import Data.Maybe( isNothing )
 import Control.Monad

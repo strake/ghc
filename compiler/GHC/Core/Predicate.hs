@@ -41,6 +41,7 @@ import GHC.Builtin.Names
 import GHC.Data.FastString
 import GHC.Utils.Outputable
 import GHC.Utils.Misc
+import GHC.Utils.Panic
 
 import Control.Monad ( guard )
 

@@ -66,6 +66,7 @@ import GHC.Types.Name
 import GHC.Types.Name.Set
 import GHC.Types.Name.Env
 import GHC.Utils.Outputable
+import GHC.Utils.Panic
 import GHC.Data.Maybe
 import GHC.Core.Unify
 import GHC.Utils.Misc
