@@ -73,6 +73,7 @@ import GHC.Unit.Info
 import GHC.Unit.Types
 import GHC.Unit.Module
 import GHC.Unit.Subst
+import GHC.Driver.Ppr
 import GHC.Driver.Session
 import GHC.Driver.Ways
 import GHC.Types.Unique.FM

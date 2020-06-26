@@ -35,6 +35,7 @@ import GHC.Types.Var
 import GHC.Types.Var.Env( mkInScopeSet )
 import GHC.Types.Var.Set( delVarSetList )
 import GHC.Utils.Outputable
+import GHC.Utils.Panic
 import GHC.Driver.Session( DynFlags )
 import GHC.Types.Name.Set
 import GHC.Types.Name.Reader

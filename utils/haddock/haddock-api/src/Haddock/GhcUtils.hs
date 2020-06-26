@@ -24,13 +24,15 @@ import Data.Char ( isSpace )
 import Haddock.Types( DocName, DocNameI )
 
 import GHC.Utils.FV as FV
-import GHC.Utils.Outputable ( Outputable, panic, showPpr )
+import GHC.Utils.Outputable ( Outputable )
+import GHC.Utils.Panic ( panic )
 import GHC.Types.Name
 import GHC.Types.Name.Set
 import GHC.Unit.Module
 import GHC.Driver.Types
 import GHC
 import GHC.Core.Class
+import GHC.Driver.Ppr ( showPpr )
 import GHC.Driver.Session
 import GHC.Types.SrcLoc  ( advanceSrcLoc )
 import GHC.Types.Var     ( VarBndr(..), TyVarBinder, tyVarKind, updateTyVarKind,

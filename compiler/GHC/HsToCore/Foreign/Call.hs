@@ -49,6 +49,7 @@ import GHC.Builtin.Names
 import GHC.Driver.Session
 import GHC.Utils.Outputable
 import GHC.Utils.Misc
+import GHC.Utils.Panic
 
 import Data.Maybe
 

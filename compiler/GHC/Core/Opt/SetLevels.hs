@@ -66,6 +66,8 @@ module GHC.Core.Opt.SetLevels (
 
 import GHC.Prelude
 
+import GHC.Driver.Ppr
+
 import GHC.Core
 import GHC.Core.Opt.Monad ( FloatOutSwitches(..) )
 import GHC.Core.Utils   ( exprType, exprIsHNF
@@ -102,6 +104,7 @@ import GHC.Builtin.Names      ( runRWKey )
 import GHC.Types.Unique.Supply
 import GHC.Utils.Misc
 import GHC.Utils.Outputable
+import GHC.Utils.Panic
 import GHC.Data.FastString
 import GHC.Types.Unique.DFM
 import GHC.Utils.FV

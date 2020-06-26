@@ -57,6 +57,7 @@ import GHC.Core.TyCon
 import GHC.Builtin.Types.Prim
 import GHC.Tc.Types.Evidence
 import GHC.Utils.Outputable
+import GHC.Utils.Panic
 import GHC.Utils.Misc
 import GHC.Types.SrcLoc
 

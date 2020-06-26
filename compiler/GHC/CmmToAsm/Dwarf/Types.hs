@@ -35,6 +35,7 @@ import GHC.Types.Unique
 import GHC.Platform.Reg
 import GHC.Types.SrcLoc
 import GHC.Utils.Misc
+import GHC.Driver.Session (initSDocContext)
 
 import GHC.CmmToAsm.Dwarf.Constants
 

@@ -70,6 +70,8 @@ module GHC.Core.Utils (
 import GHC.Prelude
 import GHC.Platform
 
+import GHC.Driver.Ppr
+
 import GHC.Core
 import GHC.Builtin.Names ( makeStaticName, unsafeEqualityProofName )
 import GHC.Core.Ppr
@@ -92,6 +94,7 @@ import GHC.Core.Coercion
 import GHC.Core.TyCon
 import GHC.Types.Unique
 import GHC.Utils.Outputable
+import GHC.Utils.Panic
 import GHC.Builtin.Types.Prim
 import GHC.Data.FastString
 import GHC.Data.Maybe

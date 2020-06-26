@@ -57,6 +57,8 @@ import GHC.Data.FastString ( unpackFS, bytesFS )
 import GHC.Types.Basic ( StringLiteral(..), SourceText(..), PromotionFlag(..) )
 import GHC.Unit.State ( PackageState )
 import qualified GHC.Utils.Outputable as O
+import qualified GHC.Utils.Panic as O
+import qualified GHC.Driver.Ppr as O
 
 
 -- | Use a 'TypecheckedModule' to produce an 'Interface'.
