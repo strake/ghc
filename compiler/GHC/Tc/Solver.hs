@@ -54,6 +54,7 @@ import GHC.Core.Type
 import GHC.Builtin.Types ( liftedRepTy )
 import GHC.Core.Unify    ( tcMatchTyKi )
 import GHC.Utils.Misc
+import GHC.Utils.Panic
 import GHC.Types.Var
 import GHC.Types.Var.Set
 import GHC.Types.Unique.Set

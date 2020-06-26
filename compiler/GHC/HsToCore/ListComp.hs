@@ -41,6 +41,7 @@ import GHC.Tc.Types.Evidence (HsWrapper (WpHole))
 import GHC.Tc.Utils.TcType
 import GHC.Data.List.SetOps( getNth )
 import GHC.Utils.Misc
+import GHC.Utils.Panic
 
 {-
 List comprehensions may be desugared in one of two ways: ``ordinary''

@@ -18,10 +18,10 @@ import Haddock.Utils
 import Haddock.Backends.Xhtml.Utils
 
 import GHC
+import GHC.Driver.Ppr      ( showSDoc )
 import GHC.Iface.Ext.Types ( HieAST(..), HieType(..), HieArgs(..), TypeIndex, HieTypeFlat )
 import GHC.Iface.Type
 import GHC.Types.Name      ( getOccFS, getOccString )
-import GHC.Utils.Outputable( showSDoc )
 import GHC.Types.Var       ( VarBndr(..) )
 
 import System.FilePath.Posix ((</>), (<.>))

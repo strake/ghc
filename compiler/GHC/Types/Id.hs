@@ -151,11 +151,15 @@ import {-# SOURCE #-} GHC.Builtin.PrimOps (PrimOp)
 import GHC.Types.ForeignCall
 import GHC.Data.Maybe
 import GHC.Types.SrcLoc
-import GHC.Utils.Outputable
 import GHC.Types.Unique
 import GHC.Types.Unique.Supply
 import GHC.Data.FastString
+
 import GHC.Utils.Misc
+import GHC.Utils.Outputable
+import GHC.Utils.Panic
+
+import GHC.Driver.Ppr
 
 -- infixl so you can say (id `set` a `set` b)
 infixl  1 `setIdUnfolding`,

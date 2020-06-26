@@ -88,6 +88,7 @@ import GHC.Utils.Outputable
 import GHC.Data.FastString
 import GHC.Data.FastString.Env
 import GHC.Utils.Misc
+import GHC.Utils.Panic
 
 import Data.Maybe( isJust )
 import qualified Data.Semigroup as Semi
