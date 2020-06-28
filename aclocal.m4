@@ -1874,7 +1874,6 @@ AC_DEFUN([FP_CURSES],
       [directory containing curses libraries])],
       [CURSES_LIB_DIRS=$withval])
 
-  AC_SUBST(CURSES_INCLUDE_DIRS)
   AC_SUBST(CURSES_LIB_DIRS)
 ])# FP_CURSES
 
