@@ -1671,7 +1671,7 @@ simplNonRecJoinPoint env bndr rhs body cont
      do { -- We push join_cont into the join RHS and the body;
           -- and wrap wrap_cont around the whole thing
         ; let res_ty = contResultType cont
-        ; (env1, bndr1)    <- simplNonRecJoinBndr env res_ty bndr
+        ; (env1, bndr1)    <- simplNonRecJoinBndr env bndr res_ty
         ; (env2, bndr2)    <- addBndrRules env1 bndr bndr1 (Just cont)
         ; (floats1, env3)  <- simplJoinBind env2 cont bndr bndr2 rhs env
         ; (floats2, body') <- simplExprF env3 body cont
@@ -1684,9 +1684,9 @@ simplRecJoinPoint :: SimplEnv -> [(InId, InExpr)]
                   -> SimplM (SimplFloats, OutExpr)
 simplRecJoinPoint env pairs body cont
   = wrapJoinCont env cont $ \ env cont ->
-    do { let bndrs = map fst pairs
+    do { let bndrs  = map fst pairs
              res_ty = contResultType cont
-       ; env1 <- simplRecJoinBndrs env res_ty bndrs
+       ; env1 <- simplRecJoinBndrs env bndrs res_ty
                -- NB: bndrs' don't have unfoldings or rules
                -- We add them as we go down
        ; (floats1, env2)  <- simplRecBind env1 NotTopLevel (Just cont) pairs
