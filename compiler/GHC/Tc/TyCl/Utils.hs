@@ -69,7 +69,7 @@ import GHC.Types.Id
 import GHC.Types.Id.Info
 import GHC.Types.Var.Env
 import GHC.Types.Var.Set
-import GHC.Types.Unique ( mkBuiltinUnique )
+import GHC.Builtin.Uniques ( mkBuiltinUnique )
 import GHC.Types.TyThing
 import qualified GHC.LanguageExtensions as LangExt
 

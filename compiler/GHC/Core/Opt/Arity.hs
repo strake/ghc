@@ -34,7 +34,7 @@ import GHC.Core.Predicate ( isDictTy )
 import GHC.Core.Coercion as Coercion
 import GHC.Types.Var.Set
 import GHC.Types.Basic
-import GHC.Types.Unique
+import GHC.Builtin.Uniques
 import GHC.Driver.Session ( DynFlags, GeneralFlag(..), gopt )
 import GHC.Utils.Outputable
 import GHC.Utils.Outputable.Ppr

@@ -48,7 +48,7 @@ import GHC.Tc.Types
 import GHC.Tc.Types.Evidence
 import GHC.Types.Var              ( Id, Var, EvId, varNameL, varName, varType, varUnique )
 import GHC.Types.Var.Env
-import GHC.Types.Unique
+import GHC.Builtin.Uniques
 import GHC.Iface.Make             ( mkIfaceExports )
 import GHC.Utils.Panic
 import GHC.Data.Maybe

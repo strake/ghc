@@ -63,6 +63,7 @@ import GHC.Types.SrcLoc
 
 import GHC.Utils.Outputable as Outputable
 import GHC.Utils.Error( Severity(..), DumpFormat (..), dumpOptionsFromFlag )
+import GHC.Types.Unique (uniqFromMask)
 import GHC.Utils.Monad
 import GHC.Utils.Error (dumpAction)
 

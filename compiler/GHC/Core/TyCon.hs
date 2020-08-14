@@ -146,6 +146,9 @@ import {-# SOURCE #-} GHC.Core.DataCon
    ( DataCon, dataConExTyCoVars, dataConFieldLabels
    , dataConTyCon, dataConFullSig
    , isUnboxedSumCon )
+import GHC.Builtin.Uniques
+  ( tyConRepNameUnique
+  , dataConTyRepNameUnique )
 
 import GHC.Utils.Binary
 import GHC.Types.Var
@@ -165,7 +168,6 @@ import GHC.Data.FastString.Env
 import GHC.Types.FieldLabel
 import GHC.Settings.Constants
 import GHC.Utils.Misc
-import GHC.Types.Unique( tyConRepNameUnique, dataConTyRepNameUnique )
 import GHC.Types.Unique.Set
 import GHC.Unit.Module
 

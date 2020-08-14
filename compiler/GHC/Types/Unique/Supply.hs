@@ -21,7 +21,7 @@ module GHC.Types.Unique.Supply (
 
         -- ** Operations on supplies
         uniqFromSupply, uniqsFromSupply, -- basic ops
-        takeUniqFromSupply, uniqFromMask,
+        takeUniqFromSupply,
 
         mkSplitUniqSupply,
         splitUniqSupply, listSplitUniqSupply,
@@ -250,12 +250,6 @@ listSplitUniqSupply  (MkSplitUniqSupply _ s1 s2) = s1 : listSplitUniqSupply s2
 uniqFromSupply  (MkSplitUniqSupply n _ _)  = mkUniqueGrimily n
 uniqsFromSupply (MkSplitUniqSupply n _ s2) = Cofree (mkUniqueGrimily n) (Identity (uniqsFromSupply s2))
 takeUniqFromSupply (MkSplitUniqSupply n s1 _) = (mkUniqueGrimily n, s1)
-
-uniqFromMask :: Char -> IO Unique
-uniqFromMask mask
-  = do { uqNum <- genSym
-       ; return $! mkUnique mask uqNum }
-
 withUniques :: Traversable t => (Unique -> a -> b) -> UniqSupply -> t a -> t b
 withUniques f us = snd . mapAccumL (\ (Cofree u (Identity us)) a -> (us, f u a)) (uniqsFromSupply us)
 
