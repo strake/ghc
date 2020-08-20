@@ -246,7 +246,7 @@ import GHC.Driver.Ppr
 import {-# SOURCE #-} GHC.Driver.Plugins
 import {-# SOURCE #-} GHC.Driver.Hooks
 import GHC.Builtin.Names ( mAIN )
-import {-# SOURCE #-} GHC.Unit.State (PackageState, emptyPackageState, PackageDatabase, updateIndefUnitId)
+import {-# SOURCE #-} GHC.Unit.State (PackageState, emptyPackageState, PackageDatabase)
 import GHC.Driver.Phases ( Phase(..), phaseInputExt )
 import GHC.Driver.Flags
 import GHC.Driver.Backend
@@ -1902,8 +1902,8 @@ homeUnit dflags =
          -- detect fully indefinite units: all their instantiations are hole
          -- modules and the home unit id is the same as the instantiating unit
          -- id (see Note [About units] in GHC.Unit)
-         | all (isHoleModule . snd) is && u == Indefinite (homeUnitId dflags) Nothing
-         -> mkVirtUnit (updateIndefUnitId (pkgState dflags) u) is
+         | all (isHoleModule . snd) is && u == Indefinite (homeUnitId dflags)
+         -> mkVirtUnit u is
          -- otherwise it must be that we compile a fully definite units
          -- TODO: error when the unit is partially instantiated??
          | otherwise
@@ -1926,7 +1926,7 @@ setUnitInstantiations s d =
 
 setUnitInstanceOf :: String -> DynFlags -> DynFlags
 setUnitInstanceOf s d =
-    d { homeUnitInstanceOfId = Just (Indefinite (UnitId (fsLit s)) Nothing) }
+    d { homeUnitInstanceOfId = Just (Indefinite (UnitId (fsLit s))) }
 
 addPluginModuleName :: String -> DynFlags -> DynFlags
 addPluginModuleName name d = d { pluginModNames = (mkModuleName name) : (pluginModNames d) }
@@ -5141,6 +5141,7 @@ initSDocContext dflags style = SDC
   , sdocErrorSpans                  = gopt Opt_ErrorSpans dflags
   , sdocStarIsType                  = xopt LangExt.StarIsType dflags
   , sdocImpredicativeTypes          = xopt LangExt.ImpredicativeTypes dflags
+  , sdocUnitIdForUser               = ftext
   , sdocDynFlags                    = dflags
   }
 
