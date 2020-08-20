@@ -1116,6 +1116,7 @@ For some background on this choice see trac #15269.
 showIface :: HscEnv -> FilePath -> IO ()
 showIface hsc_env filename = do
    let dflags  = hsc_dflags hsc_env
+       unit_state = pkgState dflags
        printer = putLogMsg dflags NoReason SevOutput noSrcSpan . withPprStyle defaultDumpStyle
 
    -- skip the hi way check; we don't want to worry about profiled vs.
@@ -1131,7 +1132,9 @@ showIface hsc_env filename = do
                                    neverQualifyModules
                                    neverQualifyPackages
    putLogMsg dflags NoReason SevDump noSrcSpan
-      $ withPprStyle (mkDumpStyle print_unqual) (pprModIface iface)
+      $ withPprStyle (mkDumpStyle print_unqual)
+      $ pprWithUnitState unit_state
+      $ pprModIface iface
 
 -- Show a ModIface but don't display details; suitable for ModIfaces stored in
 -- the EPT.
