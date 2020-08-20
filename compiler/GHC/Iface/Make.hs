@@ -56,6 +56,7 @@ import GHC.Types.Name.Reader
 import GHC.Types.Name.Env
 import GHC.Types.Name.Set
 import GHC.Unit.Module
+import GHC.Unit.State (pprWithUnitState)
 import GHC.Utils.Error
 import GHC.Utils.Outputable
 import GHC.Utils.Panic
@@ -121,7 +122,9 @@ mkFullIface hsc_env partial_iface mb_cg_infos = do
       addFingerprints hsc_env partial_iface{ mi_decls = decls }
 
     -- Debug printing
-    dumpIfSet_dyn (hsc_dflags hsc_env) Opt_D_dump_hi "FINAL INTERFACE" FormatText (pprModIface full_iface)
+    let unit_state = pkgState (hsc_dflags hsc_env)
+    dumpIfSet_dyn (hsc_dflags hsc_env) Opt_D_dump_hi "FINAL INTERFACE" FormatText
+      (pprWithUnitState unit_state $ pprModIface full_iface)
 
     return full_iface
 

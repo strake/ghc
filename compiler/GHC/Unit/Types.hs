@@ -3,6 +3,8 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 -- | Unit & Module types
 --
@@ -84,7 +86,6 @@ where
 import GHC.Prelude
 import GHC.Types.Unique
 import GHC.Types.Unique.DSet
-import GHC.Unit.Ppr
 import GHC.Unit.Module.Name
 import GHC.Utils.Binary
 import GHC.Utils.Outputable
@@ -101,8 +102,7 @@ import Data.Bifunctor
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BS.Char8
 
-import {-# SOURCE #-} GHC.Unit.State (improveUnit, PackageState, unitInfoMap, pprUnitIdForUser)
-import {-# SOURCE #-} GHC.Driver.Session (pkgState)
+import {-# SOURCE #-} GHC.Unit.State (improveUnit, PackageState, unitInfoMap)
 
 ---------------------------------------------------------------------
 -- MODULES
@@ -163,7 +163,6 @@ instance Outputable InstantiatedUnit where
      where
       cid   = instUnitInstanceOf uid
       insts = instUnitInsts uid
-
 
 pprModule :: Module -> SDoc
 pprModule mod@(Module p n)  = getPprStyle doc
@@ -330,12 +329,6 @@ instance Binary Unit where
                 0 -> fmap RealUnit (get bh)
                 1 -> fmap VirtUnit (get bh)
                 _ -> pure HoleUnit
-
-instance Binary unit => Binary (Indefinite unit) where
-  put_ bh (Indefinite fs _) = put_ bh fs
-  get bh = do { fs <- get bh; return (Indefinite fs Nothing) }
-
-
 
 -- | Retrieve the set of free module holes of a 'Unit'.
 unitFreeModuleHoles :: GenUnit u -> UniqDSet ModuleName
@@ -520,7 +513,8 @@ instance Uniquable UnitId where
     getUnique = getUnique . unitIdFS
 
 instance Outputable UnitId where
-    ppr uid = sdocWithDynFlags $ \dflags -> pprUnitIdForUser (pkgState dflags) uid
+    ppr (UnitId fs) = sdocOption sdocUnitIdForUser ($ fs) -- see Note [Pretty-printing UnitId]
+                                                          -- in "GHC.Unit"
 
 -- | A 'DefUnitId' is an 'UnitId' with the invariant that
 -- it only refers to a definite library; i.e., one we have generated
@@ -539,44 +533,16 @@ stringToUnitId = UnitId . mkFastString
 
 -- | A definite unit (i.e. without any free module hole)
 newtype Definite unit = Definite { unDefinite :: unit }
-    deriving (Eq, Ord, Functor)
-
-instance Outputable unit => Outputable (Definite unit) where
-    ppr (Definite uid) = ppr uid
-
-instance Binary unit => Binary (Definite unit) where
-    put_ bh (Definite uid) = put_ bh uid
-    get bh = do uid <- get bh; return (Definite uid)
-
+   deriving (Functor)
+   deriving newtype (Eq, Ord, Outputable, Binary, Uniquable)
 
 -- | An 'IndefUnitId' is an 'UnitId' with the invariant that it only
 -- refers to an indefinite library; i.e., one that can be instantiated.
 type IndefUnitId = Indefinite UnitId
 
-data Indefinite unit = Indefinite
-   { indefUnit        :: !unit             -- ^ Unit identifier
-   , indefUnitPprInfo :: Maybe UnitPprInfo -- ^ Cache for some unit info retrieved from the DB
-   }
+newtype Indefinite unit = Indefinite { indefUnit :: unit }
    deriving (Functor)
-
-instance Eq unit => Eq (Indefinite unit) where
-   a == b = indefUnit a == indefUnit b
-
-instance Ord unit => Ord (Indefinite unit) where
-   compare a b = compare (indefUnit a) (indefUnit b)
-
-
-instance Uniquable unit => Uniquable (Indefinite unit) where
-  getUnique (Indefinite n _) = getUnique n
-
-instance Outputable unit => Outputable (Indefinite unit) where
-  ppr (Indefinite uid Nothing)        = ppr uid
-  ppr (Indefinite uid (Just pprinfo)) =
-    getPprDebug $ \debug ->
-      if debug
-         then ppr uid
-         else ppr pprinfo
-
+   deriving newtype (Eq, Ord, Outputable, Binary, Uniquable)
 
 ---------------------------------------------------------------------
 -- WIRED-IN UNITS

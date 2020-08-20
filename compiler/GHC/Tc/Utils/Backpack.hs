@@ -241,9 +241,8 @@ requirementMerges pkgstate mod_name =
       -- time the IndefUnitId was created
       fixupModule (Module iud name) = Module iud' name
          where
-            iud' = iud { instUnitInstanceOf = cid' }
+            iud' = iud { instUnitInstanceOf = cid }
             cid  = instUnitInstanceOf iud
-            cid' = updateIndefUnitId pkgstate cid
 
 -- | For a module @modname@ of type 'HscSource', determine the list
 -- of extra "imports" of other requirements which should be considered part of
@@ -543,7 +542,7 @@ mergeSignatures
     -- we are going to merge in.
     let reqs = requirementMerges pkgstate mod_name
 
-    addErrCtxt (merge_msg mod_name reqs) $ do
+    addErrCtxt (pprWithUnitState pkgstate $ merge_msg mod_name reqs) $ do
 
     -- STEP 2: Read in the RAW forms of all of these interfaces
     ireq_ifaces0 <- forM reqs $ \(Module iuid mod_name) ->
@@ -898,8 +897,9 @@ tcRnInstantiateSignature hsc_env this_mod real_loc =
 exportOccs :: [AvailInfo] -> [OccName]
 exportOccs = concatMap (map occName . availNames)
 
-impl_msg :: Module -> InstantiatedModule -> SDoc
-impl_msg impl_mod (Module req_uid req_mod_name) =
+impl_msg :: PackageState -> Module -> InstantiatedModule -> SDoc
+impl_msg unit_state impl_mod (Module req_uid req_mod_name) =
+  pprWithUnitState unit_state $
   text "while checking that" <+> ppr impl_mod <+>
   text "implements signature" <+> ppr req_mod_name <+>
   text "in" <+> ppr req_uid
@@ -908,8 +908,10 @@ impl_msg impl_mod (Module req_uid req_mod_name) =
 -- always un-hashed, which is why its components are specified
 -- explicitly.)
 checkImplements :: Module -> InstantiatedModule -> TcRn TcGblEnv
-checkImplements impl_mod req_mod@(Module uid mod_name) =
-  addErrCtxt (impl_msg impl_mod req_mod) $ do
+checkImplements impl_mod req_mod@(Module uid mod_name) = do
+  dflags <- getDynFlags
+  let unit_state = pkgState dflags
+  addErrCtxt (impl_msg unit_state impl_mod req_mod) $ do
     let insts = instUnitInsts uid
 
     -- STEP 1: Load the implementing interface, and make a RdrEnv
@@ -929,7 +931,6 @@ checkImplements impl_mod req_mod@(Module uid mod_name) =
     loadModuleInterfaces (text "Loading orphan modules (from implementor of hsig)")
                          (dep_orphs (mi_deps impl_iface))
 
-    dflags <- getDynFlags
     let avails = calculateAvails dflags
                     impl_iface False{- safe -} NotBoot ImportedBySystem
         fix_env = mkNameEnv [ (gre_name rdr_elt, FixItem occ f)
@@ -967,9 +968,8 @@ checkImplements impl_mod req_mod@(Module uid mod_name) =
     forM_ (exportOccs (mi_exports isig_iface)) $ \occ ->
         case lookupGlobalRdrEnv impl_gr occ of
             [] -> addErr $ quotes (ppr occ)
-                    <+> text "is exported by the hsig file, but not"
-                    <+> text "exported by the implementing module"
-                    <+> quotes (ppr impl_mod)
+                    <+> text "is exported by the hsig file, but not exported by the implementing module"
+                    <+> quotes (pprWithUnitState unit_state $ ppr impl_mod)
             _ -> return ()
     failIfErrsM
 
@@ -1004,11 +1004,8 @@ instantiateSignature = do
     -- the local one just to get the information?  Hmm...
     MASSERT( isHomeModule dflags outer_mod )
     MASSERT( isJust (homeUnitInstanceOfId dflags) )
-    let uid  = fromJust (homeUnitInstanceOfId dflags)
-        -- we need to fetch the most recent ppr infos from the unit
-        -- database because we might have modified it
-        uid' = updateIndefUnitId (pkgState dflags) uid
+    let Just uid = homeUnitInstanceOfId dflags
     inner_mod `checkImplements`
         Module
-            (mkInstantiatedUnit uid' (homeUnitInstantiations dflags))
+            (mkInstantiatedUnit uid (homeUnitInstantiations dflags))
             (moduleName outer_mod)

@@ -51,8 +51,6 @@ module GHC.Unit.State (
         packageHsLibs, getLibs,
 
         -- * Utils
-        mkIndefUnitId,
-        updateIndefUnitId,
         unwireUnit,
 
         -- * Pretty-printing
@@ -62,6 +60,9 @@ module GHC.Unit.State (
         pprUnitIdForUser,
         pprUnitInfoForUser,
         pprModuleMap,
+        pprWithUnitState,
+
+        -- * Home unit utils
         homeUnitIsIndefinite,
         homeUnitIsDefinite,
     )
@@ -1077,7 +1078,6 @@ findWiredInPackages dflags prec_map pkgs vis_map = do
   mb_wired_in_pkgs <- mapM (findWiredInPackage pkgs) wired_in_unitids
   let
         wired_in_pkgs = catMaybes mb_wired_in_pkgs
-        pkgstate = pkgState dflags
 
         wiredInMap :: Map WiredUnitId WiredUnitId
         wiredInMap = Map.fromList
@@ -1090,10 +1090,10 @@ findWiredInPackages dflags prec_map pkgs vis_map = do
           where upd_pkg pkg
                   | Just def_uid <- definiteUnitInfoId pkg
                   , Just wiredInUnitId <- Map.lookup def_uid wiredInMap
-                  = let fs = unitIdFS (unDefinite wiredInUnitId)
+                  = let uid = unDefinite wiredInUnitId
                     in pkg {
-                      unitId = UnitId fs,
-                      unitInstanceOf = mkIndefUnitId pkgstate fs
+                      unitId = uid,
+                      unitInstanceOf = Indefinite uid
                     }
                   | otherwise
                   = pkg
@@ -2121,16 +2121,6 @@ pprUnitInfoForUser = ppr . mkUnitPprInfo unitIdFS
 lookupUnitPprInfo :: PackageState -> UnitId -> Maybe UnitPprInfo
 lookupUnitPprInfo state = fmap (mkUnitPprInfo unitIdFS) . lookupInstalledPackage state
 
--- | Create a IndefUnitId.
-mkIndefUnitId :: PackageState -> FastString -> IndefUnitId
-mkIndefUnitId state raw =
-    let uid = UnitId raw
-    in Indefinite uid $! lookupUnitPprInfo state uid
-
--- | Update component ID details from the database
-updateIndefUnitId :: PackageState -> IndefUnitId -> IndefUnitId
-updateIndefUnitId pkgstate uid = mkIndefUnitId pkgstate (unitIdFS (indefUnit uid))
-
 -- -----------------------------------------------------------------------------
 -- Displaying packages
 
@@ -2184,3 +2174,8 @@ improveUnit pkg_map uid =
             if unitId pkg `elementOfUniqSet` preloadClosure pkg_map
                 then mkUnit pkg
                 else uid
+
+-- | Print unit-ids with UnitInfo found in the given UnitState
+pprWithUnitState :: PackageState -> SDoc -> SDoc
+pprWithUnitState state = updSDocContext
+  (\ctx -> ctx { sdocUnitIdForUser = pprUnitIdForUser state . UnitId })
