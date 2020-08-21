@@ -1,5 +1,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE PatternSynonyms #-}
 
 {-
 (c) The University of Glasgow 2006-2012
@@ -119,6 +120,7 @@ import Data.Graph (SCC(..))
 import Data.List (intersperse)
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.Foldable (toList)
+import GHC.Exts (oneShot)
 
 {-
 ************************************************************************
@@ -310,8 +312,17 @@ code (either C or assembly), or generating interface files.
 -- To display an 'SDoc', use 'printSDoc', 'printSDocLn', 'bufLeftRenderSDoc',
 -- or 'renderWithStyle'.  Avoid calling 'runSDoc' directly as it breaks the
 -- abstraction layer.
-newtype SDoc = SDoc { runSDoc :: SDocContext -> Doc }
+newtype SDoc = SDoc' (SDocContext -> Doc)
   deriving (Semigroup, Monoid)
+
+-- See Note [The one-shot state monad trick] in GHC.Utils.Monad
+{-# COMPLETE SDoc #-}
+pattern SDoc :: (SDocContext -> Doc) -> SDoc
+pattern SDoc m <- SDoc' m
+  where SDoc m = SDoc' (oneShot m)
+
+runSDoc :: SDoc -> (SDocContext -> Doc)
+runSDoc (SDoc m) = m
 
 data SDocContext = SDC
   { sdocStyle                       :: !PprStyle
