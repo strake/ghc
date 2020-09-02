@@ -149,7 +149,7 @@ nativeCodeGen :: forall a . DynFlags -> Module -> ModLocation -> Handle -> UniqS
 nativeCodeGen dflags this_mod modLoc h us cmms
  = let config   = initConfig dflags
        platform = ncgPlatform config
-       nCG' :: ( Outputable statics, Outputable jumpDest, Instruction instr)
+       nCG' :: ( OutputableP statics, Outputable jumpDest, Instruction instr)
             => NcgImpl statics instr jumpDest -> IO a
        nCG' ncgImpl = nativeCodeGen' dflags this_mod modLoc ncgImpl h us cmms
    in case platformArch platform of
@@ -213,7 +213,7 @@ unwinding table).
 See also Note [What is this unwinding business?] in "GHC.Cmm.DebugBlock".
 -}
 
-nativeCodeGen' :: (Outputable statics, Outputable jumpDest, Instruction instr)
+nativeCodeGen' :: (OutputableP statics, Outputable jumpDest, Instruction instr)
                => DynFlags
                -> Module -> ModLocation
                -> NcgImpl statics instr jumpDest
@@ -289,7 +289,7 @@ finishNativeGen dflags modLoc bufh@(BufHandle _ _ h) us ngs
                    (dumpOptionsFromFlag Opt_D_dump_asm_stats) "NCG stats"
                    FormatText
 
-cmmNativeGenStream :: (Outputable statics, Outputable jumpDest, Instruction instr)
+cmmNativeGenStream :: (OutputableP statics, Outputable jumpDest, Instruction instr)
               => DynFlags
               -> Module -> ModLocation
               -> NcgImpl statics instr jumpDest
@@ -328,9 +328,10 @@ cmmNativeGenStream dflags this_mod modLoc ncgImpl h us cmm_stream ngs
               -- Link native code information into debug blocks
               -- See Note [What is this unwinding business?] in "GHC.Cmm.DebugBlock".
               let !ldbgs = cmmDebugLink (ngs_labels ngs') (ngs_unwinds ngs') ndbgs
+                  platform = targetPlatform dflags
               unless (null ldbgs) $
                 dumpIfSet_dyn dflags Opt_D_dump_debug "Debug Infos" FormatText
-                  (vcat $ map ppr ldbgs)
+                  (vcat $ map (pdoc platform) ldbgs)
 
               -- Accumulate debug information for emission in finishNativeGen.
               let ngs'' = ngs' { ngs_debug = ngs_debug ngs' ++ ldbgs, ngs_labels = [] }
@@ -344,7 +345,7 @@ cmmNativeGenStream dflags this_mod modLoc ncgImpl h us cmm_stream ngs
 -- | Do native code generation on all these cmms.
 --
 cmmNativeGens :: forall statics instr jumpDest.
-                 (Outputable statics, Outputable jumpDest, Instruction instr)
+                 (OutputableP statics, Outputable jumpDest, Instruction instr)
               => DynFlags
               -> Module -> ModLocation
               -> NcgImpl statics instr jumpDest
@@ -386,7 +387,8 @@ cmmNativeGens dflags this_mod modLoc ncgImpl h dbgMap = go
           map (pprNatCmmDecl ncgImpl) native
 
         -- force evaluation all this stuff to avoid space leaks
-        {-# SCC "seqString" #-} evaluate $ seqList (showSDoc dflags $ vcat $ map ppr imports) ()
+        let platform = targetPlatform dflags
+        {-# SCC "seqString" #-} evaluate $ seqList (showSDoc dflags $ vcat $ map (pdoc platform) imports) ()
 
         let !labels' = if debugLevel dflags > 0
                        then cmmDebugLabels isMetaInstr native else []
@@ -420,7 +422,7 @@ emitNativeCode dflags h sdoc = do
 --      Dumping the output of each stage along the way.
 --      Global conflict graph and NGC stats
 cmmNativeGen
-    :: forall statics instr jumpDest. (Instruction instr, Outputable statics, Outputable jumpDest)
+    :: forall statics instr jumpDest. (Instruction instr, OutputableP statics, Outputable jumpDest)
     => DynFlags
     -> Module -> ModLocation
     -> NcgImpl statics instr jumpDest
@@ -444,7 +446,7 @@ cmmNativeGen dflags this_mod modLoc ncgImpl us fileIds dbgMap cmm count
         let platform = ncgPlatform config
 
         let proc_name = case cmm of
-                (CmmProc _ entry_label _ _) -> ppr entry_label
+                (CmmProc _ entry_label _ _) -> pdoc platform entry_label
                 _                           -> text "DataChunk"
 
         -- rewrite assignments to global regs
@@ -459,10 +461,10 @@ cmmNativeGen dflags this_mod modLoc ncgImpl us fileIds dbgMap cmm count
 
         dumpIfSet_dyn dflags
                 Opt_D_dump_opt_cmm "Optimised Cmm" FormatCMM
-                (pprCmmGroup [opt_cmm])
+                (pprCmmGroup platform [opt_cmm])
 
         let cmmCfg = {-# SCC "getCFG" #-}
-                     getCfgProc (cfgWeightInfo dflags) opt_cmm
+                     getCfgProc platform (cfgWeightInfo dflags) opt_cmm
 
         -- generate native code from cmm
         let ((native, lastMinuteImports, fileIds', nativeCfgWeights), usGen) =
