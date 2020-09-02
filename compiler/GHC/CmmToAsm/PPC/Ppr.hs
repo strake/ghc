@@ -1,3 +1,4 @@
+
 -----------------------------------------------------------------------------
 --
 -- Pretty-printing assembly language
@@ -59,19 +60,19 @@ pprNatCmmDecl config proc@(CmmProc top_info lbl _ (ListGraph blocks)) =
          -- special case for code without info table:
          pprSectionAlign config (Section Text lbl) $$
          (case platformArch platform of
-            ArchPPC_64 ELF_V1 -> pprFunctionDescriptor lbl
-            ArchPPC_64 ELF_V2 -> pprFunctionPrologue lbl
+            ArchPPC_64 ELF_V1 -> pprFunctionDescriptor platform lbl
+            ArchPPC_64 ELF_V2 -> pprFunctionPrologue platform lbl
             _ -> pprLabel platform lbl) $$ -- blocks guaranteed not null,
                                            -- so label needed
          vcat (map (pprBasicBlock config top_info) blocks) $$
          (if ncgDebugLevel config > 0
-          then ppr (mkAsmTempEndLabel lbl) <> char ':' else empty) $$
+          then pdoc platform (mkAsmTempEndLabel lbl) <> char ':' else empty) $$
          pprSizeDecl platform lbl
 
     Just (CmmStaticsRaw info_lbl _) ->
       pprSectionAlign config (Section Text info_lbl) $$
       (if platformHasSubsectionsViaSymbols platform
-          then ppr (mkDeadStripPreventer info_lbl) <> char ':'
+          then pdoc platform (mkDeadStripPreventer info_lbl) <> char ':'
           else empty) $$
       vcat (map (pprBasicBlock config top_info) blocks) $$
       -- above: Even the first block gets a label, because with branch-chain
@@ -80,9 +81,9 @@ pprNatCmmDecl config proc@(CmmProc top_info lbl _ (ListGraph blocks)) =
        then
        -- See Note [Subsections Via Symbols] in X86/Ppr.hs
                 text "\t.long "
-            <+> ppr info_lbl
+            <+> pdoc platform info_lbl
             <+> char '-'
-            <+> ppr (mkDeadStripPreventer info_lbl)
+            <+> pdoc platform (mkDeadStripPreventer info_lbl)
        else empty) $$
       pprSizeDecl platform info_lbl
 
@@ -93,37 +94,37 @@ pprSizeDecl platform lbl
    then text "\t.size" <+> prettyLbl <> text ", .-" <> codeLbl
    else empty
   where
-    prettyLbl = ppr lbl
+    prettyLbl = pdoc platform lbl
     codeLbl
       | platformArch platform == ArchPPC_64 ELF_V1 = char '.' <> prettyLbl
       | otherwise                                  = prettyLbl
 
-pprFunctionDescriptor :: CLabel -> SDoc
-pprFunctionDescriptor lab = pprGloblDecl lab
+pprFunctionDescriptor :: Platform -> CLabel -> SDoc
+pprFunctionDescriptor platform lab = pprGloblDecl platform lab
                         $$  text "\t.section \".opd\", \"aw\""
                         $$  text "\t.align 3"
-                        $$  ppr lab <> char ':'
+                        $$  pdoc platform lab <> char ':'
                         $$  text "\t.quad ."
-                        <>  ppr lab
+                        <>  pdoc platform lab
                         <>  text ",.TOC.@tocbase,0"
                         $$  text "\t.previous"
                         $$  text "\t.type"
-                        <+> ppr lab
+                        <+> pdoc platform lab
                         <>  text ", @function"
-                        $$  char '.' <> ppr lab <> char ':'
+                        $$  char '.' <> pdoc platform lab <> char ':'
 
-pprFunctionPrologue :: CLabel ->SDoc
-pprFunctionPrologue lab =  pprGloblDecl lab
+pprFunctionPrologue :: Platform -> CLabel ->SDoc
+pprFunctionPrologue platform lab =  pprGloblDecl platform lab
                         $$  text ".type "
-                        <> ppr lab
+                        <> pdoc platform lab
                         <> text ", @function"
-                        $$ ppr lab <> char ':'
+                        $$ pdoc platform lab <> char ':'
                         $$ text "0:\taddis\t" <> pprReg toc
                         <> text ",12,.TOC.-0b@ha"
                         $$ text "\taddi\t" <> pprReg toc
                         <> char ',' <> pprReg toc <> text ",.TOC.-0b@l"
-                        $$ text "\t.localentry\t" <> ppr lab
-                        <> text ",.-" <> ppr lab
+                        $$ text "\t.localentry\t" <> pdoc platform lab
+                        <> text ",.-" <> pdoc platform lab
 
 pprBasicBlock :: NCGConfig -> LabelMap RawCmmStatics -> NatBasicBlock Instr
               -> SDoc
@@ -132,7 +133,7 @@ pprBasicBlock config info_env (BasicBlock blockid instrs)
     pprLabel platform asmLbl $$
     vcat (map (pprInstr platform) instrs) $$
     (if  ncgDebugLevel config > 0
-      then ppr (mkAsmTempEndLabel asmLbl) <> char ':'
+      then pdoc platform (mkAsmTempEndLabel asmLbl) <> char ':'
       else empty
     )
   where
@@ -149,15 +150,15 @@ pprBasicBlock config info_env (BasicBlock blockid instrs)
 
 pprDatas :: Platform -> RawCmmStatics -> SDoc
 -- See note [emit-time elimination of static indirections] in "GHC.Cmm.CLabel".
-pprDatas _platform (CmmStaticsRaw alias [CmmStaticLit (CmmLabel lbl), CmmStaticLit ind, _, _])
+pprDatas platform (CmmStaticsRaw alias [CmmStaticLit (CmmLabel lbl), CmmStaticLit ind, _, _])
   | lbl == mkIndStaticInfoLabel
   , let labelInd (CmmLabelOff l _) = Just l
         labelInd (CmmLabel l) = Just l
         labelInd _ = Nothing
   , Just ind' <- labelInd ind
   , alias `mayRedirectTo` ind'
-  = pprGloblDecl alias
-    $$ text ".equiv" <+> ppr alias <> comma <> ppr (CmmLabel ind')
+  = pprGloblDecl platform alias
+    $$ text ".equiv" <+> pdoc platform alias <> comma <> pdoc platform (CmmLabel ind')
 pprDatas platform (CmmStaticsRaw lbl dats) = vcat (pprLabel platform lbl : map (pprData platform) dats)
 
 pprData :: Platform -> CmmStatic -> SDoc
@@ -167,23 +168,23 @@ pprData platform d = case d of
    CmmUninitialised bytes -> text ".space " <> int bytes
    CmmStaticLit lit       -> pprDataItem platform lit
 
-pprGloblDecl :: CLabel -> SDoc
-pprGloblDecl lbl
+pprGloblDecl :: Platform -> CLabel -> SDoc
+pprGloblDecl platform lbl
   | not (externallyVisibleCLabel lbl) = empty
-  | otherwise = text ".globl " <> ppr lbl
+  | otherwise = text ".globl " <> pdoc platform lbl
 
 pprTypeAndSizeDecl :: Platform -> CLabel -> SDoc
 pprTypeAndSizeDecl platform lbl
   = if platformOS platform == OSLinux && externallyVisibleCLabel lbl
     then text ".type " <>
-         ppr lbl <> text ", @object"
+         pdoc platform lbl <> text ", @object"
     else empty
 
 pprLabel :: Platform -> CLabel -> SDoc
 pprLabel platform lbl =
-   pprGloblDecl lbl
+   pprGloblDecl platform lbl
    $$ pprTypeAndSizeDecl platform lbl
-   $$ (ppr lbl <> char ':')
+   $$ (pdoc platform lbl <> char ':')
 
 -- -----------------------------------------------------------------------------
 -- pprInstr: print an 'Instr'
@@ -230,58 +231,42 @@ pprCond c
                 GU      -> sLit "gt";  LEU   -> sLit "le"; })
 
 
-pprImm :: Imm -> SDoc
+pprImm :: Platform -> Imm -> SDoc
+pprImm platform = \case
+   ImmInt i       -> int i
+   ImmInteger i   -> integer i
+   ImmCLbl l      -> pdoc platform l
+   ImmIndex l i   -> pdoc platform l <> char '+' <> int i
+   ImmLit s       -> s
+   ImmFloat f     -> float $ fromRational f
+   ImmDouble d    -> double $ fromRational d
+   ImmConstantSum a b   -> pprImm platform a <> char '+' <> pprImm platform b
+   ImmConstantDiff a b  -> pprImm platform a <> char '-' <> lparen <> pprImm platform b <> rparen
+   LO (ImmInt i)        -> pprImm platform (LO (ImmInteger (toInteger i)))
+   LO (ImmInteger i)    -> pprImm platform (ImmInteger (toInteger lo16))
+        where
+          lo16 = fromInteger (i .&. 0xffff) :: Int16
 
-pprImm (ImmInt i)     = int i
-pprImm (ImmInteger i) = integer i
-pprImm (ImmCLbl l)    = ppr l
-pprImm (ImmIndex l i) = ppr l <> char '+' <> int i
-pprImm (ImmLit s)     = s
+   LO i              -> pprImm platform i <> text "@l"
+   HI i              -> pprImm platform i <> text "@h"
+   HA (ImmInt i)     -> pprImm platform (HA (ImmInteger (toInteger i)))
+   HA (ImmInteger i) -> pprImm platform (ImmInteger ha16)
+        where
+          ha16 = if lo16 >= 0x8000 then hi16+1 else hi16
+          hi16 = (i `shiftR` 16)
+          lo16 = i .&. 0xffff
 
-pprImm (ImmFloat _)  = text "naughty float immediate"
-pprImm (ImmDouble _) = text "naughty double immediate"
-
-pprImm (ImmConstantSum a b) = pprImm a <> char '+' <> pprImm b
-pprImm (ImmConstantDiff a b) = pprImm a <> char '-'
-                   <> lparen <> pprImm b <> rparen
-
-pprImm (LO (ImmInt i))     = pprImm (LO (ImmInteger (toInteger i)))
-pprImm (LO (ImmInteger i)) = pprImm (ImmInteger (toInteger lo16))
-  where
-    lo16 = fromInteger (i .&. 0xffff) :: Int16
-
-pprImm (LO i)
-  = pprImm i <> text "@l"
-
-pprImm (HI i)
-  = pprImm i <> text "@h"
-
-pprImm (HA (ImmInt i))     = pprImm (HA (ImmInteger (toInteger i)))
-pprImm (HA (ImmInteger i)) = pprImm (ImmInteger ha16)
-  where
-    ha16 = if lo16 >= 0x8000 then hi16+1 else hi16
-    hi16 = (i `shiftR` 16)
-    lo16 = i .&. 0xffff
-
-pprImm (HA i)
-  = pprImm i <> text "@ha"
-
-pprImm (HIGHERA i)
-  = pprImm i <> text "@highera"
-
-pprImm (HIGHESTA i)
-  = pprImm i <> text "@highesta"
+   HA i        -> pprImm platform i <> text "@ha"
+   HIGHERA i   -> pprImm platform i <> text "@highera"
+   HIGHESTA i  -> pprImm platform i <> text "@highesta"
 
 
-pprAddr :: AddrMode -> SDoc
-pprAddr (AddrRegReg r1 r2)
-  = pprReg r1 <> char ',' <+> pprReg r2
-pprAddr (AddrRegImm r1 (ImmInt i))
-  = hcat [ int i, char '(', pprReg r1, char ')' ]
-pprAddr (AddrRegImm r1 (ImmInteger i))
-  = hcat [ integer i, char '(', pprReg r1, char ')' ]
-pprAddr (AddrRegImm r1 imm)
-  = hcat [ pprImm imm, char '(', pprReg r1, char ')' ]
+pprAddr :: Platform -> AddrMode -> SDoc
+pprAddr platform = \case
+   AddrRegReg r1 r2             -> pprReg r1 <> char ',' <+> pprReg r2
+   AddrRegImm r1 (ImmInt i)     -> hcat [ int i, char '(', pprReg r1, char ')' ]
+   AddrRegImm r1 (ImmInteger i) -> hcat [ integer i, char '(', pprReg r1, char ')' ]
+   AddrRegImm r1 imm            -> hcat [ pprImm platform imm, char '(', pprReg r1, char ')' ]
 
 
 pprSectionAlign :: NCGConfig -> Section -> SDoc
@@ -322,11 +307,11 @@ pprDataItem platform lit
         imm = litToImm lit
         archPPC_64 = not $ target32Bit platform
 
-        ppr_item II8  _ = [text "\t.byte\t" <> pprImm imm]
-        ppr_item II16 _ = [text "\t.short\t" <> pprImm imm]
-        ppr_item II32 _ = [text "\t.long\t" <> pprImm imm]
+        ppr_item II8  _ = [text "\t.byte\t"  <> pprImm platform imm]
+        ppr_item II16 _ = [text "\t.short\t" <> pprImm platform imm]
+        ppr_item II32 _ = [text "\t.long\t"  <> pprImm platform imm]
         ppr_item II64 _
-           | archPPC_64 = [text "\t.quad\t" <> pprImm imm]
+           | archPPC_64 = [text "\t.quad\t"  <> pprImm platform imm]
 
         ppr_item II64 (CmmInt x _)
            | not archPPC_64 =
@@ -337,13 +322,8 @@ pprDataItem platform lit
                     <> int (fromIntegral (fromIntegral x :: Word32))]
 
 
-        ppr_item FF32 (CmmFloat r _)
-           = let bs = floatToBytes (fromRational r)
-             in  map (\b -> text "\t.byte\t" <> pprImm (ImmInt b)) bs
-
-        ppr_item FF64 (CmmFloat r _)
-           = let bs = doubleToBytes (fromRational r)
-             in  map (\b -> text "\t.byte\t" <> pprImm (ImmInt b)) bs
+        ppr_item FF32 _ = [text "\t.float\t" <> pprImm platform imm]
+        ppr_item FF64 _ = [text "\t.double\t" <> pprImm platform imm]
 
         ppr_item _ _
                 = panic "PPC.Ppr.pprDataItem: no match"
@@ -407,7 +387,7 @@ pprInstr platform instr = case instr of
            char '\t',
            pprReg reg,
            text ", ",
-           pprAddr addr
+           pprAddr platform addr
        ]
 
    LDFAR fmt reg (AddrRegImm source off)
@@ -429,7 +409,7 @@ pprInstr platform instr = case instr of
            text "arx\t",
            pprReg reg1,
            text ", ",
-           pprAddr addr
+           pprAddr platform addr
            ]
 
    LA fmt reg addr
@@ -449,7 +429,7 @@ pprInstr platform instr = case instr of
            char '\t',
            pprReg reg,
            text ", ",
-           pprAddr addr
+           pprAddr platform addr
            ]
 
    ST fmt reg addr
@@ -462,7 +442,7 @@ pprInstr platform instr = case instr of
            char '\t',
            pprReg reg,
            text ", ",
-           pprAddr addr
+           pprAddr platform addr
            ]
 
    STFAR fmt reg (AddrRegImm source off)
@@ -484,7 +464,7 @@ pprInstr platform instr = case instr of
            char '\t',
            pprReg reg,
            text ", ",
-           pprAddr addr
+           pprAddr platform addr
            ]
 
    STC fmt reg1 addr
@@ -497,7 +477,7 @@ pprInstr platform instr = case instr of
            text "cx.\t",
            pprReg reg1,
            text ", ",
-           pprAddr addr
+           pprAddr platform addr
            ]
 
    LIS reg imm
@@ -507,7 +487,7 @@ pprInstr platform instr = case instr of
            char '\t',
            pprReg reg,
            text ", ",
-           pprImm imm
+           pprImm platform imm
            ]
 
    LI reg imm
@@ -517,7 +497,7 @@ pprInstr platform instr = case instr of
            char '\t',
            pprReg reg,
            text ", ",
-           pprImm imm
+           pprImm platform imm
            ]
 
    MR reg1 reg2
@@ -540,7 +520,7 @@ pprInstr platform instr = case instr of
            char '\t',
            pprReg reg,
            text ", ",
-           pprRI ri
+           pprRI platform ri
            ]
          where
            op = hcat [
@@ -558,7 +538,7 @@ pprInstr platform instr = case instr of
            char '\t',
            pprReg reg,
            text ", ",
-           pprRI ri
+           pprRI platform ri
            ]
           where
               op = hcat [
@@ -576,7 +556,7 @@ pprInstr platform instr = case instr of
            pprCond cond,
            pprPrediction prediction,
            char '\t',
-           ppr lbl
+           pdoc platform lbl
            ]
          where lbl = mkLocalBlockLabel (getUnique blockid)
                pprPrediction p = case p of
@@ -594,7 +574,7 @@ pprInstr platform instr = case instr of
            ],
            hcat [
                text "\tb\t",
-               ppr lbl
+               pdoc platform lbl
            ]
           ]
           where lbl = mkLocalBlockLabel (getUnique blockid)
@@ -611,7 +591,7 @@ pprInstr platform instr = case instr of
            char '\t',
            text "b",
            char '\t',
-           ppr lbl
+           pdoc platform lbl
        ]
 
    MTCTR reg
@@ -642,12 +622,12 @@ pprInstr platform instr = case instr of
              -- they'd technically be more like 'ForeignLabel's.
              hcat [
                text "\tbl\t.",
-               ppr lbl
+               pdoc platform lbl
              ]
            _ ->
              hcat [
                text "\tbl\t",
-               ppr lbl
+               pdoc platform lbl
              ]
 
    BCTRL _
@@ -657,7 +637,7 @@ pprInstr platform instr = case instr of
          ]
 
    ADD reg1 reg2 ri
-      -> pprLogic (sLit "add") reg1 reg2 ri
+      -> pprLogic platform (sLit "add") reg1 reg2 ri
 
    ADDIS reg1 reg2 imm
       -> hcat [
@@ -668,26 +648,26 @@ pprInstr platform instr = case instr of
            text ", ",
            pprReg reg2,
            text ", ",
-           pprImm imm
+           pprImm platform imm
            ]
 
    ADDO reg1 reg2 reg3
-      -> pprLogic (sLit "addo") reg1 reg2 (RIReg reg3)
+      -> pprLogic platform (sLit "addo") reg1 reg2 (RIReg reg3)
 
    ADDC reg1 reg2 reg3
-      -> pprLogic (sLit "addc") reg1 reg2 (RIReg reg3)
+      -> pprLogic platform (sLit "addc") reg1 reg2 (RIReg reg3)
 
    ADDE reg1 reg2 reg3
-      -> pprLogic (sLit "adde") reg1 reg2 (RIReg reg3)
+      -> pprLogic platform (sLit "adde") reg1 reg2 (RIReg reg3)
 
    ADDZE reg1 reg2
       -> pprUnary (sLit "addze") reg1 reg2
 
    SUBF reg1 reg2 reg3
-      -> pprLogic (sLit "subf") reg1 reg2 (RIReg reg3)
+      -> pprLogic platform (sLit "subf") reg1 reg2 (RIReg reg3)
 
    SUBFO reg1 reg2 reg3
-      -> pprLogic (sLit "subfo") reg1 reg2 (RIReg reg3)
+      -> pprLogic platform (sLit "subfo") reg1 reg2 (RIReg reg3)
 
    SUBFC reg1 reg2 ri
       -> hcat [
@@ -701,14 +681,14 @@ pprInstr platform instr = case instr of
            text ", ",
            pprReg reg2,
            text ", ",
-           pprRI ri
+           pprRI platform ri
            ]
 
    SUBFE reg1 reg2 reg3
-      -> pprLogic (sLit "subfe") reg1 reg2 (RIReg reg3)
+      -> pprLogic platform (sLit "subfe") reg1 reg2 (RIReg reg3)
 
    MULL fmt reg1 reg2 ri
-      -> pprMul fmt reg1 reg2 ri
+      -> pprMul platform fmt reg1 reg2 ri
 
    MULLO fmt reg1 reg2 reg3
       -> hcat [
@@ -783,23 +763,23 @@ pprInstr platform instr = case instr of
             text ", ",
             pprReg reg2,
             text ", ",
-            pprImm imm
+            pprImm platform imm
         ]
 
    AND reg1 reg2 ri
-      -> pprLogic (sLit "and") reg1 reg2 ri
+      -> pprLogic platform (sLit "and") reg1 reg2 ri
 
    ANDC reg1 reg2 reg3
-      -> pprLogic (sLit "andc") reg1 reg2 (RIReg reg3)
+      -> pprLogic platform (sLit "andc") reg1 reg2 (RIReg reg3)
 
    NAND reg1 reg2 reg3
-      -> pprLogic (sLit "nand") reg1 reg2 (RIReg reg3)
+      -> pprLogic platform (sLit "nand") reg1 reg2 (RIReg reg3)
 
    OR reg1 reg2 ri
-      -> pprLogic (sLit "or") reg1 reg2 ri
+      -> pprLogic platform (sLit "or") reg1 reg2 ri
 
    XOR reg1 reg2 ri
-      -> pprLogic (sLit "xor") reg1 reg2 ri
+      -> pprLogic platform (sLit "xor") reg1 reg2 ri
 
    ORIS reg1 reg2 imm
       -> hcat [
@@ -810,7 +790,7 @@ pprInstr platform instr = case instr of
             text ", ",
             pprReg reg2,
             text ", ",
-            pprImm imm
+            pprImm platform imm
         ]
 
    XORIS reg1 reg2 imm
@@ -822,7 +802,7 @@ pprInstr platform instr = case instr of
             text ", ",
             pprReg reg2,
             text ", ",
-            pprImm imm
+            pprImm platform imm
         ]
 
    EXTS fmt reg1 reg2
@@ -881,21 +861,21 @@ pprInstr platform instr = case instr of
                        II32 -> "slw"
                        II64 -> "sld"
                        _    -> panic "PPC.Ppr.pprInstr: shift illegal size"
-         in pprLogic (sLit op) reg1 reg2 (limitShiftRI fmt ri)
+         in pprLogic platform (sLit op) reg1 reg2 (limitShiftRI fmt ri)
 
    SR fmt reg1 reg2 ri
       -> let op = case fmt of
                        II32 -> "srw"
                        II64 -> "srd"
                        _    -> panic "PPC.Ppr.pprInstr: shift illegal size"
-         in pprLogic (sLit op) reg1 reg2 (limitShiftRI fmt ri)
+         in pprLogic platform (sLit op) reg1 reg2 (limitShiftRI fmt ri)
 
    SRA fmt reg1 reg2 ri
       -> let op = case fmt of
                        II32 -> "sraw"
                        II64 -> "srad"
                        _    -> panic "PPC.Ppr.pprInstr: shift illegal size"
-         in pprLogic (sLit op) reg1 reg2 (limitShiftRI fmt ri)
+         in pprLogic platform (sLit op) reg1 reg2 (limitShiftRI fmt ri)
 
    RLWINM reg1 reg2 sh mb me
       -> hcat [
@@ -1025,8 +1005,8 @@ pprInstr platform instr = case instr of
    NOP
       -> text "\tnop"
 
-pprLogic :: PtrString -> Reg -> Reg -> RI -> SDoc
-pprLogic op reg1 reg2 ri = hcat [
+pprLogic :: Platform -> PtrString -> Reg -> Reg -> RI -> SDoc
+pprLogic platform op reg1 reg2 ri = hcat [
         char '\t',
         ptext op,
         case ri of
@@ -1037,12 +1017,12 @@ pprLogic op reg1 reg2 ri = hcat [
         text ", ",
         pprReg reg2,
         text ", ",
-        pprRI ri
+        pprRI platform ri
     ]
 
 
-pprMul :: Format -> Reg -> Reg -> RI -> SDoc
-pprMul fmt reg1 reg2 ri = hcat [
+pprMul :: Platform -> Format -> Reg -> Reg -> RI -> SDoc
+pprMul platform fmt reg1 reg2 ri = hcat [
         char '\t',
         text "mull",
         case ri of
@@ -1056,7 +1036,7 @@ pprMul fmt reg1 reg2 ri = hcat [
         text ", ",
         pprReg reg2,
         text ", ",
-        pprRI ri
+        pprRI platform ri
     ]
 
 
@@ -1102,9 +1082,9 @@ pprBinaryF op fmt reg1 reg2 reg3 = hcat [
         pprReg reg3
     ]
 
-pprRI :: RI -> SDoc
-pprRI (RIReg r) = pprReg r
-pprRI (RIImm r) = pprImm r
+pprRI :: Platform -> RI -> SDoc
+pprRI _        (RIReg r) = pprReg r
+pprRI platform (RIImm r) = pprImm platform r
 
 
 pprFFormat :: Format -> SDoc
