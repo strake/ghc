@@ -86,7 +86,7 @@ cpsTop hsc_env proc =
 
        ----------- Implement switches ------------------------------------------
        g <- {-# SCC "createSwitchPlans" #-}
-            runUniqSM $ cmmImplementSwitchPlans dflags g
+            runUniqSM $ cmmImplementSwitchPlans (backend dflags) platform g
        dump Opt_D_dump_cmm_switch "Post switch plan" g
 
        ----------- Proc points -------------------------------------------------
