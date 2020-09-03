@@ -42,7 +42,6 @@ import GHC.Prelude
 
 import GHC.Data.Bag
 import GHC.Data.FastString
-import GHC.Types.Var (EvVar)
 import GHC.Types.Id
 import GHC.Types.Var.Env
 import GHC.Types.Unique.DSet
@@ -63,7 +62,7 @@ import GHC.Core.Utils (exprType)
 import GHC.Builtin.Names
 import GHC.Builtin.Types
 import GHC.Builtin.Types.Prim
-import GHC.Tc.Utils.TcType (evVarPred)
+import GHC.Tc.Solver.Monad (InertSet, emptyInert)
 
 import Numeric (fromRat)
 import Data.Foldable (find)
@@ -549,15 +548,14 @@ initTmState = TmSt emptySDIE emptyCoreMap
 
 -- | The type oracle state. A poor man's 'GHC.Tc.Solver.Monad.InsertSet': The invariant is
 -- that all constraints in there are mutually compatible.
-newtype TyState = TySt (Bag EvVar)
+newtype TyState = TySt InertSet
 
 -- | Not user-facing.
 instance Outputable TyState where
-  ppr (TySt evs)
-    = braces $ hcat $ punctuate comma $ map (ppr . evVarPred) $ bagToList evs
+  ppr (TySt inert) = ppr inert
 
 initTyState :: TyState
-initTyState = TySt emptyBag
+initTyState = TySt emptyInert
 
 -- | An inert set of canonical (i.e. mutually compatible) term and type
 -- constraints.
