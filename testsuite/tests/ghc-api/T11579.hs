@@ -1,5 +1,6 @@
 import System.Environment
 import GHC.Driver.Session
+import GHC.Driver.Config
 import GHC.Data.FastString
 import GHC
 import GHC.Data.StringBuffer
@@ -15,7 +16,8 @@ main = do
 
     token <- runGhc (Just libdir) $ do
         dflags <- getSessionDynFlags
-        let pstate = mkPState (dflags `gopt_set` Opt_Haddock) stringBuffer loc
+        let opts   = initParserOpts (dflags `gopt_set` Opt_Haddock)
+            pstate = initParserState opts stringBuffer loc
         case unP (lexer False return) pstate of
             POk _ token -> return (unLoc token)
             _           -> error "No token"
