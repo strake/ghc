@@ -15,6 +15,7 @@ types that
 -}
 
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# OPTIONS_GHC -Wno-incomplete-record-updates #-}
 
 module GHC.Types.Basic (
@@ -235,7 +236,7 @@ alignmentOf x = case x .&. 7 of
 instance Outputable Alignment where
   ppr (Alignment m) = ppr m
 
-instance OutputableP Alignment where
+instance OutputableP env Alignment where
   pdoc _ = ppr
 
 {-

@@ -1,5 +1,8 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE FlexibleInstances #-}
+
 
 -----------------------------------------------------------------------------
 --
@@ -144,7 +147,7 @@ pprLabel platform lbl =
 -- -----------------------------------------------------------------------------
 -- pprInstr: print an 'Instr'
 
-instance OutputableP Instr where
+instance OutputableP Platform Instr where
     pdoc = pprInstr
 
 
