@@ -151,6 +151,8 @@ Library
     -- we use an explicit Prelude
     Default-Extensions:
         BangPatterns
+        FlexibleContexts
+        FlexibleInstances
         LambdaCase
         MonadComprehensions
         NoImplicitPrelude

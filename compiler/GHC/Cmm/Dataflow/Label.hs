@@ -3,6 +3,7 @@
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 
 module GHC.Cmm.Dataflow.Label
     ( Label
@@ -43,7 +44,7 @@ instance Uniquable Label where
 instance Outputable Label where
   ppr label = ppr (getUnique label)
 
-instance OutputableP Label where
+instance OutputableP env Label where
   pdoc _ l = ppr l
 
 -----------------------------------------------------------------------------
@@ -131,8 +132,8 @@ instance Outputable LabelSet where
 instance Outputable a => Outputable (LabelMap a) where
   ppr = ppr . mapToList
 
-instance OutputableP a => OutputableP (LabelMap a) where
-  pdoc platform = pdoc platform . mapToList
+instance OutputableP env a => OutputableP env (LabelMap a) where
+  pdoc env = pdoc env . mapToList
 
 instance TrieMap LabelMap where
   type Key LabelMap = Label
