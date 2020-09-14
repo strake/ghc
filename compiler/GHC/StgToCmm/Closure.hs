@@ -1,6 +1,7 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 
 -----------------------------------------------------------------------------
 --
@@ -116,7 +117,7 @@ data CgLoc
         -- To tail-call it, assign to these locals,
         -- and branch to the block id
 
-instance OutputableP CgLoc where
+instance OutputableP Platform CgLoc where
    pdoc = pprCgLoc
 
 pprCgLoc :: Platform -> CgLoc -> SDoc
