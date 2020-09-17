@@ -711,3 +711,5 @@ test('T18129', expect_broken(18129), compile, [''])
 test('T18185', normal, compile, [''])
 test('ExplicitSpecificityA1', normal, compile, [''])
 test('ExplicitSpecificityA2', normal, compile, [''])
+test('T15942', normal, compile, [''])
+
