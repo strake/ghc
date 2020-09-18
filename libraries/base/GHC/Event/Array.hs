@@ -127,7 +127,7 @@ unsafeWrite (Array ref) ix a = do
     unsafeWrite' ac ix a
 
 unsafeWrite' :: Storable a => AC a -> Int -> a -> IO ()
-unsafeWrite' (AC es _ cap) ix a = do
+unsafeWrite' (AC es _ cap) ix a =
     CHECK_BOUNDS("unsafeWrite'",cap,ix)
       withForeignPtr es $ \p ->
         pokeElemOff p ix a
@@ -147,7 +147,7 @@ ensureCapacity (Array ref) c = do
       writeIORef ref ac'
 
 ensureCapacity' :: Storable a => AC a -> Int -> IO (AC a)
-ensureCapacity' ac@(AC es len cap) c = do
+ensureCapacity' ac@(AC es len cap) c =
     if c > cap
       then do
         es' <- reallocArray es cap' cap
@@ -171,7 +171,7 @@ snoc (Array ref) e = do
     writeIORef ref (AC es len' cap)
 
 clear :: Array a -> IO ()
-clear (Array ref) = do
+clear (Array ref) =
   atomicModifyIORef' ref $ \(AC es _ cap) ->
         (AC es 0 cap, ())
 
