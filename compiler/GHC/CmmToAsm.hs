@@ -284,7 +284,7 @@ finishNativeGen dflags modLoc bufh@(BufHandle _ _ h) us ngs
           dump_stats (Linear.pprStats (concat (ngs_natives ngs)) linearStats)
 
         -- write out the imports
-        let ctx = initSDocContext dflags (mkCodeStyle AsmStyle)
+        let ctx = initSDocContext dflags (PprCode AsmStyle)
         printSDocLn ctx Pretty.LeftMode h
                 $ makeImportsDoc dflags (concat (ngs_imports ngs))
         return us'
@@ -414,7 +414,7 @@ cmmNativeGens dflags this_mod modLoc ncgImpl h dbgMap = go
 emitNativeCode :: DynFlags -> BufHandle -> SDoc -> IO ()
 emitNativeCode dflags h sdoc = do
 
-        let ctx = initSDocContext dflags (mkCodeStyle AsmStyle)
+        let ctx = initSDocContext dflags (PprCode AsmStyle)
         {-# SCC "pprNativeCode" #-} bufLeftRenderSDoc ctx h sdoc
 
         -- dump native code
@@ -798,8 +798,8 @@ makeImportsDoc dflags imports
 
         doPpr lbl = (lbl, renderWithStyle
                               (initSDocContext dflags astyle)
-                              (pprCLabel_NCG platform lbl))
-        astyle = mkCodeStyle AsmStyle
+                              (pprCLabel platform AsmStyle lbl))
+        astyle = PprCode AsmStyle
 
 -- -----------------------------------------------------------------------------
 -- Generate jump tables
