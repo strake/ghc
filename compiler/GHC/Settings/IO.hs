@@ -259,7 +259,6 @@ getTargetPlatform settingsFile settings constants = do
     , platformHasIdentDirective = targetHasIdentDirective
     , platformHasSubsectionsViaSymbols = targetHasSubsectionsViaSymbols
     , platformIsCrossCompiling = crossCompiling
-    , platformLeadingUnderscore = targetLeadingUnderscore
     , platformTablesNextToCode  = tablesNextToCode
     , platformConstants = constants
     }

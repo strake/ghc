@@ -46,7 +46,7 @@ module GHC.Utils.Outputable (
         -- * Converting 'SDoc' into strings and outputting it
         printSDoc, printSDocLn,
         bufLeftRenderSDoc,
-        pprCode, mkCodeStyle,
+        pprCode,
         showSDocOneLine,
         renderWithStyle,
 
@@ -63,7 +63,7 @@ module GHC.Utils.Outputable (
         -- * Controlling the style in which output is printed
         BindingSite(..),
 
-        PprStyle(..), CodeStyle(..), PrintUnqualified(..),
+        PprStyle(..), LabelStyle(..), PrintUnqualified(..),
         QueryQualifyName, QueryQualifyModule, QueryQualifyPackage,
         reallyAlwaysQualify, reallyAlwaysQualifyNames,
         alwaysQualify, alwaysQualifyNames, alwaysQualifyModules,
@@ -144,11 +144,20 @@ data PprStyle
                 -- Does not assume tidied code: non-external names
                 -- are printed with uniques.
 
-  | PprCode CodeStyle
-                -- Print code; either C or assembler
+  | PprCode LabelStyle -- ^ Print code; either C or assembler
 
-data CodeStyle = CStyle         -- The format of labels differs for C and assembler
-               | AsmStyle
+-- | Style of label pretty-printing.
+--
+-- When we produce C sources or headers, we have to take into account that C
+-- compilers transform C labels when they convert them into symbols. For
+-- example, they can add prefixes (e.g., "_" on Darwin) or suffixes (size for
+-- stdcalls on Windows). So we provide two ways to pretty-print CLabels: C style
+-- or Asm style.
+--
+data LabelStyle
+   = CStyle   -- ^ C label style (used by C and LLVM backends)
+   | AsmStyle -- ^ Asm label style (used by NCG backend)
+   deriving (Eq,Ord,Show)
 
 data Depth
    = AllTheWay
@@ -498,11 +507,8 @@ bufLeftRenderSDoc :: SDocContext -> BufHandle -> SDoc -> IO ()
 bufLeftRenderSDoc ctx bufHandle doc =
   Pretty.bufLeftRender bufHandle (runSDoc doc ctx)
 
-pprCode :: CodeStyle -> SDoc -> SDoc
+pprCode :: LabelStyle -> SDoc -> SDoc
 pprCode cs d = withPprStyle (PprCode cs) d
-
-mkCodeStyle :: CodeStyle -> PprStyle
-mkCodeStyle = PprCode
 
 renderWithStyle :: SDocContext -> SDoc -> String
 renderWithStyle ctx sdoc
