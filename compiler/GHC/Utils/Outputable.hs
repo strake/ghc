@@ -70,7 +70,7 @@ module GHC.Utils.Outputable (
         neverQualify, neverQualifyNames, neverQualifyModules,
         alwaysQualifyPackages, neverQualifyPackages,
         QualifyName(..), queryQual,
-        sdocWithDynFlags, sdocOption,
+        sdocOption,
         updSDocContext,
         SDocContext (..), sdocWithContext,
         getPprStyle, withPprStyle, setStyleColoured,
@@ -87,7 +87,6 @@ module GHC.Utils.Outputable (
 
 import GHC.Prelude
 
-import {-# SOURCE #-}   GHC.Driver.Session ( DynFlags )
 import {-# SOURCE #-}   GHC.Unit.Types ( Unit, Module, moduleName )
 import {-# SOURCE #-}   GHC.Unit.Module.Name( ModuleName )
 import {-# SOURCE #-}   GHC.Types.Name.Occurrence( OccName )
@@ -366,8 +365,6 @@ data SDocContext = SDC
       --
       -- Note that we use `FastString` instead of `UnitId` to avoid boring
       -- module inter-dependency issues.
-
-  , sdocDynFlags                    :: DynFlags -- TODO: remove
   }
 
 instance IsString SDoc where
@@ -422,9 +419,6 @@ pprSetDepth depth doc = SDoc $ \ctx ->
 
 getPprStyle :: (PprStyle -> SDoc) -> SDoc
 getPprStyle df = SDoc $ \ctx -> runSDoc (df (sdocStyle ctx)) ctx
-
-sdocWithDynFlags :: (DynFlags -> SDoc) -> SDoc
-sdocWithDynFlags f = SDoc $ \ctx -> runSDoc (f (sdocDynFlags ctx)) ctx
 
 sdocWithContext :: (SDocContext -> SDoc) -> SDoc
 sdocWithContext f = SDoc $ \ctx -> runSDoc (f ctx) ctx
@@ -913,9 +907,7 @@ instance Outputable Extension where
 --    * selected backend: to display CLabel as C labels or Asm labels
 --
 -- In fact the whole compiler session state that is DynFlags was passed in
--- SDocContext and these values were retrieved from it. (At the time of writing,
--- a DynFlags field is still present into SDocContext but hopefully it shouldn't
--- last long).
+-- SDocContext and these values were retrieved from it.
 --
 -- The Outputable class makes SDoc creation easy for many values by providing
 -- the ppr method:
