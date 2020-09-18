@@ -56,7 +56,6 @@ data Platform = Platform
    , platformHasIdentDirective        :: !Bool
    , platformHasSubsectionsViaSymbols :: !Bool
    , platformIsCrossCompiling         :: !Bool
-   , platformLeadingUnderscore        :: !Bool             -- ^ Symbols need underscore prefix
    , platformTablesNextToCode         :: !Bool
       -- ^ Determines whether we will be compiling info tables that reside just
       --   before the entry code, or with an indirection to the entry code. See
