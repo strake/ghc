@@ -1,4 +1,5 @@
-{-# LANGUAGE BangPatterns, CPP, MagicHash, RecordWildCards #-}
+{-# LANGUAGE CPP             #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# OPTIONS_GHC -optc-DNON_POSIX_SOURCE #-}
 --
 --  (c) The University of Glasgow 2002-2006

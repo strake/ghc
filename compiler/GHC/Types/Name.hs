@@ -1,16 +1,15 @@
+{-# LANGUAGE CPP               #-}
+{-# LANGUAGE RecordWildCards   #-}
+{-# LANGUAGE TypeFamilies      #-}
+
+#include "lens.h"
+
 {-
 (c) The University of Glasgow 2006
 (c) The GRASP/AQUA Project, Glasgow University, 1992-1998
 
 \section[Name]{@Name@: to transmit name info from renamer to typechecker}
 -}
-
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE PatternSynonyms #-}
-{-# LANGUAGE CPP #-}
-
-#include "lens.h"
 
 -- |
 -- #name_types#

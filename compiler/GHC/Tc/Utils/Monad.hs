@@ -1,7 +1,5 @@
-{-# LANGUAGE ExplicitForAll, FlexibleInstances, BangPatterns #-}
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE GADTs             #-}
+
 {-# OPTIONS_GHC -Wno-orphans #-}
 {-# OPTIONS_GHC -Wno-incomplete-record-updates #-}
 {-# OPTIONS_GHC -fexpose-all-unfoldings #-}

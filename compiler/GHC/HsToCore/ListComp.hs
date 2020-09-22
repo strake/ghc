@@ -1,3 +1,5 @@
+{-# LANGUAGE TypeFamilies #-}
+
 {-
 (c) The University of Glasgow 2006
 (c) The GRASP/AQUA Project, Glasgow University, 1992-1998
@@ -5,11 +7,6 @@
 
 Desugaring list comprehensions, monad comprehensions and array comprehensions
 -}
-
-{-# LANGUAGE NamedFieldPuns #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE MonadComprehensions #-}
-{-# LANGUAGE ViewPatterns #-}
 
 module GHC.HsToCore.ListComp ( dsListComp, dsMonadComp ) where
 

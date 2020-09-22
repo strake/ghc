@@ -1,16 +1,14 @@
+{-# LANGUAGE CPP                  #-}
+{-# LANGUAGE RankNTypes           #-}
+{-# LANGUAGE TypeFamilies         #-}
+{-# LANGUAGE UndecidableInstances #-}
+
+#include "lens.h"
+
 {-
 (c) The University of Glasgow 2006
 (c) The GRASP/AQUA Project, Glasgow University, 1992-1998
 -}
-
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE TypeSynonymInstances #-}
-{-# LANGUAGE UndecidableInstances #-}
-{-# LANGUAGE CPP #-}
-{-# OPTIONS_GHC -Werror=missing-methods -Wmissing-signatures #-}
-
-#include "lens.h"
 
 module GHC.Data.TrieMap(
    -- * Maps over 'Maybe' values

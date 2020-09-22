@@ -1,3 +1,8 @@
+{-# LANGUAGE ConstraintKinds      #-}
+{-# LANGUAGE DeriveDataTypeable   #-}
+{-# LANGUAGE StandaloneDeriving   #-}
+{-# LANGUAGE TypeFamilies         #-}
+{-# LANGUAGE UndecidableInstances #-} -- Wrinkle in Note [Trees That Grow] in module GHC.Hs.Extension
 {-
 (c) The University of Glasgow 2006
 (c) The GRASP/AQUA Project, Glasgow University, 1992-1998
@@ -5,14 +10,6 @@
 
 GHC.Hs.Type: Abstract syntax: user-defined types
 -}
-
-{-# LANGUAGE DeriveDataTypeable #-}
-{-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE TypeSynonymInstances #-}
-{-# LANGUAGE UndecidableInstances #-} -- Wrinkle in Note [Trees That Grow]
-                                      -- in module GHC.Hs.Extension
-{-# LANGUAGE ConstraintKinds #-}
-{-# LANGUAGE TypeFamilies #-}
 
 module GHC.Hs.Type (
         HsType(..), NewHsTypeX(..), LHsType, HsKind, LHsKind,

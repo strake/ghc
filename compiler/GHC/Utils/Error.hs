@@ -1,11 +1,10 @@
+{-# LANGUAGE RankNTypes #-}
+
 {-
 (c) The AQUA Project, Glasgow University, 1994-1998
 
 \section[ErrsUtils]{Utilities for error reporting}
 -}
-
-{-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE RankNTypes #-}
 
 module GHC.Utils.Error (
         -- * Basic types

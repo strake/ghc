@@ -6,8 +6,6 @@
 Matching guarded right-hand-sides (GRHSs)
 -}
 
-{-# LANGUAGE ViewPatterns #-}
-
 module GHC.HsToCore.GuardedRHSs ( dsGuarded, dsGRHSs, isTrueLHsExpr ) where
 
 import GHC.Prelude

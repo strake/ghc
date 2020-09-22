@@ -1,10 +1,11 @@
+{-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE ViewPatterns #-}
+
 {-
 Authors: George Karachalias <george.karachalias@cs.kuleuven.be>
          Sebastian Graf <sgraf1337@gmail.com>
          Ryan Scott <ryan.gl.scott@gmail.com>
 -}
-
-{-# LANGUAGE TupleSections, PatternSynonyms, ViewPatterns, MultiWayIf #-}
 
 -- | The pattern match oracle. The main export of the module are the functions
 -- 'addPmCts' for adding facts to the oracle, and 'provideEvidence' to turn a

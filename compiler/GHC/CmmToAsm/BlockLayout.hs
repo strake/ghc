@@ -1,12 +1,11 @@
---
--- Copyright (c) 2018 Andreas Klebinger
---
-
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+
+--
+-- Copyright (c) 2018 Andreas Klebinger
+--
 
 module GHC.CmmToAsm.BlockLayout
     ( sequenceTop, backendMaintainsCfg)

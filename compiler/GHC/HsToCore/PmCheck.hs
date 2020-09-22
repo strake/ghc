@@ -1,13 +1,10 @@
+{-# LANGUAGE GADTs #-}
+
 {-
 Author: George Karachalias <george.karachalias@cs.kuleuven.be>
 
 Pattern Matching Coverage Checking.
 -}
-
-{-# LANGUAGE GADTs          #-}
-{-# LANGUAGE TupleSections  #-}
-{-# LANGUAGE ViewPatterns   #-}
-{-# LANGUAGE MultiWayIf     #-}
 
 module GHC.HsToCore.PmCheck (
         -- Checking and printing

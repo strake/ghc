@@ -1,13 +1,15 @@
--- (c) The University of Glasgow 2006
---
--- FamInstEnv: Type checked family instance declarations
+{-# LANGUAGE CPP                 #-}
+{-# LANGUAGE GADTs               #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TupleSections       #-}
 
-{-# LANGUAGE GADTs, ScopedTypeVariables, BangPatterns, TupleSections #-}
-{-# LANGUAGE CPP #-}
+#include "lens.h"
 
 {-# OPTIONS_GHC -Wno-incomplete-record-updates #-}
 
-#include "lens.h"
+-- (c) The University of Glasgow 2006
+--
+-- FamInstEnv: Type checked family instance declarations
 
 module GHC.Core.FamInstEnv (
         FamInst(..), FamFlavor(..), famInstAxiom, famInstTyCon, famInstRHS,

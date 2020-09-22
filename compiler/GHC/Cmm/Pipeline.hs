@@ -1,5 +1,4 @@
 {-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE TupleSections #-}
 
 module GHC.Cmm.Pipeline (
   -- | Converts C-- with an implicit stack and native C-- calls into

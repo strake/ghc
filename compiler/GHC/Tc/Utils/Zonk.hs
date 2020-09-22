@@ -1,15 +1,15 @@
+{-# LANGUAGE CPP              #-}
+{-# LANGUAGE TypeFamilies     #-}
+
+#include "lens.h"
+
+{-# OPTIONS_GHC -Wno-incomplete-record-updates #-}
+
 {-
 (c) The University of Glasgow 2006
 (c) The AQUA Project, Glasgow University, 1996-1998
 
 -}
-
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE CPP #-}
-
-#include "lens.h"
-
-{-# OPTIONS_GHC -Wno-incomplete-record-updates #-}
 
 -- | Specialisations of the @HsSyn@ syntax for the typechecker
 --

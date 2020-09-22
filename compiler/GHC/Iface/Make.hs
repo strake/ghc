@@ -1,10 +1,9 @@
+{-# LANGUAGE NondecreasingIndentation #-}
+
 {-
 (c) The University of Glasgow 2006-2008
 (c) The GRASP/AQUA Project, Glasgow University, 1993-1998
 -}
-
-{-# LANGUAGE NondecreasingIndentation #-}
-{-# LANGUAGE MultiWayIf #-}
 
 -- | Module for constructing @ModIface@ values (interface files),
 -- writing them to disk and comparing two versions to see if

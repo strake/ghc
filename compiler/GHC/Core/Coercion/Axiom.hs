@@ -1,7 +1,11 @@
--- (c) The University of Glasgow 2012
+{-# LANGUAGE DataKinds           #-}
+{-# LANGUAGE DeriveDataTypeable  #-}
+{-# LANGUAGE GADTs               #-}
+{-# LANGUAGE KindSignatures      #-}
+{-# LANGUAGE RoleAnnotations     #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
-{-# LANGUAGE DataKinds, DeriveDataTypeable, GADTs, KindSignatures,
-             ScopedTypeVariables, StandaloneDeriving, RoleAnnotations #-}
+-- (c) The University of Glasgow 2012
 
 -- | Module for coercion axioms, used to represent type family instances
 -- and newtypes

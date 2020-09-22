@@ -1,3 +1,6 @@
+{-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE StandaloneDeriving #-}
+
 {-
 %
 % (c) Adam Gundry 2013-2015
@@ -55,9 +58,6 @@ process.
 Of course, datatypes with no constructors cannot have any fields.
 
 -}
-
-{-# LANGUAGE DeriveDataTypeable #-}
-{-# LANGUAGE StandaloneDeriving #-}
 
 module GHC.Types.FieldLabel
    ( FieldLabelString

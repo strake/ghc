@@ -1,16 +1,17 @@
+{-# LANGUAGE DataKinds           #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TupleSections       #-}
+{-# LANGUAGE TypeApplications    #-}
+{-# LANGUAGE TypeFamilies        #-}
+{-# LANGUAGE UndecidableInstances #-} -- Wrinkle in Note [Trees That Grow] in module GHC.Hs.Extension
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns   #-}
+
 {-
 %
 (c) The University of Glasgow 2006
 (c) The GRASP/AQUA Project, Glasgow University, 1992-1998
 
 -}
-
-{-# LANGUAGE TupleSections, ScopedTypeVariables #-}
-{-# LANGUAGE TypeFamilies, DataKinds, TypeApplications #-}
-{-# LANGUAGE UndecidableInstances #-} -- Wrinkle in Note [Trees That Grow]
-                                      -- in module GHC.Hs.Extension
-
-{-# OPTIONS_GHC -Wno-incomplete-uni-patterns   #-}
 
 -- | Typecheck an expression
 module GHC.Tc.Gen.Expr

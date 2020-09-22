@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -fno-warn-orphans #-}  -- instance MonadThings is necessarily an orphan
+
 {-
 (c) The University of Glasgow 2006
 (c) The GRASP/AQUA Project, Glasgow University, 1992-1998
@@ -5,10 +7,6 @@
 
 Monadery used in desugaring
 -}
-
-{-# LANGUAGE ViewPatterns #-}
-
-{-# OPTIONS_GHC -fno-warn-orphans #-}  -- instance MonadThings is necessarily an orphan
 
 module GHC.HsToCore.Monad (
         DsM, mapM, mapAndUnzipM,

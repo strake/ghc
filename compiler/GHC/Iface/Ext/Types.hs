@@ -1,13 +1,14 @@
+{-# LANGUAGE DeriveDataTypeable         #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE ScopedTypeVariables        #-}
+
 {-
 Types for the .hie file format are defined here.
 
 For more information see https://gitlab.haskell.org/ghc/ghc/wikis/hie-files
 -}
-{-# LANGUAGE DeriveDataTypeable #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE TypeSynonymInstances #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE OverloadedStrings #-}
+
 module GHC.Iface.Ext.Types where
 
 import GHC.Prelude

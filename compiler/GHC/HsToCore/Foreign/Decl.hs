@@ -1,3 +1,7 @@
+{-# LANGUAGE TypeFamilies #-}
+
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
+
 {-
 (c) The University of Glasgow 2006
 (c) The AQUA Project, Glasgow University, 1998
@@ -5,11 +9,6 @@
 
 Desugaring foreign declarations (see also GHC.HsToCore.Foreign.Call).
 -}
-
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE ViewPatterns #-}
-
-{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
 module GHC.HsToCore.Foreign.Decl ( dsForeigns ) where
 

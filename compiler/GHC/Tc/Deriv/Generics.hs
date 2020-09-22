@@ -1,12 +1,12 @@
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeFamilies        #-}
+
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
+
 {-
 (c) The University of Glasgow 2011
 
 -}
-
-{-# LANGUAGE ScopedTypeVariables, TupleSections #-}
-{-# LANGUAGE TypeFamilies #-}
-
-{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
 -- | The deriving code for the Generic class
 module GHC.Tc.Deriv.Generics

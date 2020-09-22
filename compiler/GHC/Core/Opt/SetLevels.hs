@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
+
 {-
 (c) The GRASP/AQUA Project, Glasgow University, 1992-1998
 
@@ -49,9 +51,6 @@
   the scrutinee of the case, and we can inline it.
 -}
 
-{-# LANGUAGE MultiWayIf #-}
-
-{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 module GHC.Core.Opt.SetLevels (
         setLevels,
 
@@ -845,9 +844,8 @@ float a boxed version
 and replace the original (f x) with
    case (case y of I# r -> r) of r -> blah
 
-Being able to float unboxed expressions is sometimes important; see
-#12603.  I'm not sure how /often/ it is important, but it's
-not hard to achieve.
+Being able to float unboxed expressions is sometimes important; see #12603.
+I'm not sure how /often/ it is important, but it's not hard to achieve.
 
 We only do it for a fixed collection of types for which we have a
 convenient boxing constructor (see boxingDataCon_maybe).  In

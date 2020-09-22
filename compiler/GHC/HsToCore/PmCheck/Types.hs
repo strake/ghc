@@ -1,12 +1,9 @@
+{-# LANGUAGE ScopedTypeVariables #-}
+
 {-
 Author: George Karachalias <george.karachalias@cs.kuleuven.be>
         Sebastian Graf <sgraf1337@gmail.com>
 -}
-
-{-# LANGUAGE ViewPatterns #-}
-{-# LANGUAGE TupleSections #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE ApplicativeDo #-}
 
 -- | Types used through-out pattern match checking. This module is mostly there
 -- to be imported from "GHC.Tc.Types". The exposed API is that of
@@ -460,9 +457,7 @@ traverseSDIE f = fmap (SDIE . listToUDFM_Directly) . traverse g . udfmToList . u
   where
     g :: (Unique, Shared a) -> f (Unique, Shared b)
     g (u, Indirect y) = pure (u,Indirect y)
-    g (u, Entry a)    = do
-        a' <- f a
-        pure (u,Entry a')
+    g (u, Entry a)    = f a <₪> \ a' -> (u, Entry a')
 
 instance Outputable a => Outputable (Shared a) where
   ppr (Indirect x) = ppr x

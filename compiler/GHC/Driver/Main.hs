@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns, MagicHash, NondecreasingIndentation #-}
+{-# LANGUAGE NondecreasingIndentation #-}
 {-# OPTIONS_GHC -fprof-auto-top #-}
 
 -------------------------------------------------------------------------------

@@ -1,7 +1,6 @@
 {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE GADTs #-}
-{-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE BangPatterns #-}
 
 {-# OPTIONS_GHC -O2 -funbox-strict-fields #-}

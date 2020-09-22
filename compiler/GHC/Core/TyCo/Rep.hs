@@ -1,3 +1,10 @@
+{-# LANGUAGE CPP #-}
+{-# LANGUAGE DeriveDataTypeable #-}
+
+#include "lens.h"
+
+{-# OPTIONS_HADDOCK not-home #-}
+
 {-
 (c) The University of Glasgow 2006
 (c) The GRASP/AQUA Project, Glasgow University, 1998
@@ -18,12 +25,6 @@ Note [The Type-related module hierarchy]
 -}
 
 -- We expose the relevant stuff from this module via the Type module
-{-# OPTIONS_HADDOCK not-home #-}
-{-# LANGUAGE DeriveDataTypeable, MultiWayIf, PatternSynonyms, BangPatterns #-}
-{-# LANGUAGE CPP #-}
-
-#include "lens.h"
-
 module GHC.Core.TyCo.Rep (
 
         -- * Types

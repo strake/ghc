@@ -1,12 +1,12 @@
+{-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE TypeFamilies #-}
+
 {-
 (c) The GRASP/AQUA Project, Glasgow University, 1992-2006
 
 GHC.Rename.Env contains functions which convert RdrNames into Names.
 
 -}
-
-{-# LANGUAGE NamedFieldPuns #-}
-{-# LANGUAGE TypeFamilies #-}
 
 module GHC.Rename.Env (
         newTopSrcBinder,

@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -fno-warn-orphans #-}
+
 {-
 (c) The University of Glasgow 2006
 (c) The AQUA Project, Glasgow University, 1996-1998
@@ -5,9 +7,6 @@
 
 Printing of Core syntax
 -}
-
-{-# LANGUAGE MultiWayIf #-}
-{-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module GHC.Core.Ppr (
         pprCoreExpr, pprParendExpr,

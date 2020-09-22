@@ -2,9 +2,7 @@
 (c) The University of Glasgow 2006
 (c) The AQUA Project, Glasgow University, 1993-1998
 
-
 -}
-{-# LANGUAGE BangPatterns #-}
 
 -- | Provide trees (of instructions), so that lists of instructions can be
 -- appended in linear time.

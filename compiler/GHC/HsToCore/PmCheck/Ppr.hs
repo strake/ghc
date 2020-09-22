@@ -1,5 +1,3 @@
-{-# LANGUAGE ViewPatterns #-}
-
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
 -- | Provides factilities for pretty-printing 'Delta's in a way appropriate for

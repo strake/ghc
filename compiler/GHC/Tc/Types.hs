@@ -1,13 +1,14 @@
+{-# LANGUAGE CPP                        #-}
+{-# LANGUAGE ExistentialQuantification  #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+
+#include "lens.h"
+
 {-
 (c) The University of Glasgow 2006-2012
 (c) The GRASP Project, Glasgow University, 1992-2002
 
 -}
-
-{-# LANGUAGE DeriveFunctor, ExistentialQuantification, GeneralizedNewtypeDeriving, ViewPatterns #-}
-{-# LANGUAGE CPP #-}
-
-#include "lens.h"
 
 -- | Various types used during typechecking.
 --

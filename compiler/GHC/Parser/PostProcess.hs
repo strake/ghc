@@ -1,18 +1,15 @@
+{-# LANGUAGE GADTs             #-}
+{-# LANGUAGE RankNTypes        #-}
+{-# LANGUAGE TypeFamilies      #-}
+{-# LANGUAGE ViewPatterns      #-}
+
+{-# OPTIONS_GHC -Wno-incomplete-record-updates #-}
+
 --
 --  (c) The University of Glasgow 2002-2006
 --
 
 -- Functions over HsSyn specialised to RdrName.
-
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE MagicHash #-}
-{-# LANGUAGE ViewPatterns #-}
-{-# LANGUAGE GADTs #-}
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-
-{-# OPTIONS_GHC -Wno-incomplete-record-updates #-}
 
 module GHC.Parser.PostProcess (
         mkHsOpApp,

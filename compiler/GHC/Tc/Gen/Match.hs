@@ -1,16 +1,15 @@
+{-# LANGUAGE RankNTypes       #-}
+{-# LANGUAGE RecordWildCards  #-}
+{-# LANGUAGE TupleSections    #-}
+{-# LANGUAGE TypeFamilies     #-}
+
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns   #-}
+
 {-
 (c) The University of Glasgow 2006
 (c) The GRASP/AQUA Project, Glasgow University, 1992-1998
 
 -}
-
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE MultiWayIf #-}
-{-# LANGUAGE TupleSections #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE RecordWildCards #-}
-
-{-# OPTIONS_GHC -Wno-incomplete-uni-patterns   #-}
 
 -- | Typecheck some @Matches@
 module GHC.Tc.Gen.Match

@@ -1,3 +1,13 @@
+{-# LANGUAGE CPP                  #-}
+{-# LANGUAGE ConstraintKinds      #-}
+{-# LANGUAGE DeriveDataTypeable   #-}
+{-# LANGUAGE ScopedTypeVariables  #-}
+{-# LANGUAGE TypeApplications     #-}
+{-# LANGUAGE TypeFamilies         #-}
+{-# LANGUAGE UndecidableInstances #-} -- Wrinkle in Note [Trees That Grow] in module GHC.Hs.Extension
+{-# LANGUAGE ViewPatterns         #-}
+
+#include "lens.h"
 
 {-
 (c) The University of Glasgow 2006
@@ -5,19 +15,6 @@
 
 \section[PatSyntax]{Abstract Haskell syntax---patterns}
 -}
-
-{-# LANGUAGE DeriveDataTypeable #-}
-{-# LANGUAGE CPP #-}
-{-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE UndecidableInstances #-} -- Wrinkle in Note [Trees That Grow]
-                                      -- in module GHC.Hs.Extension
-{-# LANGUAGE ConstraintKinds #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE ViewPatterns      #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeApplications #-}
-
-#include "lens.h"
 
 module GHC.Hs.Pat (
         Pat(..), LPat,

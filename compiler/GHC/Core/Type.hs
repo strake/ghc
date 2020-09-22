@@ -3,7 +3,6 @@
 --
 -- Type - public interface
 
-{-# LANGUAGE FlexibleContexts, PatternSynonyms, ViewPatterns #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 {-# OPTIONS_GHC -Wno-incomplete-record-updates #-}
 

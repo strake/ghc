@@ -1,12 +1,10 @@
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
+
 {-
 (c) The GRASP/AQUA Project, Glasgow University, 1992-1998
 
 \section{Tidying up Core}
 -}
-
-{-# LANGUAGE DeriveFunctor, ViewPatterns #-}
-
-{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
 module GHC.Iface.Tidy (
        mkBootModDetailsTc, tidyProgram

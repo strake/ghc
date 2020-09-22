@@ -8,7 +8,6 @@ Based on @UniqFMs@ (as you would expect).
 
 Basically, the things need to be in class @Uniquable@.
 -}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 
 module GHC.Types.Unique.Set (

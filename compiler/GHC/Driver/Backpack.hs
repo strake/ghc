@@ -1,7 +1,7 @@
-{-# LANGUAGE NondecreasingIndentation #-}
-{-# LANGUAGE TypeSynonymInstances #-}
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE NondecreasingIndentation #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 #include "lens.h"
 

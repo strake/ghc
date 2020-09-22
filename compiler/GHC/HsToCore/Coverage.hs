@@ -1,16 +1,16 @@
+{-# LANGUAGE CPP #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE NondecreasingIndentation #-}
+{-# LANGUAGE TypeFamilies #-}
+
+{-# OPTIONS_GHC -Wno-incomplete-record-updates #-}
+
+#include "lens.h"
+
 {-
 (c) Galois, 2006
 (c) University of Glasgow, 2007
 -}
-
-{-# LANGUAGE NondecreasingIndentation, RecordWildCards #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE ViewPatterns #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE CPP #-}
-{-# OPTIONS_GHC -Wno-incomplete-record-updates #-}
-
-#include "lens.h"
 
 module GHC.HsToCore.Coverage (addTicksToBinds, hpcInitCode) where
 

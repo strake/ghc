@@ -1,3 +1,11 @@
+{-# LANGUAGE CPP #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE DataKinds #-}
+
+{-# OPTIONS_GHC -Wno-incomplete-record-updates #-}
+
 {-|
 Module      : GHC.Hs.Utils
 Description : Generic helpers for the HsSyn type.
@@ -18,15 +26,6 @@ from their components, compared with the @nl*@ functions which
 just attach noSrcSpan to everything.
 
 -}
-
-{-# LANGUAGE CPP #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE ViewPatterns #-}
-{-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE DataKinds #-}
-
-{-# OPTIONS_GHC -Wno-incomplete-record-updates #-}
 
 module GHC.Hs.Utils(
   -- * Terms

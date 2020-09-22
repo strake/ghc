@@ -1,5 +1,3 @@
-{-# LANGUAGE TypeSynonymInstances #-}
-
 -- | Units are library components from Cabal packages compiled and installed in
 -- a database
 module GHC.Unit
