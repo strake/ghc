@@ -122,7 +122,6 @@ module GHC.Types.Id (
 
 import GHC.Prelude
 
-import GHC.Driver.Session
 import GHC.Core ( CoreRule, isStableUnfolding, evaldUnfolding,
                  isCompulsoryUnfolding, Unfolding( NoUnfolding ) )
 
@@ -158,6 +157,7 @@ import GHC.Data.FastString
 import GHC.Utils.Misc
 import GHC.Utils.Outputable
 import GHC.Utils.Panic
+import GHC.Utils.GlobalVars
 
 import GHC.Driver.Ppr
 
@@ -816,7 +816,7 @@ typeOneShot ty
 
 isStateHackType :: Type -> Bool
 isStateHackType ty
-  | hasNoStateHack unsafeGlobalDynFlags
+  | unsafeHasNoStateHack
   = False
   | otherwise
   = case tyConAppTyCon_maybe ty of
