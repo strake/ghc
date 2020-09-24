@@ -72,7 +72,7 @@ module GHC.Utils.Outputable (
         QualifyName(..), queryQual,
         sdocOption,
         updSDocContext,
-        SDocContext (..), sdocWithContext,
+        SDocContext (..), sdocWithContext, defaultSDocContext,
         getPprStyle, withPprStyle, setStyleColoured,
         pprDeeper, pprDeeperList, pprSetDepth,
         codeStyle, userStyle, dumpStyle, asmStyle,
@@ -374,6 +374,42 @@ instance IsString SDoc where
 instance Outputable SDoc where
   ppr = id
 
+defaultSDocContext :: SDocContext
+defaultSDocContext = SDC
+  { sdocStyle                       = defaultDumpStyle
+  , sdocColScheme                   = Col.defaultScheme
+  , sdocLastColour                  = Col.colReset
+  , sdocShouldUseColor              = False
+  , sdocDefaultDepth                = 5
+  , sdocLineLength                  = 96
+  , sdocCanUseUnicode               = False
+  , sdocHexWordLiterals             = False
+  , sdocPprDebug                    = False
+  , sdocPrintUnicodeSyntax          = False
+  , sdocPrintCaseAsLet              = False
+  , sdocPrintTypecheckerElaboration = False
+  , sdocPrintAxiomIncomps           = False
+  , sdocPrintExplicitKinds          = False
+  , sdocPrintExplicitCoercions      = False
+  , sdocPrintExplicitRuntimeReps    = False
+  , sdocPrintExplicitForalls        = False
+  , sdocPrintPotentialInstances     = False
+  , sdocPrintEqualityRelations      = False
+  , sdocSuppressTicks               = False
+  , sdocSuppressTypeSignatures      = False
+  , sdocSuppressTypeApplications    = False
+  , sdocSuppressIdInfo              = False
+  , sdocSuppressCoercions           = False
+  , sdocSuppressUnfoldings          = False
+  , sdocSuppressVarKinds            = False
+  , sdocSuppressUniques             = False
+  , sdocSuppressModulePrefixes      = False
+  , sdocSuppressStgExts             = False
+  , sdocErrorSpans                  = False
+  , sdocStarIsType                  = False
+  , sdocImpredicativeTypes          = False
+  , sdocUnitIdForUser               = ftext
+  }
 
 withPprStyle :: PprStyle -> SDoc -> SDoc
 withPprStyle sty d = SDoc $ \ctxt -> runSDoc d ctxt{sdocStyle=sty}

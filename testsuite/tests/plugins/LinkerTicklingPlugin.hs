@@ -2,6 +2,7 @@ module LinkerTicklingPlugin where
 
 import GHC.Plugins
 import GHC.Driver.Session
+import GHC.Utils.GlobalVars
 
 plugin :: Plugin
 plugin = defaultPlugin {
@@ -12,4 +13,8 @@ plugin = defaultPlugin {
 -- instance of it. If it is a new instance (settings unsafeGlobalDynFlags) won't
 -- have been initialised, so we'll get a GHC panic here:
 install :: [CommandLineOption] -> [CoreToDo] -> CoreM [CoreToDo]
-install _options todos = settings unsafeGlobalDynFlags `seq` return todos
+install _options todos = io `seq` return todos
+  where
+    io
+      | unsafeHasPprDebug = ()
+      | otherwise = error "unsafePprDebug should be set: plugin linked against a different GHC?"

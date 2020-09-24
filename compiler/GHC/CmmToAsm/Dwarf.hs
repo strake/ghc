@@ -182,7 +182,8 @@ procToDwarf df prc
   = DwarfSubprogram { dwChildren = map blockToDwarf (dblBlocks prc)
                     , dwName     = case dblSourceTick prc of
                          Just s@SourceNote{} -> sourceName s
-                         _otherwise -> showSDocDump df $ ppr $ dblLabel prc
+                         _otherwise -> showSDocDump (initSDocContext df defaultDumpStyle) $
+                            ppr $ dblLabel prc
                     , dwLabel    = dblCLabel prc
                     , dwParent   = fmap mkAsmTempDieLabel
                                    $ mfilter goodParent

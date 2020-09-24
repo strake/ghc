@@ -29,6 +29,7 @@ import GHC.Utils.Exception
 import GHC.Utils.Misc
 import GHC.Utils.Outputable
 import GHC.Utils.Panic
+import GHC.Utils.GlobalVars
 import GHC.Utils.Ppr       ( Mode(..) )
 import {-# SOURCE #-} GHC.Unit.State
 
@@ -43,7 +44,7 @@ showPpr :: Outputable a => DynFlags -> a -> String
 showPpr dflags thing = showSDoc dflags (ppr thing)
 
 showPprUnsafe :: Outputable a => a -> String
-showPprUnsafe a = showPpr unsafeGlobalDynFlags a
+showPprUnsafe a = renderWithStyle defaultSDocContext (ppr a)
 
 -- | Allows caller to specify the PrintUnqualified to use
 showSDocForUser :: DynFlags -> PrintUnqualified -> SDoc -> String
@@ -53,15 +54,11 @@ showSDocForUser dflags unqual doc = renderWithStyle (initSDocContext dflags styl
       style = mkUserStyle unqual AllTheWay
       doc' = pprWithUnitState pkgstate doc
 
-showSDocDump :: DynFlags -> SDoc -> String
-showSDocDump dflags d = renderWithStyle (initSDocContext dflags defaultDumpStyle) d
+showSDocDump :: SDocContext -> SDoc -> String
+showSDocDump ctx d = renderWithStyle ctx (withPprStyle defaultDumpStyle d)
 
-showSDocDebug :: DynFlags -> SDoc -> String
-showSDocDebug dflags d = renderWithStyle ctx d
-   where
-      ctx = (initSDocContext dflags defaultDumpStyle)
-               { sdocPprDebug = True
-               }
+showSDocDebug :: SDocContext -> SDoc -> String
+showSDocDebug ctx = showSDocDump ctx { sdocPprDebug = True }
 
 printForUser :: DynFlags -> Handle -> PrintUnqualified -> Depth -> SDoc -> IO ()
 printForUser dflags handle unqual depth doc
@@ -75,9 +72,9 @@ printForC dflags handle doc =
   printSDocLn ctx LeftMode handle doc
   where ctx = initSDocContext dflags (PprCode CStyle)
 
-pprDebugAndThen :: DynFlags -> (String -> a) -> SDoc -> SDoc -> a
-pprDebugAndThen dflags cont heading pretty_msg
- = cont (showSDocDump dflags doc)
+pprDebugAndThen :: SDocContext -> (String -> a) -> SDoc -> SDoc -> a
+pprDebugAndThen ctx cont heading pretty_msg
+ = cont (showSDocDump ctx doc)
  where
      doc = sep [heading, nest 2 pretty_msg]
 
@@ -85,19 +82,22 @@ pprDebugAndThen dflags cont heading pretty_msg
 pprTraceWithFlags :: DynFlags -> String -> SDoc -> a -> a
 pprTraceWithFlags dflags str doc x
   | hasNoDebugOutput dflags = x
-  | otherwise               = pprDebugAndThen dflags trace (text str) doc x
+  | otherwise               = pprDebugAndThen (initSDocContext dflags defaultDumpStyle)
+        trace (text str) doc x
 
 -- | If debug output is on, show some 'SDoc' on the screen
 pprTrace :: String -> SDoc -> a -> a
-pprTrace str doc x = pprTraceWithFlags unsafeGlobalDynFlags str doc x
+pprTrace str doc x
+  | unsafeHasNoDebugOutput = x
+  | otherwise              = pprDebugAndThen defaultSDocContext trace (text str) doc x
 
 pprTraceM :: Applicative f => String -> SDoc -> f ()
 pprTraceM str doc = pprTrace str doc (pure ())
 
 pprTraceDebug :: String -> SDoc -> a -> a
 pprTraceDebug str doc x
-   | debugIsOn && hasPprDebug unsafeGlobalDynFlags = pprTrace str doc x
-   | otherwise                                     = x
+   | debugIsOn && unsafeHasPprDebug = pprTrace str doc x
+   | otherwise                      = x
 
 -- | @pprTraceWith desc f x@ is equivalent to @pprTrace desc (f x) x@.
 -- This allows you to print details from the returned value as well as from
@@ -114,7 +114,7 @@ pprTraceIt desc x = pprTraceWith desc ppr x
 pprTraceException :: ExceptionMonad m => String -> SDoc -> m a -> m a
 pprTraceException heading doc =
     handleGhcException $ \exc -> liftIO $ do
-        putStrLn $ showSDocDump unsafeGlobalDynFlags (sep [text heading, nest 2 doc])
+        putStrLn $ showSDocDump defaultSDocContext (sep [text heading, nest 2 doc])
         throwGhcExceptionIO exc
 
 -- | If debug output is on, show some 'SDoc' on the screen along
@@ -127,10 +127,10 @@ warnPprTrace :: HasCallStack => Bool -> String -> Int -> SDoc -> a -> a
 -- Should typically be accessed with the WARN macros
 warnPprTrace _     _     _     _    x | not debugIsOn     = x
 warnPprTrace _     _file _line _msg x
-   | hasNoDebugOutput unsafeGlobalDynFlags = x
+   | unsafeHasNoDebugOutput = x
 warnPprTrace False _file _line _msg x = x
 warnPprTrace True   file  line  msg x
-  = pprDebugAndThen unsafeGlobalDynFlags trace heading
+  = pprDebugAndThen defaultSDocContext trace heading
                     (msg $$ callStackDoc )
                     x
   where
