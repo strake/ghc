@@ -9,7 +9,6 @@ data DynFlags
 
 targetPlatform           :: DynFlags -> Platform
 pkgState                 :: DynFlags -> PackageState
-unsafeGlobalDynFlags     :: DynFlags
 hasPprDebug              :: DynFlags -> Bool
 hasNoDebugOutput         :: DynFlags -> Bool
 initSDocContext          :: DynFlags -> PprStyle -> SDocContext
