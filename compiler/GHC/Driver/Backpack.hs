@@ -1,5 +1,6 @@
 {-# LANGUAGE NondecreasingIndentation #-}
 {-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 -- | This is the driver for the 'ghc --backpack' mode, which
 -- is a reimplementation of the "package manager" bits of
@@ -35,7 +36,6 @@ import GHC hiding (Failed, Succeeded)
 import GHC.Tc.Utils.Monad
 import GHC.Iface.Recomp
 import GHC.Builtin.Names
-
 import GHC.Types.SrcLoc
 import GHC.Types.SourceError
 import GHC.Types.SourceText
@@ -63,6 +63,7 @@ import qualified GHC.LanguageExtensions as LangExt
 import GHC.Data.Maybe
 import GHC.Data.StringBuffer
 import GHC.Data.FastString
+import qualified GHC.Data.ShortText as ST
 
 import Data.List ( partition )
 import System.Exit
@@ -347,8 +348,8 @@ buildUnit session cid insts lunit = do
             unitAbiDepends = [],
             unitLinkerOptions = case session of
                                  TcSession -> []
-                                 _ -> obj_files,
-            unitImportDirs = [ hi_dir ],
+                                 _ -> ST.pack <$> obj_files,
+            unitImportDirs = [ ST.pack $ hi_dir ],
             unitIsExposed = False,
             unitIsIndefinite = case session of
                                  TcSession -> True

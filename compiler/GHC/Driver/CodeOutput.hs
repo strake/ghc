@@ -28,6 +28,7 @@ import GHC.Driver.Session
 import GHC.Driver.Ppr
 import GHC.Driver.Backend
 
+import qualified GHC.Data.ShortText as ST
 import GHC.Data.Stream           ( Stream )
 import qualified GHC.Data.Stream as Stream
 
@@ -141,7 +142,7 @@ outputC dflags filenm cmm_stream packages
          --
          let rts = unsafeLookupUnit (pkgState dflags) rtsUnitId
 
-         let cc_injects = unlines (map mk_include (unitIncludes rts))
+         let cc_injects = unlines (mk_include . ST.unpack <$> unitIncludes rts)
              mk_include h_file =
               case h_file of
                  '"':_{-"-} -> "#include "++h_file
@@ -232,7 +233,7 @@ outputForeignStubs dflags mod location stubs
         let rts_includes =
                let rts_pkg = unsafeLookupUnit (pkgState dflags) rtsUnitId in
                concatMap mk_include (unitIncludes rts_pkg)
-            mk_include i = "#include \"" ++ i ++ "\"\n"
+            mk_include i = "#include \"" ++ ST.unpack i ++ "\"\n"
 
             -- wrapper code mentions the ffi_arg type, which comes from ffi.h
             ffi_includes
