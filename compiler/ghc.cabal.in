@@ -479,7 +479,6 @@ Library
         GHC.Plugins
         GHC.Prelude
         GHC.Rename.Bind
-        GHC.Rename.Doc
         GHC.Rename.Env
         GHC.Rename.Expr
         GHC.Rename.Fixity
