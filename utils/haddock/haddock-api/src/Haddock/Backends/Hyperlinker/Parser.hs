@@ -48,7 +48,6 @@ parse dflags fpath bs = case unP (go False []) initState of
     start = mkRealSrcLoc (mkFastString fpath) 1 1
     pflags = mkParserOpts   (warningFlags dflags)
                             (extensionFlags dflags)
-                            (homeUnit dflags)
                             (safeImportsOn dflags)
                             False -- lex Haddocks as comment tokens
                             True  -- produce comment tokens
