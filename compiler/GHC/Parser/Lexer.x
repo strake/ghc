@@ -57,7 +57,7 @@ module GHC.Parser.Lexer (
    appendError,
    allocateComments,
    MonadP(..),
-   getRealSrcLoc, getPState, withHomeUnit,
+   getRealSrcLoc, getPState,
    failMsgP, failLocMsgP, srcParseFail,
    getErrorMessages, getMessages,
    popContext, pushModuleContext, setLastToken, setSrcLoc,
@@ -105,7 +105,6 @@ import GHC.Utils.Error
 import GHC.Driver.Session as DynFlags
 
 import GHC.Types.SrcLoc
-import GHC.Unit
 import GHC.Types.Basic ( InlineSpec(..), RuleMatchInfo(..),
                          IntegralLit(..), FractionalLit(..),
                          SourceText(..) )
@@ -2160,9 +2159,8 @@ warnopt f options = f `EnumSet.member` pWarningFlags options
 -- | Parser options.
 --
 -- See 'mkParserOpts' to construct this.
-data ParserOpts = ParserOpts {
-    pWarningFlags   :: EnumSet WarningFlag
-  , pHomeUnit       :: Unit        -- ^ unit currently being compiled
+data ParserOpts = ParserOpts
+  { pWarningFlags   :: EnumSet WarningFlag -- ^ enabled warning flags
   , pExtsBitmap     :: !ExtsBitmap -- ^ bitmap of permitted extensions
   }
 
@@ -2256,9 +2254,6 @@ failLocMsgP loc1 loc2 str =
 
 getPState :: P PState
 getPState = P $ \s -> POk s s
-
-withHomeUnit :: (Unit -> a) -> P a
-withHomeUnit f = P $ \s@(PState{options = o}) -> POk s (f (pHomeUnit o))
 
 getExts :: P ExtsBitmap
 getExts = P $ \s -> POk s (pExtsBitmap . options $ s)
@@ -2571,7 +2566,6 @@ data ExtBits
 mkParserOpts
   :: EnumSet WarningFlag        -- ^ warnings flags enabled
   -> EnumSet LangExt.Extension  -- ^ permitted language extensions enabled
-  -> Unit                       -- ^ key of package currently being compiled
   -> Bool                       -- ^ are safe imports on?
   -> Bool                       -- ^ keeping Haddock comment tokens
   -> Bool                       -- ^ keep regular comment tokens
@@ -2583,11 +2577,10 @@ mkParserOpts
 
   -> ParserOpts
 -- ^ Given exactly the information needed, set up the 'ParserOpts'
-mkParserOpts warningFlags extensionFlags homeUnit
+mkParserOpts warningFlags extensionFlags
   safeImports isHaddock rawTokStream usePosPrags =
     ParserOpts {
       pWarningFlags = warningFlags
-    , pHomeUnit     = homeUnit
     , pExtsBitmap   = safeHaskellBit .|. langExtBits .|. optBits
     }
   where

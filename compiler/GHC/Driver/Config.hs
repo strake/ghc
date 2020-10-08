@@ -32,7 +32,6 @@ initParserOpts =
   mkParserOpts
     <$> warningFlags
     <*> extensionFlags
-    <*> homeUnit
     <*> safeImportsOn
     <*> gopt Opt_Haddock
     <*> gopt Opt_KeepRawTokenStream

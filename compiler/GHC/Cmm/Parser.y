@@ -234,8 +234,8 @@ import GHC.Cmm.Info
 import GHC.Cmm.BlockId
 import GHC.Cmm.Lexer
 import GHC.Cmm.CLabel
-import GHC.Cmm.Monad hiding (getPlatform, getProfile, getPtrOpts)
-import qualified GHC.Cmm.Monad as PD
+import GHC.Cmm.Parser.Monad hiding (getPlatform, getProfile, getPtrOpts)
+import qualified GHC.Cmm.Parser.Monad as PD
 import GHC.Cmm.CallConv
 import GHC.Runtime.Heap.Layout
 import GHC.Parser.Lexer
@@ -384,7 +384,7 @@ cmmtop  :: { CmmParse () }
         | cmmdata                       { $1 }
         | decl                          { $1 }
         | 'CLOSURE' '(' NAME ',' NAME lits ')' ';'
-                {% liftP . withHomeUnit $ \pkg ->
+                {% withHomeUnit $ \pkg ->
                    do lits <- sequence $6;
                       staticClosure pkg $3 $5 (map getLit lits) }
 
@@ -405,7 +405,7 @@ cmmdata :: { CmmParse () }
 
 data_label :: { CmmParse CLabel }
     : NAME ':'
-                {% liftP . withHomeUnit $ \pkg ->
+                {% withHomeUnit $ \pkg ->
                    return (mkCmmDataLabel pkg (NeedExternDecl False) $1) }
 
 statics :: { [CmmParse [CmmStatic]] }
@@ -463,14 +463,14 @@ maybe_body :: { CmmParse () }
 
 info    :: { CmmParse (CLabel, Maybe CmmInfoTable, [LocalReg]) }
         : NAME
-                {% liftP . withHomeUnit $ \pkg ->
+                {% withHomeUnit $ \pkg ->
                    do   newFunctionName $1 pkg
                         return (mkCmmCodeLabel pkg $1, Nothing, []) }
 
 
         | 'INFO_TABLE' '(' NAME ',' INT ',' INT ',' INT ',' STRING ',' STRING ')'
                 -- ptrs, nptrs, closure type, description, type
-                {% liftP . withHomeUnit $ \pkg ->
+                {% withHomeUnit $ \pkg ->
                    do profile <- getProfile
                       let prof = profilingInfo profile $11 $13
                           rep  = mkRTSRep (fromIntegral $9) $
@@ -486,7 +486,7 @@ info    :: { CmmParse (CLabel, Maybe CmmInfoTable, [LocalReg]) }
 
         | 'INFO_TABLE_FUN' '(' NAME ',' INT ',' INT ',' INT ',' STRING ',' STRING ',' INT ')'
                 -- ptrs, nptrs, closure type, description, type, fun type
-                {% liftP . withHomeUnit $ \pkg ->
+                {% withHomeUnit $ \pkg ->
                    do profile <- getProfile
                       let prof = profilingInfo profile $11 $13
                           ty   = Fun 0 (ArgSpec (fromIntegral $15))
@@ -504,7 +504,7 @@ info    :: { CmmParse (CLabel, Maybe CmmInfoTable, [LocalReg]) }
 
         | 'INFO_TABLE_CONSTR' '(' NAME ',' INT ',' INT ',' INT ',' INT ',' STRING ',' STRING ')'
                 -- ptrs, nptrs, tag, closure type, description, type
-                {% liftP . withHomeUnit $ \pkg ->
+                {% withHomeUnit $ \pkg ->
                    do profile <- getProfile
                       let prof = profilingInfo profile $13 $15
                           ty  = Constr (fromIntegral $9)  -- Tag
@@ -523,7 +523,7 @@ info    :: { CmmParse (CLabel, Maybe CmmInfoTable, [LocalReg]) }
 
         | 'INFO_TABLE_SELECTOR' '(' NAME ',' INT ',' INT ',' STRING ',' STRING ')'
                 -- selector, closure type, description, type
-                {% liftP . withHomeUnit $ \pkg ->
+                {% withHomeUnit $ \pkg ->
                    do profile <- getProfile
                       let prof = profilingInfo profile $9 $11
                           ty  = ThunkSelector (fromIntegral $5)
@@ -537,7 +537,7 @@ info    :: { CmmParse (CLabel, Maybe CmmInfoTable, [LocalReg]) }
 
         | 'INFO_TABLE_RET' '(' NAME ',' INT ')'
                 -- closure type (no live regs)
-                {% liftP . withHomeUnit $ \pkg ->
+                {% withHomeUnit $ \pkg ->
                    do let prof = NoProfilingInfo
                           rep  = mkRTSRep (fromIntegral $5) $ mkStackRep []
                       return (mkCmmRetLabel pkg $3,
@@ -548,7 +548,7 @@ info    :: { CmmParse (CLabel, Maybe CmmInfoTable, [LocalReg]) }
 
         | 'INFO_TABLE_RET' '(' NAME ',' INT ',' formals0 ')'
                 -- closure type, live regs
-                {% liftP . withHomeUnit $ \pkg ->
+                {% withHomeUnit $ \pkg ->
                    do platform <- getPlatform
                       live <- sequence $7
                       let prof = NoProfilingInfo
