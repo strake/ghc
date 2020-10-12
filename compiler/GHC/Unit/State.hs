@@ -39,16 +39,10 @@ module GHC.Unit.State (
 
         -- * Inspecting the set of packages in scope
         getPackageIncludePath,
-        getPackageLibraryPath,
-        getPackageLinkOpts,
         getPackageExtraCcOpts,
-        getPackageFrameworkPath,
-        getPackageFrameworks,
         getPreloadPackagesAnd,
 
-        collectArchives,
-        collectIncludeDirs, collectLibraryPaths, collectLinkOpts,
-        packageHsLibs, getLibs,
+        collectIncludeDirs,
 
         -- * Utils
         unwireUnit,
@@ -1790,115 +1784,10 @@ getPackageIncludePath dflags pkgs =
 collectIncludeDirs :: [UnitInfo] -> [FilePath]
 collectIncludeDirs ps = ST.unpack <$> ordNub (filter (not . ST.null) (concatMap unitIncludeDirs ps))
 
--- | Find all the library paths in these and the preload packages
-getPackageLibraryPath :: DynFlags -> [UnitId] -> IO [String]
-getPackageLibraryPath dflags pkgs =
-  collectLibraryPaths dflags `fmap` getPreloadPackagesAnd dflags pkgs
-
-collectLibraryPaths :: DynFlags -> [UnitInfo] -> [FilePath]
-collectLibraryPaths dflags = ordNub . filter notNull
-                           . concatMap (libraryDirsForWay dflags)
-
--- | Find all the link options in these and the preload packages,
--- returning (package hs lib options, extra library options, other flags)
-getPackageLinkOpts :: DynFlags -> [UnitId] -> IO ([String], [String], [String])
-getPackageLinkOpts dflags pkgs =
-  collectLinkOpts dflags `fmap` getPreloadPackagesAnd dflags pkgs
-
-collectLinkOpts :: DynFlags -> [UnitInfo] -> ([String], [String], [String])
-collectLinkOpts dflags ps =
-    (
-        concatMap (map ("-l" ++) . packageHsLibs dflags) ps,
-        concatMap (map ("-l" ++) . map ST.unpack . unitExtDepLibsSys) ps,
-        concatMap (map ST.unpack . unitLinkerOptions) ps
-    )
-collectArchives :: DynFlags -> UnitInfo -> IO [FilePath]
-collectArchives dflags pc =
-  filterM doesFileExist [ searchPath </> ("lib" ++ lib ++ ".a")
-                        | searchPath <- searchPaths
-                        , lib <- libs ]
-  where searchPaths = ordNub . filter notNull . libraryDirsForWay dflags $ pc
-        libs        = packageHsLibs dflags pc ++ (ST.unpack <$> unitExtDepLibsSys pc)
-
-getLibs :: DynFlags -> [UnitId] -> IO [(String,String)]
-getLibs dflags pkgs = do
-  ps <- getPreloadPackagesAnd dflags pkgs
-  fmap concat . forM ps $ \p -> do
-    let candidates = [ (l </> f, f) | l <- collectLibraryPaths dflags [p]
-                                    , f <- (\n -> "lib" ++ n ++ ".a") <$> packageHsLibs dflags p ]
-    filterM (doesFileExist . fst) candidates
-
-packageHsLibs :: DynFlags -> UnitInfo -> [String]
-packageHsLibs dflags p = map (mkDynName . addSuffix . ST.unpack) (unitLibraries p)
-  where
-        ways0 = ways dflags
-
-        ways1 = Set.filter (/= WayDyn) ways0
-        -- the name of a shared library is libHSfoo-ghc<version>.so
-        -- we leave out the _dyn, because it is superfluous
-
-        -- debug and profiled RTSs include support for -eventlog
-        ways2 | WayDebug `Set.member` ways1 || WayProf `Set.member` ways1
-              = Set.filter (/= WayEventLog) ways1
-              | otherwise
-              = ways1
-
-        tag     = waysTag (Set.filter (not . wayRTSOnly) ways2)
-        rts_tag = waysTag ways2
-
-        mkDynName x
-         | WayDyn `Set.notMember` ways dflags = x
-         | "HS" `isPrefixOf` x                =
-              x ++ '-':programName dflags ++ projectVersion dflags
-           -- For non-Haskell libraries, we use the name "Cfoo". The .a
-           -- file is libCfoo.a, and the .so is libfoo.so. That way the
-           -- linker knows what we mean for the vanilla (-lCfoo) and dyn
-           -- (-lfoo) ways. We therefore need to strip the 'C' off here.
-         | Just x' <- stripPrefix "C" x = x'
-         | otherwise
-            = panic ("Don't understand library name " ++ x)
-
-        -- Add _thr and other rts suffixes to packages named
-        -- `rts` or `rts-1.0`. Why both?  Traditionally the rts
-        -- package is called `rts` only.  However the tooling
-        -- usually expects a package name to have a version.
-        -- As such we will gradually move towards the `rts-1.0`
-        -- package name, at which point the `rts` package name
-        -- will eventually be unused.
-        --
-        -- This change elevates the need to add custom hooks
-        -- and handling specifically for the `rts` package for
-        -- example in ghc-cabal.
-        addSuffix rts@"HSrts"    = rts       ++ (expandTag rts_tag)
-        addSuffix rts@"HSrts-1.0"= rts       ++ (expandTag rts_tag)
-        addSuffix other_lib      = other_lib ++ (expandTag tag)
-
-        expandTag t | null t = ""
-                    | otherwise = '_':t
-
--- | Either the 'unitLibraryDirs' or 'unitLibraryDynDirs' as appropriate for the way.
-libraryDirsForWay :: DynFlags -> UnitInfo -> [String]
-libraryDirsForWay dflags
-  | WayDyn `elem` ways dflags = fmap ST.unpack . unitLibraryDynDirs
-  | otherwise                 = fmap ST.unpack . unitLibraryDirs
-
 -- | Find all the C-compiler options in these and the preload packages
 getPackageExtraCcOpts :: DynFlags -> [UnitId] -> IO [String]
-getPackageExtraCcOpts dflags pkgs = do
-  ps <- getPreloadPackagesAnd dflags pkgs
-  return $ map ST.unpack (concatMap unitCcOptions ps)
-
--- | Find all the package framework paths in these and the preload packages
-getPackageFrameworkPath  :: DynFlags -> [UnitId] -> IO [String]
-getPackageFrameworkPath dflags pkgs = do
-  ps <- getPreloadPackagesAnd dflags pkgs
-  return $ map ST.unpack (ordNub (filter (not . ST.null) (concatMap unitExtDepFrameworkDirs ps)))
-
--- | Find all the package frameworks in these and the preload packages
-getPackageFrameworks  :: DynFlags -> [UnitId] -> IO [String]
-getPackageFrameworks dflags pkgs = do
-  ps <- getPreloadPackagesAnd dflags pkgs
-  return $ map ST.unpack (concatMap unitExtDepFrameworks ps)
+getPackageExtraCcOpts dflags pkgs =
+  fmap ST.unpack . (=<<) unitCcOptions <$> getPreloadPackagesAnd dflags pkgs
 
 -- -----------------------------------------------------------------------------
 -- Package Utils

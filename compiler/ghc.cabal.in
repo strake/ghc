@@ -449,6 +449,13 @@ Library
         GHC.Iface.Tidy.StaticPtrTable
         GHC.Iface.Type
         GHC.IfaceToCore
+        GHC.Linker
+        GHC.Linker.Dynamic
+        GHC.Linker.ExtraObj
+        GHC.Linker.Loader
+        GHC.Linker.Static
+        GHC.Linker.Types
+        GHC.Linker.Unit
         GHC.Llvm
         GHC.Llvm.MetaData
         GHC.Llvm.Ppr
@@ -497,8 +504,6 @@ Library
         GHC.Runtime.Heap.Layout
         GHC.Runtime.Interpreter
         GHC.Runtime.Interpreter.Types
-        GHC.Runtime.Linker
-        GHC.Runtime.Linker.Types
         GHC.Runtime.Loader
         GHC.Settings
         GHC.Settings.Config
@@ -539,7 +544,6 @@ Library
         GHC.SysTools.Ar
         GHC.SysTools.BaseDir
         GHC.SysTools.Elf
-        GHC.SysTools.ExtraObj
         GHC.SysTools.FileCleanup
         GHC.SysTools.Info
         GHC.SysTools.Process

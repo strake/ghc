@@ -236,7 +236,6 @@ figureLlvmVersion dflags = traceToolCommand dflags "llc" $ do
                                 llvmVersionStr supportedLlvmVersion) ]
                 return Nothing)
 
-
 runLink :: DynFlags -> [Option] -> IO ()
 runLink dflags args = traceToolCommand dflags "linker" $ do
   -- See Note [Run-time linker info]

@@ -34,9 +34,11 @@ module GHC.Driver.Make (
 import GHC.Prelude
 
 import GHC.Tc.Utils.Backpack
+import GHC.Tc.Utils.Monad  ( initIfaceCheck )
 
-import qualified GHC.Runtime.Linker as Linker
-import GHC.Runtime.Linker.Types
+import qualified GHC.Linker.Loader as Linker
+import GHC.Linker.Types
+
 import GHC.Runtime.Context
 
 import GHC.Driver.Phases
@@ -49,9 +51,7 @@ import GHC.Driver.Main
 
 import GHC.Parser.Header
 
-import GHC.Utils.Error
 import GHC.IfaceToCore     ( typecheckIface )
-import GHC.Tc.Utils.Monad  ( initIfaceCheck )
 
 import GHC.Data.Bag        ( unitBag, listToBag, unionManyBags, isEmptyBag )
 import GHC.Data.Graph.Directed
@@ -59,7 +59,6 @@ import GHC.Data.FastString
 import GHC.Data.Maybe      ( expectJust )
 import GHC.Data.StringBuffer
 import qualified GHC.LanguageExtensions as LangExt
-import GHC.SysTools.FileCleanup
 
 import GHC.Utils.Exception ( tryIO, AsyncException(..), evaluate )
 import GHC.Utils.Monad     ( allM )
@@ -67,6 +66,8 @@ import GHC.Utils.Outputable
 import GHC.Utils.Panic
 import GHC.Utils.Panic.Plain
 import GHC.Utils.Misc
+import GHC.Utils.Error
+import GHC.SysTools.FileCleanup
 
 import GHC.Types.Basic
 import GHC.Types.Target
