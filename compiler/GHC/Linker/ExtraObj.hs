@@ -6,12 +6,19 @@
 --
 -----------------------------------------------------------------------------
 
-module GHC.SysTools.ExtraObj (
-  mkExtraObj, mkExtraObjToLinkIntoBinary, mkNoteObjsToLinkIntoBinary,
-  checkLinkInfo, getLinkInfo, getCompilerInfo,
-  ghcLinkInfoSectionName, ghcLinkInfoNoteName, platformSupportsSavingLinkOpts,
-  haveRtsOptsFlags
-) where
+module GHC.Linker.ExtraObj
+   ( mkExtraObj
+   , mkExtraObjToLinkIntoBinary
+   , mkNoteObjsToLinkIntoBinary
+   , checkLinkInfo
+   , getLinkInfo
+   , getCompilerInfo
+   , ghcLinkInfoSectionName
+   , ghcLinkInfoNoteName
+   , platformSupportsSavingLinkOpts
+   , haveRtsOptsFlags
+   )
+where
 
 import GHC.Utils.Asm
 import GHC.Utils.Error
@@ -35,6 +42,7 @@ import Control.Monad.IO.Class
 import GHC.SysTools.FileCleanup
 import GHC.SysTools.Tasks
 import GHC.SysTools.Info
+import GHC.Linker.Unit
 
 mkExtraObj :: DynFlags -> Suffix -> String -> IO FilePath
 mkExtraObj dflags extn xs
@@ -173,13 +181,9 @@ mkNoteObjsToLinkIntoBinary dflags dep_packages = do
 getLinkInfo :: DynFlags -> [UnitId] -> IO String
 getLinkInfo dflags dep_packages = do
    package_link_opts <- getPackageLinkOpts dflags dep_packages
-   pkg_frameworks <- if platformUsesFrameworks (targetPlatform dflags)
-                     then getPackageFrameworks dflags dep_packages
-                     else return []
    let extra_ld_inputs = ldInputs dflags
    let
       link_info = (package_link_opts,
-                   pkg_frameworks,
                    rtsOpts dflags,
                    rtsOptsEnabled dflags,
                    gopt Opt_NoHsMain dflags,

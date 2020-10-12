@@ -36,7 +36,10 @@ import GHC.Unit.Module.Imported
 import GHC.Unit.Module.ModIface
 import GHC.Unit.Module.Deps
 
+import GHC.Linker.Unit
+
 import GHC.Data.Maybe
+import qualified GHC.Data.ShortText as ST
 
 import Control.Monad (filterM)
 import Data.List
@@ -183,10 +186,10 @@ mkPluginUsage hsc_env pluginModule
     LookupFound _ pkg -> do
     -- The plugin is from an external package:
     -- search for the library files containing the plugin.
-      let searchPaths = collectLibraryPaths dflags [pkg]
+      let searchPaths = collectLibraryPaths (ways dflags) [pkg]
           useDyn = WayDyn `elem` ways dflags
           suffix = if useDyn then platformSOExt platform else "a"
-          libLocs = [ searchPath </> "lib" ++ libLoc <.> suffix
+          libLocs = [ searchPath </> "lib" ++ ST.unpack libLoc <.> suffix
                     | searchPath <- searchPaths
                     , libLoc     <- packageHsLibs dflags pkg
                     ]
@@ -197,7 +200,7 @@ mkPluginUsage hsc_env pluginModule
               then libLocs
               else
                 let dflags'  = addWay' WayDyn dflags
-                    dlibLocs = [ searchPath </> platformHsSOName platform dlibLoc
+                    dlibLocs = [ searchPath </> platformHsSOName platform (ST.unpack dlibLoc)
                                | searchPath <- searchPaths
                                , dlibLoc    <- packageHsLibs dflags' pkg
                                ]

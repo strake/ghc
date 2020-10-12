@@ -1,14 +1,20 @@
+{-# LANGUAGE CPP #-}
+
+#include "lens.h"
+
 -----------------------------------------------------------------------------
 --
--- Types for the Dynamic Linker
+-- Types for the linkers and the loader
 --
 -- (c) The University of Glasgow 2019
 --
 -----------------------------------------------------------------------------
 
-module GHC.Runtime.Linker.Types
-   ( DynLinker(..)
-   , PersistentLinkerState(..)
+module GHC.Linker.Types
+   ( Loader (..)
+   , LoaderState (..)
+   , closure_envL, itbl_envL, bcos_loadedL, objs_loadedL, pkgs_loadedL, temp_sosL
+   , uninitializedLoader
    , Linkable(..)
    , Unlinked(..)
    , SptEntry(..)
@@ -22,8 +28,6 @@ module GHC.Runtime.Linker.Types
 where
 
 import GHC.Prelude
-import Data.Time               ( UTCTime )
-import Control.Concurrent.MVar ( MVar )
 import GHC.Unit                ( UnitId, Module )
 import GHC.ByteCode.Types      ( ItblEnv, CompiledByteCode )
 import GHC.Fingerprint.Type    ( Fingerprint )
@@ -36,38 +40,69 @@ import GHC.Types.Name          ( Name )
 import GHC.Utils.Outputable
 import GHC.Utils.Panic
 
+import Control.Concurrent.MVar
+import Data.Time               ( UTCTime )
+
+
+{- **********************************************************************
+
+                        The Loader's state
+
+  ********************************************************************* -}
+
+{-
+The loader state *must* match the actual state of the C dynamic linker at all
+times.
+
+The MVar used to hold the LoaderState contains a Maybe LoaderState. The MVar
+serves to ensure mutual exclusion between multiple loaded copies of the GHC
+library. The Maybe may be Nothing to indicate that the linker has not yet been
+initialised.
+
+The LoaderState maps Names to actual closures (for interpreted code only), for
+use during linking.
+-}
+
+newtype Loader = Loader { loader_state :: MVar (Maybe LoaderState) }
+
+data LoaderState = LoaderState
+    { closure_env :: ClosureEnv
+        -- ^ Current global mapping from Names to their true values
+
+    , itbl_env    :: !ItblEnv
+        -- ^ The current global mapping from RdrNames of DataCons to
+        -- info table addresses.
+        -- When a new Unlinked is linked into the running image, or an existing
+        -- module in the image is replaced, the itbl_env must be updated
+        -- appropriately.
+
+    , bcos_loaded :: ![Linkable]
+        -- ^ The currently loaded interpreted modules (home package)
+
+    , objs_loaded :: ![Linkable]
+        -- ^ And the currently-loaded compiled modules (home package)
+
+    , pkgs_loaded :: ![UnitId]
+        -- ^ The currently-loaded packages; always object code
+        -- Held, as usual, in dependency order; though I am not sure if
+        -- that is really important
+
+    , temp_sos :: ![(FilePath, String)]
+        -- ^ We need to remember the name of previous temporary DLL/.so
+        -- libraries so we can link them (see #10322)
+    }
+
+closure_envL LENS_FIELD(closure_env)
+itbl_envL LENS_FIELD(itbl_env)
+bcos_loadedL LENS_FIELD(bcos_loaded)
+objs_loadedL LENS_FIELD(objs_loaded)
+pkgs_loadedL LENS_FIELD(pkgs_loaded)
+temp_sosL LENS_FIELD(temp_sos)
+
+uninitializedLoader :: IO Loader
+uninitializedLoader = Loader <$> newMVar Nothing
+
 type ClosureEnv = NameEnv (Name, ForeignHValue)
-
-newtype DynLinker =
-  DynLinker { dl_mpls :: MVar (Maybe PersistentLinkerState) }
-
-data PersistentLinkerState
-  = PersistentLinkerState {
-
-       -- Current global mapping from Names to their true values
-       closure_env :: ClosureEnv,
-
-       -- The current global mapping from RdrNames of DataCons to
-       -- info table addresses.
-       -- When a new Unlinked is linked into the running image, or an existing
-       -- module in the image is replaced, the itbl_env must be updated
-       -- appropriately.
-       itbl_env    :: !ItblEnv,
-
-       -- The currently loaded interpreted modules (home package)
-       bcos_loaded :: ![Linkable],
-
-       -- And the currently-loaded compiled modules (home package)
-       objs_loaded :: ![Linkable],
-
-       -- The currently-loaded packages; always object code
-       -- Held, as usual, in dependency order; though I am not sure if
-       -- that is really important
-       pkgs_loaded :: ![UnitId],
-
-       -- we need to remember the name of previous temporary DLL/.so
-       -- libraries so we can link them (see #10322)
-       temp_sos :: ![(FilePath, String)] }
 
 -- | Information we can use to dynamically link modules into the compiler
 data Linkable = LM {

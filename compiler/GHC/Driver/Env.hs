@@ -18,7 +18,7 @@ module GHC.Driver.Env
    , prepareAnnotations
    , lookupType
    , lookupIfaceByModule
-   , hsc_dflagsL, hsc_targetsL, hsc_mod_graphL, hsc_ICL, hsc_HPTL, hsc_EPSL, hsc_NCL, hsc_FCL, hsc_type_env_varL, hsc_interpL, hsc_dynLinkerL, hsc_pluginsL, hsc_static_pluginsL
+   , hsc_dflagsL, hsc_targetsL, hsc_mod_graphL, hsc_ICL, hsc_HPTL, hsc_EPSL, hsc_NCL, hsc_FCL, hsc_type_env_varL, hsc_interpL, hsc_loaderL, hsc_pluginsL, hsc_static_pluginsL
    )
 where
 
@@ -30,7 +30,7 @@ import {-# SOURCE #-} GHC.Driver.Hooks
 
 import GHC.Runtime.Context
 import GHC.Runtime.Interpreter.Types (Interp)
-import GHC.Runtime.Linker.Types ( DynLinker )
+import GHC.Linker.Types ( Loader )
 
 import GHC.Unit
 import GHC.Unit.Module.ModGuts
@@ -166,8 +166,8 @@ data HscEnv
                 -- ^ target code interpreter (if any) to use for TH and GHCi.
                 -- See Note [Target code interpreter]
 
-        , hsc_dynLinker :: DynLinker
-                -- ^ dynamic linker.
+        , hsc_loader :: Loader
+                -- ^ Loader (dynamic linker)
 
         , hsc_hooks :: !Hooks
                 -- ^ Hooks
@@ -199,7 +199,7 @@ hsc_NCL LENS_FIELD(hsc_NC)
 hsc_FCL LENS_FIELD(hsc_FC)
 hsc_type_env_varL LENS_FIELD(hsc_type_env_var)
 hsc_interpL LENS_FIELD(hsc_interp)
-hsc_dynLinkerL LENS_FIELD(hsc_dynLinker)
+hsc_loaderL LENS_FIELD(hsc_loader)
 hsc_pluginsL LENS_FIELD(hsc_plugins)
 hsc_static_pluginsL LENS_FIELD(hsc_static_plugins)
 
