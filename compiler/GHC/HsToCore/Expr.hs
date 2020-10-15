@@ -33,6 +33,7 @@ import GHC.HsToCore.Utils
 import GHC.HsToCore.Arrows
 import GHC.HsToCore.Monad
 import GHC.HsToCore.PmCheck ( addTyCsDs, checkGuardMatches )
+import GHC.Types.SourceText
 import GHC.Types.Name
 import GHC.Types.Name.Env
 import GHC.Core.FamInstEnv( topNormaliseType )

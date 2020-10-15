@@ -20,22 +20,27 @@ module GHC.ByteCode.Linker (
 
 import GHC.Prelude
 
+import GHC.Driver.Env
+
+import GHC.Runtime.Interpreter
+import GHC.ByteCode.Types
 import GHCi.RemoteTypes
 import GHCi.ResolvedBCO
 import GHCi.BreakArray
 import SizedSeq
 
-import GHC.Runtime.Interpreter
-import GHC.ByteCode.Types
-import GHC.Driver.Types
-import GHC.Types.Name
-import GHC.Types.Name.Env
 import GHC.Builtin.PrimOps
+
 import GHC.Unit
+
 import GHC.Data.FastString
+
 import GHC.Utils.Panic
 import GHC.Utils.Outputable
 import GHC.Utils.Misc
+
+import GHC.Types.Name
+import GHC.Types.Name.Env
 
 -- Standard libraries
 import Data.Array.Unboxed

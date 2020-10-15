@@ -105,9 +105,8 @@ import GHC.Utils.Error
 import GHC.Driver.Session as DynFlags
 
 import GHC.Types.SrcLoc
-import GHC.Types.Basic ( InlineSpec(..), RuleMatchInfo(..),
-                         IntegralLit(..), FractionalLit(..),
-                         SourceText(..) )
+import GHC.Types.SourceText
+import GHC.Types.Basic ( InlineSpec(..), RuleMatchInfo(..))
 
 import GHC.Parser.CharClass
 

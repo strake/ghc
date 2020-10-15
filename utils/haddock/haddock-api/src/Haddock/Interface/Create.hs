@@ -42,10 +42,13 @@ import Data.Traversable
 import GHC.Types.Avail hiding (avail)
 import qualified GHC.Types.Avail  as Avail
 import qualified GHC.Unit.Module as Module
+import GHC.Unit.Module.ModDetails
+import GHC.Unit.Module.ModSummary
+import GHC.Unit.Module.Warnings
 import qualified GHC.Types.SrcLoc as SrcLoc
+import GHC.Types.SourceFile
 import GHC.Core.ConLike (ConLike(..))
 import GHC
-import GHC.Driver.Types
 import GHC.Types.Name
 import GHC.Types.Name.Set
 import GHC.Types.Name.Env
@@ -54,7 +57,8 @@ import GHC.Data.Bag
 import GHC.Types.Name.Reader
 import GHC.Tc.Types
 import GHC.Data.FastString ( unpackFS, bytesFS )
-import GHC.Types.Basic ( StringLiteral(..), SourceText(..), PromotionFlag(..) )
+import GHC.Types.Basic ( PromotionFlag(..) )
+import GHC.Types.SourceText
 import GHC.Unit.State ( PackageState )
 import qualified GHC.Utils.Outputable as O
 import qualified GHC.Utils.Panic as O

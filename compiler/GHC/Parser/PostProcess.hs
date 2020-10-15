@@ -114,15 +114,18 @@ import GHC.Types.Name.Reader
 import GHC.Types.Name
 import GHC.Unit.Module (ModuleName)
 import GHC.Types.Basic
+import GHC.Types.Fixity
+import GHC.Types.SourceText
 import GHC.Parser.Lexer
 import GHC.Utils.Lexeme ( isLexCon )
-import GHC.Core.Type    ( TyThing(..), funTyCon, Specificity(..) )
+import GHC.Core.Type    ( funTyCon, Specificity(..) )
+import GHC.Builtin.Names ( allNameStrings )
 import GHC.Builtin.Types( cTupleTyConName, tupleTyCon, tupleDataCon,
                           nilDataConName, nilDataConKey,
                           listTyConName, listTyConKey, eqTyCon_RDR,
                           tupleTyConName, cTupleTyConNameArity_maybe )
 import GHC.Types.ForeignCall
-import GHC.Builtin.Names ( allNameStrings )
+import GHC.Types.TyThing( TyThing (..) )
 import GHC.Types.SrcLoc
 import GHC.Types.Unique ( hasKey )
 import GHC.Data.OrdList ( OrdList, fromOL )
@@ -2616,7 +2619,7 @@ mkInlinePragma :: SourceText -> (InlineSpec, RuleMatchInfo) -> Maybe Activation
 -- The (Maybe Activation) is because the user can omit
 -- the activation spec (and usually does)
 mkInlinePragma src (inl, match_info) mb_act
-  = InlinePragma { inl_src = src -- Note [Pragma source text] in GHC.Types.Basic
+  = InlinePragma { inl_src = src -- Note [Pragma source text] in GHC.Types.SourceText
                  , inl_inline = inl
                  , inl_sat    = Nothing
                  , inl_act    = act

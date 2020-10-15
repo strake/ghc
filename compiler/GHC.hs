@@ -264,6 +264,7 @@ module GHC (
 
         -- * Exceptions
         GhcException(..), showGhcException,
+        GhcApiError(..),
 
         -- * Token stream manipulations
         Token,
@@ -294,14 +295,13 @@ module GHC (
 
 import GHC.Prelude hiding (init)
 
-import GHC.ByteCode.Types
-import GHC.Runtime.Eval
-import GHC.Runtime.Eval.Types
-import GHC.Runtime.Interpreter
-import GHC.Runtime.Interpreter.Types
-import GHCi.RemoteTypes
+import GHC.Platform
+import GHC.Platform.Ways
 
-import GHC.Core.Ppr.TyThing  ( pprFamInst )
+import GHC.Driver.Phases   ( Phase(..), isHaskellSrcFilename )
+import GHC.Driver.Env
+import GHC.Driver.CmdLine
+import GHC.Driver.Session hiding (WarnReason(..))
 import GHC.Driver.Backend
 import GHC.Driver.Config
 import GHC.Driver.Main
@@ -309,60 +309,85 @@ import GHC.Driver.Make
 import GHC.Driver.Hooks
 import GHC.Driver.Pipeline   ( compileOne' )
 import GHC.Driver.Monad
-import GHC.Tc.Utils.Monad    ( finalSafeMode, fixSafeInstances, initIfaceTcRn )
+import GHC.Driver.Ppr
+
+import GHC.ByteCode.Types
+import GHC.Runtime.Eval
+import GHC.Runtime.Eval.Types
+import GHC.Runtime.Interpreter
+import GHC.Runtime.Interpreter.Types
+import GHC.Runtime.Context
+import GHCi.RemoteTypes
+
+import qualified GHC.Parser as Parser
+import GHC.Parser.Lexer
+import GHC.Parser.Annotation
+
 import GHC.Iface.Load        ( loadSysInterface )
-import GHC.Tc.Types
-import GHC.Core.Predicate
-import GHC.Unit.State
-import GHC.Types.Name.Set
-import GHC.Types.Name.Reader
 import GHC.Hs
-import GHC.Core.Type  hiding( typeKind )
-import GHC.Tc.Utils.TcType
-import GHC.Types.Id
 import GHC.Builtin.Types.Prim ( alphaTyVars )
+import GHC.Iface.Tidy
+import GHC.Data.Bag        ( listToBag )
+import GHC.Data.StringBuffer
+import GHC.Data.FastString
+import qualified GHC.LanguageExtensions as LangExt
+
+import GHC.Tc.Utils.Monad    ( finalSafeMode, fixSafeInstances, initIfaceTcRn )
+import GHC.Tc.Types
+import GHC.Tc.Utils.TcType
+import GHC.Tc.Module
+import GHC.Tc.Utils.Instantiate
+import GHC.Tc.Instance.Family
+
+import GHC.SysTools.FileCleanup
+import GHC.SysTools
+import GHC.SysTools.BaseDir
+
+import GHC.Utils.Error
+import GHC.Utils.Monad
+import GHC.Utils.Misc
+import GHC.Utils.Outputable
+import GHC.Utils.Panic
+
+import GHC.Core.Predicate
+import GHC.Core.Type  hiding( typeKind )
 import GHC.Core.TyCon
 import GHC.Core.TyCo.Ppr   ( pprForAll )
 import GHC.Core.Class
 import GHC.Core.DataCon
 import GHC.Core.FVs        ( orphNamesOfFamInst )
-import GHC.Core.FamInstEnv ( FamInst, famInstEnvElts )
+import GHC.Core.FamInstEnv ( FamInst, famInstEnvElts, pprFamInst )
 import GHC.Core.InstEnv
+import GHC.Core
+
+import GHC.Types.Id
 import GHC.Types.Name      hiding ( varName )
 import GHC.Types.Avail
 import GHC.Types.SrcLoc
-import GHC.Core
-import GHC.Iface.Tidy
-import GHC.Driver.Phases   ( Phase(..), isHaskellSrcFilename )
-import GHC.Driver.Finder
-import GHC.Driver.Types
-import GHC.Driver.CmdLine
-import GHC.Driver.Session hiding (WarnReason(..))
-import GHC.Platform.Ways
-import GHC.Driver.Ppr
-import GHC.SysTools
-import GHC.SysTools.BaseDir
 import GHC.Types.Annotations
-import GHC.Unit.Module
-import GHC.Utils.Panic
-import GHC.Platform
-import GHC.Data.Bag        ( listToBag )
-import GHC.Utils.Error
-import GHC.Utils.Monad
-import GHC.Utils.Misc
-import GHC.Data.StringBuffer
-import GHC.Utils.Outputable
+import GHC.Types.Name.Set
+import GHC.Types.Name.Reader
+import GHC.Types.SourceError
+import GHC.Types.SafeHaskell
+import GHC.Types.Fixity
+import GHC.Types.Target
 import GHC.Types.Basic
-import GHC.Data.FastString
-import qualified GHC.Parser as Parser
-import GHC.Parser.Lexer
-import GHC.Parser.Annotation
-import qualified GHC.LanguageExtensions as LangExt
 import GHC.Types.Name.Env
-import GHC.Tc.Module
-import GHC.Tc.Utils.Instantiate
-import GHC.Tc.Instance.Family
-import GHC.SysTools.FileCleanup
+import GHC.Types.Name.Ppr
+import GHC.Types.TyThing
+import GHC.Types.TypeEnv
+import GHC.Types.SourceFile
+
+import GHC.Unit.External
+import GHC.Unit.State
+import GHC.Unit.Finder
+import GHC.Unit.Module
+import GHC.Unit.Module.ModIface
+import GHC.Unit.Module.ModGuts
+import GHC.Unit.Module.ModDetails
+import GHC.Unit.Module.ModSummary
+import GHC.Unit.Module.Graph
+import GHC.Unit.Home.ModInfo
 
 import Data.Foldable
 import qualified Data.Map.Strict as Map
@@ -1165,7 +1190,7 @@ getInsts = withSession $ \hsc_env ->
 
 getPrintUnqual :: GhcMonad m => m PrintUnqualified
 getPrintUnqual = withSession $ \hsc_env ->
-  return (icPrintUnqual (hsc_dflags hsc_env) (hsc_IC hsc_env))
+  return (icPrintUnqual (pkgState (hsc_dflags hsc_env)) (homeUnit (hsc_dflags hsc_env)) (hsc_IC hsc_env))
 
 -- | Container for information about a 'Module'.
 data ModuleInfo = ModuleInfo {
@@ -1259,8 +1284,9 @@ modInfoIsExportedName minf name = elemNameSet name (availsToNameSet (minf_export
 mkPrintUnqualifiedForModule :: GhcMonad m =>
                                ModuleInfo
                             -> m (Maybe PrintUnqualified) -- XXX: returns a Maybe X
-mkPrintUnqualifiedForModule minf = withSession $ \hsc_env -> do
-  return (fmap (mkPrintUnqualified (hsc_dflags hsc_env)) (minf_rdr_env minf))
+mkPrintUnqualifiedForModule minf = withSession $ \hsc_env -> pure $
+  let dflags = hsc_dflags hsc_env
+  in mkPrintUnqualified (pkgState dflags) (homeUnit dflags) <$> minf_rdr_env minf
 
 modInfoLookupName :: GhcMonad m =>
                      ModuleInfo -> Name
@@ -1268,10 +1294,7 @@ modInfoLookupName :: GhcMonad m =>
 modInfoLookupName minf name = withSession $ \hsc_env -> do
    case lookupTypeEnv (minf_type_env minf) name of
      Just tyThing -> return (Just tyThing)
-     Nothing      -> do
-       eps <- liftIO $ readIORef (hsc_EPS hsc_env)
-       return $! lookupType (hsc_dflags hsc_env)
-                            (hsc_HPT hsc_env) (eps_PTE eps) name
+     Nothing      -> liftIO $ lookupType hsc_env name
 
 modInfoIface :: ModuleInfo -> Maybe ModIface
 modInfoIface = minf_iface
@@ -1297,7 +1320,7 @@ isDictonaryId id
 -- 'setContext'.
 lookupGlobalName :: GhcMonad m => Name -> m (Maybe TyThing)
 lookupGlobalName name = withSession $ \hsc_env -> do
-   liftIO $ lookupTypeHscEnv hsc_env name
+   liftIO $ lookupType hsc_env name
 
 findGlobalAnns :: (GhcMonad m, Typeable a) => ([Word8] -> a) -> AnnTarget Name -> m [a]
 findGlobalAnns deserialize target = withSession $ \hsc_env -> do
@@ -1414,7 +1437,7 @@ getModuleSourceAndFlags mod = do
 -- | Return module source as token stream, including comments.
 --
 -- The module must be in the module graph and its source must be available.
--- Throws a 'GHC.Driver.Types.SourceError' on parse error.
+-- Throws a 'GHC.Driver.Env.SourceError' on parse error.
 getTokenStream :: GhcMonad m => Module -> m [Located Token]
 getTokenStream mod = do
   (sourceFile, source, dflags) <- getModuleSourceAndFlags mod
@@ -1754,3 +1777,15 @@ interpretPackageEnv dflags = do
          "Package environment "
       ++ show env
       ++ " (specified in GHC_ENVIRONMENT) not found"
+
+-- | An error thrown if the GHC API is used in an incorrect fashion.
+newtype GhcApiError = GhcApiError String
+
+instance Show GhcApiError where
+  show (GhcApiError msg) = msg
+
+instance Exception GhcApiError
+
+mkApiErr :: DynFlags -> SDoc -> GhcApiError
+mkApiErr dflags msg = GhcApiError (showSDoc dflags msg)
+

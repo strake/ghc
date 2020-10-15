@@ -964,7 +964,7 @@ data Tickish id =
     { breakpointId     :: !Int
     , breakpointFVs    :: [id]  -- ^ the order of this list is important:
                                 -- it matches the order of the lists in the
-                                -- appropriate entry in 'GHC.Driver.Types.ModBreaks'.
+                                -- appropriate entry in 'GHC.ByteCode.Types.ModBreaks'.
                                 --
                                 -- Careful about substitution!  See
                                 -- Note [substTickish] in "GHC.Core.Subst".

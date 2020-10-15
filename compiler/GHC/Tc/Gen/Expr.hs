@@ -40,6 +40,7 @@ import GHC.Tc.Utils.Zonk
 import GHC.Tc.Utils.Monad
 import GHC.Tc.Utils.Unify
 import GHC.Types.Basic
+import GHC.Types.SourceText
 import GHC.Tc.Utils.Instantiate
 import GHC.Tc.Gen.Bind        ( chooseInferredQuantifiers, tcLocalBinds )
 import GHC.Tc.Gen.Sig         ( tcUserTypeSig, tcInstSig )

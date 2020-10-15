@@ -112,6 +112,7 @@ import GHC.Hs.Extension
 import GHC.Types.Name
 import GHC.Types.Name.Reader
 import GHC.Types.Name.Set
+import GHC.Types.Fixity
 
 -- others:
 import GHC.Core.Class
@@ -119,7 +120,9 @@ import GHC.Utils.Outputable
 import GHC.Utils.Misc
 import GHC.Utils.Panic
 import GHC.Types.SrcLoc
+import GHC.Types.SourceText
 import GHC.Core.Type
+import GHC.Unit.Module.Warnings
 
 import GHC.Data.Bag
 import GHC.Data.Maybe
@@ -2309,7 +2312,7 @@ instance Outputable ForeignExport where
 -- | Located Rule Declarations
 type LRuleDecls pass = Located (RuleDecls pass)
 
-  -- Note [Pragma source text] in GHC.Types.Basic
+  -- Note [Pragma source text] in GHC.Types.SourceText
 -- | Rule Declarations
 data RuleDecls pass = HsRules { rds_ext   :: XCRuleDecls pass
                               , rds_src   :: SourceText
@@ -2452,7 +2455,7 @@ We use exported entities for things to deprecate.
 -- | Located Warning Declarations
 type LWarnDecls pass = Located (WarnDecls pass)
 
- -- Note [Pragma source text] in GHC.Types.Basic
+ -- Note [Pragma source text] in GHC.Types.SourceText
 -- | Warning pragma Declarations
 data WarnDecls pass = Warnings { wd_ext      :: XWarnings pass
                                , wd_src      :: SourceText
@@ -2500,7 +2503,7 @@ type LAnnDecl pass = Located (AnnDecl pass)
 -- | Annotation Declaration
 data AnnDecl pass = HsAnnotation
                       (XHsAnnotation pass)
-                      SourceText -- Note [Pragma source text] in GHC.Types.Basic
+                      SourceText -- Note [Pragma source text] in GHC.Types.SourceText
                       (AnnProvenance (IdP pass)) (Located (HsExpr pass))
       -- ^ - 'GHC.Parser.Annotation.AnnKeywordId' : 'GHC.Parser.Annotation.AnnOpen',
       --           'GHC.Parser.Annotation.AnnType'

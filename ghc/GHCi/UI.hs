@@ -40,34 +40,38 @@ import GHC.Runtime.Interpreter
 import GHC.Runtime.Interpreter.Types
 import GHCi.RemoteTypes
 import GHCi.BreakArray
-import GHC.Unit.State
+import GHC.ByteCode.Types
+import GHC.Driver.Phases
 import GHC.Driver.Session as DynFlags
 import GHC.Driver.Ppr hiding (printForUser)
 import GHC.Utils.Error hiding (traceCmd)
-import GHC.Driver.Finder as Finder
 import GHC.Driver.Monad ( modifySession )
 import GHC.Driver.Config
 import qualified GHC
-import GHC ( LoadHowMuch(..), Target(..),  TargetId(..), InteractiveImport(..),
-             TyThing(..), Phase, BreakIndex, Resume, SingleStep, Ghc,
+import GHC ( LoadHowMuch(..), Target(..),  TargetId(..),
+             Resume, SingleStep, Ghc,
              GetDocsFailure(..),
              getModuleGraph, handleSourceError, ms_mod )
 import GHC.Driver.Main (hscParseDeclsWithLocation, hscParseStmtWithLocation)
 import GHC.Hs.ImpExp
 import GHC.Hs
-import GHC.Driver.Types ( tyThingParent_maybe, handleFlagWarnings, getSafeMode, hsc_IC,
-                  setInteractivePrintName, hsc_dflags, msObjFilePath, runInteractiveHsc,
-                  hsc_dynLinker, hsc_interp, emptyModBreaks )
-import GHC.Unit.Module
+import GHC.Driver.Env
+import GHC.Runtime.Context
+import GHC.Types.TyThing
+import GHC.Types.TyThing.Ppr
+import GHC.Types.SafeHaskell ( getSafeMode )
 import GHC.Types.Name
-import GHC.Unit.State ( unitIsTrusted, unsafeLookupUnit, getInstalledPackageDetails,
-                             listVisibleModuleNames, pprFlag )
+import GHC.Types.SourceText
 import GHC.Iface.Syntax ( showToHeader )
-import GHC.Core.Ppr.TyThing
 import GHC.Builtin.Names
 import GHC.Types.Name.Reader as RdrName ( getGRE_NameQualifier_maybes, getRdrName )
 import GHC.Types.SrcLoc as SrcLoc
 import qualified GHC.Parser.Lexer as Lexer
+
+import GHC.Unit
+import GHC.Unit.State
+import GHC.Unit.Finder as Finder
+import GHC.Unit.Module.ModSummary
 
 import GHC.Data.StringBuffer
 import GHC.Utils.Outputable
@@ -1514,7 +1518,7 @@ pprInfo (thing, fixity, cls_insts, fam_insts, docs)
   $$ pprTyThingInContextLoc thing
   $$ show_fixity
   $$ vcat (map GHC.pprInstance cls_insts)
-  $$ vcat (map GHC.pprFamInst  fam_insts)
+  $$ vcat (map pprFamInst fam_insts)
   where
     show_fixity
         | fixity == GHC.defaultFixity = empty
@@ -3141,7 +3145,7 @@ showBindings = do
     bindings <- GHC.getBindings
     (insts, finsts) <- GHC.getInsts
     let idocs  = map GHC.pprInstanceHdr insts
-        fidocs = map GHC.pprFamInst finsts
+        fidocs = map pprFamInst finsts
         binds = filter (not . isDerivedOccName . getOccName) bindings -- #12525
         -- See Note [Filter bindings]
     docs <- mapM makeDoc (reverse binds)

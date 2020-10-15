@@ -36,46 +36,54 @@ module GHC.Tc.Utils.Instantiate (
 
 import GHC.Prelude
 
-import {-# SOURCE #-}   GHC.Tc.Gen.Expr( tcCheckExpr, tcSyntaxOp )
-import {-# SOURCE #-}   GHC.Tc.Utils.Unify( unifyType, unifyKind )
+import GHC.Driver.Session
 
-import GHC.Types.Basic ( IntegralLit(..), SourceText(..) )
-import GHC.Data.FastString
-import GHC.Hs
-import GHC.Tc.Utils.Zonk
-import GHC.Tc.Utils.Monad
-import GHC.Tc.Types.Constraint
-import GHC.Core.Predicate
-import GHC.Tc.Types.Origin
-import GHC.Tc.Utils.Env
-import GHC.Tc.Types.Evidence
-import GHC.Core.InstEnv
 import GHC.Builtin.Types  ( heqDataCon, eqDataCon, integerTyConName )
+import GHC.Builtin.Names
+
+import GHC.Hs
+
+import GHC.Core.InstEnv
+import GHC.Core.Predicate
 import GHC.Core    ( isOrphan )
-import GHC.Tc.Instance.FunDeps
-import GHC.Tc.Utils.TcMType
 import GHC.Core.Type
 import GHC.Core.TyCo.Rep
 import GHC.Core.TyCo.Ppr ( debugPprType )
-import GHC.Tc.Utils.TcType
-import GHC.Driver.Types
 import GHC.Core.Class( Class )
-import GHC.Types.Id.Make( mkDictFunId )
 import GHC.Core( Expr(..) )  -- For the Coercion constructor
+import GHC.Core.DataCon
+
+import {-# SOURCE #-}   GHC.Tc.Gen.Expr( tcCheckExpr, tcSyntaxOp )
+import {-# SOURCE #-}   GHC.Tc.Utils.Unify( unifyType, unifyKind )
+
+import GHC.Tc.Utils.Zonk
+import GHC.Tc.Utils.Monad
+import GHC.Tc.Types.Constraint
+import GHC.Tc.Types.Origin
+import GHC.Tc.Utils.Env
+import GHC.Tc.Types.Evidence
+import GHC.Tc.Instance.FunDeps
+import GHC.Tc.Utils.TcMType
+import GHC.Tc.Utils.TcType
+
+import GHC.Types.Id.Make( mkDictFunId )
+import GHC.Types.Basic ( TypeOrKind(..) )
+import GHC.Types.SourceText
+import GHC.Types.SrcLoc as SrcLoc
+import GHC.Types.Var.Env
 import GHC.Types.Id
 import GHC.Types.Name
-import GHC.Types.Var ( EvVar, tyVarName, VarBndr(..) )
-import GHC.Core.DataCon
-import GHC.Types.Var.Env
-import GHC.Builtin.Names
-import GHC.Types.SrcLoc as SrcLoc
-import GHC.Driver.Session
+import GHC.Types.Var
+import qualified GHC.LanguageExtensions as LangExt
+
 import GHC.Utils.Misc
 import GHC.Utils.Panic
 import GHC.Utils.Outputable
-import GHC.Types.Basic ( TypeOrKind(..) )
-import qualified GHC.LanguageExtensions as LangExt
+
 import GHC.Unit.State
+import GHC.Unit.External
+
+import GHC.Data.FastString
 
 import Data.List ( sortBy )
 import Control.Monad( unless )

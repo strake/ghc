@@ -73,17 +73,23 @@ module GHC.Tc.Utils.Env(
 
 import GHC.Prelude
 
+import GHC.Driver.Env
+import GHC.Driver.Session
+
+import GHC.Builtin.Names
+import GHC.Builtin.Types
+
+import GHC.Runtime.Context
+
 import GHC.Hs
+
 import GHC.Iface.Env
+import GHC.Iface.Load
+
 import GHC.Tc.Utils.Monad
 import GHC.Tc.Utils.TcMType
 import GHC.Tc.Utils.TcType
-import GHC.Iface.Load
-import GHC.Builtin.Names
-import GHC.Builtin.Types
-import GHC.Types.Id
-import GHC.Types.Var
-import GHC.Types.Name.Reader
+
 import GHC.Core.InstEnv
 import GHC.Core.DataCon ( DataCon )
 import GHC.Core.PatSyn  ( PatSyn )
@@ -92,25 +98,34 @@ import GHC.Core.TyCon
 import GHC.Core.Type
 import GHC.Core.Coercion.Axiom
 import GHC.Core.Class
-import GHC.Types.Name
-import GHC.Types.Name.Set
-import GHC.Types.Name.Env
-import GHC.Types.Var.Env
-import GHC.Driver.Types
-import GHC.Driver.Session
-import GHC.Types.SrcLoc
-import GHC.Types.Basic hiding( SuccessFlag(..) )
+
 import GHC.Unit.Module
+import GHC.Unit.External
+
 import GHC.Utils.Outputable
 import GHC.Utils.Panic
 import GHC.Utils.Encoding
+import GHC.Utils.Error
+import GHC.Utils.Misc ( HasDebugCallStack )
+
 import GHC.Data.FastString
 import GHC.Data.Bag
 import GHC.Data.List.SetOps
-import GHC.Utils.Error
 import GHC.Data.Maybe( MaybeErr(..), orElse )
+
+import GHC.Types.SrcLoc
+import GHC.Types.Basic hiding( SuccessFlag(..) )
+import GHC.Types.TypeEnv
+import GHC.Types.SourceFile
+import GHC.Types.Name
+import GHC.Types.Name.Set
+import GHC.Types.Name.Env
+import GHC.Types.Id
+import GHC.Types.Var
+import GHC.Types.Var.Env
+import GHC.Types.Name.Reader
+import GHC.Types.TyThing
 import qualified GHC.LanguageExtensions as LangExt
-import GHC.Utils.Misc ( HasDebugCallStack )
 
 import Data.IORef
 import Data.List (intercalate)
@@ -155,7 +170,7 @@ lookupGlobal_maybe hsc_env name
 lookupImported_maybe :: HscEnv -> Name -> IO (MaybeErr MsgDoc TyThing)
 -- Returns (Failed err) if we can't find the interface file for the thing
 lookupImported_maybe hsc_env name
-  = do  { mb_thing <- lookupTypeHscEnv hsc_env name
+  = do  { mb_thing <- lookupType hsc_env name
         ; case mb_thing of
             Just thing -> return (Succeeded thing)
             Nothing    -> importDecl_maybe hsc_env name

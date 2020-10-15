@@ -77,7 +77,6 @@ module GHC.Types.Unique (
 
 import GHC.Prelude
 
-import GHC.Types.Basic
 import GHC.Data.FastString
 import GHC.Utils.Outputable
 import GHC.Utils.Misc
@@ -447,3 +446,4 @@ mkTcOccUnique   fs = mkUnique 'c' (uniqueOfFS fs)
 initExitJoinUnique :: Unique
 initExitJoinUnique = mkUnique 's' 0
 
+type Arity = Int

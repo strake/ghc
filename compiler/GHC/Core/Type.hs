@@ -15,7 +15,7 @@ module GHC.Core.Type (
         -- $type_classification
 
         -- $representation_types
-        TyThing(..), Type, ArgFlag(..), AnonArgFlag(..), ForallVisFlag(..),
+        Type, ArgFlag(..), AnonArgFlag(..), ForallVisFlag(..),
         Specificity(..),
         KindOrType, PredType, ThetaType,
         Var, TyVar, isTyVar, TyCoVar, TyCoBinder, TyCoVarBinder, TyVarBinder,
