@@ -35,38 +35,47 @@ import GHC.Prelude
 import GHC.Tc.Utils.Monad
 import GHC.Tc.Utils.Env
 import GHC.Tc.Gen.Bind( tcValBinds )
-import GHC.Core.TyCo.Rep( Type(..), Coercion(..), MCoercion(..), UnivCoProvenance(..) )
 import GHC.Tc.Utils.TcType
-import GHC.Core.Predicate
+
 import GHC.Builtin.Types( unitTy )
-import GHC.Core.Make( rEC_SEL_ERROR_ID )
+
 import GHC.Hs
+
+import GHC.Core.TyCo.Rep( Type(..), Coercion(..), MCoercion(..), UnivCoProvenance(..) )
+import GHC.Core.Predicate
+import GHC.Core.Make( rEC_SEL_ERROR_ID )
 import GHC.Core.Class
 import GHC.Core.Type
-import GHC.Driver.Types
 import GHC.Core.TyCon
 import GHC.Core.ConLike
 import GHC.Core.DataCon
+import GHC.Core.Coercion ( ltRole )
+
+import GHC.Utils.Outputable
+import GHC.Utils.Panic
+import GHC.Utils.Misc
+import GHC.Utils.FV as FV
+
+import GHC.Data.Maybe
+import GHC.Data.Bag
+import GHC.Data.FastString
+
+import GHC.Unit.Module
+
+import GHC.Types.Basic
+import GHC.Types.SrcLoc
+import GHC.Types.SourceFile
+import GHC.Types.SourceText
 import GHC.Types.Name
 import GHC.Types.Name.Env
-import GHC.Types.Name.Set hiding (unitFV)
 import GHC.Types.Name.Reader ( mkVarUnqual )
+import GHC.Types.Name.Set ( NameSet, elemNameSet, emptyNameSet, extendNameSet, unitNameSet )
 import GHC.Types.Id
 import GHC.Types.Id.Info
 import GHC.Types.Var.Env
 import GHC.Types.Var.Set
-import GHC.Core.Coercion ( ltRole )
-import GHC.Types.Basic
-import GHC.Types.SrcLoc
 import GHC.Types.Unique ( mkBuiltinUnique )
-import GHC.Utils.Outputable
-import GHC.Utils.Panic
-import GHC.Utils.Misc
-import GHC.Data.Maybe
-import GHC.Data.Bag
-import GHC.Data.FastString
-import GHC.Utils.FV as FV
-import GHC.Unit.Module
+import GHC.Types.TyThing
 import qualified GHC.LanguageExtensions as LangExt
 
 import Control.Monad

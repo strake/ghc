@@ -48,18 +48,17 @@ import GHC.Rename.Utils  ( HsDocContext(..), inHsDocContext, withHsDocContext
 import GHC.Rename.Fixity ( lookupFieldFixityRn, lookupFixityRn
                          , lookupTyFixityRn )
 import GHC.Tc.Utils.Monad
-import GHC.Types.Name.Reader
 import GHC.Builtin.Names
 import GHC.Builtin.Types.Prim ( funTyConName )
+import GHC.Types.Fixity
 import GHC.Types.Name
+import GHC.Types.Name.Reader
 import GHC.Types.SrcLoc
 import GHC.Types.Name.Set
 import GHC.Types.FieldLabel
 
 import GHC.Utils.Misc
-import GHC.Types.Basic  ( compareFixity, funTyFixity, negateFixity
-                        , Fixity(..), FixityDirection(..), LexicalFixity(..)
-                        , TypeOrKind(..) )
+import GHC.Types.Basic  ( TypeOrKind(..) )
 import GHC.Utils.Outputable
 import GHC.Utils.Panic
 import GHC.Data.FastString

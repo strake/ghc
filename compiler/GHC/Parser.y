@@ -39,40 +39,41 @@ module GHC.Parser
 where
 
 -- base
-import Control.Monad    ( unless, liftM, when, (<=<) )
-import GHC.Exts
-import Data.Char
+import Control.Monad    ( MonadPlus (..), unless, liftM, when, (<=<) )
+import Data.Char        ( isSpace )
 import Data.Maybe       ( maybeToList )
-import Control.Monad    ( mplus )
-import Control.Applicative ((<$))
+import GHC.Exts
 import qualified Prelude -- for happy-generated code
 
 -- compiler
 import GHC.Hs
 
-import GHC.Driver.Phases  ( HscSource(..) )
-import GHC.Driver.Types   ( IsBootInterface(..), WarningTxt(..) )
 import GHC.Driver.Session
 import GHC.Driver.Backpack.Syntax
+
 import GHC.Unit.Info
+import GHC.Unit.Module.Warnings
 
 -- compiler/utils
 import GHC.Data.OrdList
-import GHC.Data.BooleanFormula ( BooleanFormula(..), LBooleanFormula(..), mkTrue )
+import GHC.Data.BooleanFormula ( BooleanFormula(..), LBooleanFormula, mkTrue )
 import GHC.Data.FastString
-import GHC.Data.Maybe          ( isJust, orElse )
+import GHC.Data.Maybe          ( orElse )
 import GHC.Utils.Outputable
 import GHC.Utils.Misc          ( looksLikePackageName, fstOf3, sndOf3, thdOf3 )
 import GHC.Prelude
 
 -- compiler/basicTypes
 import GHC.Types.Name.Reader
-import GHC.Types.Name.Occurrence ( varName, dataName, tcClsName, tvName, startsWithUnderscore )
+import GHC.Types.Name.Occurrence ( varName, dataName, tcClsName, tvName )
 import GHC.Core.DataCon          ( DataCon, dataConName )
 import GHC.Types.SrcLoc
 import GHC.Unit.Module
 import GHC.Types.Basic
+import GHC.Types.Fixity
 import GHC.Types.ForeignCall
+import GHC.Types.SourceFile
+import GHC.Types.SourceText
 
 import GHC.Core.Type    ( funTyCon, Specificity(..) )
 import GHC.Core.Class   ( FunDep )

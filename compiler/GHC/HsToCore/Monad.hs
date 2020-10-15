@@ -58,40 +58,56 @@ module GHC.HsToCore.Monad (
 
 import GHC.Prelude
 
-import GHC.Tc.Utils.Monad
+import GHC.Driver.Env
+import GHC.Driver.Session
+import GHC.Driver.Ppr
+
+import GHC.Hs
+
+import GHC.HsToCore.PmCheck.Types
+import GHC.HsToCore.Types
+
 import GHC.Core.FamInstEnv
 import GHC.Core
 import GHC.Core.Make  ( unitExpr )
 import GHC.Core.Utils ( exprType, isExprLevPoly )
-import GHC.Hs
-import GHC.IfaceToCore
-import GHC.Tc.Utils.TcMType ( checkForLevPolyX, formatLevPolyErr )
-import GHC.Builtin.Names
-import GHC.Types.Name.Reader
-import GHC.Driver.Types
-import GHC.Data.Bag
-import GHC.Types.Basic ( Origin )
 import GHC.Core.DataCon
 import GHC.Core.ConLike
 import GHC.Core.TyCon
-import GHC.HsToCore.Types
-import GHC.HsToCore.PmCheck.Types
-import GHC.Types.Id
-import GHC.Unit.Module
-import GHC.Utils.Outputable
-import GHC.Types.SrcLoc
 import GHC.Core.Type
+
+import GHC.IfaceToCore
+
+import GHC.Tc.Utils.Monad
+import GHC.Tc.Utils.TcMType ( checkForLevPolyX, formatLevPolyErr )
+
+import GHC.Builtin.Names
+
+import GHC.Data.Bag
+import GHC.Data.FastString
+
+import GHC.Unit.External
+import GHC.Unit.Module
+import GHC.Unit.Module.ModGuts
+
+import GHC.Types.Name.Reader
+import GHC.Types.Basic ( Origin )
+import GHC.Types.SourceFile
+import GHC.Types.Id
+import GHC.Types.SrcLoc
+import GHC.Types.TypeEnv
 import GHC.Types.Unique.Supply
+import GHC.Types.Unique.FM
 import GHC.Types.Name
 import GHC.Types.Name.Env
-import GHC.Driver.Session
-import GHC.Driver.Ppr
-import GHC.Utils.Error
-import GHC.Utils.Panic
-import GHC.Data.FastString
-import GHC.Types.Unique.FM ( lookupWithDefaultUFM_Directly )
+import GHC.Types.Name.Ppr
 import GHC.Types.Literal ( mkLitString )
 import GHC.Types.CostCentre.State
+import GHC.Types.TyThing
+
+import GHC.Utils.Outputable
+import GHC.Utils.Error
+import GHC.Utils.Panic
 
 import Data.IORef
 
@@ -295,7 +311,7 @@ mkDsEnvs dflags mod rdr_env type_env fam_inst_env msg_var cc_st_var
         gbl_env = DsGblEnv { ds_mod     = mod
                            , ds_fam_inst_env = fam_inst_env
                            , ds_if_env  = (if_genv, if_lenv)
-                           , ds_unqual  = mkPrintUnqualified dflags rdr_env
+                           , ds_unqual  = mkPrintUnqualified (pkgState dflags) (homeUnit dflags) rdr_env
                            , ds_msgs    = msg_var
                            , ds_complete_matches = completeMatchMap
                            , ds_cc_st   = cc_st_var
