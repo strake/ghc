@@ -129,8 +129,6 @@ module GHC.Driver.Session (
         sGhcWithSMP,
         sGhcRTSWays,
         sLibFFI,
-        sGhcThreaded,
-        sGhcDebugged,
         sGhcRtsWithLibdw,
         GhcNameVersion(..),
         FileSettings(..),
