@@ -18,11 +18,14 @@ module GHC.Driver.Backpack.Syntax (
 
 import GHC.Prelude
 
-import GHC.Driver.Phases
 import GHC.Hs
+
 import GHC.Types.SrcLoc
-import GHC.Utils.Outputable
+import GHC.Types.SourceFile
+
 import GHC.Unit
+
+import GHC.Utils.Outputable
 
 {-
 ************************************************************************

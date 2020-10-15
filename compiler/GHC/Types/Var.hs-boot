@@ -10,4 +10,5 @@ import GHC.Prelude ()
 data ArgFlag
 data AnonArgFlag
 data Var
+type Id = Var
 type TyVar = Var

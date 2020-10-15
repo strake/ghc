@@ -42,8 +42,10 @@ import GHC.Core
 import GHC.Types.Name
 import GHC.Types.Name.Set
 import GHC.Types.Basic
-import GHC.Core.ConLike
+import GHC.Types.Fixity
+import GHC.Types.SourceText
 import GHC.Types.SrcLoc
+import GHC.Core.ConLike
 import GHC.Unit.Module (ModuleName)
 import GHC.Utils.Misc
 import GHC.Utils.Outputable
@@ -682,7 +684,7 @@ type instance XXExpr         GhcTc       = HsWrap HsExpr
 -- | A pragma, written as {-# ... #-}, that may appear within an expression.
 data HsPragE p
   = HsPragSCC   (XSCC p)
-                SourceText            -- Note [Pragma source text] in GHC.Types.Basic
+                SourceText            -- Note [Pragma source text] in GHC.Types.SourceText
                 StringLiteral         -- "set cost centre" SCC pragma
 
   -- | - 'GHC.Parser.Annotation.AnnKeywordId' : 'GHC.Parser.Annotation.AnnOpen',

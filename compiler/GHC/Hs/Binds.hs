@@ -37,8 +37,10 @@ import GHC.Tc.Types.Evidence
 import GHC.Core.Type
 import GHC.Types.Name.Set
 import GHC.Types.Basic
+import GHC.Types.SourceText
 import GHC.Types.SrcLoc as SrcLoc
 import GHC.Types.Var
+import GHC.Types.Fixity
 import GHC.Data.Bag
 import GHC.Data.FastString
 import GHC.Data.BooleanFormula (LBooleanFormula)
@@ -987,7 +989,7 @@ data Sig pass
 
         -- For details on above see note [Api annotations] in GHC.Parser.Annotation
   | SpecInstSig (XSpecInstSig pass) SourceText (LHsSigType pass)
-                  -- Note [Pragma source text] in GHC.Types.Basic
+                  -- Note [Pragma source text] in GHC.Types.SourceText
 
         -- | A minimal complete definition pragma
         --
@@ -1000,7 +1002,7 @@ data Sig pass
         -- For details on above see note [Api annotations] in GHC.Parser.Annotation
   | MinimalSig (XMinimalSig pass)
                SourceText (LBooleanFormula (Located (IdP pass)))
-               -- Note [Pragma source text] in GHC.Types.Basic
+               -- Note [Pragma source text] in GHC.Types.SourceText
 
         -- | A "set cost centre" pragma for declarations
         --
@@ -1011,7 +1013,7 @@ data Sig pass
         -- > {-# SCC funName "cost_centre_name" #-}
 
   | SCCFunSig  (XSCCFunSig pass)
-               SourceText      -- Note [Pragma source text] in GHC.Types.Basic
+               SourceText      -- Note [Pragma source text] in GHC.Types.SourceText
                (Located (IdP pass))  -- Function name
                (Maybe (Located StringLiteral))
        -- | A complete match pragma

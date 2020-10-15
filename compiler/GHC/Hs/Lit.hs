@@ -2,7 +2,6 @@
 (c) The University of Glasgow 2006
 (c) The GRASP/AQUA Project, Glasgow University, 1992-1998
 
-\section[HsLit]{Abstract syntax: source-language literals}
 -}
 
 {-# LANGUAGE CPP, DeriveDataTypeable #-}
@@ -15,6 +14,7 @@
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE TypeFamilies #-}
 
+-- | Source-language literals
 module GHC.Hs.Lit where
 
 #include "HsVersions.h"
@@ -22,10 +22,8 @@ module GHC.Hs.Lit where
 import GHC.Prelude
 
 import {-# SOURCE #-} GHC.Hs.Expr( HsExpr, pprExpr )
-import GHC.Types.Basic
-   ( IntegralLit(..), FractionalLit(..), negateIntegralLit
-   , negateFractionalLit, SourceText(..), pprWithSourceText
-   , PprPrec(..), topPrec )
+import GHC.Types.Basic (PprPrec(..), topPrec )
+import GHC.Types.SourceText
 import GHC.Core.Type
 import GHC.Utils.Outputable
 import GHC.Utils.Panic

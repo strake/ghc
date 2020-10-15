@@ -40,8 +40,6 @@ import {-# SOURCE #-} GHC.Tc.Gen.Expr( tcSyntaxOp, tcInferRhoNC, tcInferRho
                                      , tcCheckId, tcLExpr, tcLExprNC, tcExpr
                                      , tcCheckExpr )
 
-import GHC.Types.Basic (LexicalFixity(..))
-import GHC.Hs
 import GHC.Tc.Utils.Monad
 import GHC.Tc.Utils.Env
 import GHC.Tc.Gen.Pat
@@ -50,19 +48,25 @@ import GHC.Tc.Utils.TcType
 import GHC.Tc.Gen.Bind
 import GHC.Tc.Utils.Unify
 import GHC.Tc.Types.Origin
-import GHC.Types.Name
-import GHC.Builtin.Types
-import GHC.Types.Id
-import GHC.Core.TyCon
-import GHC.Builtin.Types.Prim
 import GHC.Tc.Types.Evidence
+
+import GHC.Core.TyCon
+-- Create chunkified tuple tybes for monad comprehensions
+import GHC.Core.Make
+
+import GHC.Hs
+
+import GHC.Builtin.Types
+import GHC.Builtin.Types.Prim
+
 import GHC.Utils.Outputable
 import GHC.Utils.Panic
 import GHC.Utils.Misc
-import GHC.Types.SrcLoc
 
--- Create chunkified tuple tybes for monad comprehensions
-import GHC.Core.Make
+import GHC.Types.Fixity (LexicalFixity(..))
+import GHC.Types.Name
+import GHC.Types.Id
+import GHC.Types.SrcLoc
 
 import Control.Monad
 import Control.Arrow ( second )
