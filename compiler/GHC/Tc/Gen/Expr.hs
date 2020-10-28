@@ -109,7 +109,7 @@ tcCheckExpr, tcCheckExprNC
 -- tcCheckExpr is a convenient place (frequent but not too frequent)
 -- place to add context information.
 -- The NC version does not do so, usually because the caller wants
--- to do so himself.
+-- to do so themselves.
 
 tcCheckExpr expr res_ty
   = addExprCtxt expr $
