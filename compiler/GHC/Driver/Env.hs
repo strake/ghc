@@ -20,7 +20,7 @@ where
 import GHC.Prelude
 
 import GHC.Driver.Session
-import GHC.Unit.Finder.Types
+import {-# SOURCE #-} GHC.Driver.Plugins
 
 import GHC.Runtime.Context
 import GHC.Runtime.Interpreter.Types (Interp)
@@ -33,6 +33,7 @@ import GHC.Unit.Module.ModDetails
 import GHC.Unit.Module.Deps
 import GHC.Unit.Home.ModInfo
 import GHC.Unit.External
+import GHC.Unit.Finder.Types
 
 import GHC.Core         ( CoreRule )
 import GHC.Core.FamInstEnv
@@ -88,14 +89,18 @@ runHsc hsc_env (Hsc hsc) = do
     printOrThrowWarnings (hsc_dflags hsc_env) w
     return a
 
+-- | Switches in the DynFlags and Plugins from the InteractiveContext
 mkInteractiveHscEnv :: HscEnv -> HscEnv
-mkInteractiveHscEnv hsc_env = hsc_env { hsc_dflags = interactive_dflags }
+mkInteractiveHscEnv hsc_env = hsc_env
+  { hsc_dflags  = ic_dflags  ic
+  , hsc_plugins = ic_plugins ic
+  }
   where
-    interactive_dflags = ic_dflags (hsc_IC hsc_env)
+    ic = hsc_IC hsc_env
 
-runInteractiveHsc :: HscEnv -> Hsc a -> IO a
--- A variant of runHsc that switches in the DynFlags from the
+-- | A variant of runHsc that switches in the DynFlags and Plugins from the
 -- InteractiveContext before running the Hsc computation.
+runInteractiveHsc :: HscEnv -> Hsc a -> IO a
 runInteractiveHsc hsc_env = runHsc (mkInteractiveHscEnv hsc_env)
 
 -- | HscEnv is like 'GHC.Driver.Monad.Session', except that some of the fields are immutable.
@@ -168,6 +173,21 @@ data HscEnv
 
         , hsc_dynLinker :: DynLinker
                 -- ^ dynamic linker.
+        , hsc_plugins :: ![LoadedPlugin]
+                -- ^ plugins dynamically loaded after processing arguments. What
+                -- will be loaded here is directed by DynFlags.pluginModNames.
+                -- Arguments are loaded from DynFlags.pluginModNameOpts.
+                --
+                -- The purpose of this field is to cache the plugins so they
+                -- don't have to be loaded each time they are needed.  See
+                -- 'GHC.Runtime.Loader.initializePlugins'.
+
+        , hsc_static_plugins :: ![StaticPlugin]
+                -- ^ static plugins which do not need dynamic loading. These plugins are
+                -- intended to be added by GHC API users directly to this list.
+                --
+                -- To add dynamically loaded plugins through the GHC API see
+                -- 'addPluginModuleName' instead.
  }
 
 {-
