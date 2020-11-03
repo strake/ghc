@@ -233,13 +233,12 @@ import GHC.Platform
 import GHC.Platform.Ways
 import GHC.Platform.Profile
 import GHC.UniqueSubdir (uniqueSubdir)
+import {-# SOURCE #-} GHC.Unit.State (PackageState, emptyPackageState, PackageDatabase)
 import GHC.Unit.Types
 import GHC.Unit.Parser
 import GHC.Unit.Module
-import {-# SOURCE #-} GHC.Driver.Plugins
-import {-# SOURCE #-} GHC.Driver.Hooks
 import GHC.Builtin.Names ( mAIN )
-import {-# SOURCE #-} GHC.Unit.State (PackageState, emptyPackageState, PackageDatabase)
+import {-# SOURCE #-} GHC.Driver.Hooks
 import GHC.Driver.Phases ( Phase(..), phaseInputExt )
 import GHC.Driver.Flags
 import GHC.Driver.Backend
@@ -557,18 +556,6 @@ data DynFlags = DynFlags {
   frontendPluginOpts    :: [String],
     -- ^ the @-ffrontend-opt@ flags given on the command line, in *reverse*
     -- order that they're specified on the command line.
-  cachedPlugins         :: [LoadedPlugin],
-    -- ^ plugins dynamically loaded after processing arguments. What will be
-    -- loaded here is directed by pluginModNames. Arguments are loaded from
-    -- pluginModNameOpts. The purpose of this field is to cache the plugins so
-    -- they don't have to be loaded each time they are needed.  See
-    -- 'GHC.Runtime.Loader.initializePlugins'.
-  staticPlugins            :: [StaticPlugin],
-    -- ^ static plugins which do not need dynamic loading. These plugins are
-    -- intended to be added by GHC API users directly to this list.
-    --
-    -- To add dynamically loaded plugins through the GHC API see
-    -- 'addPluginModuleName' instead.
 
   -- GHC API hooks
   hooks                 :: Hooks,
@@ -1258,8 +1245,6 @@ defaultDynFlags mySettings llvmConfig =
         pluginModNames          = [],
         pluginModNameOpts       = [],
         frontendPluginOpts      = [],
-        cachedPlugins           = [],
-        staticPlugins           = [],
         hooks                   = emptyHooks,
 
         outputFile              = Nothing,
@@ -1905,7 +1890,7 @@ clearPluginModuleNames :: DynFlags -> DynFlags
 clearPluginModuleNames d =
     d { pluginModNames = []
       , pluginModNameOpts = []
-      , cachedPlugins = [] }
+      }
 
 addPluginModuleNameOption :: String -> DynFlags -> DynFlags
 addPluginModuleNameOption optflag d = d { pluginModNameOpts = (mkModuleName m, option) : (pluginModNameOpts d) }
