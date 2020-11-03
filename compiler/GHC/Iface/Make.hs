@@ -189,8 +189,7 @@ mkIfaceTc hsc_env safe_mode mod_details
                     }
   = do
           let used_names = mkUsedNames tc_result
-          let pluginModules =
-                map lpModule (cachedPlugins (hsc_dflags hsc_env))
+          let pluginModules = map lpModule (hsc_plugins hsc_env)
           deps <- mkDependencies
                     (homeUnitId (hsc_dflags hsc_env))
                     (map mi_module pluginModules) tc_result

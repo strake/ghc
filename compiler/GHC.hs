@@ -311,6 +311,7 @@ import GHC.Driver.Monad
 import GHC.Driver.Ppr
 
 import GHC.ByteCode.Types
+import GHC.Runtime.Loader
 import GHC.Runtime.Eval
 import GHC.Runtime.Eval.Types
 import GHC.Runtime.Interpreter
@@ -727,6 +728,8 @@ getProgramDynFlags :: GhcMonad m => m DynFlags
 getProgramDynFlags = getSessionDynFlags
 
 -- | Set the 'DynFlags' used to evaluate interactive expressions.
+-- Also initialise (load) plugins.
+--
 -- Note: this cannot be used for changes to packages.  Use
 -- 'setSessionDynFlags', or 'setProgramDynFlags' and then copy the
 -- 'pkgState' into the interactive @DynFlags@.
@@ -734,7 +737,22 @@ setInteractiveDynFlags :: GhcMonad m => DynFlags -> m ()
 setInteractiveDynFlags dflags = do
   dflags' <- checkNewDynFlags dflags
   dflags'' <- checkNewInteractiveDynFlags dflags'
-  modifySession $ \h -> h{ hsc_IC = (hsc_IC h) { ic_dflags = dflags'' }}
+  modifySessionM $ \hsc_env0 -> do
+    let ic0 = hsc_IC hsc_env0
+
+    -- Initialise (load) plugins in the interactive environment with the new
+    -- DynFlags
+    plugin_env <- liftIO $ initializePlugins $ mkInteractiveHscEnv $
+                    hsc_env0 { hsc_IC = ic0 { ic_dflags = dflags'' }}
+
+    -- Update both plugins cache and DynFlags in the interactive context.
+    return $ hsc_env0
+                { hsc_IC = ic0
+                    { ic_plugins = hsc_plugins plugin_env
+                    , ic_dflags  = hsc_dflags  plugin_env
+                    }
+                }
+
 
 -- | Get the 'DynFlags' used to evaluate interactive expressions.
 getInteractiveDynFlags :: GhcMonad m => m DynFlags
