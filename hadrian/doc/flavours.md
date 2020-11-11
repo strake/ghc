@@ -194,6 +194,19 @@ The supported transformers are listed below:
         <td><code>thread_sanitizer</code></td>
         <td>Build the runtime system with ThreadSanitizer support</td>
     </tr>
+    <tr>
+        <td><code>profiled_ghc</code></td>
+        <td>Build the GHC executable with cost-centre profiling support.
+            It is that you use this in conjunction with `no_dynamic_ghc` since
+            GHC does not It is support loading of profiled libraries with the
+            dynamically-linker.</td>
+    </tr>
+    <tr>
+        <td><code>no_dynamic_ghc</code></td>
+        <td>Linked GHC against the statically-linked RTS. This causes GHC to
+            default to loading static rather than dynamic library when,
+            e.g., loading libraries during TemplateHaskell evaluations.</td>
+    </tr>
 </table>
 
 ## Ways

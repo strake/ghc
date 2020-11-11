@@ -8,6 +8,8 @@ module Flavour
   , splitSections, splitSectionsIf
   , enableThreadSanitizer
   , enableDebugInfo, enableTickyGhc
+  , enableProfiledGhc
+  , disableDynamicGhcPrograms
   ) where
 
 import Expression
@@ -84,6 +86,8 @@ flavourTransformers = M.fromList
     , "ticky_ghc" =: enableTickyGhc
     , "split_sections" =: splitSections
     , "thread_sanitizer" =: enableThreadSanitizer
+    , "profiled_ghc" =: enableProfiledGhc
+    , "no_dynamic_ghc" =: disableDynamicGhcPrograms
     ]
   where (=:) = (,)
 
@@ -191,3 +195,13 @@ enableThreadSanitizer = addArgs $ mconcat
     , builder (Cabal Flags) ? arg "thread-sanitizer"
     , builder  RunTest ? arg "--config=have_thread_sanitizer=True"
     ]
+
+-- | Build the GHC executable with profiling enabled. It is also recommended
+-- that you use this with @'dynamicGhcPrograms' = False@ since GHC does not
+-- support loading of profiled libraries with the dynamically-linker.
+enableProfiledGhc :: Flavour -> Flavour
+enableProfiledGhc flavour = flavour { ghcProfiled = True }
+
+-- | Disable 'dynamicGhcPrograms'.
+disableDynamicGhcPrograms :: Flavour -> Flavour
+disableDynamicGhcPrograms flavour = flavour { dynamicGhcPrograms = pure False }
