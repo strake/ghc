@@ -15,13 +15,10 @@ import {-# SOURCE #-} Settings.Default
 import Settings.Flavours.Benchmark
 import Settings.Flavours.Development
 import Settings.Flavours.GhcInGhci
-import Settings.Flavours.Llvm
 import Settings.Flavours.Performance
-import Settings.Flavours.Profiled
 import Settings.Flavours.Quick
 import Settings.Flavours.Quickest
 import Settings.Flavours.QuickCross
-import Settings.Flavours.ThreadSanitizer
 import Settings.Flavours.Validate
 
 import Control.Monad.Except
@@ -54,11 +51,9 @@ stagePackages stage = do
 hadrianFlavours :: [Flavour]
 hadrianFlavours =
     [ benchmarkFlavour, defaultFlavour, developmentFlavour Stage1
-    , developmentFlavour Stage2, performanceFlavour, profiledFlavour
-    , quickFlavour, quickestFlavour, quickCrossFlavour, benchmarkLlvmFlavour
-    , performanceLlvmFlavour, profiledLlvmFlavour, quickLlvmFlavour
-    , ghcInGhciFlavour, validateFlavour, slowValidateFlavour
-    , threadSanitizerFlavour ]
+    , developmentFlavour Stage2, performanceFlavour
+    , quickFlavour, quickestFlavour, quickCrossFlavour
+    , ghcInGhciFlavour, validateFlavour, slowValidateFlavour ]
 
 -- | This action looks up a flavour with the name given on the
 --   command line with @--flavour@, defaulting to 'userDefaultFlavour'
