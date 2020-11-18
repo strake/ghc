@@ -66,11 +66,12 @@ import qualified GHC.LanguageExtensions as LangExt
 
 import Control.Monad
 import Control.Arrow ( first )
+import Data.Foldable ( toList )
 import Data.List ( mapAccumL )
 import qualified Data.List.NonEmpty as NE
 import Data.List.NonEmpty ( NonEmpty(..) )
 import Data.Maybe ( isNothing, isJust, fromMaybe, mapMaybe )
-import qualified Data.Set as Set ( difference, fromList, toList, null )
+import qualified Data.Set as Set
 import Data.Function ( on )
 
 {- | @rnSourceDecl@ "renames" declarations.
@@ -1974,33 +1975,36 @@ rnInjectivityAnn tvBndrs (L _ (TyVarSig _ resTv))
              bindLocalNames [hsLTyVarName resTv] $
              -- The return type variable scopes over the injectivity annotation
              -- e.g.   type family F a = (r::*) | r -> a
-             do { injFrom' <- rnLTyVar injFrom
-                ; injTo'   <- mapM rnLTyVar injTo
+             do { injFrom' <- traverse rnLTyVar injFrom
+                ; injTo'   <- traverse rnLTyVar injTo
                 ; return $ L srcSpan (InjectivityAnn injFrom' injTo') }
 
    ; let tvNames  = Set.fromList $ hsAllLTyVarNames tvBndrs
          resName  = hsLTyVarName resTv
          -- See Note [Renaming injectivity annotation]
-         lhsValid = EQ == (stableNameCmp resName (unLoc injFrom'))
-         rhsValid = Set.fromList (map unLoc injTo') `Set.difference` tvNames
+         injFrom'' = Set.fromList (unLoc <$> injFrom')
+         injTo'' = Set.fromList (unLoc <$> injTo')
 
    -- if renaming of type variables ended with errors (eg. there were
    -- not-in-scope variables) don't check the validity of injectivity
    -- annotation. This gives better error messages.
-   ; when (noRnErrors && not lhsValid) $
-        addErrAt (getLoc injFrom)
-              ( vcat [ text $ "Incorrect type variable on the LHS of "
-                           ++ "injectivity condition"
-              , nest 5
-              ( vcat [ text "Expected :" <+> ppr resName
-                     , text "Actual   :" <+> ppr injFrom ])])
-
-   ; when (noRnErrors && not (Set.null rhsValid)) $
-      do { let errorVars = Set.toList rhsValid
-         ; addErrAt srcSpan $ ( hsep
-                        [ text "Unknown type variable" <> plural errorVars
-                        , text "on the RHS of injectivity condition:"
-                        , interpp'SP errorVars ] ) }
+   ; let errs = (fmap hsep . join)
+           [ errHelper "LHS" $ resName `Set.delete` injFrom'' `Set.difference` tvNames
+           , errHelper "RHS" $ injTo'' `Set.difference` tvNames
+           , [ [text "Missing type variable on the LHS of injectivity condition: ", ppr resName]
+             | not (elem resName injFrom'') ]
+           , let vs = Set.intersection injFrom'' injTo'' in
+             [ [text "Found type variables on both sides of injectivity condition: ", interpp'SP (toList vs)]
+             | not (Set.null vs) ]
+           ]
+           where
+             errHelper x vs =
+               [ [ text "Unknown type variable" <> plural errorVars
+                 , text ("on the " ++ x ++ " of injectivity condition:")
+                 , interpp'SP errorVars ] | not (Set.null vs) ]
+               where
+                 errorVars = Set.toList vs
+   ; when (noRnErrors && not (null errs)) $ addErrAt srcSpan (vcat errs)
 
    ; return injDecl' }
 
@@ -2015,8 +2019,8 @@ rnInjectivityAnn tvBndrs (L _ (TyVarSig _ resTv))
 rnInjectivityAnn _ _ (L srcSpan (InjectivityAnn injFrom injTo)) =
    setSrcSpan srcSpan $ do
    (injDecl', _) <- askNoErrs $ do
-     injFrom' <- rnLTyVar injFrom
-     injTo'   <- mapM rnLTyVar injTo
+     injFrom' <- traverse rnLTyVar injFrom
+     injTo'   <- traverse rnLTyVar injTo
      return $ L srcSpan (InjectivityAnn injFrom' injTo')
    return $ injDecl'
 

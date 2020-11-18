@@ -1428,7 +1428,7 @@ instance ToHie (LFamilyDecl GhcRn) where
         where
           rhsSpan = sigSpan `combineScopes` injSpan
           sigSpan = mkScope $ getLoc sig
-          injSpan = maybe NoScope (mkScope . getLoc) inj
+          injSpan = mkScope (loc inj)
 
 instance ToHie (FamilyInfo GhcRn) where
   toHie (ClosedTypeFamily (Just eqns)) = concatM $
@@ -1474,11 +1474,11 @@ instance (ToHie rhs, HasLoc rhs)
           rhsScope = mkScope (loc rhs)
 
 instance ToHie (LInjectivityAnn GhcRn) where
-  toHie (L span ann) = concatM $ makeNode ann span : case ann of
-      InjectivityAnn lhs rhs ->
-        [ toHie $ C Use lhs
-        , toHie $ map (C Use) rhs
-        ]
+  toHie (L span ann@(InjectivityAnn lhs rhs)) = concatM
+    [ makeNode ann span
+    , toHie $ C Use <$> lhs
+    , toHie $ C Use <$> rhs
+    ]
 
 instance ToHie (HsDataDefn GhcRn) where
   toHie (HsDataDefn _ _ ctx _ mkind cons derivs) = concatM

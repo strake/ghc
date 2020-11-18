@@ -18,6 +18,7 @@ import GHC.Driver.Session
 import GHC.Driver.Env
 
 import GHC.Core.FamInstEnv
+import GHC.Core.FamInstEnv.Injectivity
 import GHC.Core.InstEnv( roughMatchTcs )
 import GHC.Core.Coercion
 import GHC.Core.Coercion.Axiom
@@ -734,7 +735,8 @@ checkForInjectivityConflicts :: FamInstEnvs -> FamInst -> TcM ()
   -- see Note [Verifying injectivity annotation] in GHC.Core.FamInstEnv, check 1B1.
 checkForInjectivityConflicts instEnvs famInst
     | isTypeFamilyTyCon tycon   -- as opposed to data family tycon
-    , Injective inj <- tyConInjectivityInfo tycon
+    , inj@(Injectivity inj') <- tyConInjectivityInfo tycon
+    , any (/= NotInjective1) inj'
     = let conflicts = lookupFamInstEnvInjectivityConflicts inj instEnvs famInst in
       reportConflictingInjectivityErrs tycon conflicts (coAxiomSingleBranch (fi_axiom famInst))
 
@@ -753,7 +755,8 @@ checkInjectiveEquation :: FamInst -> TcM ()
 checkInjectiveEquation famInst
     | isTypeFamilyTyCon tycon
     -- type family is injective in at least one argument
-    , Injective inj <- tyConInjectivityInfo tycon = do
+    , inj@(Injectivity inj') <- tyConInjectivityInfo tycon
+    , any (/= NotInjective1) inj' = do
     { dflags <- getDynFlags
     ; let axiom = coAxiomSingleBranch fi_ax
           -- see Note [Verifying injectivity annotation] in GHC.Core.FamInstEnv
@@ -774,10 +777,10 @@ reportInjectivityErrors
    :: DynFlags
    -> CoAxiom br   -- ^ Type family for which we generate errors
    -> CoAxBranch   -- ^ Currently checked equation (represented by axiom)
-   -> [Bool]       -- ^ Injectivity annotation
+   -> Injectivity  -- ^ Injectivity annotation
    -> TcM ()
-reportInjectivityErrors dflags fi_ax axiom inj
-  = assertPpr (any id inj) (text "No injective type variables") $
+reportInjectivityErrors dflags fi_ax axiom (Injectivity inj')
+  = assertPpr (any (/= NotInjective1) inj') (text "No injective type variables" )
     do let lhs             = coAxBranchLHS axiom
            rhs             = coAxBranchRHS axiom
            fam_tc          = coAxiomTyCon fi_ax
@@ -941,7 +944,7 @@ unusedInjTvsInRHS :: DynFlags
 -- attempt to unify equation with itself.  We would reject exactly the same
 -- equations but this method gives us more precise error messages by returning
 -- precise names of variables that are not mentioned in the RHS.
-unusedInjTvsInRHS dflags tycon@(tyConInjectivityInfo -> Injective inj_list) lhs rhs =
+unusedInjTvsInRHS dflags tycon@(boolListOfTyConInjectivityInfo -> inj_list) lhs rhs =
   -- Note [Coverage condition for injective type families], step 5
   (bad_vars, any_invisible, suggest_undec)
     where
@@ -962,9 +965,6 @@ unusedInjTvsInRHS dflags tycon@(tyConInjectivityInfo -> Injective inj_list) lhs 
       suggest_undec = any_bad &&
                       not undec_inst &&
                       (lhs_vars `subVarSet` fvVarSet (injectiveVarsOfType True rhs))
-
--- When the type family is not injective in any arguments
-unusedInjTvsInRHS _ _ _ _ = (emptyVarSet, False, False)
 
 ---------------------------------------
 -- Producing injectivity error messages

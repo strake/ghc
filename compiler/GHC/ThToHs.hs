@@ -311,7 +311,7 @@ cvtDec (DataFamilyD tc tvs kind)
   = do { (_, tc', tvs') <- cvt_tycl_hdr [] tc tvs
        ; result <- cvtMaybeKindToFamilyResultSig kind
        ; returnJustL $ TyClD noExtField $ FamDecl noExtField $
-         FamilyDecl noExtField DataFamily tc' tvs' Prefix result Nothing }
+         FamilyDecl noExtField DataFamily tc' tvs' Prefix result [] }
 
 cvtDec (DataInstD ctxt bndrs tys ksig constrs derivs)
   = do { (ctxt', tc', bndrs', typats') <- cvt_datainst_hdr ctxt bndrs tys
@@ -515,7 +515,7 @@ cvt_tyfam_head :: TypeFamilyHead
                -> CvtM ( Located RdrName
                        , LHsQTyVars GhcPs
                        , Hs.LFamilyResultSig GhcPs
-                       , Maybe (Hs.LInjectivityAnn GhcPs))
+                       , [Hs.LInjectivityAnn GhcPs])
 
 cvt_tyfam_head (TypeFamilyHead tc tyvars result injectivity)
   = do {(_, tc', tyvars') <- cvt_tycl_hdr [] tc tyvars
@@ -1716,8 +1716,8 @@ cvtFamilyResultSig (TH.TyVarSig bndr) = do { tv <- cvt_tv bndr
 cvtInjectivityAnnotation :: TH.InjectivityAnn
                          -> CvtM (Hs.LInjectivityAnn GhcPs)
 cvtInjectivityAnnotation (TH.InjectivityAnn annLHS annRHS)
-  = do { annLHS' <- tNameL annLHS
-       ; annRHS' <- mapM tNameL annRHS
+  = do { annLHS' <- traverse tNameL annLHS
+       ; annRHS' <- traverse tNameL annRHS
        ; returnL (Hs.InjectivityAnn annLHS' annRHS') }
 
 cvtPatSynSigTy :: TH.Type -> CvtM (LHsType GhcPs)

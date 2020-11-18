@@ -54,7 +54,9 @@ import Haddock.Types
 import Haddock.Interface.Specialize
 import Haddock.GhcUtils                      ( orderedFVs, defaultRuntimeRepVars )
 
+import qualified Data.IntSet as IntSet
 import Data.Maybe                            ( catMaybes, maybeToList )
+import qualified Data.Set as Set
 
 
 -- | Whether or not to default 'RuntimeRep' variables to 'LiftedRep'. Check
@@ -333,12 +335,12 @@ synifyDataTyConReturnKind tc
   where ret_kind = tyConResKind tc
 
 synifyInjectivityAnn :: Maybe Name -> [TyVar] -> Injectivity
-                     -> Maybe (LInjectivityAnn GhcRn)
-synifyInjectivityAnn Nothing _ _            = Nothing
-synifyInjectivityAnn _       _ NotInjective = Nothing
-synifyInjectivityAnn (Just lhs) tvs (Injective inj) =
-    let rhs = map (noLoc . tyVarName) (filterByList inj tvs)
-    in Just $ noLoc $ InjectivityAnn (noLoc lhs) rhs
+                     -> [LInjectivityAnn GhcRn]
+synifyInjectivityAnn Nothing _ _            = []
+synifyInjectivityAnn (Just lhs) tvs (Injectivity inj) =
+  [ noLoc $ InjectivityAnn (synifyName lhs : [synifyName v | lhs' <- Set.toList inj1, (v, k) <- tvs `zip` [0..], IntSet.member k lhs']) [synifyName rhs]
+  | (Injectivity1 inj1, rhs) <- zip inj tvs
+  ]
 
 synifyFamilyResultSig :: Maybe Name -> Kind -> LFamilyResultSig GhcRn
 synifyFamilyResultSig  Nothing    kind

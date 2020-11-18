@@ -141,6 +141,8 @@ import Unsafe.Coerce    ( unsafeCoerce )
 import Control.Monad
 import Data.Binary
 import Data.Binary.Get
+import Data.Foldable (toList)
+import qualified Data.IntSet as IntSet
 import Data.List        ( find )
 import Data.Maybe
 import qualified Data.ByteString as B
@@ -1678,21 +1680,16 @@ reifyTyCon tc
              resVar   = famTcResVar tc
 
        ; kind' <- reifyKind res_kind
-       ; let (resultSig, injectivity) =
-                 case resVar of
-                   Nothing   -> (TH.KindSig kind', Nothing)
-                   Just name ->
-                     let thName   = reifyName name
-                         injAnnot = tyConInjectivityInfo tc
-                         sig = TH.TyVarSig (TH.KindedTV thName () kind')
-                         inj = case injAnnot of
-                                 NotInjective -> Nothing
-                                 Injective ms ->
-                                     Just (TH.InjectivityAnn thName injRHS)
-                                   where
-                                     injRHS = map (reifyName . tyVarName)
-                                                  (filterByList ms tvs)
-                     in (sig, inj)
+       ; let (resultSig, injectivity) = case resVar of
+                 Nothing   -> (TH.KindSig kind', [])
+                 Just name ->
+                   let thName   = reifyName name
+                       Injectivity injAnnot = tyConInjectivityInfo tc
+                       sig = TH.TyVarSig (TH.KindedTV thName () kind')
+                       inj =
+                         [ TH.InjectivityAnn (thName : [reifyName u | (u, k) <- zip tvs [0..], IntSet.member k ks]) (toList $ reifyName <$> vs)
+                         | (ks, vs) <- gather [(ks, v) | (v, Injectivity1 inj1) <- zip tvs injAnnot, ks <- toList inj1] ]
+                   in (sig, inj)
        ; tvs' <- reifyTyVars (tyConVisibleTyVars tc)
        ; let tfHead =
                TH.TypeFamilyHead (reifyName tc) tvs' resultSig injectivity

@@ -30,6 +30,7 @@ import GHC.Tc.TyCl.Class ( tcClassDecl2, tcATDefault,
 import GHC.Tc.Gen.Sig
 import GHC.Tc.Utils.Monad
 import GHC.Tc.Validity
+import GHC.Tc.Validity.CoAxiom
 import GHC.Tc.Utils.Zonk
 import GHC.Tc.Utils.TcMType
 import GHC.Tc.Utils.TcType

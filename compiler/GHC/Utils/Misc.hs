@@ -12,7 +12,7 @@
 --
 module GHC.Utils.Misc (
         -- * Miscellaneous higher-order functions
-        applyWhen, nTimes,
+        applyWhen, nTimes, compose2,
 
         -- * General list processing
         zipEqual, zipWithEqual, zipWith3Equal, zipWith4Equal,
@@ -47,6 +47,10 @@ module GHC.Utils.Misc (
         changeLast,
 
         whenNonEmpty,
+
+        (!!?),
+
+        gather,
 
         -- * Tuples
         fstOf3, sndOf3, thdOf3,
@@ -131,7 +135,7 @@ import Data.Data
 import Data.List        hiding (group)
 import Data.List.NonEmpty  ( NonEmpty(..) )
 
-import GHC.Exts
+import GHC.Exts hiding (toList)
 import GHC.Stack (HasCallStack)
 
 import Control.Applicative ( liftA2 )
@@ -143,15 +147,19 @@ import System.FilePath
 
 import Data.Char        ( isUpper, isAlphaNum, isSpace, chr, ord, isDigit, toUpper
                         , isHexDigit, digitToInt )
+import Data.Foldable
 import Data.Int
 import Data.Ratio       ( (%) )
 import Data.Ord         ( comparing )
 import Data.Bits
 import Data.Word
 import qualified Data.IntMap as IM
+import qualified Data.Map as Map
 import qualified Data.Set as Set
 
 import Data.Time
+
+import qualified GHC.Utils.List.NonEmpty as NE
 
 #if defined(DEBUG)
 import {-# SOURCE #-} GHC.Utils.Outputable ( text )
@@ -549,6 +557,19 @@ changeLast (x:xs) x' = x : changeLast xs x'
 whenNonEmpty :: Applicative m => [a] -> (NonEmpty a -> m ()) -> m ()
 whenNonEmpty []     _ = pure ()
 whenNonEmpty (x:xs) f = f (x :| xs)
+
+(!!?) :: (Enum n, Foldable f) => f a -> n -> Maybe a
+(!!?) = flip $ compose2 go fromEnum toList
+  where
+    go _ [] = Nothing
+    go 0 (a:_) = Just a
+    go n (_:as) = go (n-1) as
+
+compose2 :: (a -> b -> c) -> (a' -> a) -> (b' -> b) -> a' -> b' -> c
+compose2 e f g x y = e (f x) (g y)
+
+gather :: Ord a => [(a, b)] -> [(a, NonEmpty b)]
+gather = Map.toList . Map.fromListWith (NE.++) . (fmap . fmap) pure
 
 {-
 ************************************************************************

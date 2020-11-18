@@ -377,12 +377,8 @@ ppFamHeader (FamilyDecl { fdLName = L _ name
       KindSig _ kind        -> dcolon unicode <+> ppLKind unicode kind
       TyVarSig _ (L _ bndr) -> equals <+> ppHsTyVarBndr unicode bndr
 
-    injAnn = case injectivity of
-      Nothing -> empty
-      Just (L _ (InjectivityAnn lhs rhs)) -> hsep ( decltt (text "|")
-                                                  : ppLDocName lhs
-                                                  : arrow unicode
-                                                  : map ppLDocName rhs)
+    injAnn = hsep . join $ zipWith (:) (text "| " : repeat (text ", "))
+      [ fmap ppLDocName lhs ++ arrow unicode : fmap ppLDocName rhs | L _ (InjectivityAnn lhs rhs) <- injectivity ]
 
 
 

@@ -228,7 +228,7 @@
              (NotPromoted)
              ({ DumpRenamedAst.hs:11:35-39 }
               {Name: DumpRenamedAst.Peano})))))
-         (Nothing))))]
+         [])))]
      []
      []
      [])
@@ -273,7 +273,7 @@
                  (NotPromoted)
                  ({ DumpRenamedAst.hs:15:30-33 }
                   {Name: GHC.Types.Type})))))))))
-         (Nothing))))]
+         [])))]
      []
      []
      [({ DumpRenamedAst.hs:(18,1)-(19,45) }
@@ -629,7 +629,7 @@
              (NotPromoted)
              ({ DumpRenamedAst.hs:23:45-48 }
               {Name: GHC.Types.Type})))))
-         (Nothing))))]
+         [])))]
      []
      []
      [])]

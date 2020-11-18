@@ -24,8 +24,7 @@ import GHC.Prelude
 import GHC.Core.Type
 import GHC.Data.Pair
 import GHC.Tc.Utils.TcType ( TcType, tcEqType )
-import GHC.Core.TyCon    ( TyCon, FamTyConFlav(..), mkFamilyTyCon
-                         , Injectivity(..) )
+import GHC.Core.TyCon    ( TyCon, FamTyConFlav(..), mkFamilyTyCon, notInjective )
 import GHC.Core.Coercion ( Role(..) )
 import GHC.Tc.Types.Constraint ( Xi )
 import GHC.Core.Coercion.Axiom ( CoAxiomRule(..), BuiltInSynFamily(..), TypeEqn )
@@ -239,7 +238,7 @@ typeNatLeqTyCon =
     Nothing
     (BuiltInSynFamTyCon ops)
     Nothing
-    NotInjective
+    notInjective
 
   where
   name = mkWiredInTyConName UserSyntax gHC_TYPENATS (fsLit "<=?")
@@ -258,7 +257,7 @@ typeNatCmpTyCon =
     Nothing
     (BuiltInSynFamTyCon ops)
     Nothing
-    NotInjective
+    notInjective
 
   where
   name = mkWiredInTyConName UserSyntax gHC_TYPENATS (fsLit "CmpNat")
@@ -277,7 +276,7 @@ typeSymbolCmpTyCon =
     Nothing
     (BuiltInSynFamTyCon ops)
     Nothing
-    NotInjective
+    notInjective
 
   where
   name = mkWiredInTyConName UserSyntax gHC_TYPELITS (fsLit "CmpSymbol")
@@ -308,7 +307,7 @@ mkTypeNatFunTyCon1 op tcb =
     Nothing
     (BuiltInSynFamTyCon tcb)
     Nothing
-    NotInjective
+    notInjective
 
 
 -- Make a binary built-in constructor of kind: Nat -> Nat -> Nat
@@ -320,7 +319,7 @@ mkTypeNatFunTyCon2 op tcb =
     Nothing
     (BuiltInSynFamTyCon tcb)
     Nothing
-    NotInjective
+    notInjective
 
 -- Make a binary built-in constructor of kind: Symbol -> Symbol -> Symbol
 mkTypeSymbolFunTyCon2 :: Name -> BuiltInSynFamily -> TyCon
@@ -331,7 +330,7 @@ mkTypeSymbolFunTyCon2 op tcb =
     Nothing
     (BuiltInSynFamTyCon tcb)
     Nothing
-    NotInjective
+    notInjective
 
 
 {-------------------------------------------------------------------------------

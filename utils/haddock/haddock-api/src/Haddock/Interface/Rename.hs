@@ -1,3 +1,4 @@
+{-# LANGUAGE MonadComprehensions #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TypeFamilies #-}
 ----------------------------------------------------------------------------
@@ -212,14 +213,10 @@ renameFamilyResultSig (L loc (TyVarSig _ bndr))
          ; return (L loc (TyVarSig noExtField bndr')) }
 
 renameInjectivityAnn :: LInjectivityAnn GhcRn -> RnM (LInjectivityAnn DocNameI)
-renameInjectivityAnn (L loc (InjectivityAnn lhs rhs))
-    = do { lhs' <- renameL lhs
-         ; rhs' <- mapM renameL rhs
-         ; return (L loc (InjectivityAnn lhs' rhs')) }
-
-renameMaybeInjectivityAnn :: Maybe (LInjectivityAnn GhcRn)
-                          -> RnM (Maybe (LInjectivityAnn DocNameI))
-renameMaybeInjectivityAnn = traverse renameInjectivityAnn
+renameInjectivityAnn (L loc (InjectivityAnn lhs rhs)) =
+  [ L loc (InjectivityAnn lhs' rhs')
+  | lhs' <- traverse renameL lhs
+  , rhs' <- traverse renameL rhs ]
 
 renameType :: HsType GhcRn -> RnM (HsType DocNameI)
 renameType t = case t of
@@ -421,7 +418,7 @@ renameFamilyDecl (FamilyDecl { fdInfo = info, fdLName = lname
     lname'       <- renameL lname
     ltyvars'     <- renameLHsQTyVars ltyvars
     result'      <- renameFamilyResultSig result
-    injectivity' <- renameMaybeInjectivityAnn injectivity
+    injectivity' <- traverse renameInjectivityAnn injectivity
     return (FamilyDecl { fdExt = noExtField, fdInfo = info', fdLName = lname'
                        , fdTyVars = ltyvars'
                        , fdFixity = fixity

@@ -83,6 +83,10 @@ import qualified Data.ByteString.Internal as BS
 import qualified Data.ByteString.Unsafe   as BS
 import Data.IORef
 import Data.Char                ( ord, chr )
+import Data.IntSet (IntSet)
+import qualified Data.IntSet as IntSet
+import Data.Set (Set)
+import qualified Data.Set as Set
 import Data.Time
 import Data.List (unfoldr)
 import Control.Monad            ( when, (<$!>), unless )
@@ -1091,3 +1095,11 @@ instance Binary SrcSpan where
                     return (RealSrcSpan ss sb)
             _ -> do s <- get bh
                     return (UnhelpfulSpan s)
+
+instance Binary IntSet where
+  put_ bh = put_ bh . IntSet.toAscList
+  get bh = IntSet.fromAscList <$> get bh
+
+instance (Eq a, Binary a) => Binary (Set a) where
+  put_ bh = put_ bh . Set.toAscList
+  get bh = Set.fromAscList <$> get bh

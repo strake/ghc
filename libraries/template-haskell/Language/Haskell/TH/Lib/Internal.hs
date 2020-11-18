@@ -538,14 +538,14 @@ dataFamilyD tc tvs kind =
      pure $ DataFamilyD tc tvs' kind'
 
 openTypeFamilyD :: Quote m => Name -> [m (TyVarBndr ())] -> m FamilyResultSig
-                -> Maybe InjectivityAnn -> m Dec
+                -> [InjectivityAnn] -> m Dec
 openTypeFamilyD tc tvs res inj =
   do tvs' <- sequenceA tvs
      res' <- res
      pure $ OpenTypeFamilyD (TypeFamilyHead tc tvs' res' inj)
 
 closedTypeFamilyD :: Quote m => Name -> [m (TyVarBndr ())] -> m FamilyResultSig
-                  -> Maybe InjectivityAnn -> [m TySynEqn] -> m Dec
+                  -> [InjectivityAnn] -> [m TySynEqn] -> m Dec
 closedTypeFamilyD tc tvs result injectivity eqns =
   do tvs1    <- sequenceA tvs
      result1 <- result
@@ -874,7 +874,7 @@ tyVarSig = fmap TyVarSig
 -------------------------------------------------------------------------------
 -- *   Injectivity annotation
 
-injectivityAnn :: Name -> [Name] -> InjectivityAnn
+injectivityAnn :: [Name] -> [Name] -> InjectivityAnn
 injectivityAnn = TH.InjectivityAnn
 
 -------------------------------------------------------------------------------

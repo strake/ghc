@@ -16,8 +16,7 @@ $( return
        (mkName "F")
        [ PlainTV (mkName "a") (), PlainTV (mkName "b") (), PlainTV (mkName "c") () ]
        (TyVarSig (KindedTV (mkName "result") () (VarT (mkName "k"))))
-       (Just $ InjectivityAnn (mkName "result")
-                             [(mkName "a"), (mkName "b"), (mkName "c") ]))
+       [InjectivityAnn [mkName "result"] [(mkName "a"), (mkName "b"), (mkName "c") ]])
    , TySynInstD
        (TySynEqn Nothing (AppT (AppT (AppT (ConT (mkName "F")) (ConT (mkName "Int")))
                        (ConT (mkName "Char"))) (ConT (mkName "Bool")))
@@ -43,7 +42,7 @@ $( return
        (mkName "J")
        [ PlainTV (mkName "a") (), KindedTV (mkName "b") () (VarT (mkName "k")) ]
        (TyVarSig (PlainTV (mkName "r") ()))
-       (Just $ InjectivityAnn (mkName "r") [mkName "a"]))
+       [InjectivityAnn [mkName "r"] [mkName "a"]])
    , TySynInstD
        (TySynEqn Nothing (AppT (AppT (ConT (mkName "J")) (ConT (mkName "Int")))
                        (VarT (mkName "b")))
@@ -63,7 +62,7 @@ $( return
        [ KindedTV (mkName "a") () StarT, KindedTV (mkName "b") () StarT
        , KindedTV (mkName "c") () StarT ]
        (TyVarSig (PlainTV (mkName "r") ()))
-       (Just $ InjectivityAnn (mkName "r") [(mkName "a"), (mkName "b")]))
+       [InjectivityAnn [mkName "r"] [(mkName "a"), (mkName "b")]])
 
        [ TySynEqn Nothing (AppT (AppT (AppT (ConT (mkName "I")) (ConT (mkName "Int")))
                                       (ConT (mkName "Char"))) (ConT (mkName "Bool")))
@@ -80,7 +79,7 @@ $( return
    ] )
 
 -- reification test
-$( do { decl@([ClosedTypeFamilyD (TypeFamilyHead _ _ _ (Just inj)) _]) <-
+$( do { decl@([ClosedTypeFamilyD (TypeFamilyHead _ _ _ _) _]) <-
                [d| type family Bak a = r | r -> a where
                         Bak Int  = Char
                         Bak Char = Int
@@ -100,8 +99,7 @@ $( return
        (mkName "H")
        [ PlainTV (mkName "a") (), PlainTV (mkName "b") (), PlainTV (mkName "c") () ]
        (TyVarSig (PlainTV (mkName "r") ()))
-       (Just $ InjectivityAnn (mkName "r")
-                             [(mkName "a"), (mkName "b") ]))
+       [InjectivityAnn [mkName "r"] [(mkName "a"), (mkName "b") ]])
 
    , TySynInstD
          (TySynEqn Nothing (AppT (AppT (AppT (ConT (mkName "H")) (ConT (mkName "Int")))

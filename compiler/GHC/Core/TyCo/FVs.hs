@@ -1,3 +1,5 @@
+{-# LANGUAGE ViewPatterns #-}
+
 module GHC.Core.TyCo.FVs
   (     shallowTyCoVarsOfType, shallowTyCoVarsOfTypes,
         tyCoVarsOfType,        tyCoVarsOfTypes,
@@ -44,6 +46,7 @@ import GHC.Prelude
 import {-# SOURCE #-} GHC.Core.Type (coreView, partitionInvisibleTypes)
 
 import Data.Monoid as DM ( Endo(..), All(..) )
+import qualified Data.Set as Set
 import GHC.Core.TyCo.Rep
 import GHC.Core.TyCon
 import GHC.Types.Var
@@ -52,7 +55,6 @@ import GHC.Utils.FV
 import GHC.Types.Unique.FM
 import GHC.Types.Var.Set
 import GHC.Types.Var.Env
-import GHC.Utils.Misc
 import GHC.Utils.Panic
 
 {-
@@ -780,15 +782,12 @@ injectiveVarsOfType look_under_tfs = go
     go (TyVarTy v)        = unitFV v `unionFV` go (tyVarKind v)
     go (AppTy f a)        = go f `unionFV` go a
     go (FunTy _ ty1 ty2)  = go ty1 `unionFV` go ty2
-    go (TyConApp tc tys)  =
-      case tyConInjectivityInfo tc of
-        Injective inj
-          |  look_under_tfs || not (isTypeFamilyTyCon tc)
-          -> mapUnionFV go $
-             filterByList (inj ++ repeat True) tys
-                         -- Oversaturated arguments to a tycon are
-                         -- always injective, hence the repeat True
-        _ -> emptyFV
+    go (TyConApp tc tys)
+      | look_under_tfs || not (isTypeFamilyTyCon tc) =
+            let inj = unInjectivity (tyConInjectivityInfo tc) ++ repeat (Injectivity1 (Set.singleton mempty)) in
+            mapUnionFV go [t | (t, checkInjective1 mempty -> True) <- zip tys inj]
+            -- Oversaturated arguments to a tycon are always injective, hence the repeat True
+      | otherwise = emptyFV
     go (ForAllTy (Bndr tv _) ty) = go (tyVarKind tv) `unionFV` delFV tv (go ty)
     go LitTy{}                   = emptyFV
     go (CastTy ty _)             = go ty

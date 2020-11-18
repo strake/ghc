@@ -80,7 +80,7 @@
        ({ <no location info> }
         (NoSig
          (NoExtField)))
-       (Nothing)))))
+       []))))
   ,({ KindSigs.hs:15:1-51 }
     (TyClD
      (NoExtField)

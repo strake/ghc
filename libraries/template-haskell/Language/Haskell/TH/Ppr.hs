@@ -512,10 +512,7 @@ ppr_tySyn maybeInst t argsDoc rhs
 
 ppr_tf_head :: TypeFamilyHead -> Doc
 ppr_tf_head (TypeFamilyHead tc tvs res inj)
-  = ppr tc <+> hsep (map ppr tvs) <+> ppr res <+> maybeInj
-  where
-    maybeInj | (Just inj') <- inj = ppr inj'
-             | otherwise          = empty
+  = ppr tc <+> hsep (map ppr tvs) <+> ppr res <+> hsep (ppr <$> inj)
 
 ppr_bndrs :: PprFlag flag => Maybe [TyVarBndr flag] -> Doc
 ppr_bndrs (Just bndrs) = text "forall" <+> sep (map ppr bndrs) <> text "."

@@ -41,8 +41,9 @@ where
 -- base
 import Control.Monad    ( MonadPlus (..), unless, liftM, when, (<=<) )
 import Data.Char        ( isSpace )
+import Data.Foldable    ( toList )
 import Data.Maybe       ( maybeToList )
-import GHC.Exts
+import GHC.Exts hiding (toList)
 import qualified Prelude -- for happy-generated code
 
 -- compiler
@@ -1163,7 +1164,7 @@ ty_decl :: { LTyClDecl GhcPs }
           -- data/newtype family
         | 'data' 'family' type opt_datafam_kind_sig
                 {% amms (mkFamDecl (comb3 $1 $2 $4) DataFamily $3
-                                   (snd $ unLoc $4) Nothing)
+                                   (snd $ unLoc $4) [])
                         (mj AnnData $1:mj AnnFamily $2:(fst $ unLoc $4)) }
 
 -- standalone kind signature
@@ -1250,14 +1251,12 @@ deriv_standalone_strategy :: { Maybe (LDerivStrategy GhcPs) }
 
 -- Injective type families
 
-opt_injective_info :: { Located ([AddAnn], Maybe (LInjectivityAnn GhcPs)) }
-        : {- empty -}               { noLoc ([], Nothing) }
-        | '|' injectivity_cond      { sLL $1 $> ([mj AnnVbar $1]
-                                                , Just ($2)) }
+opt_injective_info :: { Located ([AddAnn], [LInjectivityAnn GhcPs]) }
+        : fds                       { (fmap . fmap . fmap . fmap . uncurry) InjectivityAnn $1 }
 
 injectivity_cond :: { LInjectivityAnn GhcPs }
         : tyvarid '->' inj_varids
-           {% ams (sLL $1 $> (InjectivityAnn $1 (reverse (unLoc $3))))
+           {% ams (sLL $1 $> (InjectivityAnn [$1] (reverse (unLoc $3))))
                   [mu AnnRarrow $2] }
 
 inj_varids :: { Located [Located RdrName] }
@@ -1321,7 +1320,7 @@ at_decl_cls :: { LHsDecl GhcPs }
         :  -- data family declarations, with optional 'family' keyword
           'data' opt_family type opt_datafam_kind_sig
                 {% amms (liftM mkTyClD (mkFamDecl (comb3 $1 $3 $4) DataFamily $3
-                                                  (snd $ unLoc $4) Nothing))
+                                                  (snd $ unLoc $4) []))
                         (mj AnnData $1:$2++(fst $ unLoc $4)) }
 
            -- type family declarations, with optional 'family' keyword
@@ -1330,13 +1329,13 @@ at_decl_cls :: { LHsDecl GhcPs }
                {% amms (liftM mkTyClD
                         (mkFamDecl (comb3 $1 $2 $3) OpenTypeFamily $2
                                    (fst . snd $ unLoc $3)
-                                   (snd . snd $ unLoc $3)))
+                                   (toList . snd . snd $ unLoc $3)))
                        (mj AnnType $1:(fst $ unLoc $3)) }
         | 'type' 'family' type opt_at_kind_inj_sig
                {% amms (liftM mkTyClD
                         (mkFamDecl (comb3 $1 $3 $4) OpenTypeFamily $3
                                    (fst . snd $ unLoc $4)
-                                   (snd . snd $ unLoc $4)))
+                                   (toList . snd . snd $ unLoc $4)))
                        (mj AnnType $1:mj AnnFamily $2:(fst $ unLoc $4)) }
 
            -- default type instances, with optional 'instance' keyword

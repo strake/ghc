@@ -202,7 +202,7 @@
            ({ DumpParsedAst.hs:9:35-39 }
             (Unqual
              {OccName: Peano}))))))
-       (Nothing)))))
+       []))))
   ,({ DumpParsedAst.hs:14:1-29 }
     (TyClD
      (NoExtField)
@@ -411,7 +411,7 @@
            ({ DumpParsedAst.hs:16:45-48 }
             (Unqual
              {OccName: Type}))))))
-       (Nothing)))))
+       []))))
   ,({ DumpParsedAst.hs:19:1-23 }
     (ValD
      (NoExtField)

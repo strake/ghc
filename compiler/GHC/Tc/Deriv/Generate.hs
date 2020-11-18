@@ -61,7 +61,7 @@ import GHC.Types.SrcLoc
 import GHC.Core.TyCon
 import GHC.Tc.Utils.Env
 import GHC.Tc.Utils.TcType
-import GHC.Tc.Validity ( checkValidCoAxBranch )
+import GHC.Tc.Validity.CoAxiom ( checkValidCoAxBranch )
 import GHC.Core.Coercion.Axiom ( coAxiomSingleBranch )
 import GHC.Builtin.Types.Prim
 import GHC.Builtin.Types

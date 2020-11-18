@@ -6,13 +6,23 @@
 The @TyCon@ datatype
 -}
 
+{-# LANGUAGE DerivingVia #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PatternSynonyms   #-}
+{-# LANGUAGE ViewPatterns      #-}
+
 module GHC.Core.TyCon(
         -- * Main TyCon data types
         TyCon,
         AlgTyConRhs(..), visibleDataCons,
         AlgTyConFlav(..), isNoParent,
-        FamTyConFlav(..), Role(..), Injectivity(..),
+        FamTyConFlav(..), Role(..), Injectivity(..), Injectivity1(..),
         RuntimeRepInfo(..), TyConFlavour(..),
+        markInjective1, checkInjective1,
+        notInjective, pattern NotInjective1,
+        filterInj,
+        pprInj,
 
         -- * TyConBinder
         TyConBinder, TyConBndrVis(..), TyConTyCoBinder,
@@ -61,7 +71,7 @@ module GHC.Core.TyCon(
         isFamilyTyCon, isOpenFamilyTyCon,
         isTypeFamilyTyCon, isDataFamilyTyCon,
         isOpenTypeFamilyTyCon, isClosedSynFamilyTyConWithAxiom_maybe,
-        tyConInjectivityInfo,
+        tyConInjectivityInfo, boolListOfTyConInjectivityInfo,
         isBuiltInSynFamTyCon_maybe,
         isUnliftedTyCon,
         isGadtSyntaxTyCon, isInjectiveTyCon, isGenerativeTyCon, isGenInjAlgRhs,
@@ -76,7 +86,7 @@ module GHC.Core.TyCon(
         tyConSkolem,
         tyConKind,
         tyConUnique,
-        tyConTyVars, tyConVisibleTyVars,
+        tyConTyVars, tyConTyVars', tyConVisibleTyVars,
         tyConCType, tyConCType_maybe,
         tyConDataCons, tyConDataCons_maybe,
         tyConSingleDataCon_maybe, tyConSingleDataCon,
@@ -165,7 +175,15 @@ import GHC.Types.Unique( tyConRepNameUnique, dataConTyRepNameUnique )
 import GHC.Types.Unique.Set
 import GHC.Unit.Module
 
+import           Control.Exception (RecSelError, evaluate, handle)
+import           Control.Monad (join)
 import qualified Data.Data as Data
+import           Data.Foldable (toList)
+import           Data.IntSet (IntSet)
+import qualified Data.IntSet as IntSet
+import           Data.Set (Set)
+import qualified Data.Set as Set
+import           System.IO.Unsafe (unsafePerformIO)
 
 {-
 -----------------------------------------------
@@ -1128,10 +1146,36 @@ isNoParent _                   = False
 
 --------------------
 
-data Injectivity
-  = NotInjective
-  | Injective [Bool]   -- 1-1 with tyConTyVars (incl kind vars)
-  deriving( Eq )
+newtype Injectivity = Injectivity { unInjectivity :: [Injectivity1] }
+  deriving (Eq)
+  deriving newtype (Binary)
+
+newtype Injectivity1 = Injectivity1 { unInjectivity1 :: Set IntSet }
+  deriving (Eq)
+  deriving newtype (Binary)
+
+markInjective1 :: IntSet -> Injectivity1 -> Injectivity1
+markInjective1 vs (Injectivity1 inj)
+  | any (`IntSet.isSubsetOf` vs) inj = Injectivity1 inj
+  | otherwise = Injectivity1 $ Set.insert vs $ Set.filter (not . IntSet.isSubsetOf vs) inj
+
+checkInjective1 :: IntSet -> Injectivity1 -> Bool
+checkInjective1 vs = any (`IntSet.isSubsetOf` vs) . unInjectivity1
+
+pattern NotInjective1 :: Injectivity1
+pattern NotInjective1 <- Injectivity1 (Set.null -> True)
+  where NotInjective1 = Injectivity1 Set.empty
+
+notInjective :: Injectivity
+notInjective = Injectivity (repeat NotInjective1)
+
+filterInj :: Injectivity -> (a -> Bool) -> [a] -> [a]
+filterInj (Injectivity inj) p as =
+  [ a
+  | (a, Injectivity1 inj1) <- zip as inj
+  , flip any inj1 $ \ ks ->
+    all p [a | (a, k) <- zip as [0..], IntSet.member k ks]
+  ]
 
 -- | Information pertaining to the expansion of a type synonym (@type@)
 data FamTyConFlav
@@ -1900,7 +1944,7 @@ isInjectiveTyCon (AlgTyCon {algTcRhs = rhs})   Representational
 isInjectiveTyCon (SynonymTyCon {})             _                = False
 isInjectiveTyCon (FamilyTyCon { famTcFlav = DataFamilyTyCon _ })
                                                Nominal          = True
-isInjectiveTyCon (FamilyTyCon { famTcInj = Injective inj }) Nominal = and inj
+isInjectiveTyCon tc@(FamilyTyCon {})           Nominal          = and (boolListOfTyConInjectivityInfo tc)
 isInjectiveTyCon (FamilyTyCon {})              _                = False
 isInjectiveTyCon (PrimTyCon {})                _                = True
 isInjectiveTyCon (PromotedDataCon {})          _                = True
@@ -2102,12 +2146,33 @@ isClosedSynFamilyTyConWithAxiom_maybe _               = Nothing
 -- injective), or 'NotInjective' otherwise.
 tyConInjectivityInfo :: TyCon -> Injectivity
 tyConInjectivityInfo tc
-  | FamilyTyCon { famTcInj = inj } <- tc
-  = inj
+  | FamilyTyCon { famTcInj = Injectivity inj } <- tc
+  = Injectivity (tyConArity tc `take` inj)
   | isInjectiveTyCon tc Nominal
-  = Injective (replicate (tyConArity tc) True)
+  = Injectivity (tyConArity tc `replicate` Injectivity1 (Set.singleton mempty))
   | otherwise
-  = NotInjective
+  = Injectivity (tyConArity tc `replicate` NotInjective1)
+
+boolListOfTyConInjectivityInfo :: TyCon -> [Bool]
+boolListOfTyConInjectivityInfo tc = (`elem` injVars) <$> tvs
+  where
+    injVars = [v | (v, checkInjective1 mempty -> True) <- tvs `zip` unInjectivity (tyConInjectivityInfo tc)]
+    tvs = tyConTyVars' tc
+
+pprInj :: SDoc -> [SDoc] -> Injectivity -> SDoc
+pprInj res vs inj = hsep [ equals, res, pp_inj_cond inj ]
+  where
+    pp_inj_cond (Injectivity inj) = hsep $ zipWith (<>) ("| " : repeat ", ") $ join $
+        zipWith (pp_inj_cond1 res) vs (fmap IntSet.toList . toList . unInjectivity1 <$> inj)
+
+    pp_inj_cond1 res rhs lhss = [hsep $ res : (ppr <$> lhs) ++ [text "->", rhs] | lhs <- lhss]
+
+
+tyConTyVars' :: TyCon -> [TyVar]
+tyConTyVars' = unsafePerformIO . handle f . evaluate . tyConTyVars
+  where
+    f :: RecSelError -> IO [a]
+    f _ = pure []
 
 isBuiltInSynFamTyCon_maybe :: TyCon -> Maybe BuiltInSynFamily
 isBuiltInSynFamTyCon_maybe
@@ -2666,16 +2731,6 @@ instance Data.Data TyCon where
     toConstr _   = abstractConstr "TyCon"
     gunfold _ _  = error "gunfold"
     dataTypeOf _ = mkNoRepType "TyCon"
-
-instance Binary Injectivity where
-    put_ bh NotInjective   = putByte bh 0
-    put_ bh (Injective xs) = putByte bh 1 >> put_ bh xs
-
-    get bh = do { h <- getByte bh
-                ; case h of
-                    0 -> return NotInjective
-                    _ -> do { xs <- get bh
-                            ; return (Injective xs) } }
 
 {-
 ************************************************************************

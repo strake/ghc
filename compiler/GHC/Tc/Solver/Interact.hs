@@ -51,7 +51,7 @@ import GHC.Types.Var.Env
 
 import Control.Monad
 import GHC.Data.Maybe( isJust )
-import GHC.Data.Pair (Pair(..))
+import GHC.Data.Pair (Pair(..), unPair)
 import GHC.Types.Unique( hasKey )
 import GHC.Driver.Session
 import GHC.Utils.Misc
@@ -1360,7 +1360,7 @@ improveLocalFunEqs work_ev inerts fam_tc args fsk
     funeqs_for_tc = findFunEqsByTyCon funeqs fam_tc
     work_loc      = ctEvLoc work_ev
     work_pred     = ctEvPred work_ev
-    fam_inj_info  = tyConInjectivityInfo fam_tc
+    fam_inj_info = tyConInjectivityInfo fam_tc
 
     --------------------
     improvement_eqns :: TcS [FunDepEqn CtLoc]
@@ -1370,13 +1370,13 @@ improveLocalFunEqs work_ev inerts fam_tc args fsk
         do { rhs <- rewriteTyVar fsk
            ; concatMapM (do_one_built_in ops rhs) funeqs_for_tc }
 
-      | Injective injective_args <- fam_inj_info
-      =    -- Try improvement from type families with injectivity annotations
-        do { rhs <- rewriteTyVar fsk
-           ; concatMapM (do_one_injective injective_args rhs) funeqs_for_tc }
+      | all (== NotInjective1) (unInjectivity fam_inj_info)
+      = pure []
 
       | otherwise
-      = return []
+      =    -- Try improvement from type families with injectivity annotations
+        do { rhs <- rewriteTyVar fsk
+           ; concatMapM (do_one_injective fam_inj_info rhs) funeqs_for_tc }
 
     --------------------
     do_one_built_in ops rhs (CFunEqCan { cc_tyargs = iargs, cc_fsk = ifsk, cc_ev = inert_ev })
@@ -1390,12 +1390,11 @@ improveLocalFunEqs work_ev inerts fam_tc args fsk
     do_one_injective inj_args rhs (CFunEqCan { cc_tyargs = inert_args
                                              , cc_fsk = ifsk, cc_ev = inert_ev })
       | isImprovable inert_ev
-      = do { inert_rhs <- rewriteTyVar ifsk
-           ; return $ if rhs `tcEqType` inert_rhs
-                      then mk_fd_eqns inert_ev $
-                             [ Pair arg iarg
-                             | (arg, iarg, True) <- zip3 args inert_args inj_args ]
-                      else [] }
+      = [ guard (tcEqType rhs inert_rhs) *>
+          mk_fd_eqns inert_ev
+          (filterInj inj_args (uncurry tcEqType . unPair) (zipWith Pair args inert_args))
+        | inert_rhs <- rewriteTyVar ifsk
+        ]
       | otherwise
       = return []
 
@@ -2020,7 +2019,6 @@ improve_top_fun_eqs fam_envs fam_tc args rhs_ty
 
   -- see Note [Type inference for type families with injectivity]
   | isOpenTypeFamilyTyCon fam_tc
-  , Injective injective_args <- tyConInjectivityInfo fam_tc
   , let fam_insts = lookupFamInstEnvByTyCon fam_envs fam_tc
   = -- it is possible to have several compatible equations in an open type
     -- family but we only want to derive equalities from one such equation.
@@ -2028,12 +2026,10 @@ improve_top_fun_eqs fam_envs fam_tc args rhs_ty
                            fi_tvs fi_tys fi_rhs (const Nothing)
 
        ; traceTcS "improve_top_fun_eqs2" (ppr improvs)
-       ; concatMapM (injImproveEqns injective_args) $
-         take 1 improvs }
+       ; injImproveEqns `concatMapM` take 1 improvs }
 
   | Just ax <- isClosedSynFamilyTyConWithAxiom_maybe fam_tc
-  , Injective injective_args <- tyConInjectivityInfo fam_tc
-  = concatMapM (injImproveEqns injective_args) $
+  = injImproveEqns `concatMapM`
     buildImprovementData (fromBranches (co_ax_branches ax))
                          cab_tvs cab_lhs cab_rhs Just
 
@@ -2065,10 +2061,9 @@ improve_top_fun_eqs fam_envs fam_tc args rhs_ty
                    -- The order of unsubstTvs is important; it must be
                    -- in telescope order e.g. (k:*) (a:k)
 
-      injImproveEqns :: [Bool]
-                     -> ([Type], TCvSubst, [TyCoVar], Maybe CoAxBranch)
+      injImproveEqns :: ([Type], TCvSubst, [TyCoVar], Maybe CoAxBranch)
                      -> TcS [TypeEqn]
-      injImproveEqns inj_args (ax_args, subst, unsubstTvs, cabr)
+      injImproveEqns (ax_args, subst, unsubstTvs, cabr)
         = do { subst <- instFlexiX subst unsubstTvs
                   -- If the current substitution bind [k -> *], and
                   -- one of the un-substituted tyvars is (a::k), we'd better
@@ -2081,8 +2076,9 @@ improve_top_fun_eqs fam_envs fam_tc args rhs_ty
                       | case cabr of
                           Just cabr' -> apartnessCheck (substTys subst ax_args) cabr'
                           _          -> True
-                      , (ax_arg, arg, True) <- zip3 ax_args args inj_args ] }
+                      , (ax_arg, arg) <- filterInj inj_args (pure True) (zip ax_args args) ] }
 
+      inj_args = tyConInjectivityInfo fam_tc
 
 shortCutReduction :: CtEvidence -> TcTyVar -> TcCoercion
                   -> TyCon -> [TcType] -> TcS ()

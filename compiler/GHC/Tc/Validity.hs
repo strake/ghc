@@ -13,7 +13,6 @@ module GHC.Tc.Validity (
   checkValidTheta,
   checkValidInstance, checkValidInstHead, validDerivPred,
   checkTySynRhs,
-  checkValidCoAxiom, checkValidCoAxBranch,
   checkValidTyFamEqn, checkConsistentFamInst,
   badATErr, arityErr,
   checkTyConTelescope,
@@ -50,9 +49,6 @@ import GHC.Hs
 import GHC.Tc.Utils.Monad
 import GHC.Tc.Utils.Env  ( tcInitTidyEnv, tcInitOpenTidyEnv )
 import GHC.Tc.Instance.FunDeps
-import GHC.Core.FamInstEnv
-   ( isDominatedBy, injectiveBranches, InjectivityCheckResult(..) )
-import GHC.Tc.Instance.Family
 import GHC.Types.Name
 import GHC.Types.Var.Env
 import GHC.Types.Var.Set
@@ -1990,79 +1986,6 @@ The suspicious bits are the calls to filterOutInvisibleTypes.
 -}
 
 
-{-
-************************************************************************
-*                                                                      *
-        Checking type instance well-formedness and termination
-*                                                                      *
-************************************************************************
--}
-
-checkValidCoAxiom :: CoAxiom Branched -> TcM ()
-checkValidCoAxiom ax@(CoAxiom { co_ax_tc = fam_tc, co_ax_branches = branches })
-  = do { mapM_ (checkValidCoAxBranch fam_tc) branch_list
-       ; foldlM_ check_branch_compat [] branch_list }
-  where
-    branch_list = fromBranches branches
-    injectivity = tyConInjectivityInfo fam_tc
-
-    check_branch_compat :: [CoAxBranch]    -- previous branches in reverse order
-                        -> CoAxBranch      -- current branch
-                        -> TcM [CoAxBranch]-- current branch : previous branches
-    -- Check for
-    --   (a) this branch is dominated by previous ones
-    --   (b) failure of injectivity
-    check_branch_compat prev_branches cur_branch
-      | cur_branch `isDominatedBy` prev_branches
-      = do { addWarnAt NoReason (coAxBranchSpan cur_branch) $
-             inaccessibleCoAxBranch fam_tc cur_branch
-           ; return prev_branches }
-      | otherwise
-      = do { check_injectivity prev_branches cur_branch
-           ; return (cur_branch : prev_branches) }
-
-     -- Injectivity check: check whether a new (CoAxBranch) can extend
-     -- already checked equations without violating injectivity
-     -- annotation supplied by the user.
-     -- See Note [Verifying injectivity annotation] in GHC.Core.FamInstEnv
-    check_injectivity prev_branches cur_branch
-      | Injective inj <- injectivity
-      = do { dflags <- getDynFlags
-           ; let conflicts =
-                     fst $ foldl' (gather_conflicts inj prev_branches cur_branch)
-                                 ([], 0) prev_branches
-           ; reportConflictingInjectivityErrs fam_tc conflicts cur_branch
-           ; reportInjectivityErrors dflags ax cur_branch inj }
-      | otherwise
-      = return ()
-
-    gather_conflicts inj prev_branches cur_branch (acc, n) branch
-               -- n is 0-based index of branch in prev_branches
-      = case injectiveBranches inj cur_branch branch of
-           -- Case 1B2 in Note [Verifying injectivity annotation] in GHC.Core.FamInstEnv
-          InjectivityUnified ax1 ax2
-            | ax1 `isDominatedBy` (replace_br prev_branches n ax2)
-                -> (acc, n + 1)
-            | otherwise
-                -> (branch : acc, n + 1)
-          InjectivityAccepted -> (acc, n + 1)
-
-    -- Replace n-th element in the list. Assumes 0-based indexing.
-    replace_br :: [CoAxBranch] -> Int -> CoAxBranch -> [CoAxBranch]
-    replace_br brs n br = take n brs ++ [br] ++ drop (n+1) brs
-
-
--- Check that a "type instance" is well-formed (which includes decidability
--- unless -XUndecidableInstances is given).
---
-checkValidCoAxBranch :: TyCon -> CoAxBranch -> TcM ()
-checkValidCoAxBranch fam_tc
-                    (CoAxBranch { cab_tvs = tvs, cab_cvs = cvs
-                                , cab_lhs = typats
-                                , cab_rhs = rhs, cab_loc = loc })
-  = setSrcSpan loc $
-    checkValidTyFamEqn fam_tc (tvs++cvs) typats rhs
-
 -- | Do validity checks on a type family equation, including consistency
 -- with any enclosing class instance head, termination, and lack of
 -- polytypes.
@@ -2233,11 +2156,6 @@ checkValidTypePats tc pat_ty_args
            2 (ppr inst_ty)
 
 -- Error messages
-
-inaccessibleCoAxBranch :: TyCon -> CoAxBranch -> SDoc
-inaccessibleCoAxBranch fam_tc cur_branch
-  = text "Type family instance equation is overlapped:" $$
-    nest 2 (pprCoAxBranchUser fam_tc cur_branch)
 
 nestedMsg :: SDoc -> SDoc
 nestedMsg what

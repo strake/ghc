@@ -3,6 +3,7 @@
 (c) The GRASP/AQUA Project, Glasgow University, 1993-1998
 -}
 
+{-# LANGUAGE PatternSynonyms #-}
 
 module GHC.Iface.Syntax (
         module GHC.Iface.Type,
@@ -60,7 +61,7 @@ import GHC.Unit.Module
 import GHC.Types.SrcLoc
 import GHC.Data.BooleanFormula ( BooleanFormula, pprBooleanFormula, isTrue )
 import GHC.Types.Var( VarBndr(..), binderVar, tyVarSpecToBinders )
-import GHC.Core.TyCon ( Role (..), Injectivity(..), tyConBndrVisArgFlag )
+import GHC.Core.TyCon ( Role (..), Injectivity(..), pattern NotInjective1, pprInj, tyConBndrVisArgFlag )
 import GHC.Core.DataCon (SrcStrictness(..), SrcUnpackedness(..))
 import GHC.Builtin.Types ( constraintKindTyConName )
 
@@ -70,7 +71,7 @@ import GHC.Utils.Binary
 import GHC.Utils.Binary.Typeable ()
 import GHC.Utils.Outputable as Outputable
 import GHC.Utils.Panic
-import GHC.Utils.Misc( dropList, filterByList, notNull, unzipWith, seqList )
+import GHC.Utils.Misc( dropList, notNull, unzipWith, seqList )
 
 import Control.Monad
 import System.IO.Unsafe
@@ -954,7 +955,7 @@ pprIfaceDecl ss (IfaceSynonym { ifName    = tc
 pprIfaceDecl ss (IfaceFamily { ifName = tycon
                              , ifFamFlav = rhs, ifBinders = binders
                              , ifResKind = res_kind
-                             , ifResVar = res_var, ifFamInj = inj })
+                             , ifResVar = res_var, ifFamInj = inj@(Injectivity inj') })
   | IfaceDataFamilyTyCon <- rhs
   = vcat [ pprStandaloneKindSig name_doc (mkIfaceTyConKind binders res_kind)
          , text "data family" <+> pprIfaceDeclHead suppress_bndr_sig [] ss tycon binders
@@ -965,7 +966,7 @@ pprIfaceDecl ss (IfaceFamily { ifName = tycon
          , hang (text "type family"
                    <+> pprIfaceDeclHead suppress_bndr_sig [] ss tycon binders
                    <+> ppShowRhs ss (pp_where rhs))
-              2 (pp_inj res_var inj <+> ppShowRhs ss (pp_rhs rhs))
+              2 (pp_inj <+> ppShowRhs ss (pp_rhs rhs))
            $$
            nest 2 (ppShowRhs ss (pp_branches rhs))
          ]
@@ -975,15 +976,9 @@ pprIfaceDecl ss (IfaceFamily { ifName = tycon
     pp_where (IfaceClosedSynFamilyTyCon {}) = text "where"
     pp_where _                              = empty
 
-    pp_inj Nothing    _   = empty
-    pp_inj (Just res) inj
-       | Injective injectivity <- inj = hsep [ equals, ppr res
-                                             , pp_inj_cond res injectivity]
-       | otherwise = hsep [ equals, ppr res ]
-
-    pp_inj_cond res inj = case filterByList inj binders of
-       []  -> empty
-       tvs -> hsep [vbar, ppr res, text "->", interppSP (map ifTyConBinderName tvs)]
+    pp_inj
+      | any (/= NotInjective1) inj' = pprInj (ppr res_var) (ppr . binderVar <$> binders) inj
+      | otherwise = empty
 
     pp_rhs IfaceDataFamilyTyCon
       = ppShowIface ss (text "data")

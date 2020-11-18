@@ -8,6 +8,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE BlockArguments #-}
 
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
@@ -597,16 +598,14 @@ repFamilyResultSigToMaybeKind TyVarSig{} =
     panic "repFamilyResultSigToMaybeKind: unexpected TyVarSig"
 
 -- | Represent injectivity annotation of a type family
-repInjectivityAnn :: Maybe (LInjectivityAnn GhcRn)
-                  -> MetaM (Core (Maybe TH.InjectivityAnn))
-repInjectivityAnn Nothing =
-    do { coreNothing injAnnTyConName }
-repInjectivityAnn (Just (L _ (InjectivityAnn lhs rhs))) =
-    do { lhs'   <- lookupBinder (unLoc lhs)
-       ; rhs1   <- mapM (lookupBinder . unLoc) rhs
-       ; rhs2   <- coreList nameTyConName rhs1
-       ; injAnn <- rep2_nw injectivityAnnName [unC lhs', unC rhs2]
-       ; coreJust injAnnTyConName injAnn }
+repInjectivityAnn :: [LInjectivityAnn GhcRn]
+                  -> MetaM (Core [TH.InjectivityAnn])
+repInjectivityAnn = coreList injAnnTyConName <=< traverse \ (L _ (InjectivityAnn lhs rhs)) -> do
+    lhs' <- f lhs
+    rhs' <- f rhs
+    rep2_nw injectivityAnnName [unC lhs', unC rhs']
+  where
+    f = coreList nameTyConName <=< traverse (lookupBinder . unLoc)
 
 repFamilyDecls :: [LFamilyDecl GhcRn] -> MetaM [Core (M TH.Dec)]
 repFamilyDecls fds = liftM de_loc (mapM repFamilyDecl fds)
@@ -2539,7 +2538,7 @@ repDataFamilyD (MkC nm) (MkC tvs) (MkC kind)
 repOpenFamilyD :: Core TH.Name
                -> Core [(M (TH.TyVarBndr ()))]
                -> Core (M TH.FamilyResultSig)
-               -> Core (Maybe TH.InjectivityAnn)
+               -> Core [TH.InjectivityAnn]
                -> MetaM (Core (M TH.Dec))
 repOpenFamilyD (MkC nm) (MkC tvs) (MkC result) (MkC inj)
     = rep2 openTypeFamilyDName [nm, tvs, result, inj]
@@ -2547,7 +2546,7 @@ repOpenFamilyD (MkC nm) (MkC tvs) (MkC result) (MkC inj)
 repClosedFamilyD :: Core TH.Name
                  -> Core [(M (TH.TyVarBndr ()))]
                  -> Core (M TH.FamilyResultSig)
-                 -> Core (Maybe TH.InjectivityAnn)
+                 -> Core [TH.InjectivityAnn]
                  -> Core [(M TH.TySynEqn)]
                  -> MetaM (Core (M TH.Dec))
 repClosedFamilyD (MkC nm) (MkC tvs) (MkC res) (MkC inj) (MkC eqns)

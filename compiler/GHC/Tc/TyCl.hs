@@ -34,6 +34,7 @@ import GHC.Tc.TyCl.Build
 import GHC.Tc.Utils.Monad
 import GHC.Tc.Utils.Env
 import GHC.Tc.Validity
+import GHC.Tc.Validity.CoAxiom
 import GHC.Tc.Utils.Zonk
 import GHC.Tc.TyCl.Utils
 import GHC.Tc.TyCl.Class
@@ -90,9 +91,12 @@ import GHC.Utils.Panic.Plain
 import GHC.Utils.Misc
 
 import Control.Monad
+import Data.Bool ( bool )
+import Data.Coerce
 import Data.Foldable
 import Data.Function ( on )
 import Data.Functor.Identity
+import qualified Data.IntSet as IntSet
 import Data.List
 import qualified Data.List.NonEmpty as NE
 import Data.List.NonEmpty ( NonEmpty(..) )
@@ -2506,7 +2510,7 @@ tcFamDecl1 parent (FamilyDecl { fdInfo = fam_info
   ; let (_, final_res_kind) = splitPiTys res_kind
   ; checkDataKindSig DataFamilySort final_res_kind
   ; tc_rep_name <- newTyConRepName tc_name
-  ; let inj   = Injective $ replicate (length binders) True
+  ; let inj   = Injectivity (Injectivity1 (Set.singleton mempty) <$ binders)
         tycon = mkFamilyTyCon tc_name binders
                               res_kind
                               (resultVariableName sig)
@@ -2587,11 +2591,12 @@ tcFamDecl1 parent (FamilyDecl { fdInfo = fam_info
 -- True on position
 -- N means that a function is injective in its Nth argument. False means it is
 -- not.
-tcInjectivity :: [TyConBinder] -> Maybe (LInjectivityAnn GhcRn)
+tcInjectivity :: [TyConBinder] -> [LInjectivityAnn GhcRn]
               -> TcM Injectivity
-tcInjectivity _ Nothing
-  = return NotInjective
+tcInjectivity tcbs =
+    fmap (foldr (coerce $ zipWith Set.union) notInjective) . traverse (tcInjectivity1 tcbs)
 
+tcInjectivity1 :: [TyConBinder] -> LInjectivityAnn GhcRn -> TcM Injectivity
   -- User provided an injectivity annotation, so for each tyvar argument we
   -- check whether a type family was declared injective in that argument. We
   -- return a list of Bools, where True means that corresponding type variable
@@ -2610,21 +2615,28 @@ tcInjectivity _ Nothing
   -- therefore we can always infer the result kind if we know the result type.
   -- But this does not seem to be useful in any way so we don't do it.  (Another
   -- reason is that the implementation would not be straightforward.)
-tcInjectivity tcbs (Just (L loc (InjectivityAnn _ lInjNames)))
+tcInjectivity1 tcbs (L loc (InjectivityAnn injLhs injRhs))
   = setSrcSpan loc $
     do { let tvs = binderVars tcbs
        ; dflags <- getDynFlags
        ; checkTc (xopt LangExt.TypeFamilyDependencies dflags)
                  (text "Illegal injectivity annotation" $$
                   text "Use TypeFamilyDependencies to allow this")
-       ; inj_tvs <- mapM (tcLookupTyVar . unLoc) lInjNames
-       ; inj_tvs <- mapM zonkTcTyVarToTyVar inj_tvs -- zonk the kinds
-       ; let inj_ktvs = filterVarSet isTyVar $  -- no injective coercion vars
-                        closeOverKinds (mkVarSet inj_tvs)
-       ; let inj_bools = map (`elemVarSet` inj_ktvs) tvs
-       ; traceTc "tcInjectivity" (vcat [ ppr tvs, ppr lInjNames, ppr inj_tvs
-                                       , ppr inj_ktvs, ppr inj_bools ])
-       ; return $ Injective inj_bools }
+       ; let f = traverse (zonkTcTyVarToTyVar {- zonk the kinds -} <=< tcLookupTyVar . unLoc)
+             g = filterVarSet isTyVar . -- no injective coercion vars
+                 closeOverKinds . mkVarSet
+       ; injLhs' <- f [lname | lname@(L _ name) <- injLhs, name `elem` (tyVarName <$> tvs)]
+       ; injRhs' <- f injRhs
+       ; let injLhs'' = g injLhs'
+             injRhs'' = g injRhs'
+       ; traceTc "tcInjectivity1" $
+         vcat
+         [ ppr tvs, ppr (injLhs, injRhs), ppr (injLhs', injRhs'), ppr (injLhs'', injRhs'') ]
+       ; pure $
+         Injectivity
+         [ (Injectivity1 . bool (pure Set.empty) Set.singleton (elemVarSet v injRhs'') . IntSet.fromList)
+           [k | (u, k) <- zip tvs [0..], elemVarSet u injLhs'']
+         | v <- tvs ] }
 
 tcTySynRhs :: RolesInfo -> Name
            -> LHsType GhcRn -> TcM TyCon

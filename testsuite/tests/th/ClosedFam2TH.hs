@@ -10,7 +10,7 @@ $( return [ ClosedTypeFamilyD
                 [ KindedTV (mkName "a") () (VarT (mkName "k"))
                 , KindedTV (mkName "b") () (VarT (mkName "k")) ]
                 ( TyVarSig (KindedTV (mkName "r") () (VarT (mkName "k"))))
-                Nothing)
+                [])
               [ TySynEqn Nothing
                          (AppT (AppT (ConT (mkName "Equals")) (VarT (mkName "a")))
                                (VarT (mkName "a")))
@@ -30,7 +30,7 @@ $( return [ ClosedTypeFamilyD
                (TypeFamilyHead
                 (mkName "Foo")
                 [ KindedTV (mkName "a") () (VarT (mkName "k"))]
-                (KindSig StarT ) Nothing )
+                (KindSig StarT ) [])
                 [ TySynEqn Nothing
                            (AppT (AppKindT (ConT (mkName "Foo")) StarT)
                                  (VarT (mkName "a")))

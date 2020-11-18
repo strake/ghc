@@ -241,12 +241,12 @@ dataFamilyD tc tvs kind
     = pure $ DataFamilyD tc tvs kind
 
 openTypeFamilyD :: Quote m => Name -> [TyVarBndr ()] -> FamilyResultSig
-                -> Maybe InjectivityAnn -> m Dec
+                -> [InjectivityAnn] -> m Dec
 openTypeFamilyD tc tvs res inj
     = pure $ OpenTypeFamilyD (TypeFamilyHead tc tvs res inj)
 
 closedTypeFamilyD :: Quote m => Name -> [TyVarBndr ()] -> FamilyResultSig
-                  -> Maybe InjectivityAnn -> [m TySynEqn] -> m Dec
+                  -> [InjectivityAnn] -> [m TySynEqn] -> m Dec
 closedTypeFamilyD tc tvs result injectivity eqns =
   do eqns1 <- sequenceA eqns
      return (ClosedTypeFamilyD (TypeFamilyHead tc tvs result injectivity) eqns1)

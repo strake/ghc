@@ -1,18 +1,15 @@
 
 <interactive>:10:23:
-    Incorrect type variable on the LHS of injectivity condition
-         Expected : r
-         Actual   : a
+    Missing type variable on the LHS of injectivity condition:  r
+    Found type variables on both sides of injectivity condition:  a
 
 <interactive>:11:24:
-    Incorrect type variable on the LHS of injectivity condition
-         Expected : r
-         Actual   : a
+    Missing type variable on the LHS of injectivity condition:  r
+    Found type variables on both sides of injectivity condition:  a
 
 <interactive>:12:37:
-    Incorrect type variable on the LHS of injectivity condition
-         Expected : r
-         Actual   : a
+    Missing type variable on the LHS of injectivity condition:  r
+    Found type variables on both sides of injectivity condition:  a
 
 <interactive>:15:19:
     Type variable ‘a’, naming a type family result,
@@ -28,6 +25,7 @@
 
 <interactive>:19:24:
     Unknown type variable on the RHS of injectivity condition: a
+    Found type variables on both sides of injectivity condition:  a
 
 <interactive>:20:21:
     Type variable ‘a’, naming a type family result,
@@ -35,6 +33,7 @@
 
 <interactive>:20:25:
     Unknown type variable on the RHS of injectivity condition: a
+    Found type variables on both sides of injectivity condition:  a
 
 <interactive>:21:35:
     Type variable ‘a’, naming a type family result,
@@ -42,6 +41,7 @@
 
 <interactive>:21:39:
     Unknown type variable on the RHS of injectivity condition: a
+    Found type variables on both sides of injectivity condition:  a
 
 <interactive>:24:1: Not in scope: type variable ‘c’
 

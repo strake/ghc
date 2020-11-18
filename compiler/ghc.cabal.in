@@ -302,6 +302,7 @@ Library
         GHC.Core.DataCon
         GHC.Core.FVs
         GHC.Core.FamInstEnv
+        GHC.Core.FamInstEnv.Injectivity
         GHC.Core.InstEnv
         GHC.Core.Lint
         GHC.Core.Make
@@ -603,6 +604,7 @@ Library
         GHC.Tc.Utils.Unify
         GHC.Tc.Utils.Zonk
         GHC.Tc.Validity
+        GHC.Tc.Validity.CoAxiom
         GHC.ThToHs
         GHC.Types.Annotations
         GHC.Types.Avail
@@ -690,6 +692,7 @@ Library
         GHC.Utils.Json
         GHC.Utils.Lens.Monad
         GHC.Utils.Lexeme
+        GHC.Utils.List.NonEmpty
         GHC.Utils.Misc
         GHC.Utils.Monad
         GHC.Utils.Monad.RS.Lazy

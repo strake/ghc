@@ -12,6 +12,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 {-# OPTIONS_GHC -Wno-incomplete-record-updates #-}
 
@@ -123,6 +124,7 @@ import GHC.Unit.Module.Warnings
 
 import GHC.Data.Bag
 import GHC.Data.Maybe
+import Control.Monad (join)
 import Data.Data        hiding (TyCon,Fixity, Infix)
 
 {-
@@ -1087,7 +1089,7 @@ data FamilyDecl pass = FamilyDecl
                        -- See Note [TyVar binders for associated declarations]
   , fdFixity         :: LexicalFixity                -- Fixity used in the declaration
   , fdResultSig      :: LFamilyResultSig pass        -- result signature
-  , fdInjectivityAnn :: Maybe (LInjectivityAnn pass) -- optional injectivity ann
+  , fdInjectivityAnn :: [LInjectivityAnn pass]       -- optional injectivity ann
   }
   | XFamilyDecl !(XXFamilyDecl pass)
   -- ^ - 'GHC.Parser.Annotation.AnnKeywordId' : 'GHC.Parser.Annotation.AnnType',
@@ -1115,7 +1117,7 @@ type LInjectivityAnn pass = Located (InjectivityAnn pass)
 --
 -- This will be represented as "InjectivityAnn `r` [`a`, `c`]"
 data InjectivityAnn pass
-  = InjectivityAnn (Located (IdP pass)) [Located (IdP pass)]
+  = InjectivityAnn [Located (IdP pass)] [Located (IdP pass)]
   -- ^ - 'GHC.Parser.Annotation.AnnKeywordId' :
   --             'GHC.Parser.Annotation.AnnRarrow', 'GHC.Parser.Annotation.AnnVbar'
 
@@ -1176,10 +1178,7 @@ pprFamilyDecl top_level (FamilyDecl { fdInfo = info, fdLName = ltycon
                 NoSig    _         -> empty
                 KindSig  _ kind    -> dcolon <+> ppr kind
                 TyVarSig _ tv_bndr -> text "=" <+> ppr tv_bndr
-    pp_inj = case mb_inj of
-               Just (L _ (InjectivityAnn lhs rhs)) ->
-                 hsep [ vbar, ppr lhs, text "->", hsep (map ppr rhs) ]
-               Nothing -> empty
+    pp_inj = hsep . join $ zipWith (:) ("|" : repeat ",") [join [map ppr lhs, [text "->"], map ppr rhs] | L _ (InjectivityAnn lhs rhs) <- mb_inj]
     (pp_where, pp_eqns) = case info of
       ClosedTypeFamily mb_eqns ->
         ( text "where"

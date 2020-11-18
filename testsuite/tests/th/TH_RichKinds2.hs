@@ -20,7 +20,7 @@ $(return [OpenTypeFamilyD (TypeFamilyHead
                           KindedTV (mkName "l") ()
                           (AppT ListT
                            (VarT (mkName "k1")))]
-          (KindSig (AppT ListT (VarT (mkName "k2")))) Nothing)])
+          (KindSig (AppT ListT (VarT (mkName "k2")))) [])])
 
 $( let fixKs :: String -> String -- need to remove TH renaming index from k variables
        fixKs s =

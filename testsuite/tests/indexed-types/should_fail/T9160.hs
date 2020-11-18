@@ -1,6 +1,7 @@
 {-# LANGUAGE FlexibleInstances, TemplateHaskell, PolyKinds, TypeFamilies #-}
 
 module T9160 where
+import Control.Applicative (empty)
 import Language.Haskell.TH
 
 $( do { cls_nm <- newName "C"
@@ -9,7 +10,7 @@ $( do { cls_nm <- newName "C"
       ; f_nm   <- newName "F"
       ; return [ClassD [] cls_nm [KindedTV a_nm () (VarT k_nm)] []
                  [OpenTypeFamilyD
-                   (TypeFamilyHead f_nm [] (KindSig (VarT k_nm)) Nothing)]]})
+                   (TypeFamilyHead f_nm [] (KindSig (VarT k_nm)) empty)]]})
 
 -- Splices in:
 --     class C (a :: k) where

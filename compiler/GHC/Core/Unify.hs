@@ -14,7 +14,7 @@ module GHC.Core.Unify (
 
         -- Side-effect free unification
         tcUnifyTy, tcUnifyTyKi, tcUnifyTys, tcUnifyTyKis,
-        tcUnifyTysFG, tcUnifyTyWithTFs,
+        tcUnifyTysFG, tcUnifyTyWithTFs, tcUnifyTysWithTFs,
         BindFlag(..),
         UnifyResult, UnifyResultM(..),
 
@@ -45,6 +45,7 @@ import GHC.Exts( oneShot )
 import Control.Monad
 import Control.Applicative hiding ( empty )
 import qualified Control.Applicative
+import Data.Function ( on )
 
 {-
 
@@ -381,17 +382,25 @@ tcUnifyTyWithTFs :: Bool  -- ^ True <=> do two-way unification;
 -- the paper "Injective type families for Haskell", Figures 2 and 3.
 -- The code is incorporated with the standard unifier for convenience, but
 -- its operation should match the specification in the paper.
-tcUnifyTyWithTFs twoWay t1 t2
+tcUnifyTyWithTFs twoWay = tcUnifyTysWithTFs twoWay `on` pure
+
+tcUnifyTysWithTFs
+ :: Bool
+    -- ^ True <=> do two-way unification;
+    --   False <=> do one-way matching.
+    --   See end of sec 5.2 from the paper
+ -> [Type] -> [Type] -> Maybe TCvSubst
+tcUnifyTysWithTFs twoWay tys1 tys2
   = case tc_unify_tys (const BindMe) twoWay True False
                        rn_env emptyTvSubstEnv emptyCvSubstEnv
-                       [t1] [t2] of
+                       tys1 tys2 of
       Unifiable  (subst, _) -> Just $ maybe_fix subst
       MaybeApart (subst, _) -> Just $ maybe_fix subst
       -- we want to *succeed* in questionable cases. This is a
       -- pre-unification algorithm.
       SurelyApart      -> Nothing
   where
-    in_scope = mkInScopeSet $ tyCoVarsOfTypes [t1, t2]
+    in_scope = mkInScopeSet $ tyCoVarsOfTypes (tys1 ++ tys2)
     rn_env   = mkRnEnv2 in_scope
 
     maybe_fix | twoWay    = niFixTCvSubst
@@ -979,12 +988,7 @@ unify_ty env ty1 ty2 _kco
   , tc1 == tc2 || (tcIsLiftedTypeKind ty1 && tcIsLiftedTypeKind ty2)
   = if isInjectiveTyCon tc1 Nominal
     then unify_tys env tys1 tys2
-    else do { let inj | isTypeFamilyTyCon tc1
-                      = case tyConInjectivityInfo tc1 of
-                               NotInjective -> repeat False
-                               Injective bs -> bs
-                      | otherwise
-                      = repeat False
+    else do { let inj = boolListOfTyConInjectivityInfo tc1 <* guard (isTypeFamilyTyCon tc1)
 
                   (inj_tys1, noninj_tys1) = partitionByList inj tys1
                   (inj_tys2, noninj_tys2) = partitionByList inj tys2

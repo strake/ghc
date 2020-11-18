@@ -29,6 +29,7 @@ import Haddock.GhcUtils
 import Haddock.Types
 import Haddock.Doc (combineDocumentation)
 
+import           Control.Monad         ( join )
 import           Data.List             ( intersperse, sort )
 import qualified Data.Map as Map
 import           Data.Maybe
@@ -369,12 +370,10 @@ ppFamHeader summary associated (FamilyDecl { fdInfo = info
       ClosedTypeFamily _ -> keyword "where ..."
       _                  -> noHtml
 
-    injAnn = case injectivity of
-      Nothing -> noHtml
-      Just (L _ (InjectivityAnn lhs rhs)) -> hsep ( keyword "|"
-                                                  : ppLDocName qual Raw lhs
-                                                  : arrow unicode
-                                                  : map (ppLDocName qual Raw) rhs)
+    injAnn = hsep . join $ zipWith (:) (keyword "|" : repeat (keyword ","))
+      [ fmap (ppLDocName qual Raw) lhs ++ arrow unicode : fmap (ppLDocName qual Raw) rhs
+      | L _ (InjectivityAnn lhs rhs) <- injectivity
+      ]
 
 -- | Print the keywords that begin the family declaration
 ppFamilyLeader :: Bool -> FamilyInfo DocNameI -> Html

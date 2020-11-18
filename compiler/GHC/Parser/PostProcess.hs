@@ -312,7 +312,7 @@ mkFamDecl :: SrcSpan
           -> FamilyInfo GhcPs
           -> LHsType GhcPs                   -- LHS
           -> Located (FamilyResultSig GhcPs) -- Optional result signature
-          -> Maybe (LInjectivityAnn GhcPs)   -- Injectivity annotation
+          -> [LInjectivityAnn GhcPs]         -- Injectivity annotation
           -> P (LTyClDecl GhcPs)
 mkFamDecl loc info lhs ksig injAnn
   = do { (tc, tparams, fixity, ann) <- checkTyClHdr False lhs

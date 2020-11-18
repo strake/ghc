@@ -2250,7 +2250,7 @@ type PatSynType = Type
 -- @TypeFamilyHead@ is defined to be the elements of the declaration
 -- between @type family@ and @where@.
 data TypeFamilyHead =
-  TypeFamilyHead Name [TyVarBndr ()] FamilyResultSig (Maybe InjectivityAnn)
+  TypeFamilyHead Name [TyVarBndr ()] FamilyResultSig [InjectivityAnn]
   deriving( Show, Eq, Ord, Data, Generic )
 
 -- | One equation of a type family instance or closed type family. The
@@ -2494,7 +2494,7 @@ data FamilyResultSig = NoSig              -- ^ no signature
       deriving( Show, Eq, Ord, Data, Generic )
 
 -- | Injectivity annotation
-data InjectivityAnn = InjectivityAnn Name [Name]
+data InjectivityAnn = InjectivityAnn [Name] [Name]
   deriving ( Show, Eq, Ord, Data, Generic )
 
 data TyLit = NumTyLit Integer             -- ^ @2@
