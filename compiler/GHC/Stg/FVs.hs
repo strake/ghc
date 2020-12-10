@@ -47,7 +47,7 @@ import GHC.Prelude
 import GHC.Stg.Syntax
 import GHC.Types.Id
 import GHC.Types.Var.Set
-import GHC.Core    ( Tickish(Breakpoint) )
+import GHC.Core    ( GenTickish(Breakpoint) )
 import GHC.Utils.Misc
 import GHC.Utils.Panic
 import GHC.Data.Collections
@@ -140,8 +140,8 @@ expr env = go
       where
         (e', fvs) = go e
         fvs' = setUnion (tickish tick) fvs
-        tickish (Breakpoint _ ids) = setFromList ids
-        tickish _                  = setEmpty
+        tickish (Breakpoint _ _ ids) = setFromList ids
+        tickish _ = setEmpty
 
     go_bind dc bind body = (dc bind' body', fvs)
       where

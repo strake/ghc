@@ -1125,7 +1125,7 @@ mkTickish boxLabel countEntries topOnly pos fvs decl_path = do
       , let cc = mkUserCC nm (this_mod env) pos flavour
             count = countEntries && gopt Opt_ProfCountEntries dflags ]
 
-    Breakpoints -> Breakpoint <$> addMixEntry me <*> pure ids
+    Breakpoints -> Breakpoint noExtField <$> addMixEntry me <*> pure ids
 
     SourceNotes | RealSrcSpan pos' _ <- pos ->
       pure $ SourceNote pos' cc_name

@@ -24,7 +24,7 @@ import GHC.Prelude
 import {-# SOURCE #-} GHC.Tc.Gen.Match ( tcGRHSsPat, tcMatchesFun )
 import {-# SOURCE #-} GHC.Tc.Gen.Expr  ( tcLExpr )
 import {-# SOURCE #-} GHC.Tc.TyCl.PatSyn ( tcPatSynDecl, tcPatSynBuilderBind )
-import GHC.Core (Tickish (..))
+import GHC.Core (Tickish, GenTickish (..))
 import GHC.Types.CostCentre (mkUserCC, CCFlavour(DeclCC))
 import GHC.Driver.Session
 import GHC.Data.FastString

@@ -689,8 +689,8 @@ substDVarSet subst = setFromList . fst . foldr (subst_fv subst) ([], emptyVarSet
 
 ------------------
 substTickish :: Subst -> Tickish Id -> Tickish Id
-substTickish subst (Breakpoint n ids)
-   = Breakpoint n (map do_one ids)
+substTickish subst (Breakpoint ext n ids)
+   = Breakpoint ext n (map do_one ids)
  where
     do_one = getIdFromTrivialExpr . lookupIdSubst subst
 substTickish _subst other = other
