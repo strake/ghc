@@ -1,4 +1,6 @@
-{-# LANGUAGE CPP, RecordWildCards, ScopedTypeVariables, BangPatterns #-}
+{-# LANGUAGE CPP #-}
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections #-}
 
 -- | Interacting with the iserv interpreter, whether it is running on an

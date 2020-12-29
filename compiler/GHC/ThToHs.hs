@@ -1,6 +1,6 @@
 {-# LANGUAGE FunctionalDependencies  #-}
-{-# LANGUAGE ScopedTypeVariables     #-}
-{-# LANGUAGE TypeFamilies            #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeFamilies #-}
 
 {-# OPTIONS_GHC -Wno-incomplete-record-updates #-}
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns   #-}

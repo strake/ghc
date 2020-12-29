@@ -1,4 +1,5 @@
-{-# LANGUAGE CPP, DeriveFunctor, TypeFamilies #-}
+{-# LANGUAGE CPP #-}
+{-# LANGUAGE TypeFamilies #-}
 {-# OPTIONS_GHC -Wno-incomplete-record-updates #-}
 
 #include "lens.h"

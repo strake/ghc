@@ -1,7 +1,7 @@
-{-# LANGUAGE ConstraintKinds      #-}
-{-# LANGUAGE DeriveDataTypeable   #-}
-{-# LANGUAGE StandaloneDeriving   #-}
-{-# LANGUAGE TypeFamilies         #-}
+{-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-} -- Wrinkle in Note [Trees That Grow] in module GHC.Hs.Extension
 {-
 (c) The University of Glasgow 2006

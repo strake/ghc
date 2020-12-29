@@ -3,8 +3,8 @@
 (c) The GRASP/AQUA Project, Glasgow University, 1992-1999
 -}
 
-{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TypeFamilies #-}
 
 module GHC.Tc.Instance.Typeable(mkTypeableBinds, tyConIsTypeable) where

@@ -1,4 +1,5 @@
-{-# LANGUAGE CPP, MagicHash, RecordWildCards, BangPatterns, BlockArguments #-}
+{-# LANGUAGE CPP #-}
+{-# LANGUAGE RecordWildCards #-}
 
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 

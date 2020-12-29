@@ -255,6 +255,54 @@ hadrian-ghc-in-ghci:
       - cabal-cache
 
 ############################################################
+# GHC source code linting
+############################################################
+
+.lint-params:
+  stage: quick-build
+  needs: [lint-submods]
+  tags:
+    - lint
+  image: "registry.gitlab.haskell.org/ghc/ci-images/x86_64-linux-deb9:$DOCKER_REV"
+  before_script:
+    - export PATH="/opt/toolchain/bin:$PATH"
+    # workaround for docker permissions
+    - sudo chown ghc:ghc -R .
+    - git submodule sync --recursive
+    - git submodule update --init --recursive
+    - git checkout .gitmodules
+    - .gitlab/ci.sh setup
+    - "cabal update --index=$HACKAGE_INDEX_STATE"
+    - cd hadrian; cabal new-build -j`../mk/detect-cpu-count.sh` --with-compiler=$GHC --project-file=ci.project; cd ..
+  after_script:
+    - cp -Rf $HOME/.cabal cabal-cache
+  variables:
+    GHC_FLAGS: -Werror
+  cache:
+    key: lint
+    paths:
+      - cabal-cache
+
+lint-base:
+  extends: .lint-params
+  variables:
+    BUILD_FLAVOUR: default
+  script:
+    - .gitlab/ci.sh setup
+    - .gitlab/ci.sh configure
+    - .gitlab/ci.sh run_hadrian stage1:lib:base
+    - .gitlab/ci.sh run_hadrian lint:base
+
+lint-compiler:
+  extends: .lint-params
+  variables:
+    BUILD_FLAVOUR: default
+  script:
+    - .gitlab/ci.sh setup
+    - .gitlab/ci.sh configure
+    - .gitlab/ci.sh run_hadrian lint:compiler
+
+############################################################
 # Validation via Pipelines (make)
 ############################################################
 

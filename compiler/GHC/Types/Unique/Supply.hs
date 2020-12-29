@@ -9,7 +9,6 @@
 
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE PatternSynonyms #-}
-{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE UnboxedTuples #-}
 
 module GHC.Types.Unique.Supply (

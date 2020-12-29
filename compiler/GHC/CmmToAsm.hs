@@ -5,8 +5,11 @@
 --
 -- -----------------------------------------------------------------------------
 
-{-# LANGUAGE BangPatterns, CPP, GADTs, ScopedTypeVariables, PatternSynonyms #-}
+{-# LANGUAGE CPP #-}
+{-# LANGUAGE GADTs #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE UnboxedTuples #-}
 
 {-# OPTIONS_GHC -Wno-incomplete-record-updates #-}

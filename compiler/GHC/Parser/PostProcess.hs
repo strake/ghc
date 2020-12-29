@@ -1,7 +1,7 @@
-{-# LANGUAGE GADTs             #-}
-{-# LANGUAGE RankNTypes        #-}
-{-# LANGUAGE TypeFamilies      #-}
-{-# LANGUAGE ViewPatterns      #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE ViewPatterns #-}
 
 {-# OPTIONS_GHC -Wno-incomplete-record-updates #-}
 

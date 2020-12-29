@@ -1,11 +1,11 @@
-{-# LANGUAGE CPP                  #-}
-{-# LANGUAGE ConstraintKinds      #-}
-{-# LANGUAGE DeriveDataTypeable   #-}
-{-# LANGUAGE ScopedTypeVariables  #-}
-{-# LANGUAGE TypeApplications     #-}
-{-# LANGUAGE TypeFamilies         #-}
-{-# LANGUAGE UndecidableInstances #-} -- Wrinkle in Note [Trees That Grow] in module GHC.Hs.Extension
-{-# LANGUAGE ViewPatterns         #-}
+{-# LANGUAGE CPP #-}
+{-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE UndecidableInstances #-} -- Wrinkle in Note [Trees That Grow] in module Language.Haskell.Syntax.Extension
+{-# LANGUAGE ViewPatterns #-}
 
 #include "lens.h"
 
