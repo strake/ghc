@@ -64,6 +64,7 @@ import GHC.Driver.Hooks
 import qualified GHC.LanguageExtensions as LangExt
 
 import Control.Monad
+import Data.Maybe (fromMaybe)
 
 -- Defines a binding
 isForeignImport :: LForeignDecl name -> Bool
@@ -228,8 +229,9 @@ to the module's usages.
 
 tcForeignImports :: [LForeignDecl GhcRn]
                  -> TcM ([Id], [LForeignDecl GhcTc], Bag GlobalRdrElt)
-tcForeignImports decls
-  = getHooked tcForeignImportsHook tcForeignImports' >>= ($ decls)
+tcForeignImports decls = do
+    hooks <- getHooks
+    fromMaybe tcForeignImports' (tcForeignImportsHook hooks) decls
 
 tcForeignImports' :: [LForeignDecl GhcRn]
                   -> TcM ([Id], [LForeignDecl GhcTc], Bag GlobalRdrElt)
@@ -368,8 +370,9 @@ checkMissingAmpersand dflags arg_tys res_ty
 
 tcForeignExports :: [LForeignDecl GhcRn]
              -> TcM (LHsBinds GhcTc, [LForeignDecl GhcTc], Bag GlobalRdrElt)
-tcForeignExports decls =
-  getHooked tcForeignExportsHook tcForeignExports' >>= ($ decls)
+tcForeignExports decls = do
+    hooks <- getHooks
+    fromMaybe tcForeignExports' (tcForeignExportsHook hooks) decls
 
 tcForeignExports' :: [LForeignDecl GhcRn]
              -> TcM (LHsBinds GhcTc, [LForeignDecl GhcTc], Bag GlobalRdrElt)

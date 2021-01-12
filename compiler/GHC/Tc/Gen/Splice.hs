@@ -866,9 +866,9 @@ runQResult show_th f runQ expr_span hval
 runMeta :: (MetaHook TcM -> LHsExpr GhcTc -> TcM hs_syn)
         -> LHsExpr GhcTc
         -> TcM hs_syn
-runMeta unwrap e
-  = do { h <- getHooked runMetaHook defaultRunMeta
-       ; unwrap h e }
+runMeta unwrap e = do
+    hooks <- getHooks
+    fromMaybe defaultRunMeta (runMetaHook hooks) `unwrap` e
 
 defaultRunMeta :: MetaHook TcM
 defaultRunMeta (MetaE r)
