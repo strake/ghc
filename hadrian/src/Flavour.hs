@@ -10,6 +10,7 @@ module Flavour
   , enableDebugInfo, enableTickyGhc
   , enableProfiledGhc
   , disableDynamicGhcPrograms
+  , disableProfiledLibs
   ) where
 
 import Expression
@@ -88,6 +89,7 @@ flavourTransformers = M.fromList
     , "thread_sanitizer" =: enableThreadSanitizer
     , "profiled_ghc" =: enableProfiledGhc
     , "no_dynamic_ghc" =: disableDynamicGhcPrograms
+    , "no_profiled_libs" =: disableProfiledLibs
     ]
   where (=:) = (,)
 
@@ -206,3 +208,8 @@ enableProfiledGhc flavour = flavour { ghcProfiled = True }
 -- | Disable 'dynamicGhcPrograms'.
 disableDynamicGhcPrograms :: Flavour -> Flavour
 disableDynamicGhcPrograms flavour = flavour { dynamicGhcPrograms = pure False }
+
+-- | Don't build libraries in profiled 'Way's.
+disableProfiledLibs :: Flavour -> Flavour
+disableProfiledLibs flavour =
+    flavour { libraryWays = filter (not . wayUnit Profiling) <$> libraryWays flavour }
