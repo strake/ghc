@@ -413,8 +413,8 @@ compileEmptyStub dflags hsc_env basename location mod_name = do
 
 -- ---------------------------------------------------------------------------
 -- Link
-
 link :: GhcLink                 -- interactive or batch
+     -> Hooks
      -> DynFlags                -- dynamic flags
      -> Bool                    -- attempt linking in batch mode?
      -> HomePackageTable        -- what to link
@@ -427,26 +427,17 @@ link :: GhcLink                 -- interactive or batch
 -- exports main, i.e., we have good reason to believe that linking
 -- will succeed.
 
-link ghcLink dflags
-  = lookupHook linkHook l dflags ghcLink dflags
-  where
-    l LinkInMemory _ _ _
-      = if platformMisc_ghcWithInterpreter $ platformMisc dflags
-        then -- Not Linking...(demand linker will do the job)
-             return Succeeded
-        else panicBadLink LinkInMemory
-
-    l NoLink _ _ _
-      = return Succeeded
-
-    l LinkBinary dflags batch_attempt_linking hpt
-      = link' dflags batch_attempt_linking hpt
-
-    l LinkStaticLib dflags batch_attempt_linking hpt
-      = link' dflags batch_attempt_linking hpt
-
-    l LinkDynLib dflags batch_attempt_linking hpt
-      = link' dflags batch_attempt_linking hpt
+link ghcLink hooks dflags = case linkHook hooks of
+    Nothing -> case ghcLink of
+        NoLink          -> \ _ _ -> pure Succeeded
+        LinkBinary      -> link' dflags
+        LinkStaticLib   -> link' dflags
+        LinkDynLib      -> link' dflags
+        LinkInMemory
+          -- Not Linking...(demand linker will do the job)
+          | platformMisc_ghcWithInterpreter $ platformMisc dflags -> \ _ _ -> pure Succeeded
+          | otherwise -> \ _ _ -> panicBadLink LinkInMemory
+    Just h -> h ghcLink dflags
 
 panicBadLink :: GhcLink -> a
 panicBadLink other = panic ("link: GHC not built to link this way: " ++
@@ -804,8 +795,8 @@ pipeLoop phase input_fn = do
 runHookedPhase :: PhasePlus -> FilePath
                -> CompPipeline (PhasePlus, FilePath)
 runHookedPhase pp input = do
-  dflags <- getDynFlags
-  lookupHook runPhaseHook runPhase dflags pp input
+  hooks <- hsc_hooks <$> getPipeSession
+  fromMaybe runPhase (runPhaseHook hooks) pp input
 
 -- -----------------------------------------------------------------------------
 -- In each phase, we need to know into what filename to generate the

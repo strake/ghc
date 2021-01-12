@@ -13,14 +13,8 @@ plugin :: Plugin
 plugin = defaultPlugin { driverPlugin = hooksP }
 
 hooksP :: [CommandLineOption] -> HscEnv -> IO HscEnv
-hooksP opts hsc_env = do
-    let dflags  = hsc_dflags hsc_env
-        dflags' = dflags
-            { hooks = (hooks dflags)
-                { runMetaHook = Just (fakeRunMeta opts) }
-            }
-        hsc_env' = hsc_env { hsc_dflags = dflags' }
-    return hsc_env'
+hooksP opts hsc_env = pure hsc_env
+  { hsc_hooks = (hsc_hooks hsc_env) { runMetaHook = Just (fakeRunMeta opts) } }
 
 -- This meta hook doesn't actually care running code in splices,
 -- it just replaces any expression splice with the "0"
