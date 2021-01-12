@@ -567,7 +567,9 @@ load' how_much mHscMessage mod_graph = do
             do_linking = a_root_is_Main || no_hs_main || ghcLink dflags == LinkDynLib || ghcLink dflags == LinkStaticLib
 
           -- link everything together
-          linkresult <- liftIO $ link (ghcLink dflags) dflags do_linking (hsc_HPT hsc_env1)
+          hsc_env <- getSession
+          linkresult <- liftIO $
+              link (ghcLink dflags) (hsc_hooks hsc_env) dflags do_linking (hsc_HPT hsc_env1)
 
           if ghcLink dflags == LinkBinary && isJust ofile && not do_linking
              then do
@@ -625,7 +627,9 @@ load' how_much mHscMessage mod_graph = do
           assert just_linkables $ do
 
           -- Link everything together
-          linkresult <- liftIO $ link (ghcLink dflags) dflags False hpt5
+          hsc_env <- getSession
+          linkresult <- liftIO $
+              link (ghcLink dflags) (hsc_hooks hsc_env) dflags False hpt5
 
           modifySession $ \hsc_env -> hsc_env{ hsc_HPT = hpt5 }
           loadFinish Failed linkresult

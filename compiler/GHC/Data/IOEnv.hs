@@ -33,6 +33,7 @@ module GHC.Data.IOEnv (
 import GHC.Prelude
 
 import GHC.Driver.Session
+import {-# SOURCE #-} GHC.Driver.Hooks
 import GHC.Utils.Exception
 import GHC.Unit.Module
 import GHC.Utils.Panic
@@ -97,6 +98,10 @@ instance Exception IOEnvFailure
 instance ContainsDynFlags env => HasDynFlags (IOEnv env) where
     getDynFlags = do env <- getEnv
                      return $! extractDynFlags env
+
+instance ContainsHooks env => HasHooks (IOEnv env) where
+    getHooks = do env <- getEnv
+                  return $! extractHooks env
 
 instance ContainsModule env => HasModule (IOEnv env) where
     getModule = do env <- getEnv

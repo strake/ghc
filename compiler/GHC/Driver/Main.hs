@@ -206,7 +206,7 @@ import qualified GHC.Data.Stream as Stream
 import GHC.Data.Stream (Stream)
 
 import Data.Data hiding (Fixity, TyCon)
-import Data.Maybe       ( fromJust )
+import Data.Maybe       ( fromJust, fromMaybe )
 import Data.List        ( nub, isPrefixOf, partition )
 import Control.Monad
 import Data.IORef
@@ -246,6 +246,7 @@ newHscEnv dflags = do
                   ,  hsc_dynLinker    = emptyDynLinker
                   ,  hsc_plugins        = []
                   ,  hsc_static_plugins = []
+                  ,  hsc_hooks          = emptyHooks
                   }
 
 -- -----------------------------------------------------------------------------
@@ -688,8 +689,9 @@ hscIncrementalFrontend
 
         compile mb_old_hash reason = do
             liftIO $ msg reason
-            (tc_result, _) <- hsc_typecheck False mod_summary Nothing
-            return $ Right (FrontendTypecheck tc_result, mb_old_hash)
+            Right . flip (,) mb_old_hash <$> case hscFrontendHook (hsc_hooks hsc_env) of
+              Nothing -> FrontendTypecheck . fst <$> hsc_typecheck False mod_summary Nothing
+              Just h -> h mod_summary
 
         stable = case source_modified of
                      SourceUnmodifiedAndStable -> True
@@ -1435,6 +1437,7 @@ hscGenHardCode hsc_env cgguts location output_filename = do
                     cg_dep_pkgs = dependencies,
                     cg_hpc_info = hpc_info } = cgguts
             dflags = hsc_dflags hsc_env
+            hooks  = hsc_hooks hsc_env
             data_tycons = filter isDataTyCon tycons
             -- cg_tycons includes newtypes, for the benefit of External Core,
             -- but we don't generate any code for newtypes
@@ -1474,8 +1477,7 @@ hscGenHardCode hsc_env cgguts location output_filename = do
 
             ------------------  Code output -----------------------
             rawcmms0 <- {-# SCC "cmmToRawCmm" #-}
-                      lookupHook cmmToRawCmmHook
-                        (\dflg _ -> cmmToRawCmm dflg) dflags dflags (Just this_mod) cmms
+                maybe cmmToRawCmm (`flip` Just this_mod) (cmmToRawCmmHook hooks) dflags cmms
 
             let dump a = do
                   unless (null a) $
@@ -1526,6 +1528,7 @@ hscInteractive hsc_env cgguts location = do
 hscCompileCmmFile :: HscEnv -> FilePath -> FilePath -> IO ()
 hscCompileCmmFile hsc_env filename output_filename = runHsc hsc_env $ do
     let dflags = hsc_dflags hsc_env
+        hooks    = hsc_hooks hsc_env
         platform  = targetPlatform dflags
     cmm <- ioMsgMaybe $ parseCmmFile dflags filename
     liftIO $ do
@@ -1547,8 +1550,8 @@ hscCompileCmmFile hsc_env filename output_filename = runHsc hsc_env $ do
         unless (null cmmgroup) $
           dumpIfSet_dyn dflags Opt_D_dump_cmm "Output Cmm"
             FormatCMM (pdoc platform cmmgroup)
-        rawCmms <- lookupHook cmmToRawCmmHook
-                     (\dflgs _ -> cmmToRawCmm dflgs) dflags dflags Nothing (Stream.yield cmmgroup)
+        rawCmms <-
+            maybe cmmToRawCmm (`flip` Nothing) (cmmToRawCmmHook hooks) dflags (Stream.yield cmmgroup)
         _ <- codeOutput dflags cmm_mod output_filename no_loc NoStubs [] []
              rawCmms
         return ()
@@ -1589,17 +1592,19 @@ doCodeGen   :: HscEnv -> Module -> [TyCon]
 doCodeGen hsc_env this_mod data_tycons
               cost_centre_info stg_binds hpc_info = do
     let dflags = hsc_dflags hsc_env
+    let hooks  = hsc_hooks hsc_env
         platform = targetPlatform dflags
 
     let stg_binds_w_fvs = annTopBindingsFreeVars stg_binds
 
     dumpIfSet_dyn dflags Opt_D_dump_stg_final "Final STG:" FormatSTG (pprGenStgTopBindings (initStgPprOpts dflags) stg_binds_w_fvs)
 
+    let stg_to_cmm = StgToCmm.codeGen `fromMaybe` stgToCmmHook hooks
+
     let cmm_stream :: Stream IO CmmGroup ModuleLFInfos
         -- See Note [Forcing of stg_binds]
         cmm_stream = stg_binds_w_fvs `seqList` {-# SCC "StgToCmm" #-}
-            lookupHook stgToCmmHook StgToCmm.codeGen dflags dflags this_mod data_tycons
-                           cost_centre_info stg_binds_w_fvs hpc_info
+            stg_to_cmm dflags this_mod data_tycons cost_centre_info stg_binds_w_fvs hpc_info
 
         -- codegen consumes a stream of CmmGroup, and produces a new
         -- stream of CmmGroup (not necessarily synchronised: one
@@ -1928,7 +1933,7 @@ hscParseThingWithLocation source linenumber parser str
 
 hscCompileCoreExpr :: HscEnv -> SrcSpan -> CoreExpr -> IO ForeignHValue
 hscCompileCoreExpr hsc_env =
-  lookupHook hscCompileCoreExprHook hscCompileCoreExpr' (hsc_dflags hsc_env) hsc_env
+  fromMaybe hscCompileCoreExpr' (hscCompileCoreExprHook (hsc_hooks hsc_env)) hsc_env
 
 hscCompileCoreExpr' :: HscEnv -> SrcSpan -> CoreExpr -> IO ForeignHValue
 hscCompileCoreExpr' hsc_env srcspan ds_expr

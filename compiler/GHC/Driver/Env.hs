@@ -21,6 +21,7 @@ import GHC.Prelude
 
 import GHC.Driver.Session
 import {-# SOURCE #-} GHC.Driver.Plugins
+import {-# SOURCE #-} GHC.Driver.Hooks
 
 import GHC.Runtime.Context
 import GHC.Runtime.Interpreter.Types (Interp)
@@ -173,6 +174,10 @@ data HscEnv
 
         , hsc_dynLinker :: DynLinker
                 -- ^ dynamic linker.
+
+        , hsc_hooks :: !Hooks
+                -- ^ Hooks
+
         , hsc_plugins :: ![LoadedPlugin]
                 -- ^ plugins dynamically loaded after processing arguments. What
                 -- will be loaded here is directed by DynFlags.pluginModNames.

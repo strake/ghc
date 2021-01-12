@@ -62,7 +62,8 @@ import GHC.Utils.Exception
 import GHC.Data.FastString
 
 import Control.Monad     ( unless )
-import Data.Maybe        ( mapMaybe )
+import Data.Maybe        ( fromMaybe, mapMaybe )
+import Data.Traversable  ( for )
 import Unsafe.Coerce     ( unsafeCoerce )
 
 -- | Loads the plugins specified in the pluginModNames field of the dynamic
@@ -187,14 +188,11 @@ forceLoadTyCon hsc_env con_name = do
 
 getValueSafely :: HscEnv -> Name -> Type -> IO (Maybe a)
 getValueSafely hsc_env val_name expected_type = do
-  mb_hval <- lookupHook getValueSafelyHook getHValueSafely dflags hsc_env val_name expected_type
-  case mb_hval of
-    Nothing   -> return Nothing
-    Just hval -> do
-      value <- lessUnsafeCoerce dflags "getValueSafely" hval
-      return (Just value)
+  mb_hval <- fromMaybe getHValueSafely (getValueSafelyHook hooks) hsc_env val_name expected_type
+  for mb_hval $ lessUnsafeCoerce dflags "getValueSafely"
   where
     dflags = hsc_dflags hsc_env
+    hooks  = hsc_hooks hsc_env
 
 getHValueSafely :: HscEnv -> Name -> Type -> IO (Maybe HValue)
 getHValueSafely hsc_env val_name expected_type = do
