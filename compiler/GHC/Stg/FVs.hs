@@ -49,7 +49,6 @@ import GHC.Types.Id
 import GHC.Types.Var.Set
 import GHC.Core    ( GenTickish(Breakpoint) )
 import GHC.Utils.Misc
-import GHC.Utils.Panic
 import GHC.Data.Collections
 
 newtype Env
@@ -126,7 +125,6 @@ expr env = go
     go (StgLit lit) = (StgLit lit, setEmpty)
     go (StgConApp dc as tys) = (StgConApp dc as tys, args env as)
     go (StgOpApp op as ty) = (StgOpApp op as ty, args env as)
-    go StgLam{} = pprPanic "StgFVs: StgLam" mempty
     go (StgCase scrut bndr ty alts) = (StgCase scrut' bndr ty alts', fvs)
       where
         (scrut', scrut_fvs) = go scrut

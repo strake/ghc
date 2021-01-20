@@ -1,3 +1,5 @@
+{-# LANGUAGE TypeFamilies #-}
+
 --
 -- (c) The GRASP/AQUA Project, Glasgow University, 1993-1998
 --
@@ -46,9 +48,6 @@ import GHC.Types.Demand    ( isUsedOnce )
 import GHC.Builtin.PrimOps ( PrimCall(..) )
 import GHC.Types.SrcLoc    ( mkGeneralSrcSpan )
 import GHC.Builtin.Names   ( unsafeEqualityProofName )
-
-import Data.Foldable (toList)
-import Data.List.NonEmpty (nonEmpty)
 
 -- Note [Live vs free]
 -- ~~~~~~~~~~~~~~~~~~~
@@ -323,7 +322,7 @@ coreToTopStgRhs
         -> CtsM (StgRhs, CollectedCCs)
 
 coreToTopStgRhs dflags ccs this_mod (bndr, rhs)
-  = do { new_rhs <- coreToStgExpr rhs
+  = do { new_rhs <- coreToPreStgRhs rhs
 
        ; let (stg_rhs, ccs') =
                mkTopStgRhs dflags this_mod ccs bndr new_rhs
@@ -355,6 +354,10 @@ coreToTopStgRhs dflags ccs this_mod (bndr, rhs)
 -- ---------------------------------------------------------------------------
 -- Expressions
 -- ---------------------------------------------------------------------------
+
+-- coreToStgExpr panics if the input expression is a value lambda. CorePrep
+-- ensures that value lambdas only exist as the RHS of bindings, which we
+-- handle with the function coreToPreStgRhs.
 
 coreToStgExpr
         :: CoreExpr
@@ -388,16 +391,13 @@ coreToStgExpr expr@(App _ _)
 coreToStgExpr expr@(Lam _ _)
   = let
         (args, body) = myCollectBinders expr
-        args'        = filterStgBinders args
     in
-    extendVarEnvCts [ (a, LambdaBound) | a <- args' ] $ do
-    body' <- coreToStgExpr body
-    let
-        result_expr = case nonEmpty args' of
-          Nothing     -> body'
-          Just args'' -> StgLam args'' body'
+    case filterStgBinders args of
 
-    return result_expr
+      [] -> coreToStgExpr body
+
+      _ -> pprPanic "coretoStgExpr" $
+        text "Unexpected value lambda:" $$ ppr expr
 
 coreToStgExpr (Tick tick expr)
   = do stg_tick <- case tick of
@@ -683,23 +683,42 @@ coreToStgRhs :: (Id,CoreExpr)
              -> CtsM StgRhs
 
 coreToStgRhs (bndr, rhs) = do
-    new_rhs <- coreToStgExpr rhs
+    new_rhs <- coreToPreStgRhs rhs
     return (mkStgRhs bndr new_rhs)
+
+-- Represents the RHS of a binding for use with mk(Top)StgRhs.
+data PreStgRhs = PreStgRhs [Id] StgExpr -- The [Id] is empty for thunks
+
+-- Convert the RHS of a binding from Core to STG. This is a wrapper around
+-- coreToStgExpr that can handle value lambdas.
+coreToPreStgRhs :: CoreExpr -> CtsM PreStgRhs
+coreToPreStgRhs (Cast expr _) = coreToPreStgRhs expr
+coreToPreStgRhs expr@(Lam _ _) =
+    let
+        (args, body) = myCollectBinders expr
+        args'        = filterStgBinders args
+    in
+        extendVarEnvCts [ (a, LambdaBound) | a <- args' ] $ do
+          body' <- coreToStgExpr body
+          return (PreStgRhs args' body')
+coreToPreStgRhs expr = PreStgRhs [] <$> coreToStgExpr expr
 
 -- Generate a top-level RHS. Any new cost centres generated for CAFs will be
 -- appended to `CollectedCCs` argument.
 mkTopStgRhs :: DynFlags -> Module -> CollectedCCs
-            -> Id -> StgExpr -> (StgRhs, CollectedCCs)
+            -> Id -> PreStgRhs -> (StgRhs, CollectedCCs)
 
-mkTopStgRhs dflags this_mod ccs bndr rhs
-  | StgLam bndrs body <- rhs
-  = -- StgLam can't have empty arguments, so not CAF
+mkTopStgRhs dflags this_mod ccs bndr (PreStgRhs bndrs rhs)
+  | not (null bndrs)
+  = -- The list of arguments is non-empty, so not CAF
     ( StgRhsClosure noExtFieldSilent
                     dontCareCCS
                     ReEntrant
-                    (toList bndrs) body
+                    bndrs rhs
     , ccs )
 
+  -- After this point we know that `bndrs` is empty,
+  -- so this is not a function binding
   | StgConApp con args _ <- unticked_rhs
   , -- Dynamic StgConApps are updatable
     not (isDllConApp dflags this_mod con args)
@@ -741,14 +760,16 @@ mkTopStgRhs dflags this_mod ccs bndr rhs
 
 -- Generate a non-top-level RHS. Cost-centre is always currentCCS,
 -- see Note [Cost-centre initialization plan].
-mkStgRhs :: Id -> StgExpr -> StgRhs
-mkStgRhs bndr rhs
-  | StgLam bndrs body <- rhs
+mkStgRhs :: Id -> PreStgRhs -> StgRhs
+mkStgRhs bndr (PreStgRhs bndrs rhs)
+  | not (null bndrs)
   = StgRhsClosure noExtFieldSilent
                   currentCCS
                   ReEntrant
-                  (toList bndrs) body
+                  bndrs rhs
 
+  -- After this point we know that `bndrs` is empty,
+  -- so this is not a function binding
   | isJoinId bndr -- must be a nullary join point
   = assert (idJoinArity bndr == 0)
     StgRhsClosure noExtFieldSilent
