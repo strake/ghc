@@ -939,7 +939,7 @@ pragma.  It is levity-polymorphic.
                               -> (# State# RealWorld, o #)
 
 It's correctness needs no special treatment in GHC except this special inlining
-here in CorePrep (and in GHC.CoreToByteCode).
+here in CorePrep (and in GHC.StgToByteCode).
 
 However, there are a variety of optimisation opportunities that the simplifier
 takes advantage of. See Note [Simplification of runRW#].

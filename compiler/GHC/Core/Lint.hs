@@ -15,6 +15,8 @@ module GHC.Core.Lint (
     lintPassResult, lintInteractiveExpr, lintExpr,
     lintAnnots, lintTypes,
 
+    interactiveInScope,
+
     -- ** Debug output
     endPass, endPassIO,
     dumpPassResult,
@@ -365,7 +367,7 @@ lintPassResult hsc_env pass binds
   | not (gopt Opt_DoCoreLinting dflags)
   = return ()
   | otherwise
-  = do { let (warns, errs) = lintCoreBindings dflags pass (interactiveInScope hsc_env) binds
+  = do { let (warns, errs) = lintCoreBindings dflags pass (interactiveInScope $ hsc_IC hsc_env) binds
        ; Err.showPass dflags ("Core Linted result of " ++ showPpr dflags pass)
        ; displayLintResults dflags pass warns errs binds  }
   where
@@ -411,7 +413,7 @@ lintInteractiveExpr :: String -> HscEnv -> CoreExpr -> IO ()
 lintInteractiveExpr what hsc_env expr
   | not (gopt Opt_DoCoreLinting dflags)
   = return ()
-  | Just err <- lintExpr dflags (interactiveInScope hsc_env) expr
+  | Just err <- lintExpr dflags (interactiveInScope $ hsc_IC hsc_env) expr
   = do { display_lint_err err
        ; Err.ghcExit dflags 1 }
   | otherwise
@@ -430,7 +432,7 @@ lintInteractiveExpr what hsc_env expr
                      , text "*** End of Offense ***" ])
            ; Err.ghcExit dflags 1 }
 
-interactiveInScope :: HscEnv -> [Var]
+interactiveInScope :: InteractiveContext -> [Var]
 -- In GHCi we may lint expressions, or bindings arising from 'deriving'
 -- clauses, that mention variables bound in the interactive context.
 -- These are Local things (see Note [Interactively-bound Ids in GHCi] in GHC.Runtime.Context).
@@ -442,11 +444,10 @@ interactiveInScope :: HscEnv -> [Var]
 -- so this is a (cheap) no-op.
 --
 -- See #8215 for an example
-interactiveInScope hsc_env
+interactiveInScope ictxt
   = tyvars ++ ids
   where
     -- C.f. GHC.Tc.Module.setInteractiveContext, Desugar.deSugarExpr
-    ictxt                   = hsc_IC hsc_env
     (cls_insts, _fam_insts) = ic_instances ictxt
     te1    = mkTypeEnvWithImplicits (ic_tythings ictxt)
     te     = extendTypeEnvWithIds te1 (map instanceDFunId cls_insts)

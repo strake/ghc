@@ -352,7 +352,6 @@ Library
         GHC.Core.Unfold.Make
         GHC.Core.Unify
         GHC.Core.Utils
-        GHC.CoreToByteCode
         GHC.CoreToIface
         GHC.CoreToStg
         GHC.CoreToStg.Prep
@@ -528,6 +527,7 @@ Library
         GHC.Stg.Subst
         GHC.Stg.Syntax
         GHC.Stg.Unarise
+        GHC.StgToByteCode
         GHC.StgToCmm
         GHC.StgToCmm.ArgRep
         GHC.StgToCmm.Bind

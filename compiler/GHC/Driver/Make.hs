@@ -59,7 +59,6 @@ import GHC.Data.FastString
 import qualified GHC.Data.FiniteMap as Map ( insertListWith )
 import GHC.Data.Maybe      ( expectJust )
 import GHC.Data.StringBuffer
-import qualified GHC.LanguageExtensions as LangExt
 
 import GHC.Utils.Exception ( tryIO, AsyncException(..), evaluate )
 import GHC.Utils.Monad     ( allM )
@@ -2126,7 +2125,6 @@ downsweep hsc_env old_summaries excl_mods allow_dup_roots
        let default_backend = platformDefaultBackend (targetPlatform dflags)
        map1 <- case backend dflags of
          NoBackend   -> enableCodeGenForTH default_backend map0
-         Interpreter -> enableCodeGenForUnboxedTuplesOrSums default_backend map0
          _           -> return map0
        if null errs
          then pure $ concat $ nodeMapElts map1
@@ -2223,34 +2221,10 @@ enableCodeGenForTH =
       -- can't compile anything anyway! See #16219.
       homeUnitIsDefinite dflags
 
--- | Update the every ModSummary that is depended on
--- by a module that needs unboxed tuples. We enable codegen to
--- the specified target, disable optimization and change the .hi
--- and .o file locations to be temporary files.
---
--- This is used in order to load code that uses unboxed tuples
--- or sums into GHCi while still allowing some code to be interpreted.
-enableCodeGenForUnboxedTuplesOrSums :: Backend
-  -> NodeMap [Either ErrorMessages ModSummary]
-  -> IO (NodeMap [Either ErrorMessages ModSummary])
-enableCodeGenForUnboxedTuplesOrSums =
-  enableCodeGenWhen condition should_modify TFL_GhcSession TFL_CurrentModule
-  where
-    condition ms =
-      unboxed_tuples_or_sums (ms_hspp_opts ms) &&
-      not (gopt Opt_ByteCode (ms_hspp_opts ms)) &&
-      (isBootSummary ms == NotBoot)
-    unboxed_tuples_or_sums d =
-      xopt LangExt.UnboxedTuples d || xopt LangExt.UnboxedSums d
-    should_modify (ModSummary { ms_hspp_opts = dflags }) =
-      backend dflags == Interpreter
-
--- | Helper used to implement 'enableCodeGenForTH' and
--- 'enableCodeGenForUnboxedTuples'. In particular, this enables
--- unoptimized code generation for all modules that meet some
--- condition (first parameter), or are dependencies of those
--- modules. The second parameter is a condition to check before
--- marking modules for code generation.
+-- | Helper used to implement 'enableCodeGenForTH'.
+-- In particular, this enables unoptimized code generation for all modules that meet some
+-- condition (first parameter), or are dependencies of those modules. The second parameter is
+-- a condition to check before marking modules for code generation.
 enableCodeGenWhen
   :: (ModSummary -> Bool)
   -> (ModSummary -> Bool)
