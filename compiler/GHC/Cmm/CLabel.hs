@@ -1213,16 +1213,25 @@ the fact that it was derived from a block ID in `IdLabelInfo` as
 
 The info table label and the local block label are both local labels
 and are not externally visible.
+
+Note [Bangs in CLabel]
+~~~~~~~~~~~~~~~~~~~~~~
+There are some carefully placed strictness annotations in this module,
+which were discovered in !5226 to significantly reduce compile-time
+allocation.  Take care if you want to remove them!
+
 -}
 
 instance OutputableP Platform CLabel where
-  pdoc platform lbl = getPprStyle $ \case
-                        PprCode AsmStyle -> pprCLabel platform AsmStyle lbl
-                        _                -> pprCLabel platform CStyle lbl
-                                            -- default to CStyle
+  {-# INLINE pdoc #-} -- see Note [Bangs in CLabel]
+  pdoc !platform lbl = getPprStyle $ \pp_sty ->
+      let !sty = case pp_sty of
+              PprCode sty -> sty
+              _           -> CStyle
+      in pprCLabel platform sty lbl
 
 pprCLabel :: Platform -> LabelStyle -> CLabel -> SDoc
-pprCLabel platform sty lbl =
+pprCLabel !platform !sty lbl = -- see Note [Bangs in CLabel]
   let
     tempLabelPrefixOrUnderscore :: Platform -> SDoc
     tempLabelPrefixOrUnderscore platform = case sty of
@@ -1359,13 +1368,13 @@ instance Outputable ForeignLabelSource where
 -- Machine-dependent knowledge about labels.
 
 asmTempLabelPrefix :: Platform -> PtrString  -- for formatting labels
-asmTempLabelPrefix platform = case platformOS platform of
+asmTempLabelPrefix !platform = case platformOS platform of
     OSDarwin -> sLit "L"
     OSAIX    -> sLit "__L" -- follow IBM XL C's convention
     _        -> sLit ".L"
 
 pprDynamicLinkerAsmLabel :: Platform -> DynamicLinkerLabelInfo -> SDoc -> SDoc
-pprDynamicLinkerAsmLabel platform dllInfo ppLbl =
+pprDynamicLinkerAsmLabel !platform dllInfo ppLbl =
     case platformOS platform of
       OSDarwin
         | platformArch platform == ArchX86_64 ->
