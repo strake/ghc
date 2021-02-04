@@ -8,6 +8,8 @@
     in order to define instances for `Nat`. Also, different instances for `Nat` and `Natural`
     won't typecheck anymore.
 
+  * Remove `Data.Semigroup.Option` and the accompanying `option` function.
+
 ## 4.15.0.0 *TBA*
 
   * `openFile` now calls the `open` system call with an `interruptible` FFI
