@@ -10,10 +10,7 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE BangPatterns #-}
-
-#if !defined(GHC_LOADED_INTO_GHCI)
 {-# LANGUAGE UnboxedTuples #-}
-#endif
 
 module GHC.Types.Unique.Supply (
         -- * Main data type
@@ -268,21 +265,11 @@ withUniques f us = snd . mapAccumL (\ (Cofree u (Identity us)) a -> (us, f u a))
 ************************************************************************
 -}
 
--- Avoids using unboxed tuples when loading into GHCi
-#if !defined(GHC_LOADED_INTO_GHCI)
-
 type UniqResult result = (# result, UniqSupply #)
 
 pattern UniqResult :: a -> b -> (# a, b #)
 pattern UniqResult x y = (# x, y #)
 {-# COMPLETE UniqResult #-}
-
-#else
-
-data UniqResult result = UniqResult !result {-# UNPACK #-} !UniqSupply
-  deriving (Functor)
-
-#endif
 
 -- | A monad which just gives the ability to obtain 'Unique's
 newtype UniqSM result = USM { unUSM :: UniqSupply -> UniqResult result }
