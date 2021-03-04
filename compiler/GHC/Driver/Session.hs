@@ -1609,7 +1609,6 @@ languageExtensions (Just Haskell98)
        LangExt.StarIsType,
        LangExt.CUSKs,
        LangExt.MonomorphismRestriction,
-       LangExt.NPlusKPatterns,
        LangExt.DatatypeContexts,
        LangExt.TraditionalRecordSyntax,
        LangExt.NondecreasingIndentation
@@ -3766,7 +3765,6 @@ xFlagsDeps = [
   flagSpec "MultiParamTypeClasses"            LangExt.MultiParamTypeClasses,
   flagSpec "MultiWayIf"                       LangExt.MultiWayIf,
   flagSpec "NumericUnderscores"               LangExt.NumericUnderscores,
-  flagSpec "NPlusKPatterns"                   LangExt.NPlusKPatterns,
   flagSpec "NamedFieldPuns"                   LangExt.RecordPuns,
   flagSpec "NamedWildCards"                   LangExt.NamedWildCards,
   flagSpec "NegativeLiterals"                 LangExt.NegativeLiterals,

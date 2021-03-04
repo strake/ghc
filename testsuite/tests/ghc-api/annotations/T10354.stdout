@@ -26,7 +26,6 @@
 ((Test10354.hs:5:1-14,AnnEqual), [Test10354.hs:5:7]),
 ((Test10354.hs:5:1-14,AnnFunId), [Test10354.hs:5:1]),
 ((Test10354.hs:5:1-14,AnnSemi), [Test10354.hs:7:1]),
-((Test10354.hs:5:9-14,AnnVal), [Test10354.hs:5:11-12]),
 ((Test10354.hs:7:1-24,AnnDcolon), [Test10354.hs:7:5-6]),
 ((Test10354.hs:7:1-24,AnnSemi), [Test10354.hs:8:1]),
 ((Test10354.hs:7:8-12,AnnCloseP), [Test10354.hs:7:12, Test10354.hs:7:12]),
