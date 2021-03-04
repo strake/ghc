@@ -982,7 +982,6 @@ tcPatToExpr name args pat = go pat
     go1 p@(WildPat {})                       = notInvertible p
     go1 p@(AsPat {})                         = notInvertible p
     go1 p@(ViewPat {})                       = notInvertible p
-    go1 p@(NPlusKPat {})                     = notInvertible p
     go1 p@(SplicePat _ (HsTypedSplice {}))   = notInvertible p
     go1 p@(SplicePat _ (HsUntypedSplice {})) = notInvertible p
     go1 p@(SplicePat _ (HsQuasiQuote {}))    = notInvertible p
@@ -1126,8 +1125,6 @@ tcCollectEx pat = go pat
                               goConDetails $ pat_args con
     go1 (SigPat _ p _)     = go p
     go1 (XPat (CoPat _ p _)) = go1 p
-    go1 (NPlusKPat _ n k _ geq subtract)
-      = pprPanic "TODO: NPlusKPat" $ ppr n $$ ppr k $$ ppr geq $$ ppr subtract
     go1 _                   = empty
 
     goConDetails :: HsConPatDetails GhcTc -> ([TyVar], [EvVar])

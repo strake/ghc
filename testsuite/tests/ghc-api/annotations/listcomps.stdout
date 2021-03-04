@@ -10,12 +10,13 @@
  ListComprehensions.hs:17:22-24, ListComprehensions.hs:18:1-16,
  ListComprehensions.hs:(18,1)-(22,20),
  ListComprehensions.hs:(18,18)-(22,20),
- ListComprehensions.hs:(18,20)-(22,20), ListComprehensions.hs:18:22,
- ListComprehensions.hs:18:22-26, ListComprehensions.hs:18:22-30,
- ListComprehensions.hs:(18,22)-(21,34), ListComprehensions.hs:18:24,
- ListComprehensions.hs:18:26, ListComprehensions.hs:18:28,
- ListComprehensions.hs:18:30, ListComprehensions.hs:19:22,
- ListComprehensions.hs:19:22-33,
+ ListComprehensions.hs:(18,20)-(22,20),
+ ListComprehensions.hs:18:22, ListComprehensions.hs:18:22-26,
+ ListComprehensions.hs:18:22-30,
+ ListComprehensions.hs:(18,22)-(21,34),
+ ListComprehensions.hs:18:24, ListComprehensions.hs:18:26,
+ ListComprehensions.hs:18:28, ListComprehensions.hs:18:30,
+ ListComprehensions.hs:19:22, ListComprehensions.hs:19:22-33,
  ListComprehensions.hs:(19,22)-(21,34),
  ListComprehensions.hs:19:27-33, ListComprehensions.hs:19:28,
  ListComprehensions.hs:19:31-32, ListComprehensions.hs:20:22,
@@ -27,13 +28,14 @@
  ListComprehensions.hs:24:1-27, ListComprehensions.hs:24:11-15,
  ListComprehensions.hs:24:11-27, ListComprehensions.hs:24:12-14,
  ListComprehensions.hs:24:20-27, ListComprehensions.hs:24:21-26,
- ListComprehensions.hs:25:1-6, ListComprehensions.hs:(25,1)-(28,14),
+ ListComprehensions.hs:25:1-6,
+ ListComprehensions.hs:(25,1)-(28,14),
  ListComprehensions.hs:25:8-10,
  ListComprehensions.hs:(25,12)-(28,14),
  ListComprehensions.hs:(25,14)-(28,14),
  ListComprehensions.hs:25:16-20,
- ListComprehensions.hs:(25,16)-(27,22), ListComprehensions.hs:26:16,
- ListComprehensions.hs:26:16-23,
+ ListComprehensions.hs:(25,16)-(27,22),
+ ListComprehensions.hs:26:16, ListComprehensions.hs:26:16-23,
  ListComprehensions.hs:(26,16)-(27,22),
  ListComprehensions.hs:26:21-23, ListComprehensions.hs:27:21-22}
 --------------------------------
@@ -89,10 +91,6 @@
 (AK ListComprehensions.hs:(18,20)-(22,20) AnnOpenS = [ListComprehensions.hs:18:20])
 
 (AK ListComprehensions.hs:(18,20)-(22,20) AnnVbar = [ListComprehensions.hs:19:20])
-
-(AK ListComprehensions.hs:18:22-26 AnnVal = [ListComprehensions.hs:18:24])
-
-(AK ListComprehensions.hs:18:22-30 AnnVal = [ListComprehensions.hs:18:28])
 
 (AK ListComprehensions.hs:19:22-33 AnnLarrow = [ListComprehensions.hs:19:24-25])
 

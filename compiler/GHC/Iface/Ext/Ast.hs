@@ -964,9 +964,6 @@ instance HiePass p => ToHie (PScoped (Located (Pat (GhcPass p)))) where
         []
       NPat _ _ _ _ ->
         []
-      NPlusKPat _ n _ _ _ _ ->
-        [ toHie $ C (PatternBind scope pscope rsp) n
-        ]
       SigPat _ pat sig ->
         [ toHie $ PS rsp scope pscope pat
         , case hiePass @p of

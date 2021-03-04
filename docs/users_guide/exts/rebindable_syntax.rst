@@ -45,9 +45,6 @@ not the Prelude versions:
 -  The equality test in an overloaded numeric pattern uses whatever
    ``(==)`` is in scope.
 
--  The subtraction operation, and the greater-than-or-equal test, in
-   ``n+k`` patterns use whatever ``(-)`` and ``(>=)`` are in scope.
-
 -  Negation (e.g. "``- (f x)``") means "``negate (f x)``", both in
    numeric patterns, and expressions.
 

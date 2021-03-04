@@ -221,7 +221,6 @@ match (v:vs) ty eqns    -- Eqns *can* be empty
             PgAny     -> matchVariables  vars ty (dropGroup eqns)
             PgN {}    -> matchNPats      vars ty (dropGroup eqns)
             PgOverS {}-> matchNPats      vars ty (dropGroup eqns)
-            PgNpK {}  -> matchNPlusKPats vars ty (dropGroup eqns)
             PgBang    -> matchBangs      vars ty (dropGroup eqns)
             PgCo {}   -> matchCoercion   vars ty (dropGroup eqns)
             PgView {} -> matchView       vars ty (dropGroup eqns)
@@ -490,13 +489,6 @@ tidy1 _ o (NPat ty (L _ lit@OverLit { ol_val = v }) mb_neg eq)
            in warnAboutOverflowedOverLit lit'
        ; return (idDsWrapper, tidyNPat lit mb_neg eq ty) }
 
--- NPlusKPat: we may want to warn about the literals
-tidy1 _ o n@(NPlusKPat _ _ (L _ lit1) lit2 _ _)
-  = do { unless (isGenerated o) $ do
-           warnAboutOverflowedOverLit lit1
-           warnAboutOverflowedOverLit lit2
-       ; return (idDsWrapper, n) }
-
 -- Everything else goes through unchanged...
 tidy1 _ _ non_interesting_pat
   = return (idDsWrapper, non_interesting_pat)
@@ -545,7 +537,6 @@ tidy_bang_pat v o l p@(ConPat { pat_con = L _ (RealDataCon dc)
 --    ViewPat,
 --    pattern synonyms (ConPatOut with PatSynCon)
 --    NPat,
---    NPlusKPat
 --
 -- For LazyPat, remember that it's semantically like a VarPat
 --  i.e.  !(~p) is not like ~p, or p!  (#8952)
@@ -887,7 +878,6 @@ data PatGroup
   | PgN   Rational      -- Overloaded numeric literals;
                         -- see Note [Don't use Literal for PgN]
   | PgOverS FastString  -- Overloaded string literals
-  | PgNpK Integer       -- n+k patterns
   | PgBang              -- Bang patterns
   | PgCo Type           -- Coercion patterns; the type is the type
                         --      of the pattern *inside*
@@ -902,7 +892,6 @@ Previously we had, as PatGroup constructors
 
   | ...
   | PgN   Literal       -- Overloaded literals
-  | PgNpK Literal       -- n+k patterns
   | ...
 
 But Literal is really supposed to represent an *unboxed* literal, like Int#.
@@ -999,7 +988,6 @@ sameGroup (PgSyn p1 t1) (PgSyn p2 t2) = p1==p2 && eqTypes t1 t2
 sameGroup (PgLit _)     (PgLit _)     = True    -- One case expression
 sameGroup (PgN l1)      (PgN l2)      = l1==l2  -- Order is significant
 sameGroup (PgOverS s1)  (PgOverS s2)  = s1==s2
-sameGroup (PgNpK l1)    (PgNpK l2)    = l1==l2  -- See Note [Grouping overloaded literal patterns]
 sameGroup (PgCo t1)     (PgCo t2)     = t1 `eqType` t2
         -- CoPats are in the same goup only if the type of the
         -- enclosed pattern is the same. The patterns outside the CoPat
@@ -1139,10 +1127,6 @@ patGroup _ (NPat _ (L _ (OverLit {ol_val=oval})) mb_neg _) =
    (HsFractional r, True ) -> PgN (-fl_value r)
    (HsIsString _ s, _) -> ASSERT(isNothing mb_neg)
                           PgOverS s
-patGroup _ (NPlusKPat _ _ (L _ (OverLit {ol_val=oval})) _ _ _) =
-  case oval of
-   HsIntegral i -> PgNpK (il_value i)
-   _ -> pprPanic "patGroup NPlusKPat" (ppr oval)
 patGroup _ (XPat (CoPat _ p _))         = PgCo  (hsPatType p)
                                                     -- Type of innelexp pattern
 patGroup _ (ViewPat _ expr p)           = PgView expr (hsPatType (unLoc p))

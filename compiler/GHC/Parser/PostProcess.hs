@@ -1113,7 +1113,6 @@ checkPat loc e _
 
 checkAPat :: SrcSpan -> PatBuilder GhcPs -> PV (Pat GhcPs)
 checkAPat loc e0 = do
- nPlusKPatterns <- getBit NPlusKPatternsBit
  case e0 of
    PatBuilderPat p -> return p
    PatBuilderVar x -> return (VarPat noExtField x)
@@ -1122,14 +1121,6 @@ checkAPat loc e0 = do
    -- Negation is recorded separately, so that the literal is zero or +ve
    -- NB. Negative *primitive* literals are already handled by the lexer
    PatBuilderOverLit pos_lit -> return (mkNPat (L loc pos_lit) Nothing)
-
-   -- n+k patterns
-   PatBuilderOpApp
-           (L nloc (PatBuilderVar (L _ n)))
-           (L _ plus)
-           (L lloc (PatBuilderOverLit lit@(OverLit {ol_val = HsIntegral {}})))
-                      | nPlusKPatterns && (plus == plus_RDR)
-                      -> return (mkNPlusKPat (L nloc n) (L lloc lit))
 
    -- Improve error messages for the @-operator when the user meant an @-pattern
    PatBuilderOpApp _ op _ | opIsAt (unLoc op) -> do
@@ -1157,8 +1148,7 @@ placeHolderPunRhs :: DisambECP b => PV (Located b)
 -- debugging
 placeHolderPunRhs = mkHsVarPV (noLoc pun_RDR)
 
-plus_RDR, pun_RDR :: RdrName
-plus_RDR = mkUnqual varName (fsLit "+") -- Hack
+pun_RDR :: RdrName
 pun_RDR  = mkUnqual varName (fsLit "pun-right-hand-side")
 
 checkPatField :: LHsRecField GhcPs (Located (PatBuilder GhcPs))
