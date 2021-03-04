@@ -2545,7 +2545,6 @@ data ExtBits
   | NumericUnderscoresBit
   | StarIsTypeBit
   | BlockArgumentsBit
-  | NPlusKPatternsBit
   | DoAndIfThenElseBit
   | MultiWayIfBit
   | GadtSyntaxBit
@@ -2633,7 +2632,6 @@ mkParserFlags' warningFlags extensionFlags homeUnit
       .|. NumericUnderscoresBit       `xoptBit` LangExt.NumericUnderscores
       .|. StarIsTypeBit               `xoptBit` LangExt.StarIsType
       .|. BlockArgumentsBit           `xoptBit` LangExt.BlockArguments
-      .|. NPlusKPatternsBit           `xoptBit` LangExt.NPlusKPatterns
       .|. DoAndIfThenElseBit          `xoptBit` LangExt.DoAndIfThenElse
       .|. MultiWayIfBit               `xoptBit` LangExt.MultiWayIf
       .|. GadtSyntaxBit               `xoptBit` LangExt.GADTSyntax

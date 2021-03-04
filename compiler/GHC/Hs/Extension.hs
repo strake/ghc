@@ -661,7 +661,6 @@ type family XViewPat   x
 type family XSplicePat x
 type family XLitPat    x
 type family XNPat      x
-type family XNPlusKPat x
 type family XSigPat    x
 type family XCoPat     x
 type family XXPat      x

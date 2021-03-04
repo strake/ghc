@@ -18,7 +18,6 @@
 ((Test10280.hs:4:35-45,AnnOpenP), [Test10280.hs:4:35]),
 ((Test10280.hs:4:36-40,AnnCloseP), [Test10280.hs:4:40]),
 ((Test10280.hs:4:36-40,AnnOpenP), [Test10280.hs:4:36]),
-((Test10280.hs:4:36-44,AnnVal), [Test10280.hs:4:42]),
 ((Test10280.hs:4:37,AnnComma), [Test10280.hs:4:37]),
 ((Test10280.hs:4:38-39,AnnCloseP), [Test10280.hs:4:39]),
 ((Test10280.hs:4:38-39,AnnOpenP), [Test10280.hs:4:38])

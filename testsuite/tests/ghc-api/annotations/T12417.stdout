@@ -39,14 +39,12 @@
 ((Test12417.hs:13:13-24,AnnClose), [Test12417.hs:13:23-24]),
 ((Test12417.hs:13:13-24,AnnOpen), [Test12417.hs:13:13-14]),
 ((Test12417.hs:13:13-24,AnnVbar), [Test12417.hs:13:21]),
-((Test12417.hs:13:29-48,AnnVal), [Test12417.hs:13:37-38]),
 ((Test12417.hs:14:1-50,AnnEqual), [Test12417.hs:14:27]),
 ((Test12417.hs:14:1-50,AnnFunId), [Test12417.hs:14:1-11]),
 ((Test12417.hs:14:1-50,AnnSemi), [Test12417.hs:16:1]),
 ((Test12417.hs:14:13-25,AnnClose), [Test12417.hs:14:24-25]),
 ((Test12417.hs:14:13-25,AnnOpen), [Test12417.hs:14:13-14]),
 ((Test12417.hs:14:13-25,AnnVbar), [Test12417.hs:14:16]),
-((Test12417.hs:14:29-50,AnnVal), [Test12417.hs:14:38-39]),
 ((Test12417.hs:16:1-75,AnnEqual), [Test12417.hs:16:8]),
 ((Test12417.hs:16:1-75,AnnSemi), [Test12417.hs:18:1]),
 ((Test12417.hs:16:1-75,AnnType), [Test12417.hs:16:1-4]),
@@ -68,8 +66,7 @@
 ((Test12417.hs:19:13-31,AnnClose), [Test12417.hs:19:30-31]),
 ((Test12417.hs:19:13-31,AnnOpen), [Test12417.hs:19:13-14]),
 ((Test12417.hs:19:13-31,AnnVbar), [Test12417.hs:19:16, Test12417.hs:19:20, Test12417.hs:19:22,
- Test12417.hs:19:24, Test12417.hs:19:26, Test12417.hs:19:28]),
-((Test12417.hs:19:35-52,AnnVal), [Test12417.hs:19:44-45])
+ Test12417.hs:19:24, Test12417.hs:19:26, Test12417.hs:19:28])
 ]
 
 ---Eof Position (should be Just)-----

@@ -292,7 +292,7 @@ basicKnownKeyNames
         toDynName,
 
         -- Numeric stuff
-        negateName, minusName, geName, eqName,
+        negateName, geName, eqName,
 
         -- Conversion functions
         rationalTyConName,
@@ -764,8 +764,8 @@ returnIO_RDR            = nameRdrName returnIOName
 fromInteger_RDR, fromRational_RDR, minus_RDR, times_RDR, plus_RDR :: RdrName
 fromInteger_RDR         = nameRdrName fromIntegerName
 fromRational_RDR        = nameRdrName fromRationalName
-minus_RDR               = nameRdrName minusName
-times_RDR               = varQual_RDR  gHC_NUM (fsLit "*")
+minus_RDR               = varQual_RDR gHC_NUM (fsLit "-")
+times_RDR               = varQual_RDR gHC_NUM (fsLit "*")
 plus_RDR                = varQual_RDR gHC_NUM (fsLit "+")
 
 toInteger_RDR, toRational_RDR, fromIntegral_RDR :: RdrName
@@ -1144,10 +1144,9 @@ fstName           = varQual dATA_TUPLE (fsLit "fst") fstIdKey
 sndName           = varQual dATA_TUPLE (fsLit "snd") sndIdKey
 
 -- Module GHC.Num
-numClassName, fromIntegerName, minusName, negateName :: Name
+numClassName, fromIntegerName, negateName :: Name
 numClassName      = clsQual gHC_NUM (fsLit "Num")         numClassKey
 fromIntegerName   = varQual gHC_NUM (fsLit "fromInteger") fromIntegerClassOpKey
-minusName         = varQual gHC_NUM (fsLit "-")           minusClassOpKey
 negateName        = varQual gHC_NUM (fsLit "negate")      negateClassOpKey
 
 ---------------------------------

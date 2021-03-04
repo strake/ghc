@@ -1663,13 +1663,11 @@ to get the desired effect.
 At the moment this just happens for
   * fromInteger, fromRational on literals (in expressions and patterns)
   * negate (in expressions)
-  * minus  (arising from n+k patterns)
   * "do" notation
 
 We store the relevant Name in the HsSyn tree, in
   * HsIntegral/HsFractional/HsIsString
   * NegApp
-  * NPlusKPat
   * HsDo
 respectively.  Initially, we just store the "standard" name (GHC.Builtin.Names.fromIntegralName,
 fromRationalName etc), but the renamer changes this to the appropriate user

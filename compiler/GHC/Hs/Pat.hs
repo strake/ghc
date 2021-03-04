@@ -200,7 +200,7 @@ data Pat p
   | SplicePat       (XSplicePat p)
                     (HsSplice p)    -- ^ Splice Pattern (Includes quasi-quotes)
 
-        ------------ Literal and n+k patterns ---------------
+        ------------ Literal patterns ---------------
   | LitPat          (XLitPat p)
                     (HsLit p)           -- ^ Literal Pattern
                                         -- Used for *non-overloaded* literal patterns:
@@ -223,16 +223,6 @@ data Pat p
   -- - 'GHC.Parser.Annotation.AnnKeywordId' : 'GHC.Parser.Annotation.AnnVal' @'+'@
 
   -- For details on above see note [Api annotations] in GHC.Parser.Annotation
-  | NPlusKPat       (XNPlusKPat p)           -- Type of overall pattern
-                    (Located (IdP p))        -- n+k pattern
-                    (Located (HsOverLit p))  -- It'll always be an HsIntegral
-                    (HsOverLit p)            -- See Note [NPlusK patterns] in GHC.Tc.Gen.Pat
-                     -- NB: This could be (PostTc ...), but that induced a
-                     -- a new hs-boot file. Not worth it.
-
-                    (SyntaxExpr p)   -- (>=) function, of type t1->t2->Bool
-                    (SyntaxExpr p)   -- Name of '-' (see GHC.Rename.Env.lookupSyntax)
-  -- ^ n+k pattern
 
         ------------ Pattern type signatures ---------------
   -- | - 'GHC.Parser.Annotation.AnnKeywordId' : 'GHC.Parser.Annotation.AnnDcolon'
@@ -296,10 +286,6 @@ type instance XLitPat    (GhcPass _) = NoExtField
 type instance XNPat GhcPs = NoExtField
 type instance XNPat GhcRn = NoExtField
 type instance XNPat GhcTc = Type
-
-type instance XNPlusKPat GhcPs = NoExtField
-type instance XNPlusKPat GhcRn = NoExtField
-type instance XNPlusKPat GhcTc = Type
 
 type instance XSigPat GhcPs = NoExtField
 type instance XSigPat GhcRn = NoExtField
@@ -560,7 +546,6 @@ pprPat (ParPat _ pat)           = parens (ppr pat)
 pprPat (LitPat _ s)             = ppr s
 pprPat (NPat _ l Nothing  _)    = ppr l
 pprPat (NPat _ l (Just _) _)    = char '-' <> ppr l
-pprPat (NPlusKPat _ n k _ _ _)  = hcat [ppr n, char '+', ppr k]
 pprPat (SplicePat _ splice)     = pprSplice splice
 pprPat (SigPat _ pat ty)        = ppr pat <+> dcolon <+> ppr_ty
   where ppr_ty = case ghcPass @p of
@@ -779,7 +764,6 @@ isIrrefutableHsPat
            && all goL (hsConPatArgs details)
     go (LitPat {})         = False
     go (NPat {})           = False
-    go (NPlusKPat {})      = False
 
     -- We conservatively assume that no TH splices are irrefutable
     -- since we cannot know until the splice is evaluated.
@@ -838,7 +822,6 @@ patNeedsParens :: forall p. IsPass p => PprPrec -> Pat (GhcPass p) -> Bool
 patNeedsParens p = go
   where
     go :: Pat (GhcPass p) -> Bool
-    go (NPlusKPat {})    = p > opPrec
     go (SplicePat {})    = False
     go (ConPat { pat_args = ds})
                          = conPatNeedsParens p ds
