@@ -10,6 +10,7 @@ import Data.Data
 import Data.List (intercalate)
 import System.IO
 import GHC
+import qualified GHC.Data.Strict as Strict
 import GHC.Driver.Session
 import GHC.Utils.Monad
 import GHC.Utils.Outputable
@@ -54,7 +55,7 @@ testOneFile libdir fileName useHaddock = do
         ann_comments = apiAnnComments anns
         ann_rcomments = apiAnnRogueComments anns
         comments =
-          map (\(s,v) -> (RealSrcSpan s Nothing, v)) (Map.toList ann_comments)
+          map (\(s,v) -> (RealSrcSpan s Strict.Nothing, v)) (Map.toList ann_comments)
             ++
           [(noSrcSpan, ann_rcomments)]
 
