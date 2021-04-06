@@ -63,7 +63,6 @@ runTestBuilderArgs = builder RunTest ? do
     let hasRtsWay w = elem w rtsWays
         hasLibWay w = elem w libWays
     hasDynamic          <- getBooleanSetting TestGhcDynamic
-    hasDynamicByDefault <- getBooleanSetting TestGhcDynamicByDefault
     withNativeCodeGen   <- getBooleanSetting TestGhcWithNativeCodeGen
     withInterpreter     <- getBooleanSetting TestGhcWithInterpreter
     unregisterised      <- getBooleanSetting TestGhcUnregisterised
@@ -128,7 +127,6 @@ runTestBuilderArgs = builder RunTest ? do
             , arg "-e", arg $ asBool "ghc_with_llvm=" withLlvm
 
 
-            , arg "-e", arg $ "config.ghc_dynamic_by_default=" ++ show hasDynamicByDefault
             , arg "-e", arg $ "config.ghc_dynamic=" ++ show hasDynamic
 
             , arg "-e", arg $ "config.top=" ++ show (top -/- "testsuite")

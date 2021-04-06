@@ -148,7 +148,6 @@ module GHC.Driver.Session (
         -- ** Manipulating DynFlags
         addPluginModuleName,
         defaultDynFlags,                -- Settings -> DynFlags
-        defaultWays,
         initDynFlags,                   -- DynFlags -> IO DynFlags
         defaultFatalMessager,
         defaultLogAction,
@@ -1267,7 +1266,7 @@ defaultDynFlags mySettings llvmConfig =
         packageEnv              = Nothing,
         pkgDatabase             = Nothing,
         pkgState                = emptyPackageState,
-        ways                    = defaultWays mySettings,
+        ways                    = Set.empty,
         splitInfo               = Nothing,
 
         ghcNameVersion = sGhcNameVersion mySettings,
@@ -1358,11 +1357,6 @@ defaultDynFlags mySettings llvmConfig =
         cfgWeightInfo = defaultCfgWeights
       }
 
-defaultWays :: Settings -> Set Way
-defaultWays settings = if pc_DYNAMIC_BY_DEFAULT (sPlatformConstants settings)
-                       then Set.singleton WayDyn
-                       else Set.empty
-
 --------------------------------------------------------------------------
 --
 -- Note [JSON Error Messages]
@@ -1378,7 +1372,6 @@ defaultWays settings = if pc_DYNAMIC_BY_DEFAULT (sPlatformConstants settings)
 -- information to provide to the user but refactoring log_action is quite
 -- invasive as it is called in many places. So, for now I left it alone
 -- and we can refine its behaviour as users request different output.
-
 type FatalMessager = String -> IO ()
 
 type LogAction = DynFlags
@@ -3789,7 +3782,6 @@ defaultFlags settings
 
     ++ default_PIC platform
 
-    ++ concatMap (wayGeneralFlags platform) (defaultWays settings)
     ++ validHoleFitDefaults
 
     where platform = sTargetPlatform settings
@@ -4766,8 +4758,6 @@ compilerInfo dflags
        ("Uses package keys",           "YES"),
        -- Whether or not we support the @-this-unit-id@ flag
        ("Uses unit IDs",               "YES"),
-       -- Whether or not GHC compiles libraries as dynamic by default
-       ("Dynamic by default",          showBool $ pc_DYNAMIC_BY_DEFAULT constants),
        -- Whether or not GHC was compiled using -dynamic
        ("GHC Dynamic",                 showBool hostIsDynamic),
        -- Whether or not GHC was compiled using -prof
@@ -4781,7 +4771,6 @@ compilerInfo dflags
     showBool True  = "YES"
     showBool False = "NO"
     platform  = targetPlatform dflags
-    constants = platformConstants platform
     isWindows = platformOS platform == OSMinGW32
     expandDirectories :: FilePath -> Maybe FilePath -> String -> String
     expandDirectories topd mtoold = expandToolDir mtoold . expandTopDir topd
