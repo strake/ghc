@@ -104,6 +104,7 @@ import GHC.Types.TyThing
 import GHC.Utils.Outputable
 import GHC.Utils.Error
 import GHC.Utils.Panic
+import qualified GHC.Data.Strict as Strict
 
 import Data.IORef
 
@@ -424,7 +425,7 @@ updPmDeltas delta = updLclEnv (\env -> env { dsl_deltas = delta })
 
 getSrcSpanDs :: DsM SrcSpan
 getSrcSpanDs = do { env <- getLclEnv
-                  ; return (RealSrcSpan (dsl_loc env) Nothing) }
+                  ; return (RealSrcSpan (dsl_loc env) Strict.Nothing) }
 
 putSrcSpanDs :: SrcSpan -> DsM a -> DsM a
 putSrcSpanDs (UnhelpfulSpan {}) thing_inside

@@ -62,6 +62,7 @@ import GHC.Data.Maybe          ( orElse )
 import GHC.Utils.Outputable
 import GHC.Utils.Misc          ( looksLikePackageName, fstOf3, sndOf3, thdOf3 )
 import GHC.Prelude
+import qualified GHC.Data.Strict as Strict
 
 -- compiler/basicTypes
 import GHC.Types.Name.Reader
