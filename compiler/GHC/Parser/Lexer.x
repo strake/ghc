@@ -72,8 +72,10 @@ module GHC.Parser.Lexer (
   ) where
 
 import GHC.Prelude
+import qualified GHC.Data.Strict as Strict
 
 -- base
+import Control.Applicative
 import Control.Monad
 import Data.Bits
 import Data.Char
@@ -1486,7 +1488,7 @@ varid span buf len =
     Just (ITcase, _) -> do
       lastTk <- getLastTk
       keyword <- case lastTk of
-        Just ITlam -> do
+        Strict.Just ITlam -> do
           lambdaCase <- getBit LambdaCaseBit
           unless lambdaCase $ do
             pState <- getPState
@@ -2117,7 +2119,7 @@ warnTab srcspan _buf _len = do
 
 warnThen :: WarningFlag -> SDoc -> Action -> Action
 warnThen option warning action srcspan buf len = do
-    addWarning option (RealSrcSpan (psRealSpan srcspan) Nothing) warning
+    addWarning option (RealSrcSpan (psRealSpan srcspan) Strict.Nothing) warning
     action srcspan buf len
 
 -- -----------------------------------------------------------------------------
@@ -2170,9 +2172,9 @@ data PState = PState {
         -- This needs to take DynFlags as an argument until
         -- we have a fix for #10143
         messages   :: DynFlags -> Messages,
-        tab_first  :: Maybe RealSrcSpan, -- pos of first tab warning in the file
+        tab_first  :: Strict.Maybe RealSrcSpan, -- pos of first tab warning in the file
         tab_count  :: !Int,              -- number of tab warnings in the file
-        last_tk    :: Maybe Token,
+        last_tk    :: Strict.Maybe Token,
         last_loc   :: PsSpan,      -- pos of previous token
         last_len   :: !Int,        -- len of previous token
         loc        :: PsLoc,       -- current loc (end of prev token + 1)
@@ -2203,7 +2205,7 @@ data PState = PState {
         -- the GHC API can do source to source conversions.
         -- See note [Api annotations] in GHC.Parser.Annotation
         annotations :: [(ApiAnnKey,[RealSrcSpan])],
-        eof_pos :: Maybe RealSrcSpan,
+        eof_pos :: Strict.Maybe RealSrcSpan,
         comment_q :: [RealLocated AnnotationComment],
         annotations_comments :: [(RealSrcSpan,[RealLocated AnnotationComment])]
      }
@@ -2248,7 +2250,7 @@ failMsgP msg = do
 
 failLocMsgP :: RealSrcLoc -> RealSrcLoc -> String -> P a
 failLocMsgP loc1 loc2 str =
-  addFatalError (RealSrcSpan (mkRealSrcSpan loc1 loc2) Nothing) (text str)
+  addFatalError (RealSrcSpan (mkRealSrcSpan loc1 loc2) Strict.Nothing) (text str)
 
 getPState :: P PState
 getPState = P $ \s -> POk s s
@@ -2278,7 +2280,7 @@ addSrcFile :: FastString -> P ()
 addSrcFile f = P $ \s -> POk s{ srcfiles = f : srcfiles s } ()
 
 setEofPos :: RealSrcSpan -> P ()
-setEofPos span = P $ \s -> POk s{ eof_pos = Just span } ()
+setEofPos span = P $ \s -> POk s{ eof_pos = Strict.Just span } ()
 
 setLastToken :: PsSpan -> Int -> P ()
 setLastToken loc len = P $ \s -> POk s {
@@ -2287,9 +2289,9 @@ setLastToken loc len = P $ \s -> POk s {
   } ()
 
 setLastTk :: Token -> P ()
-setLastTk tk = P $ \s -> POk s { last_tk = Just tk } ()
+setLastTk tk = P $ \s -> POk s { last_tk = Strict.Just tk } ()
 
-getLastTk :: P (Maybe Token)
+getLastTk :: P (Strict.Maybe Token)
 getLastTk = P $ \s@(PState { last_tk = last_tk }) -> POk s last_tk
 
 data AlexInput = AI PsLoc StringBuffer
@@ -2650,9 +2652,9 @@ initParserState options buf loc =
       buffer        = buf,
       options       = options,
       messages      = const emptyMessages,
-      tab_first     = Nothing,
+      tab_first     = Strict.Nothing,
       tab_count     = 0,
-      last_tk       = Nothing,
+      last_tk       = Strict.Nothing,
       last_loc      = mkPsSpan init_loc init_loc,
       last_len      = 0,
       loc           = init_loc,
@@ -2666,7 +2668,7 @@ initParserState options buf loc =
       alr_expecting_ocurly = Nothing,
       alr_justClosedExplicitLetBlock = False,
       annotations = [],
-      eof_pos = Nothing,
+      eof_pos = Strict.Nothing,
       comment_q = [],
       annotations_comments = []
     }
@@ -2758,14 +2760,14 @@ addAnnsAt l = mapM_ (\(AddAnn a v) -> addAnnotation l a v)
 addTabWarning :: RealSrcSpan -> P ()
 addTabWarning srcspan
  = P $ \s@PState{tab_first=tf, tab_count=tc, options=o} ->
-       let tf' = if isJust tf then tf else Just srcspan
+       let tf' = tf <|> Strict.Just srcspan
            tc' = tc + 1
            s' = if warnopt Opt_WarnTabs o
                 then s{tab_first = tf', tab_count = tc'}
                 else s
        in POk s' ()
 
-mkTabWarning :: PState -> DynFlags -> Maybe ErrMsg
+mkTabWarning :: PState -> DynFlags -> Strict.Maybe ErrMsg
 mkTabWarning PState{tab_first=tf, tab_count=tc} d =
   let middle = if tc == 1
         then text ""
@@ -2775,7 +2777,7 @@ mkTabWarning PState{tab_first=tf, tab_count=tc} d =
                 <> text "."
                 $+$ text "Please use spaces instead."
   in fmap (\s -> makeIntoWarning (Reason Opt_WarnTabs) $
-                 mkWarnMsg d (RealSrcSpan s Nothing) alwaysQualify message) tf
+                 mkWarnMsg d (RealSrcSpan s Strict.Nothing) alwaysQualify message) tf
 
 -- | Get a bag of the errors that have been accumulated so far.
 --   Does not take -Werror into account.
@@ -2789,7 +2791,7 @@ getMessages :: PState -> DynFlags -> Messages
 getMessages p@PState{messages=m} d =
   let (ws, es) = m d
       tabwarning = mkTabWarning p d
-      ws' = maybe ws (`consBag` ws) tabwarning
+      ws' = Strict.fromMaybe id (consBag <$> tabwarning) ws
   in (ws', es)
 
 getContext :: P [LayoutContext]
@@ -3298,8 +3300,8 @@ mkParensApiAnn (RealSrcSpan ss _) = [AddAnn AnnOpenP lo,AddAnn AnnCloseP lc]
     sc = srcSpanStartCol ss
     el = srcSpanEndLine ss
     ec = srcSpanEndCol ss
-    lo = RealSrcSpan (mkRealSrcSpan (realSrcSpanStart ss)        (mkRealSrcLoc f sl (sc+1))) Nothing
-    lc = RealSrcSpan (mkRealSrcSpan (mkRealSrcLoc f el (ec - 1)) (realSrcSpanEnd ss))        Nothing
+    lo = RealSrcSpan (mkRealSrcSpan (realSrcSpanStart ss)        (mkRealSrcLoc f sl (sc+1))) Strict.Nothing
+    lc = RealSrcSpan (mkRealSrcSpan (mkRealSrcLoc f el (ec - 1)) (realSrcSpanEnd ss))        Strict.Nothing
 
 queueComment :: RealLocated Token -> P()
 queueComment c = P $ \s -> POk s {

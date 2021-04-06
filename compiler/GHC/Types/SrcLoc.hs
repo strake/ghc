@@ -113,6 +113,7 @@ import GHC.Utils.Json
 import GHC.Utils.Outputable
 import GHC.Utils.Panic
 import GHC.Data.FastString
+import qualified GHC.Data.Strict as Strict
 
 import Control.DeepSeq
 import Control.Applicative (liftA2)
@@ -154,8 +155,8 @@ newtype BufPos = BufPos { bufPos :: Int }
 
 -- | Source Location
 data SrcLoc
-  = RealSrcLoc !RealSrcLoc !(Maybe BufPos)  -- See Note [Why Maybe BufPos]
-  | UnhelpfulLoc FastString     -- Just a general indication
+  = RealSrcLoc !RealSrcLoc !(Strict.Maybe BufPos)  -- See Note [Why Maybe BufPos]
+  | UnhelpfulLoc !FastString     -- Just a general indication
   deriving (Eq, Show)
 
 {-
@@ -167,7 +168,7 @@ data SrcLoc
 -}
 
 mkSrcLoc :: FastString -> Int -> Int -> SrcLoc
-mkSrcLoc x line col = RealSrcLoc (mkRealSrcLoc x line col) Nothing
+mkSrcLoc x line col = RealSrcLoc (mkRealSrcLoc x line col) Strict.Nothing
 
 mkRealSrcLoc :: FastString -> Int -> Int -> RealSrcLoc
 mkRealSrcLoc x line col = SrcLoc x line col
@@ -302,7 +303,7 @@ data BufSpan =
 -- A 'SrcSpan' identifies either a specific portion of a text file
 -- or a human-readable description of a location.
 data SrcSpan =
-    RealSrcSpan !RealSrcSpan !(Maybe BufSpan)  -- See Note [Why Maybe BufPos]
+    RealSrcSpan !RealSrcSpan !(Strict.Maybe BufSpan)  -- See Note [Why Maybe BufPos]
   | UnhelpfulSpan !FastString   -- Just a general indication
                                 -- also used to indicate an empty span
 
@@ -739,4 +740,4 @@ psSpanEnd :: PsSpan -> PsLoc
 psSpanEnd (PsSpan r b) = PsLoc (realSrcSpanEnd r) (bufSpanEnd b)
 
 mkSrcSpanPs :: PsSpan -> SrcSpan
-mkSrcSpanPs (PsSpan r b) = RealSrcSpan r (Just b)
+mkSrcSpanPs (PsSpan r b) = RealSrcSpan r (Strict.Just b)

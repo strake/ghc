@@ -3,6 +3,7 @@
 import Data.Data
 import Data.List
 import GHC
+import qualified GHC.Data.Strict as Strict
 import GHC.Utils.Outputable
 import GHC.Utils.Outputable.Ppr
 import GHC.Parser.Annotation
@@ -73,9 +74,9 @@ testOneFile libdir fileName = do
        putStrLn (showAnns ann_items)
        putStrLn "---Eof Position (should be Just)-----"
        putStrLn (show (apiAnnEofPos anns))
-       if null problems' && null precedingProblems && isJust (apiAnnEofPos anns)
-          then exitSuccess
-          else exitFailure
+       case apiAnnEofPos anns of
+           Strict.Just _ | null problems', null precedingProblems -> exitSuccess
+           _ -> exitFailure
 
     where
       getAllSrcSpans :: (Data t) => t -> [RealSrcSpan]

@@ -15,12 +15,12 @@ module GHC.Parser.Annotation (
 
 import GHC.Prelude
 
+import qualified GHC.Data.Strict as Strict
 import GHC.Types.Name.Reader
-import GHC.Utils.Outputable
 import GHC.Types.SrcLoc
+import GHC.Utils.Outputable
 import qualified Data.Map as Map
 import Data.Data
-
 
 {-
 Note [Api annotations]
@@ -44,7 +44,7 @@ The full ApiAnns type is
 > data ApiAnns =
 >  ApiAnns
 >    { apiAnnItems :: Map.Map ApiAnnKey [RealSrcSpan],
->      apiAnnEofPos :: Maybe RealSrcSpan,
+>      apiAnnEofPos :: Strict.Maybe RealSrcSpan,
 >      apiAnnComments :: Map.Map RealSrcSpan [RealLocated AnnotationComment],
 >      apiAnnRogueComments :: [RealLocated AnnotationComment]
 >    }
@@ -139,7 +139,7 @@ https://gitlab.haskell.org/ghc/ghc/wikis/api-annotations
 data ApiAnns =
   ApiAnns
     { apiAnnItems :: Map.Map ApiAnnKey [RealSrcSpan],
-      apiAnnEofPos :: Maybe RealSrcSpan,
+      apiAnnEofPos :: Strict.Maybe RealSrcSpan,
       apiAnnComments :: Map.Map RealSrcSpan [RealLocated AnnotationComment],
       apiAnnRogueComments :: [RealLocated AnnotationComment]
     }
