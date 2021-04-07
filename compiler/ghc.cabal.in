@@ -448,7 +448,6 @@ Library
         GHC.Iface.Tidy
         GHC.Iface.Tidy.StaticPtrTable
         GHC.Iface.Type
-        GHC.Iface.UpdateIdInfos
         GHC.IfaceToCore
         GHC.Llvm
         GHC.Llvm.MetaData
