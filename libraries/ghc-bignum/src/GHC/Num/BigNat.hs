@@ -1555,3 +1555,18 @@ bigNatFromWordArray# wa n0
 -- /without/ cloning the 'WordArray#' into a newly allocated one)
 bigNatFromWordArray :: WordArray# -> Word# -> BigNat
 bigNatFromWordArray wa n = BN# (bigNatFromWordArray# wa n)
+
+-------------------------------------------------
+-- Instances
+-------------------------------------------------
+
+instance Eq BigNat where
+   BN# a == BN# b = bigNatEq a b
+   BN# a /= BN# b = bigNatNe a b
+
+instance Ord BigNat where
+   BN# a `compare` BN# b = bigNatCompare a b
+   BN# a <  BN# b = bigNatCompare a b == LT
+   BN# a <= BN# b = bigNatCompare a b /= GT
+   BN# a >  BN# b = bigNatCompare a b == GT
+   BN# a >= BN# b = bigNatCompare a b /= LT
