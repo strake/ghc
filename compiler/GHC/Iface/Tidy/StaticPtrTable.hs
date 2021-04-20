@@ -149,7 +149,7 @@ import GHC.Types.Id
 import GHC.Types.TyThing
 
 import Control.Monad.Trans.Class (lift)
-import Control.Monad.Trans.State
+import Control.Monad.Trans.State.Strict
 import Data.List
 import Data.Maybe
 import GHC.Fingerprint
