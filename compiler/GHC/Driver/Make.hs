@@ -193,7 +193,7 @@ depanalPartial excluded_mods allow_dup_roots = do
          old_graph = hsc_mod_graph hsc_env
 
   withTiming dflags (text "Chasing dependencies") (const ()) $ do
-    liftIO $ debugTraceMsg dflags 2 (hcat [
+    liftIO $ debugTraceMsg dflags 5 (hcat [
               text "Chasing modules from: ",
               hcat (punctuate comma (map pprTarget targets))])
 
@@ -1418,7 +1418,7 @@ upsweep mHscMessage old_hpt stable_mods cleanup sccs = do
 
     when (not $ null dropped_ms) $ do
         dflags <- getSessionDynFlags
-        liftIO $ fatalErrorMsg dflags (keepGoingPruneErr dropped_ms)
+        liftIO $ debugTraceMsg dflags 5 (keepGoingPruneErr dropped_ms)
     (_, done') <- upsweep' old_hpt done mods' (mod_index+1) nmods' uids_to_check done_holes
     return (Failed, done')
 
