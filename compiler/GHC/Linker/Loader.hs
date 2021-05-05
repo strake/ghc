@@ -623,18 +623,18 @@ getLinkDeps hsc_env hpt pls replace_osuf span mods
             pkg = moduleUnit mod
             deps  = mi_deps iface
 
-            pkg_deps = dep_pkgs deps
-            (boot_deps, mod_deps) = flip partitionWith (dep_mods deps) $
+            pkg_deps = dep_direct_pkgs deps
+            (boot_deps, mod_deps) = flip partitionWith (dep_direct_mods deps) $
               \ (GWIB { gwib_mod = m, gwib_isBoot = is_boot }) ->
                 ( case is_boot of IsBoot -> Left; NotBoot -> Right ) m
 
-            boot_deps' = filter (not . (`elementOfUniqDSet` acc_mods)) boot_deps
+            mod_deps' = filter (not . (`elementOfUniqDSet` acc_mods)) (boot_deps ++ mod_deps)
             acc_mods'  = addListToUniqDSet acc_mods (moduleName mod : mod_deps)
-            acc_pkgs'  = addListToUniqDSet acc_pkgs $ map fst pkg_deps
+            acc_pkgs'  = addListToUniqDSet acc_pkgs pkg_deps
           --
           if pkg /= this_pkg
              then follow_deps mods acc_mods (addOneToUniqDSet acc_pkgs' (toUnitId pkg))
-             else follow_deps (map (mkModule this_pkg) boot_deps' ++ mods)
+             else follow_deps (map (mkModule this_pkg) mod_deps' ++ mods)
                               acc_mods' acc_pkgs'
         where
             msg = text "need to link module" <+> ppr mod <+>

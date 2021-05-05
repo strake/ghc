@@ -1248,18 +1248,30 @@ pprUsageImport usage usg_mod'
         safe | usg_safe usage = text "safe"
              | otherwise      = text " -/ "
 
+-- | Pretty-print unit dependencies
 pprDeps :: Dependencies -> SDoc
-pprDeps (Deps { dep_mods = mods, dep_pkgs = pkgs, dep_orphs = orphs,
-                dep_finsts = finsts })
-  = vcat [text "module dependencies:" <+> fsep (map ppr_mod mods),
-          text "package dependencies:" <+> fsep (map ppr_pkg pkgs),
+pprDeps Deps
+  { dep_direct_mods = dmods
+  , dep_boot_mods = bmods
+  , dep_orphs = orphs
+  , dep_direct_pkgs = pkgs
+  , dep_trusted_pkgs = tps
+  , dep_finsts = finsts
+  , dep_plgins = plugins
+  }
+  = vcat [text "direct module dependencies:" <+> fsep (map ppr_mod dmods),
+          text "boot module dependencies:" <+> fsep (map ppr bmods),
+          text "direct package dependencies:" <+> fsep (map ppr_pkg pkgs),
+          case tps of
+            [] -> empty
+            _ -> text "trusted package dependencies:" <+> fsep (map ppr_pkg tps),
           text "orphans:" <+> fsep (map ppr orphs),
+          text "plugins:" <+> fsep (map ppr plugins),
           text "family instance modules:" <+> fsep (map ppr finsts)
         ]
   where
     ppr_mod (GWIB { gwib_mod = mod_name, gwib_isBoot = boot }) = ppr mod_name <+> ppr_boot boot
-    ppr_pkg (pkg,trust_req)  = ppr pkg <>
-                               (if trust_req then text "*" else Outputable.empty)
+    ppr_pkg pkg  = ppr pkg
     ppr_boot IsBoot  = text "[boot]"
     ppr_boot NotBoot = Outputable.empty
 
