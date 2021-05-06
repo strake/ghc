@@ -34,6 +34,7 @@ import GHC.Core.TyCo.Rep
 import GHC.Core.Type
 import GHC.Builtin.Types.Prim
 import {-# SOURCE #-} GHC.Builtin.Types ( anyTypeOfKind )
+import GHC.Utils.Panic.Plain
 
 import GHC.Utils.Misc
 import GHC.Utils.Outputable
@@ -511,7 +512,7 @@ kindPrimRep doc ki
   | Just ki' <- coreView ki
   = kindPrimRep doc ki'
 kindPrimRep doc (TyConApp typ [runtime_rep])
-  = ASSERT( typ `hasKey` tYPETyConKey )
+  = assert (typ `hasKey` tYPETyConKey) $
     runtimeRepPrimRep doc runtime_rep
 kindPrimRep doc ki
   = pprPanic "kindPrimRep" (ppr ki $$ doc)

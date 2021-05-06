@@ -67,6 +67,7 @@ import GHC.Utils.Exception ( tryIO, AsyncException(..), evaluate )
 import GHC.Utils.Monad     ( allM )
 import GHC.Utils.Outputable
 import GHC.Utils.Panic
+import GHC.Utils.Panic.Plain
 import GHC.Utils.Misc
 
 import GHC.Types.Basic
@@ -402,7 +403,7 @@ load' how_much mHscMessage mod_graph = do
     -- files without corresponding hs files.
     --  bad_boot_mods = [s        | s <- mod_graph, isBootSummary s,
     --                              not (ms_mod_name s `elem` all_home_mods)]
-    -- ASSERT( null bad_boot_mods ) return ()
+    -- assert (null bad_boot_mods ) return ()
 
     -- check that the module given in HowMuch actually exists, otherwise
     -- topSortModuleGraph will bomb later.
@@ -495,8 +496,7 @@ load' how_much mHscMessage mod_graph = do
         -- is stable).
         partial_mg
             | LoadDependenciesOf _mod <- how_much
-            = ASSERT( case last partial_mg0 of
-                        AcyclicSCC ms -> ms_mod_name ms == _mod; _ -> False )
+            = assert (case last partial_mg0 of AcyclicSCC ms -> ms_mod_name ms == _mod; _ -> False) $
               List.init partial_mg0
             | otherwise
             = partial_mg0
@@ -624,7 +624,7 @@ load' how_much mHscMessage mod_graph = do
                  || allHpt (isJust.hm_linkable)
                         (filterHpt ((== HsSrcFile).mi_hsc_src.hm_iface)
                                 hpt5)
-          ASSERT( just_linkables ) do
+          assert just_linkables $ do
 
           -- Link everything together
           linkresult <- liftIO $ link (ghcLink dflags) dflags False hpt5
@@ -1678,7 +1678,7 @@ upsweep_mod hsc_env mHscMessage old_hpt (stable_obj, stable_bco) summary mod_ind
 
           | not (backendProducesObject bcknd), is_stable_bco,
             (bcknd /= NoBackend) `implies` not is_fake_linkable ->
-                ASSERT(isJust old_hmi) -- must be in the old_hpt
+                assert (isJust old_hmi) $ -- must be in the old_hpt
                 let Just hmi = old_hmi in do
                 liftIO $ debugTraceMsg (hsc_dflags hsc_env) 5
                            (text "skipping stable BCO mod:" <+> ppr this_mod_name)
@@ -2760,7 +2760,7 @@ cyclicModuleErr :: [ModSummary] -> SDoc
 -- From a strongly connected component we find
 -- a single cycle to report
 cyclicModuleErr mss
-  = ASSERT( not (null mss) )
+  = assert (not (null mss)) $
     case findCycle graph of
        Nothing   -> text "Unexpected non-cycle" <+> ppr mss
        Just path -> vcat [ text "Module imports form a cycle:"

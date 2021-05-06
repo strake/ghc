@@ -83,6 +83,7 @@ import GHC.Builtin.Types.Prim
 import GHC.Utils.Outputable
 import GHC.Utils.Misc
 import GHC.Utils.Panic
+import GHC.Utils.Panic.Plain
 
 import GHC.Data.FastString
 
@@ -166,7 +167,7 @@ mkCoreAppTyped _ (fun, fun_ty) (Type ty)
 mkCoreAppTyped _ (fun, fun_ty) (Coercion co)
   = (App fun (Coercion co), funResultTy fun_ty)
 mkCoreAppTyped d (fun, fun_ty) arg
-  = ASSERT2( isFunTy fun_ty, ppr fun $$ ppr arg $$ d )
+  = assertPpr (isFunTy fun_ty) (ppr fun $$ ppr arg $$ d)
     (mkValApp fun arg arg_ty res_ty, res_ty)
   where
     (arg_ty, res_ty) = splitFunTy fun_ty
@@ -396,7 +397,7 @@ mkCoreTup1 cs = mkCoreConApps (tupleDataCon Boxed (length cs))
 -- Does /not/ flatten one-tuples; see Note [Flattening one-tuples]
 mkCoreUbxTup :: [Type] -> [CoreExpr] -> CoreExpr
 mkCoreUbxTup tys exps
-  = ASSERT( tys `equalLength` exps)
+  = assert (tys `equalLength` exps) $
     mkCoreConApps (tupleDataCon Unboxed (length tys))
              (map (Type . getRuntimeRep) tys ++ map Type tys ++ exps)
 
@@ -503,7 +504,7 @@ mkSmallTupleSelector, mkSmallTupleSelector1
           -> CoreExpr    -- Scrutinee
           -> CoreExpr
 mkSmallTupleSelector [var] should_be_the_same_var _ scrut
-  = ASSERT(var == should_be_the_same_var)
+  = assert (var == should_be_the_same_var) $
     scrut  -- Special case for 1-tuples
 mkSmallTupleSelector vars the_var scrut_var scrut
   = mkSmallTupleSelector1 vars the_var scrut_var scrut
@@ -511,7 +512,7 @@ mkSmallTupleSelector vars the_var scrut_var scrut
 -- ^ 'mkSmallTupleSelector1' is like 'mkSmallTupleSelector'
 -- but one-tuples are NOT flattened (see Note [Flattening one-tuples])
 mkSmallTupleSelector1 vars the_var scrut_var scrut
-  = ASSERT( notNull vars )
+  = assert (notNull vars) $
     Case scrut scrut_var (idType the_var)
          [(DataAlt (tupleDataCon Boxed (length vars)), vars, Var the_var)]
 

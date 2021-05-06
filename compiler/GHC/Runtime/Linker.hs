@@ -62,6 +62,8 @@ import GHC.Types.SrcLoc
 import GHC.Types.Unique.DSet
 import GHC.Utils.Outputable
 import GHC.Utils.Panic
+import GHC.Utils.Panic.Plain
+import GHC.Utils.Constants (isWindowsHost, isDarwinHost)
 import GHC.Utils.Misc
 import GHC.Utils.Error
 
@@ -197,7 +199,7 @@ getHValue hsc_env name = do
   case lookupNameEnv (closure_env pls) name of
     Just (_,aa) -> return aa
     Nothing
-        -> ASSERT2(isExternalName name, ppr name)
+        -> assertPpr (isExternalName name) (ppr name)
            do let sym_to_find = nameToCLabel name "closure"
               m <- lookupClosure hsc_env (unpackFS sym_to_find)
               case m of
@@ -758,7 +760,7 @@ getLinkDeps hsc_env hpt pls replace_osuf span mods
                         return lnk
 
             adjust_ul new_osuf (DotO file) = do
-                MASSERT(osuf `isSuffixOf` file)
+                massert (osuf `isSuffixOf` file)
                 let file_base = fromJust (stripExtension osuf file)
                     new_file = file_base <.> new_osuf
                 ok <- doesFileExist new_file

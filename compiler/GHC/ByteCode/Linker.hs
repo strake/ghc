@@ -36,8 +36,8 @@ import GHC.Unit
 import GHC.Data.FastString
 
 import GHC.Utils.Panic
+import GHC.Utils.Panic.Plain
 import GHC.Utils.Outputable
-import GHC.Utils.Misc
 
 import GHC.Types.Name
 import GHC.Types.Name.Env
@@ -135,7 +135,7 @@ resolvePtr hsc_env _ie ce bco_ix _ (BCOPtrName nm)
   | Just (_, rhv) <- lookupNameEnv ce nm =
     return (ResolvedBCOPtr (unsafeForeignRefToRemoteRef rhv))
   | otherwise =
-    ASSERT2(isExternalName nm, ppr nm)
+    assertPpr (isExternalName nm) (ppr nm) $
     do let sym_to_find = nameToCLabel nm "closure"
        m <- lookupSymbol hsc_env sym_to_find
        case m of
@@ -168,7 +168,7 @@ nameToCLabel :: Name -> String -> FastString
 nameToCLabel n suffix = mkFastString label
   where
     encodeZ = zString . zEncodeFS
-    (Module pkgKey modName) = ASSERT( isExternalName n ) nameModule n
+    (Module pkgKey modName) = assert (isExternalName n) $ nameModule n
     packagePart = encodeZ (unitFS pkgKey)
     modulePart  = encodeZ (moduleNameFS modName)
     occPart     = encodeZ (occNameFS (nameOccName n))

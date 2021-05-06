@@ -49,6 +49,7 @@ import GHC.Types.RepType (countConRepArgs)
 import GHC.Types.Literal
 import GHC.Builtin.Utils
 import GHC.Utils.Panic
+import GHC.Utils.Panic.Plain
 import GHC.Utils.Misc
 import GHC.Utils.Monad (mapMaybeM)
 
@@ -92,8 +93,8 @@ cgTopRhsCon dflags id con args
         ; this_mod <- getModuleName
         ; when (platformOS platform == OSMinGW32) $
               -- Windows DLLs have a problem with static cross-DLL refs.
-              MASSERT( not (isDllConApp dflags this_mod con (map fromNonVoid args)) )
-        ; ASSERT( args `lengthIs` countConRepArgs con ) return ()
+              massert (not (isDllConApp dflags this_mod con (map fromNonVoid args)))
+        ; assert (args `lengthIs` countConRepArgs con ) return ()
 
         -- LAY IT OUT
         ; let
@@ -354,7 +355,7 @@ bindConArgs :: AltCon -> LocalReg -> [NonVoid Id] -> FCode [LocalReg]
 -- binders args, assuming that we have just returned from a 'case' which
 -- found a con
 bindConArgs (DataAlt con) base args
-  = ASSERT(not (isUnboxedTupleCon con))
+  = assert (not (isUnboxedTupleCon con)) $
     do profile <- getProfile
        platform <- getPlatform
        let (_, _, args_w_offsets) = mkVirtConstrOffsets profile (addIdReps args)
@@ -374,4 +375,4 @@ bindConArgs (DataAlt con) base args
        mapMaybeM bind_arg args_w_offsets
 
 bindConArgs _other_con _base args
-  = ASSERT( null args ) return []
+  = assert (null args ) return []

@@ -224,6 +224,7 @@ import GHC.Data.Maybe
 import GHC.Data.List.SetOps ( getNth, findDupsEq )
 import GHC.Utils.Outputable
 import GHC.Utils.Panic
+import GHC.Utils.Panic.Plain
 import GHC.Data.FastString
 import GHC.Utils.Error( Validity(..), MsgDoc, isValid )
 import qualified GHC.LanguageExtensions as LangExt
@@ -711,7 +712,7 @@ instance Outputable TcLevel where
 promoteSkolem :: TcLevel -> TcTyVar -> TcTyVar
 promoteSkolem tclvl skol
   | tclvl < tcTyVarLevel skol
-  = ASSERT( isTcTyVar skol && isSkolemTyVar skol )
+  = assert (isTcTyVar skol && isSkolemTyVar skol )
     setTcTyVarDetails skol (SkolemTv tclvl (isOverlappableTyVar skol))
 
   | otherwise
@@ -720,7 +721,7 @@ promoteSkolem tclvl skol
 -- | Change the TcLevel in a skolem, extending a substitution
 promoteSkolemX :: TcLevel -> TCvSubst -> TcTyVar -> (TCvSubst, TcTyVar)
 promoteSkolemX tclvl subst skol
-  = ASSERT( isTcTyVar skol && isSkolemTyVar skol )
+  = assert (isTcTyVar skol && isSkolemTyVar skol )
     (new_subst, new_skol)
   where
     new_skol
@@ -954,8 +955,8 @@ isTouchableMetaTyVar ctxt_tclvl tv
   | isTyVar tv -- See Note [Coercion variables in free variable lists]
   , MetaTv { mtv_tclvl = tv_tclvl, mtv_info = info } <- tcTyVarDetails tv
   , not (isFlattenInfo info)
-  = ASSERT2( checkTcLevelInvariant ctxt_tclvl tv_tclvl,
-             ppr tv $$ ppr tv_tclvl $$ ppr ctxt_tclvl )
+  = assertPpr (checkTcLevelInvariant ctxt_tclvl tv_tclvl)
+              (ppr tv $$ ppr tv_tclvl $$ ppr ctxt_tclvl) $
     tv_tclvl `sameDepthAs` ctxt_tclvl
 
   | otherwise = False
@@ -987,26 +988,26 @@ isTyConableTyVar tv
   | otherwise = True
 
 isFmvTyVar tv
-  = ASSERT2( tcIsTcTyVar tv, ppr tv )
+  = assertPpr (tcIsTcTyVar tv) (ppr tv) $
     case tcTyVarDetails tv of
         MetaTv { mtv_info = FlatMetaTv } -> True
         _                                -> False
 
 isFskTyVar tv
-  = ASSERT2( tcIsTcTyVar tv, ppr tv )
+  = assertPpr (tcIsTcTyVar tv) (ppr tv) $
     case tcTyVarDetails tv of
         MetaTv { mtv_info = FlatSkolTv } -> True
         _                                -> False
 
 -- | True of both given and wanted flatten-skolems (fmv and fsk)
 isFlattenTyVar tv
-  = ASSERT2( tcIsTcTyVar tv, ppr tv )
+  = assertPpr (tcIsTcTyVar tv) (ppr tv) $
     case tcTyVarDetails tv of
         MetaTv { mtv_info = info } -> isFlattenInfo info
         _                          -> False
 
 isSkolemTyVar tv
-  = ASSERT2( tcIsTcTyVar tv, ppr tv )
+  = assertPpr (tcIsTcTyVar tv) (ppr tv) $
     case tcTyVarDetails tv of
         MetaTv {} -> False
         _other    -> True
@@ -1189,13 +1190,13 @@ variables.  It's up to you to make sure this doesn't matter.
 -- Always succeeds, even if it returns an empty list.
 tcSplitPiTys :: Type -> ([TyBinder], Type)
 tcSplitPiTys ty
-  = ASSERT( all isTyBinder (fst sty) ) sty
+  = assert (all isTyBinder (fst sty) ) sty
   where sty = splitPiTys ty
 
 -- | Splits a type into a TyBinder and a body, if possible. Panics otherwise
 tcSplitPiTy_maybe :: Type -> Maybe (TyBinder, Type)
 tcSplitPiTy_maybe ty
-  = ASSERT( isMaybeTyBinder sty ) sty
+  = assert (isMaybeTyBinder sty ) sty
   where
     sty = splitPiTy_maybe ty
     isMaybeTyBinder (Just (t,_)) = isTyBinder t
@@ -1203,14 +1204,14 @@ tcSplitPiTy_maybe ty
 
 tcSplitForAllTy_maybe :: Type -> Maybe (TyVarBinder, Type)
 tcSplitForAllTy_maybe ty | Just ty' <- tcView ty = tcSplitForAllTy_maybe ty'
-tcSplitForAllTy_maybe (ForAllTy tv ty) = ASSERT( isTyVarBinder tv ) Just (tv, ty)
+tcSplitForAllTy_maybe (ForAllTy tv ty) = assert (isTyVarBinder tv) $ Just (tv, ty)
 tcSplitForAllTy_maybe _                = Nothing
 
 -- | Like 'tcSplitPiTys', but splits off only named binders,
 -- returning just the tycovars.
 tcSplitForAllTys :: Type -> ([TyVar], Type)
 tcSplitForAllTys ty
-  = ASSERT( all isTyVar (fst sty) ) sty
+  = assert (all isTyVar (fst sty) ) sty
   where sty = splitForAllTys ty
 
 -- | Like 'tcSplitForAllTys', but only splits a 'ForAllTy' if
@@ -1219,12 +1220,12 @@ tcSplitForAllTys ty
 -- as an argument to this function.
 -- All split tyvars are annotated with their argf.
 tcSplitForAllTysSameVis :: ArgFlag -> Type -> ([TyVarBinder], Type)
-tcSplitForAllTysSameVis supplied_argf ty = ASSERT( all (isTyVar . binderVar) (fst sty) ) sty
+tcSplitForAllTysSameVis supplied_argf ty = assert (all (isTyVar . binderVar) (fst sty)) sty
   where sty = splitForAllTysSameVis supplied_argf ty
 
 -- | Like 'tcSplitForAllTys', but splits off only named binders.
 tcSplitForAllVarBndrs :: Type -> ([TyVarBinder], Type)
-tcSplitForAllVarBndrs ty = ASSERT( all isTyVarBinder (fst sty)) sty
+tcSplitForAllVarBndrs ty = assert (all isTyVarBinder (fst sty)) sty
   where sty = splitForAllVarBndrs ty
 
 -- | Is this a ForAllTy with a named binder?

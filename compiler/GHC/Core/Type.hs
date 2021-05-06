@@ -262,6 +262,7 @@ import GHC.Utils.Misc
 import GHC.Utils.FV
 import GHC.Utils.Outputable
 import GHC.Utils.Panic
+import GHC.Utils.Panic.Plain
 import GHC.Data.FastString
 import GHC.Data.Pair
 import GHC.Data.List.SetOps
@@ -382,7 +383,7 @@ coreView ty@(TyConApp tc tys)
   -- At the Core level, Constraint = Type
   -- See Note [coreView vs tcView]
   | isConstraintKindCon tc
-  = ASSERT2( null tys, ppr ty )
+  = assertPpr (null tys) (ppr ty) $
     Just liftedTypeKind
 
 coreView _ = Nothing
@@ -546,7 +547,7 @@ isLiftedRuntimeRep :: Type -> Bool
 --   and of other reps e.g. (IntRep :: RuntimeRep)
 isLiftedRuntimeRep rep
   | TyConApp rr_tc args <- coreFullView rep
-  , rr_tc `hasKey` liftedRepDataConKey = ASSERT( null args ) True
+  , rr_tc `hasKey` liftedRepDataConKey = assert (null args) True
   | otherwise                          = False
 
 -- | Returns True if the kind classifies unlifted types and False otherwise.
@@ -576,7 +577,7 @@ isUnliftedRuntimeRep rep
 isRuntimeRepTy :: Type -> Bool
 isRuntimeRepTy ty
   | TyConApp tc args <- coreFullView ty
-  , tc `hasKey` runtimeRepTyConKey = ASSERT( null args ) True
+  , tc `hasKey` runtimeRepTyConKey = assert (null args) True
 
   | otherwise = False
 
@@ -928,7 +929,7 @@ splitAppTys ty = split ty ty []
         in
         (TyConApp tc tc_args1, tc_args2 ++ args)
     split _   (FunTy _ ty1 ty2) args
-      = ASSERT( null args )
+      = assert (null args )
         (TyConApp funTyCon [], [rep1, rep2, ty1, ty2])
       where
         rep1 = getRuntimeRep ty1
@@ -948,7 +949,7 @@ repSplitAppTys ty = split ty []
         in
         (TyConApp tc tc_args1, tc_args2 ++ args)
     split (FunTy _ ty1 ty2) args
-      = ASSERT( null args )
+      = assert (null args )
         (TyConApp funTyCon [], [rep1, rep2, ty1, ty2])
       where
         rep1 = getRuntimeRep ty1
@@ -1183,8 +1184,8 @@ applyTysX :: [TyVar] -> Type -> [Type] -> Type
 -- applyTyxX beta-reduces (/\tvs. body_ty) arg_tys
 -- Assumes that (/\tvs. body_ty) is closed
 applyTysX tvs body_ty arg_tys
-  = ASSERT2( arg_tys `lengthAtLeast` n_tvs, pp_stuff )
-    ASSERT2( tyCoVarsOfType body_ty `subVarSet` mkVarSet tvs, pp_stuff )
+  = assertPpr (arg_tys `lengthAtLeast` n_tvs) pp_stuff $
+    assertPpr (tyCoVarsOfType body_ty `subVarSet` mkVarSet tvs) pp_stuff $
     mkAppTys (substTyWith tvs (take n_tvs arg_tys) body_ty)
              (drop n_tvs arg_tys)
   where
@@ -1323,7 +1324,7 @@ newTyConInstRhs :: TyCon -> [Type] -> Type
 -- arguments, using an eta-reduced version of the @newtype@ if possible.
 -- This requires tys to have at least @newTyConInstArity tycon@ elements.
 newTyConInstRhs tycon tys
-    = ASSERT2( tvs `leLength` tys, ppr tycon $$ ppr tys $$ ppr tvs )
+    = assertPpr (tvs `leLength` tys) (ppr tycon $$ ppr tys $$ ppr tvs) $
       applyTysX tvs rhs tys
   where
     (tvs, rhs) = newTyConEtadRhs tycon
@@ -1385,7 +1386,7 @@ tyConBindersTyCoBinders = map to_tyb
 -- Since CastTy cannot be nested, the result of discardCast
 -- cannot be a CastTy.
 discardCast :: Type -> Type
-discardCast (CastTy ty _) = ASSERT(not (isCastTy ty)) ty
+discardCast (CastTy ty _) = assert (not (isCastTy ty)) ty
   where
   isCastTy CastTy{} = True
   isCastTy _        = False
@@ -1451,7 +1452,7 @@ mkTyCoInvForAllTy tv ty
 
 -- | Like 'mkTyCoInvForAllTy', but tv should be a tyvar
 mkInfForAllTy :: TyVar -> Type -> Type
-mkInfForAllTy tv ty = ASSERT( isTyVar tv )
+mkInfForAllTy tv ty = assert (isTyVar tv )
                       ForAllTy (Bndr tv Inferred) ty
 
 -- | Like 'mkForAllTys', but assumes all variables are dependent and
@@ -1466,7 +1467,7 @@ mkInfForAllTys tvs ty = foldr mkInfForAllTy ty tvs
 -- | Like 'mkForAllTy', but assumes the variable is dependent and 'Specified',
 -- a common case
 mkSpecForAllTy :: TyVar -> Type -> Type
-mkSpecForAllTy tv ty = ASSERT( isTyVar tv )
+mkSpecForAllTy tv ty = assert (isTyVar tv )
                        -- covar is always Inferred, so input should be tyvar
                        ForAllTy (Bndr tv Specified) ty
 
@@ -1477,7 +1478,7 @@ mkSpecForAllTys tvs ty = foldr mkSpecForAllTy ty tvs
 
 -- | Like mkForAllTys, but assumes all variables are dependent and visible
 mkVisForAllTys :: [TyVar] -> Type -> Type
-mkVisForAllTys tvs = ASSERT( all isTyVar tvs )
+mkVisForAllTys tvs = assert (all isTyVar tvs )
                      -- covar is always Inferred, so all inputs should be tyvar
                      mkForAllTys [ Bndr tv Required | tv <- tvs ]
 
@@ -1491,7 +1492,7 @@ mkVisForAllTys tvs = ASSERT( all isTyVar tvs )
 mkTyConBindersPreferAnon :: [TyVar]      -- ^ binders
                          -> TyCoVarSet   -- ^ free variables of result
                          -> [TyConBinder]
-mkTyConBindersPreferAnon vars inner_tkvs = ASSERT( all isTyVar vars)
+mkTyConBindersPreferAnon vars inner_tkvs = assert (all isTyVar vars)
                                            fst (go vars)
   where
     go :: [TyVar] -> ([TyConBinder], VarSet) -- also returns the free vars
@@ -1826,7 +1827,7 @@ tyCoBinderType (Anon _ ty) = ty
 
 tyBinderType :: TyBinder -> Type
 tyBinderType (Named (Bndr tv _))
-  = ASSERT( isTyVar tv )
+  = assert (isTyVar tv )
     tyVarKind tv
 tyBinderType (Anon _ ty)   = ty
 
@@ -1856,7 +1857,7 @@ mkFamilyTyConApp :: TyCon -> [Type] -> Type
 mkFamilyTyConApp tc tys
   | Just (fam_tc, fam_tys) <- tyConFamInst_maybe tc
   , let tvs = tyConTyVars tc
-        fam_subst = ASSERT2( tvs `equalLength` tys, ppr tc <+> ppr tys )
+        fam_subst = assertPpr (tvs `equalLength` tys) (ppr tc <+> ppr tys) $
                     zipTvSubst tvs tys
   = mkTyConApp fam_tc (substTys fam_subst fam_tys)
   | otherwise
@@ -1988,7 +1989,7 @@ isUnboxedSumType ty
 isAlgType :: Type -> Bool
 isAlgType ty
   = case splitTyConApp_maybe ty of
-      Just (tc, ty_args) -> ASSERT( ty_args `lengthIs` tyConArity tc )
+      Just (tc, ty_args) -> assert (ty_args `lengthIs` tyConArity tc )
                             isAlgTyCon tc
       _other             -> False
 
@@ -2007,7 +2008,7 @@ isStrictType = isUnliftedType
 isPrimitiveType :: Type -> Bool
 -- ^ Returns true of types that are opaque to Haskell.
 isPrimitiveType ty = case splitTyConApp_maybe ty of
-                        Just (tc, ty_args) -> ASSERT( ty_args `lengthIs` tyConArity tc )
+                        Just (tc, ty_args) -> assert (ty_args `lengthIs` tyConArity tc )
                                               isPrimTyCon tc
                         _                  -> False
 
@@ -2295,7 +2296,7 @@ nonDetCmpTypesX _   _         []        = GT
 -- See Note [nonDetCmpType nondeterminism]
 nonDetCmpTc :: TyCon -> TyCon -> Ordering
 nonDetCmpTc tc1 tc2
-  = ASSERT( not (isConstraintKindCon tc1) && not (isConstraintKindCon tc2) )
+  = assert (not (isConstraintKindCon tc1) && not (isConstraintKindCon tc2)) $
     u1 `nonDetCmpUnique` u2
   where
     u1  = tyConUnique tc1
@@ -2484,7 +2485,7 @@ tcIsConstraintKind :: Kind -> Bool
 tcIsConstraintKind ty
   | Just (tc, args) <- tcSplitTyConApp_maybe ty    -- Note: tcSplit here
   , isConstraintKindCon tc
-  = ASSERT2( null args, ppr ty ) True
+  = assertPpr (null args) (ppr ty) True
 
   | otherwise
   = False
@@ -2841,7 +2842,7 @@ during type inference.
 -- E.g.  True of   TYPE k, TYPE (F Int)
 --       False of  TYPE 'LiftedRep
 isKindLevPoly :: Kind -> Bool
-isKindLevPoly k = ASSERT2( isLiftedTypeKind k || _is_type, ppr k )
+isKindLevPoly k = assertPpr (isLiftedTypeKind k || _is_type) (ppr k) $
                     -- the isLiftedTypeKind check is necessary b/c of Constraint
                   go k
   where

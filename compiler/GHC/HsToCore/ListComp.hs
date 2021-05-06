@@ -38,9 +38,9 @@ import GHC.Builtin.Names
 import GHC.Types.SrcLoc
 import GHC.Utils.Outputable
 import GHC.Tc.Types.Evidence (HsWrapper (WpHole))
+import GHC.Utils.Panic.Plain
 import GHC.Tc.Utils.TcType
 import GHC.Data.List.SetOps( getNth )
-import GHC.Utils.Misc
 import GHC.Utils.Panic
 
 {-
@@ -226,7 +226,7 @@ deListComp [] _ = panic "deListComp"
 
 deListComp (LastStmt _ body _ _ : quals) list
   =     -- Figure 7.4, SLPJ, p 135, rule C above
-    ASSERT( null quals )
+    assert (null quals) $
     do { core_body <- dsLExpr body
        ; return (mkConsExpr (exprType core_body) core_body list) }
 
@@ -333,7 +333,7 @@ dfListComp :: Id -> Id            -- 'c' and 'n'
 dfListComp _ _ [] = panic "dfListComp"
 
 dfListComp c_id n_id (LastStmt _ body _ _ : quals)
-  = ASSERT( null quals )
+  = assert (null quals) $
     do { core_body <- dsLExprNoLP body
        ; return (mkApps (Var c_id) [core_body, Var n_id]) }
 
@@ -489,7 +489,7 @@ dsMcStmts ((L loc stmt) : lstmts) = putSrcSpanDs loc (dsMcStmt stmt lstmts)
 dsMcStmt :: ExprStmt GhcTc -> [ExprLStmt GhcTc] -> DsM CoreExpr
 
 dsMcStmt (LastStmt _ body _ ret_op) stmts
-  = ASSERT( null stmts )
+  = assert (null stmts) $
     do { body' <- dsLExpr body
        ; dsSyntaxExpr ret_op [body'] }
 

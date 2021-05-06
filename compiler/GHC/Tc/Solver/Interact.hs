@@ -38,6 +38,7 @@ import GHC.Core.Unify ( tcUnifyTyWithTFs, ruleMatchTyKiX )
 import GHC.Tc.Types.Evidence
 import GHC.Utils.Outputable
 import GHC.Utils.Panic
+import GHC.Utils.Panic.Plain
 
 import GHC.Tc.Types
 import GHC.Tc.Types.Constraint
@@ -1080,7 +1081,7 @@ shortCutSolver dflags ev_w ev_i
  && gopt Opt_SolveConstantDicts dflags
  -- Enabled by the -fsolve-constant-dicts flag
   = do { ev_binds_var <- getTcEvBindsVar
-       ; ev_binds <- ASSERT2( not (isCoEvBindsVar ev_binds_var ), ppr ev_w )
+       ; ev_binds <- assertPpr (not (isCoEvBindsVar ev_binds_var )) (ppr ev_w) $
                      getTcEvBindsMap ev_binds_var
        ; solved_dicts <- getSolvedDicts
 
@@ -1333,7 +1334,7 @@ upgradeWanted :: Ct -> Ct
 -- so upgrade the [W] to [WD] before putting it in the inert set
 upgradeWanted ct = ct { cc_ev = upgrade_ev (cc_ev ct) }
   where
-    upgrade_ev ev = ASSERT2( isWanted ev, ppr ct )
+    upgrade_ev ev = assertPpr (isWanted ev) (ppr ct)
                     ev { ctev_nosh = WDeriv }
 
 improveLocalFunEqs :: CtEvidence -> InertCans -> TyCon -> [TcType] -> TcTyVar
@@ -1982,8 +1983,8 @@ reduce_top_fun_eq old_ev fsk (ax_co, rhs_ty)
        ; stopWith old_ev "Fun/Top (shortcut)" }
 
   | otherwise
-  = ASSERT2( not (fsk `elemVarSet` tyCoVarsOfType rhs_ty)
-           , ppr old_ev $$ ppr rhs_ty )
+  = assertPpr (not (fsk `elemVarSet` tyCoVarsOfType rhs_ty))
+           (ppr old_ev $$ ppr rhs_ty)
            -- Guaranteed by Note [FunEq occurs-check principle]
     do { (rhs_xi, flatten_co) <- flatten FM_FlattenAll old_ev rhs_ty
              -- flatten_co :: rhs_xi ~ rhs_ty
@@ -2094,7 +2095,7 @@ shortCutReduction :: CtEvidence -> TcTyVar -> TcCoercion
 -- And, if we did, this function would have all the complication of
 -- GHC.Tc.Solver.Canonical.canCFunEqCan. See Note [canCFunEqCan]
 shortCutReduction old_ev fsk ax_co fam_tc tc_args
-  = ASSERT( ctEvEqRel old_ev == NomEq)
+  = assert (ctEvEqRel old_ev == NomEq)
                -- ax_co :: F args ~ G tc_args
                -- old_ev :: F args ~ fsk
     do { new_ev <- case ctEvFlavour old_ev of
@@ -2689,8 +2690,8 @@ matchLocalInst pred loc
       = (match:matches, unif)
 
       | otherwise
-      = ASSERT2( disjointVarSet qtv_set (tyCoVarsOfType pred)
-               , ppr qci $$ ppr pred )
+      = assertPpr (disjointVarSet qtv_set (tyCoVarsOfType pred))
+                  (ppr qci $$ ppr pred)
             -- ASSERT: unification relies on the
             -- quantified variables being fresh
         (matches, unif || this_unif)

@@ -13,12 +13,14 @@ import GHC.Prelude
 import GHC.Driver.Session
 import GHC.Driver.Ppr
 
+import GHC.Platform
+import GHC.Platform.Regs ( activeStgRegs )
+
 import GHC.Llvm
 import GHC.CmmToLlvm.Base
 import GHC.CmmToLlvm.Regs
 
 import GHC.Cmm.BlockId
-import GHC.Platform.Regs ( activeStgRegs )
 import GHC.Cmm.CLabel
 import GHC.Cmm
 import GHC.Cmm.Ppr as PprCmm
@@ -29,15 +31,15 @@ import GHC.Cmm.Dataflow.Graph
 import GHC.Cmm.Dataflow.Collections
 
 import GHC.Data.FastString
-import GHC.Types.ForeignCall
-import GHC.Utils.Outputable
-import GHC.Utils.Panic (assertPanic)
-import qualified GHC.Utils.Panic as Panic
-import GHC.Platform
 import GHC.Data.OrdList
+
+import GHC.Types.ForeignCall
 import GHC.Types.Unique.Supply
 import GHC.Types.Unique
-import GHC.Utils.Misc
+
+import GHC.Utils.Outputable hiding (panic, pprPanic)
+import GHC.Utils.Panic.Plain (massert)
+import qualified GHC.Utils.Panic as Panic
 
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.Writer
@@ -547,7 +549,7 @@ genCallWithOverflow t@(PrimTarget op) w [dstV, dstO] [lhs, rhs] = do
                             , MO_AddWordC w
                             , MO_SubWordC w
                             ]
-    MASSERT(valid)
+    massert valid
     let width = widthToLlvmInt w
     -- This will do most of the work of generating the call to the intrinsic and
     -- extracting the values from the struct.

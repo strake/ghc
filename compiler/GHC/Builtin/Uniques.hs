@@ -37,8 +37,8 @@ import GHC.Types.Unique
 import GHC.Types.Name
 
 import GHC.Utils.Outputable
-import GHC.Utils.Misc
 import GHC.Utils.Panic
+import GHC.Utils.Panic.Plain
 
 import Data.Bits
 import Data.Maybe
@@ -83,8 +83,8 @@ knownUniqueName u =
 
 mkSumTyConUnique :: Arity -> Unique
 mkSumTyConUnique arity =
-    ASSERT(arity < 0x3f) -- 0x3f since we only have 6 bits to encode the
-                         -- alternative
+    assert (arity < 0x3f) $ -- 0x3f since we only have 6 bits to encode the
+                            -- alternative
     mkUnique 'z' (arity `shiftL` 8 .|. 0xfc)
 
 mkSumDataConUnique :: ConTagZ -> Arity -> Unique

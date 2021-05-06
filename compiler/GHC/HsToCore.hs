@@ -66,6 +66,8 @@ import GHC.Utils.Outputable
 import GHC.Utils.Panic
 import GHC.Utils.Misc
 import GHC.Utils.Monad
+import GHC.Utils.Panic
+import GHC.Utils.Panic.Plain
 
 import GHC.Types.Id
 import GHC.Types.Id.Info
@@ -208,7 +210,7 @@ deSugar hsc_env
         -- never desugared and compiled (there's no code!)
         -- Consequently, this should hold for any ModGuts that make
         -- past desugaring. See Note [Identity versus semantic module].
-        ; MASSERT( id_mod == mod )
+        ; massert (id_mod == mod)
 
         ; foreign_files <- readIORef th_foreign_files_var
 
@@ -684,8 +686,8 @@ patchMagicDefn orig_pair@(orig_id, orig_rhs)
   = do { magic_pair@(magic_id, _) <- mk_magic_pair orig_id orig_rhs
 
        -- Patching should not change the Name or the type of the Id
-       ; MASSERT( getUnique magic_id == getUnique orig_id )
-       ; MASSERT( varType magic_id `eqType` varType orig_id )
+       ; massert (getUnique magic_id == getUnique orig_id)
+       ; massert (varType magic_id `eqType` varType orig_id)
 
        ; return magic_pair }
   | otherwise

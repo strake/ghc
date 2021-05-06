@@ -215,6 +215,7 @@ import GHC.Types.Id.Make (voidPrimId, voidArgId)
 import GHC.Utils.Monad (mapAccumLM)
 import GHC.Utils.Outputable
 import GHC.Utils.Panic
+import GHC.Utils.Panic.Plain
 import GHC.Types.RepType
 import GHC.Stg.Syntax
 import GHC.Core.Type
@@ -265,10 +266,10 @@ instance Outputable UnariseVal where
 -- | Extend the environment, checking the UnariseEnv invariant.
 extendRho :: UnariseEnv -> Id -> UnariseVal -> UnariseEnv
 extendRho rho x (MultiVal args)
-  = ASSERT(all (isNvUnaryType . stgArgType) args)
+  = assert (all (isNvUnaryType . stgArgType) args)
     extendVarEnv rho x (MultiVal args)
 extendRho rho x (UnaryVal val)
-  = ASSERT(isNvUnaryType (stgArgType val))
+  = assert (isNvUnaryType (stgArgType val))
     extendVarEnv rho x (UnaryVal val)
 
 --------------------------------------------------------------------------------
@@ -294,7 +295,7 @@ unariseRhs rho (StgRhsClosure ext ccs update_flag args expr)
        return (StgRhsClosure ext ccs update_flag args1 expr')
 
 unariseRhs rho (StgRhsCon ccs con args)
-  = ASSERT(not (isUnboxedTupleCon con || isUnboxedSumCon con))
+  = assert (not (isUnboxedTupleCon con || isUnboxedSumCon con))
     return (StgRhsCon ccs con (unariseConArgs rho args))
 
 --------------------------------------------------------------------------------
@@ -376,7 +377,7 @@ unariseMulti_maybe rho dc args ty_args
   = Just (unariseConArgs rho args)
 
   | isUnboxedSumCon dc
-  , let args1 = ASSERT(isSingleton args) (unariseConArgs rho args)
+  , let args1 = assert (isSingleton args) (unariseConArgs rho args)
   = Just (mkUbxSum dc ty_args args1)
 
   | otherwise
@@ -394,7 +395,7 @@ elimCase rho args bndr (MultiValAlt _) [(_, bndrs, rhs)]
              | isUnboxedTupleBndr bndr
              = mapTupleIdBinders bndrs args rho1
              | otherwise
-             = ASSERT(isUnboxedSumBndr bndr)
+             = assert (isUnboxedSumBndr bndr) $
                if null bndrs then rho1
                              else mapSumIdBinders bndrs args rho1
 
@@ -429,7 +430,7 @@ unariseAlts rho (MultiValAlt n) bndr [(DEFAULT, [], e)]
 unariseAlts rho (MultiValAlt n) bndr [(DataAlt _, ys, e)]
   | isUnboxedTupleBndr bndr
   = do (rho', ys1) <- unariseConArgBinders rho ys
-       MASSERT(ys1 `lengthIs` n)
+       massert (ys1 `lengthIs` n)
        let rho'' = extendRho rho' bndr (MultiVal (map StgVarArg ys1))
        e' <- unariseExpr rho'' e
        return [(DataAlt (tupleDataCon Unboxed n), ys1, e')]
@@ -499,7 +500,7 @@ mapTupleIdBinders
   -> UnariseEnv
   -> UnariseEnv
 mapTupleIdBinders ids args0 rho0
-  = ASSERT(not (any (isVoidTy . stgArgType) args0))
+  = assert (not (any (isVoidTy . stgArgType) args0)) $
     let
       ids_unarised :: [(Id, [PrimRep])]
       ids_unarised = map (\id -> (id, typePrimRep (idType id))) ids
@@ -510,12 +511,12 @@ mapTupleIdBinders ids args0 rho0
         let
           x_arity = length x_reps
           (x_args, args') =
-            ASSERT(args `lengthAtLeast` x_arity)
+            assert (args `lengthAtLeast` x_arity)
             splitAt x_arity args
 
           rho'
             | x_arity == 1
-            = ASSERT(x_args `lengthIs` 1)
+            = assert (x_args `lengthIs` 1)
               extendRho rho x (UnaryVal (head x_args))
             | otherwise
             = extendRho rho x (MultiVal x_args)
@@ -533,7 +534,7 @@ mapSumIdBinders
   -> UnariseEnv
 
 mapSumIdBinders [id] args rho0
-  = ASSERT(not (any (isVoidTy . stgArgType) args))
+  = assert (not (any (isVoidTy . stgArgType) args)) $
     let
       arg_slots = map primRepSlot $ concatMap (typePrimRep . stgArgType) args
       id_slots  = map primRepSlot $ typePrimRep (idType id)
@@ -541,7 +542,7 @@ mapSumIdBinders [id] args rho0
     in
       if isMultiValBndr id
         then extendRho rho0 id (MultiVal [ args !! i | i <- layout1 ])
-        else ASSERT(layout1 `lengthIs` 1)
+        else assert (layout1 `lengthIs` 1)
              extendRho rho0 id (UnaryVal (args !! head layout1))
 
 mapSumIdBinders ids sum_args _
@@ -723,7 +724,7 @@ unariseConArg rho (StgVarArg x) =
                                   -- is a void, and so should be eliminated
       | otherwise -> [StgVarArg x]
 unariseConArg _ arg@(StgLitArg lit) =
-    ASSERT(not (isVoidTy (literalType lit)))  -- We have no void literals
+    assert (not (isVoidTy (literalType lit)))  -- We have no void literals
     [arg]
 
 unariseConArgs :: UnariseEnv -> [InStgArg] -> [OutStgArg]

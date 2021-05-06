@@ -253,7 +253,7 @@ rnAvailInfo (AvailTC n ns fs) = do
     fs' <- mapM rnFieldLabel fs
     case ns' ++ map flSelector fs' of
         [] -> panic "rnAvailInfoEmpty AvailInfo"
-        (rep:rest) -> ASSERT2( all ((== nameModule rep) . nameModule) rest, ppr rep $$ hcat (map ppr rest) ) do
+        (rep:rest) -> assertPpr (all ((== nameModule rep) . nameModule) rest) (ppr rep $$ hcat (map ppr rest)) $ do
                          n' <- setNameModule (Just (nameModule rep)) n
                          return (AvailTC n' ns' fs')
 
@@ -371,7 +371,7 @@ rnIfaceNeverExported name = do
     iface_semantic_mod <- fmap sh_if_semantic_module getGblEnv
     let m = renameHoleModule (pkgState dflags) hmap $ nameModule name
     -- Doublecheck that this DFun/coercion axiom was, indeed, locally defined.
-    MASSERT2( iface_semantic_mod == m, ppr iface_semantic_mod <+> ppr m )
+    massertPpr (iface_semantic_mod == m) (ppr iface_semantic_mod <+> ppr m)
     setNameModule (Just m) name
 
 -- Note [rnIfaceNeverExported]

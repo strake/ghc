@@ -82,7 +82,6 @@ module GHC.Utils.Outputable (
         withUserStyle, withErrStyle,
 
         ifPprDebug, whenPprDebug, getPprDebug,
-
     ) where
 
 import GHC.Prelude
@@ -98,6 +97,9 @@ import qualified GHC.Utils.Ppr.Colour as Col
 import GHC.Utils.Ppr       ( Doc, Mode(..) )
 import GHC.Serialized
 import GHC.LanguageExtensions (Extension)
+import GHC.Fingerprint
+import GHC.Show         ( showMultiLineString )
+import GHC.Utils.Exception
 
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
@@ -117,10 +119,6 @@ import Data.Graph (SCC(..))
 import Data.List (intersperse)
 import Data.List.NonEmpty (NonEmpty (..))
 import qualified Data.List.NonEmpty as NEL
-
-import GHC.Fingerprint
-import GHC.Show         ( showMultiLineString )
-import GHC.Utils.Exception
 
 {-
 ************************************************************************

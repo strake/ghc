@@ -25,6 +25,7 @@ import GHC.Unit.Module.ModDetails
 import GHC.Utils.Misc
 import GHC.Utils.Outputable
 import GHC.Utils.Panic
+import GHC.Utils.Panic.Plain
 
 #include "HsVersions.h"
 
@@ -161,4 +162,4 @@ updateGlobalIds env e = go env e
 -- In `updateGlobaLIds` Names of local binders should not shadow Name of
 -- globals. This assertion is to check that.
 assertNotInNameEnv :: NameEnv a -> [Id] -> b -> b
-assertNotInNameEnv env ids x = ASSERT(not (any (\id -> elemNameEnv (idName id) env) ids)) x
+assertNotInNameEnv env ids x = assert (not (any (\id -> elemNameEnv (idName id) env) ids)) x

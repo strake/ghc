@@ -36,6 +36,7 @@ import GHC.Types.Var.Env( mkInScopeSet )
 import GHC.Types.Var.Set( delVarSetList )
 import GHC.Utils.Outputable
 import GHC.Utils.Panic
+import GHC.Utils.Panic.Plain
 import GHC.Driver.Session( DynFlags )
 import GHC.Types.Name.Set
 import GHC.Types.Name.Reader
@@ -204,9 +205,9 @@ canClass :: CtEvidence
 
 canClass ev cls tys pend_sc
   =   -- all classes do *nominal* matching
-    ASSERT2( ctEvRole ev == Nominal, ppr ev $$ ppr cls $$ ppr tys )
+    assertPpr (ctEvRole ev == Nominal) (ppr ev $$ ppr cls $$ ppr tys) $
     do { (xis, cos, _kind_co) <- flattenArgsNom ev cls_tc tys
-       ; MASSERT( isTcReflCo _kind_co )
+       ; massert (isTcReflCo _kind_co)
        ; let co = mkTcTyConAppCo Nominal cls_tc cos
              xi = mkClassPred cls xis
              mk_ct new_ev = CDictCan { cc_ev = new_ev
@@ -499,8 +500,8 @@ makeSuperClasses cts = concatMapM go cts
     go (CDictCan { cc_ev = ev, cc_class = cls, cc_tyargs = tys })
       = mkStrictSuperClasses ev [] [] cls tys
     go (CQuantCan (QCI { qci_pred = pred, qci_ev = ev }))
-      = ASSERT2( isClassPred pred, ppr pred )  -- The cts should all have
-                                               -- class pred heads
+      = assertPpr (isClassPred pred) (ppr pred) $  -- The cts should all have
+                                                   -- class pred heads
         mkStrictSuperClasses ev tvs theta cls tys
       where
         (tvs, theta, cls, tys) = tcSplitDFunTy (ctEvPred ev)
@@ -592,7 +593,7 @@ mk_strict_superclasses rec_clss ev tvs theta cls tys
 
   | otherwise -- Wanted/Derived case, just add Derived superclasses
               -- that can lead to improvement.
-  = ASSERT2( null tvs && null theta, ppr tvs $$ ppr theta )
+  = assertPpr (null tvs && null theta) (ppr tvs $$ ppr theta) $
     concatMapM do_one_derived (immSuperClasses cls tys)
   where
     loc = ctEvLoc ev
@@ -1102,7 +1103,7 @@ can_eq_nc_forall ev eq_rel s1 s2
 
             -- Done: unify phi1 ~ phi2
             go [] subst bndrs2
-              = ASSERT( null bndrs2 )
+              = assert (null bndrs2 )
                 unify loc (eqRelRole eq_rel) phi1' (substTyUnchecked subst phi2)
 
             go _ _ _ = panic "cna_eq_nc_forall"  -- case (s:ss) []
@@ -1677,7 +1678,7 @@ canDecomposableTyConAppOK :: CtEvidence -> EqRel
                           -> TcS ()
 -- Precondition: tys1 and tys2 are the same length, hence "OK"
 canDecomposableTyConAppOK ev eq_rel tc tys1 tys2
-  = ASSERT( tys1 `equalLength` tys2 )
+  = assert (tys1 `equalLength` tys2) $
     case ev of
      CtDerived {}
         -> unifyDeriveds loc tc_roles tys1 tys2
@@ -2342,7 +2343,7 @@ rewriteEvidence ev@(CtWanted { ctev_dest = dest
                -- The "_SI" variant ensures that we make a new Wanted
                -- with the same shadow-info as the existing one
                -- with the same shadow-info as the existing one (#16735)
-       ; MASSERT( tcCoercionRole co == ctEvRole ev )
+       ; massert (tcCoercionRole co == ctEvRole ev)
        ; setWantedEvTerm dest
             (mkEvCast (getEvExpr mb_new_ev)
                       (tcDowngradeRole Representational (ctEvRole ev) co))

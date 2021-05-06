@@ -74,8 +74,7 @@ import GHC.Utils.Binary
 import GHC.Utils.Binary.Typeable ()
 import GHC.Utils.Outputable as Outputable
 import GHC.Utils.Panic
-import GHC.Utils.Misc( dropList, filterByList, notNull, unzipWith, debugIsOn,
-                       seqList )
+import GHC.Utils.Misc( dropList, filterByList, notNull, unzipWith, seqList )
 
 import Control.Monad
 import System.IO.Unsafe
@@ -656,7 +655,7 @@ pprAxBranch pp_tc idx (IfaceAxBranch { ifaxbTyVars = tvs
                                      , ifaxbLHS = pat_tys
                                      , ifaxbRHS = rhs
                                      , ifaxbIncomps = incomps })
-  = ASSERT2( null _cvs, pp_tc $$ ppr _cvs )
+  = assertPpr (null _cvs) (pp_tc $$ ppr _cvs) $
     hang ppr_binders 2 (hang pp_lhs 2 (equals <+> ppr rhs))
     $+$
     nest 4 maybe_incomps

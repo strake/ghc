@@ -146,6 +146,7 @@ import GHC.Builtin.Types.Prim
 import GHC.Data.List.SetOps
 import GHC.Data.Maybe
 import GHC.Types.Unique.FM
+import GHC.Utils.Panic.Plain
 
 import GHC.Utils.Misc
 import GHC.Utils.Outputable
@@ -327,7 +328,7 @@ decomposeFunCo :: HasDebugCallStack
 -- Expects co :: (s1 -> t1) ~ (s2 -> t2)
 -- Returns (co1 :: s1~s2, co2 :: t1~t2)
 -- See Note [Function coercions] for the "2" and "3"
-decomposeFunCo r co = ASSERT2( all_ok, ppr co )
+decomposeFunCo r co = assertPpr all_ok (ppr co)
                       (mkNthCo r 2 co, mkNthCo r 3 co)
   where
     Pair s1t1 s2t2 = coercionKind co
@@ -501,7 +502,7 @@ coVarKindsTypesRole cv
 
 coVarKind :: CoVar -> Type
 coVarKind cv
-  = ASSERT( isCoVar cv )
+  = assert (isCoVar cv )
     varType cv
 
 coVarRole :: CoVar -> Role
@@ -794,8 +795,8 @@ once ~# is made to be homogeneous.
 -- See Note [Unused coercion variable in ForAllCo]
 mkForAllCo :: TyCoVar -> CoercionN -> Coercion -> Coercion
 mkForAllCo v kind_co co
-  | ASSERT( varType v `eqType` (pFst $ coercionKind kind_co)) True
-  , ASSERT( isTyVar v || almostDevoidCoVarOfCo v co) True
+  | assert (varType v `eqType` (pFst $ coercionKind kind_co)) True
+  , assert (isTyVar v || almostDevoidCoVarOfCo v co) True
   , Just (ty, r) <- isReflCo_maybe co
   , isGReflCo kind_co
   = mkReflCo r (mkTyCoInvForAllTy v ty)
@@ -807,9 +808,9 @@ mkForAllCo v kind_co co
 -- The kind of the tycovar should be the left-hand kind of the kind coercion.
 mkForAllCo_NoRefl :: TyCoVar -> CoercionN -> Coercion -> Coercion
 mkForAllCo_NoRefl v kind_co co
-  | ASSERT( varType v `eqType` (pFst $ coercionKind kind_co)) True
-  , ASSERT( isTyVar v || almostDevoidCoVarOfCo v co) True
-  , ASSERT( not (isReflCo co)) True
+  | assert (varType v `eqType` (pFst $ coercionKind kind_co)) True
+  , assert (isTyVar v || almostDevoidCoVarOfCo v co) True
+  , assert (not (isReflCo co)) True
   , isCoVar v
   , not (v `elemVarSet` tyCoVarsOfCo co)
   = FunCo (coercionRole co) kind_co co
@@ -840,7 +841,7 @@ mkHomoForAllCos vs co
 -- reflexive coercion. For example, it is guaranteed in 'mkHomoForAllCos'.
 mkHomoForAllCos_NoRefl :: [TyCoVar] -> Coercion -> Coercion
 mkHomoForAllCos_NoRefl vs orig_co
-  = ASSERT( not (isReflCo orig_co))
+  = assert (not (isReflCo orig_co))
     foldr go orig_co vs
   where
     go v co = mkForAllCo_NoRefl v (mkNomReflCo (varType v)) co
@@ -875,7 +876,7 @@ mkAxInstCo :: Role -> CoAxiom br -> BranchIndex -> [Type] -> [Coercion]
 mkAxInstCo role ax index tys cos
   | arity == n_tys = downgradeRole role ax_role $
                      mkAxiomInstCo ax_br index (rtys `chkAppend` cos)
-  | otherwise      = ASSERT( arity < n_tys )
+  | otherwise      = assert (arity < n_tys) $
                      downgradeRole role ax_role $
                      mkAppCos (mkAxiomInstCo ax_br index
                                              (ax_args `chkAppend` cos))
@@ -895,7 +896,7 @@ mkAxInstCo role ax index tys cos
 -- worker function
 mkAxiomInstCo :: CoAxiom Branched -> BranchIndex -> [Coercion] -> Coercion
 mkAxiomInstCo ax index args
-  = ASSERT( args `lengthIs` coAxiomArity ax index )
+  = assert (args `lengthIs` coAxiomArity ax index) $
     AxiomInstCo ax index args
 
 -- to be used only with unbranched axioms
@@ -910,7 +911,7 @@ mkAxInstRHS :: CoAxiom br -> BranchIndex -> [Type] -> [Coercion] -> Type
 -- A companion to mkAxInstCo:
 --    mkAxInstRhs ax index tys = snd (coercionKind (mkAxInstCo ax index tys))
 mkAxInstRHS ax index tys cos
-  = ASSERT( tvs `equalLength` tys1 )
+  = assert (tvs `equalLength` tys1) $
     mkAppTys rhs' tys2
   where
     branch       = coAxiomNthBranch ax index
@@ -928,7 +929,7 @@ mkUnbranchedAxInstRHS ax = mkAxInstRHS ax 0
 -- at the types given.
 mkAxInstLHS :: CoAxiom br -> BranchIndex -> [Type] -> [Coercion] -> Type
 mkAxInstLHS ax index tys cos
-  = ASSERT( tvs `equalLength` tys1 )
+  = assert (tvs `equalLength` tys1) $
     mkTyConApp fam_tc (lhs_tys `chkAppend` tys2)
   where
     branch       = coAxiomNthBranch ax index
@@ -991,7 +992,7 @@ mkNthCo :: HasDebugCallStack
         -> Coercion
         -> Coercion
 mkNthCo r n co
-  = ASSERT2( good_call, bad_call_msg )
+  = assertPpr good_call bad_call_msg $
     go r n co
   where
     Pair ty1 ty2 = coercionKind co
@@ -1000,14 +1001,14 @@ mkNthCo r n co
       | Just (ty, _) <- isReflCo_maybe co
       , Just (tv, _) <- splitForAllTy_maybe ty
       = -- works for both tyvar and covar
-        ASSERT( r == Nominal )
+        assert (r == Nominal) $
         mkNomReflCo (varType tv)
 
     go r n co
       | Just (ty, r0) <- isReflCo_maybe co
       , let tc = tyConAppTyCon ty
-      = ASSERT2( ok_tc_app ty n, ppr n $$ ppr ty )
-        ASSERT( nthRole r0 tc n == r )
+      = assertPpr (ok_tc_app ty n) (ppr n $$ ppr ty) $
+        assert (nthRole r0 tc n == r) $
         mkReflCo r (tyConAppArgN n ty)
       where ok_tc_app :: Type -> Int -> Bool
             ok_tc_app ty n
@@ -1019,7 +1020,7 @@ mkNthCo r n co
               = False
 
     go r 0 (ForAllCo _ kind_co _)
-      = ASSERT( r == Nominal )
+      = assert (r == Nominal)
         kind_co
       -- If co :: (forall a1:k1. t1) ~ (forall a2:k2. t2)
       -- then (nth 0 co :: k1 ~N k2)
@@ -1037,18 +1038,18 @@ mkNthCo r n co
       --    resk_co :: sk2 ~ tk2  =  mkNthCo 0 (mkKindCo res_co)
       --                             i.e. mkRuntimeRepCo
       = case n of
-          0 -> ASSERT( r == Nominal ) mkRuntimeRepCo arg
-          1 -> ASSERT( r == Nominal ) mkRuntimeRepCo res
-          2 -> ASSERT( r == r0 )      arg
-          3 -> ASSERT( r == r0 )      res
+          0 -> assert (r == Nominal) $ mkRuntimeRepCo arg
+          1 -> assert (r == Nominal) $ mkRuntimeRepCo res
+          2 -> assert (r == r0) arg
+          3 -> assert (r == r0) res
           _ -> pprPanic "mkNthCo(FunCo)" (ppr n $$ ppr co)
 
-    go r n (TyConAppCo r0 tc arg_cos) = ASSERT2( r == nthRole r0 tc n
-                                                    , (vcat [ ppr tc
-                                                            , ppr arg_cos
-                                                            , ppr r0
-                                                            , ppr n
-                                                            , ppr r ]) )
+    go r n (TyConAppCo r0 tc arg_cos) = assertPpr (r == nthRole r0 tc n)
+                                                  (vcat [ ppr tc
+                                                        , ppr arg_cos
+                                                        , ppr r0
+                                                        , ppr n
+                                                        , ppr r ]) $
                                              arg_cos `getNth` n
 
     go r n co =
@@ -1192,7 +1193,7 @@ mkSubCo (FunCo Nominal arg res)
   = FunCo Representational
           (downgradeRole Representational Nominal arg)
           (downgradeRole Representational Nominal res)
-mkSubCo co = ASSERT2( coercionRole co == Nominal, ppr co <+> ppr (coercionRole co) )
+mkSubCo co = assertPpr (coercionRole co == Nominal) (ppr co <+> ppr (coercionRole co)) $
              SubCo co
 
 -- | Changes a role, but only a downgrade. See Note [Role twiddling functions]
@@ -1345,13 +1346,13 @@ promoteCoercion co = case co of
     _ | ki1 `eqType` ki2
       -> mkNomReflCo (typeKind ty1)
      -- no later branch should return refl
-     --    The ASSERT( False )s throughout
+     --    The assert (False )s throughout
      -- are these cases explicitly, but they should never fire.
 
-    Refl _ -> ASSERT( False )
+    Refl _ -> assert False $
               mkNomReflCo ki1
 
-    GRefl _ _ MRefl -> ASSERT( False )
+    GRefl _ _ MRefl -> assert False $
                        mkNomReflCo ki1
 
     GRefl _ _ (MCo co) -> co
@@ -1374,12 +1375,12 @@ promoteCoercion co = case co of
       -> promoteCoercion g
 
     ForAllCo _ _ _
-      -> ASSERT( False )
+      -> assert False $
          mkNomReflCo liftedTypeKind
       -- See Note [Weird typing rule for ForAllTy] in GHC.Core.TyCo.Rep
 
     FunCo _ _ _
-      -> ASSERT( False )
+      -> assert False $
          mkNomReflCo liftedTypeKind
 
     CoVarCo {}     -> mkKindCo co
@@ -1404,7 +1405,7 @@ promoteCoercion co = case co of
 
       | Just _ <- splitForAllCo_maybe co
       , n == 0
-      -> ASSERT( False ) mkNomReflCo liftedTypeKind
+      -> assert False $ mkNomReflCo liftedTypeKind
 
       | otherwise
       -> mkKindCo co
@@ -1420,15 +1421,15 @@ promoteCoercion co = case co of
 
     InstCo g _
       | isForAllTy_ty ty1
-      -> ASSERT( isForAllTy_ty ty2 )
+      -> assert (isForAllTy_ty ty2) $
          promoteCoercion g
       | otherwise
-      -> ASSERT( False)
+      -> assert False $
          mkNomReflCo liftedTypeKind
            -- See Note [Weird typing rule for ForAllTy] in GHC.Core.TyCo.Rep
 
     KindCo _
-      -> ASSERT( False )
+      -> assert False $
          mkNomReflCo liftedTypeKind
 
     SubCo g
@@ -1504,7 +1505,7 @@ mkPiCos r vs co = foldr (mkPiCo r) co vs
 -- are quantified over the same variable.
 mkPiCo  :: Role -> Var -> Coercion -> Coercion
 mkPiCo r v co | isTyVar v = mkHomoForAllCos [v] co
-              | isCoVar v = ASSERT( not (v `elemVarSet` tyCoVarsOfCo co) )
+              | isCoVar v = assert (not (v `elemVarSet` tyCoVarsOfCo co)) $
                   -- We didn't call mkForAllCo here because if v does not appear
                   -- in co, the argement coercion will be nominal. But here we
                   -- want it to be r. It is only called in 'mkPiCos', which is
@@ -1846,7 +1847,7 @@ extendLiftingContextEx lc@(LC subst env) ((v,ty):rest)
     -- lift_s1 :: s1 ~r s1'
     -- lift_s2 :: s2 ~r s2'
     -- kco     :: (s1 ~r s2) ~N (s1' ~r s2')
-    ASSERT( isCoVar v )
+    assert (isCoVar v) $
     let (_, _, s1, s2, r) = coVarKindsTypesRole v
         lift_s1 = ty_co_subst lc r s1
         lift_s2 = ty_co_subst lc r s2
@@ -1905,7 +1906,7 @@ ty_co_subst lc role ty
            -- fall into it.
          then mkForAllCo v' h body_co
          else pprPanic "ty_co_subst: covar is not almost devoid" (ppr t)
-    go r ty@(LitTy {})     = ASSERT( r == Nominal )
+    go r ty@(LitTy {})     = assert (r == Nominal) $
                              mkNomReflCo ty
     go r (CastTy ty co)    = castCoercionKindI (go r ty) (substLeftCo lc co)
                                                          (substRightCo lc co)
@@ -2000,7 +2001,7 @@ liftCoSubstTyVarBndrUsing :: (LiftingContext -> Type -> (CoercionN, a))
                            -> LiftingContext -> TyVar
                            -> (LiftingContext, TyVar, CoercionN, a)
 liftCoSubstTyVarBndrUsing fun lc@(LC subst cenv) old_var
-  = ASSERT( isTyVar old_var )
+  = assert (isTyVar old_var) $
     ( LC (subst `extendTCvInScope` new_var) new_cenv
     , new_var, eta, stuff )
   where
@@ -2018,7 +2019,7 @@ liftCoSubstCoVarBndrUsing :: (LiftingContext -> Type -> (CoercionN, a))
                            -> LiftingContext -> CoVar
                            -> (LiftingContext, CoVar, CoercionN, a)
 liftCoSubstCoVarBndrUsing fun lc@(LC subst cenv) old_var
-  = ASSERT( isCoVar old_var )
+  = assert (isCoVar old_var) $
     ( LC (subst `extendTCvInScope` new_var) new_cenv
     , new_var, kind_co, stuff )
   where
@@ -2212,7 +2213,7 @@ coercionLKind co
                    , cab_lhs = lhs } <- coAxiomNthBranch ax ind
       , let (tys1, cotys1) = splitAtList tvs tys
             cos1           = map stripCoercionTy cotys1
-      = ASSERT( tys `equalLength` (tvs ++ cvs) )
+      = assert (tys `equalLength` (tvs ++ cvs)) $
                   -- Invariant of AxiomInstCo: cos should
                   -- exactly saturate the axiom branch
         substTyWith tvs tys1       $
@@ -2228,7 +2229,7 @@ coercionLKind co
 go_nth :: Int -> Type -> Type
 go_nth d ty
   | Just args <- tyConAppArgs_maybe ty
-  = ASSERT( args `lengthExceeds` d )
+  = assert (args `lengthExceeds` d) $
     args `getNth` d
 
   | d == 0
@@ -2274,7 +2275,7 @@ coercionRKind co
                    , cab_rhs = rhs } <- coAxiomNthBranch ax ind
       , let (tys2, cotys2) = splitAtList tvs tys
             cos2           = map stripCoercionTy cotys2
-      = ASSERT( tys `equalLength` (tvs ++ cvs) )
+      = assert (tys `equalLength` (tvs ++ cvs)) $
                   -- Invariant of AxiomInstCo: cos should
                   -- exactly saturate the axiom branch
         substTyWith tvs tys2 $
@@ -2453,9 +2454,9 @@ buildCoercion orig_ty1 orig_ty2 = go orig_ty1 orig_ty2
         in  mkCoherenceRightCo r ty2 co co'
 
     go ty1@(TyVarTy tv1) _tyvarty
-      = ASSERT( case _tyvarty of
+      = assert (case _tyvarty of
                   { TyVarTy tv2 -> tv1 == tv2
-                  ; _           -> False      } )
+                  ; _           -> False      }) $
         mkNomReflCo ty1
 
     go (FunTy { ft_arg = arg1, ft_res = res1 })
@@ -2463,7 +2464,7 @@ buildCoercion orig_ty1 orig_ty2 = go orig_ty1 orig_ty2
       = mkFunCo Nominal (go arg1 arg2) (go res1 res2)
 
     go (TyConApp tc1 args1) (TyConApp tc2 args2)
-      = ASSERT( tc1 == tc2 )
+      = assert (tc1 == tc2) $
         mkTyConAppCo Nominal tc1 (zipWith go args1 args2)
 
     go (AppTy ty1a ty1b) ty2
@@ -2476,7 +2477,7 @@ buildCoercion orig_ty1 orig_ty2 = go orig_ty1 orig_ty2
 
     go (ForAllTy (Bndr tv1 _flag1) ty1) (ForAllTy (Bndr tv2 _flag2) ty2)
       | isTyVar tv1
-      = ASSERT( isTyVar tv2 )
+      = assert (isTyVar tv2) $
         mkForAllCo tv1 kind_co (go ty1 ty2')
       where kind_co  = go (tyVarKind tv1) (tyVarKind tv2)
             in_scope = mkInScopeSet $ tyCoVarsOfType ty2 `unionVarSet` tyCoVarsOfCo kind_co
@@ -2485,7 +2486,7 @@ buildCoercion orig_ty1 orig_ty2 = go orig_ty1 orig_ty2
                          ty2
 
     go (ForAllTy (Bndr cv1 _flag1) ty1) (ForAllTy (Bndr cv2 _flag2) ty2)
-      = ASSERT( isCoVar cv1 && isCoVar cv2 )
+      = assert (isCoVar cv1 && isCoVar cv2) $
         mkForAllCo cv1 kind_co (go ty1 ty2')
       where s1 = varType cv1
             s2 = varType cv2
@@ -2510,9 +2511,9 @@ buildCoercion orig_ty1 orig_ty2 = go orig_ty1 orig_ty2
                             ty2
 
     go ty1@(LitTy lit1) _lit2
-      = ASSERT( case _lit2 of
+      = assert (case _lit2 of
                   { LitTy lit2 -> lit1 == lit2
-                  ; _          -> False        } )
+                  ; _          -> False        }) $
         mkNomReflCo ty1
 
     go (CoercionTy co1) (CoercionTy co2)
@@ -2881,8 +2882,8 @@ simplifyArgsWorker orig_ki_binders orig_inner_ki orig_fvs
             co1_kind              = coercionKind co1
             unflattened_tys       = map (coercionRKind . snd) args
             (arg_cos, res_co)     = decomposePiCos co1 co1_kind unflattened_tys
-            casted_args           = ASSERT2( equalLength args arg_cos
-                                           , ppr args $$ ppr arg_cos )
+            casted_args           = assertPpr (equalLength args arg_cos)
+                                              (ppr args $$ ppr arg_cos)
                                     [ (casted_xi, casted_co)
                                     | ((xi, co), arg_co, role) <- zip3 args arg_cos roles
                                     , let casted_xi = xi `mkCastTy` arg_co

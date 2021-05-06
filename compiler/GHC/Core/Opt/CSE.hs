@@ -31,7 +31,7 @@ import GHC.Core
 import GHC.Utils.Outputable
 import GHC.Types.Basic
 import GHC.Core.Map
-import GHC.Utils.Misc   ( filterOut, equalLength, debugIsOn )
+import GHC.Utils.Misc   ( filterOut, equalLength )
 import GHC.Utils.Panic
 import Data.List        ( mapAccumL )
 
@@ -639,7 +639,7 @@ combineAlts env alts
   , (_,bndrs1,rhs1) <- alt1
   , let filtered_alts = filterOut (identical_alt rhs1) rest_alts
   , not (equalLength rest_alts filtered_alts)
-  = ASSERT2( null bndrs1, ppr alts )
+  = assertPpr (null bndrs1) (ppr alts) $
     (DEFAULT, [], rhs1) : filtered_alts
 
   | otherwise

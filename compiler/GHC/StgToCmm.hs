@@ -55,10 +55,9 @@ import GHC.Unit.Module
 
 import GHC.Utils.Error
 import GHC.Utils.Outputable
-import GHC.Utils.Panic
+import GHC.Utils.Panic.Plain
 
 import GHC.SysTools.FileCleanup
-
 import GHC.Data.Stream
 import GHC.Data.OrdList
 
@@ -194,7 +193,7 @@ cgTopRhs dflags _rec bndr (StgRhsCon _cc con args)
       -- see Note [Post-unarisation invariants] in GHC.Stg.Unarise
 
 cgTopRhs dflags rec bndr (StgRhsClosure fvs cc upd_flag args body)
-  = ASSERT(isEmptyDVarSet fvs)    -- There should be no free variables
+  = assert (isEmptyDVarSet fvs)    -- There should be no free variables
     cgTopRhsClosure (targetPlatform dflags) rec bndr cc upd_flag args body
 
 
