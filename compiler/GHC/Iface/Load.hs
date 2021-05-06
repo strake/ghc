@@ -102,10 +102,10 @@ import GHC.Unit.Home.ModInfo
 import GHC.Unit.Finder
 
 import GHC.Data.Maybe
+import GHC.Utils.Exception
 import GHC.Data.FastString
 
 import Control.Monad
-import Control.Exception
 import Data.IORef
 import Data.Map ( toList )
 import System.FilePath

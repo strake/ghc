@@ -63,7 +63,7 @@ import GHC.Data.StringBuffer
 import qualified GHC.LanguageExtensions as LangExt
 import GHC.SysTools.FileCleanup
 
-import GHC.Utils.Exception ( tryIO )
+import GHC.Utils.Exception ( tryIO, AsyncException(..), evaluate )
 import GHC.Utils.Monad     ( allM )
 import GHC.Utils.Outputable
 import GHC.Utils.Panic
@@ -100,7 +100,6 @@ import Control.Concurrent ( forkIOWithUnmask, killThread )
 import qualified GHC.Conc as CC
 import Control.Concurrent.MVar
 import Control.Concurrent.QSem
-import Control.Exception
 import Control.Monad
 import Control.Monad.Trans.Except ( ExceptT(..), runExceptT, throwE )
 import qualified Control.Monad.Catch as MC

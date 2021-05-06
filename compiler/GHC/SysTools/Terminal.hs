@@ -5,13 +5,13 @@ module GHC.SysTools.Terminal (stderrSupportsAnsiColors) where
 import GHC.Prelude
 
 #if defined(MIN_VERSION_terminfo)
-import Control.Exception (catch)
+import GHC.Utils.Exception (catch)
 import Data.Maybe (fromMaybe)
 import System.Console.Terminfo (SetupTermError, Terminal, getCapability,
                                 setupTermFromEnv, termColors)
 import System.Posix (queryTerminal, stdError)
 #elif defined(mingw32_HOST_OS)
-import Control.Exception (catch, try)
+import GHC.Utils.Exception (catch, try)
 import Data.Bits ((.|.), (.&.))
 import Foreign (Ptr, peek, with)
 import qualified Graphics.Win32 as Win32
