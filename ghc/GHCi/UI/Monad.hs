@@ -33,8 +33,6 @@ module GHCi.UI.Monad (
         mkEvalWrapper
     ) where
 
-#include "HsVersions.h"
-
 import GHCi.UI.Info (ModInfo)
 import qualified GHC
 import GHC.Driver.Monad hiding (liftIO)

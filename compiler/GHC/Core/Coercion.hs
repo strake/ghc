@@ -117,8 +117,6 @@ module GHC.Core.Coercion (
         badCoercionHole, badCoercionHoleCo
        ) where
 
-#include "HsVersions.h"
-
 import {-# SOURCE #-} GHC.CoreToIface (toIfaceTyCon, tidyToIfaceTcArgs)
 
 import GHC.Prelude

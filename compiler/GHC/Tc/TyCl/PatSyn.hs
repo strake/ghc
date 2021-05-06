@@ -64,8 +64,6 @@ import Data.Maybe( mapMaybe )
 import Control.Monad ( zipWithM )
 import Data.List( partition )
 
-#include "HsVersions.h"
-
 {-
 ************************************************************************
 *                                                                      *

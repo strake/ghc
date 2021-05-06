@@ -71,8 +71,6 @@ import GHC.Types.SrcLoc
 import Control.Monad
 import Control.Arrow ( second )
 
-#include "HsVersions.h"
-
 {-
 ************************************************************************
 *                                                                      *

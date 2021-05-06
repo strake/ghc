@@ -24,8 +24,6 @@ module GHC.Driver.CmdLine
       deprecate
     ) where
 
-#include "HsVersions.h"
-
 import GHC.Prelude
 
 import GHC.Utils.Misc

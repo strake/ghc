@@ -228,8 +228,6 @@ module GHC.Driver.Session (
         CfgWeights(..)
   ) where
 
-#include "HsVersions.h"
-
 import GHC.Prelude
 
 import GHC.Platform

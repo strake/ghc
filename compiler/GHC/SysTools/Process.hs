@@ -8,8 +8,6 @@
 -----------------------------------------------------------------------------
 module GHC.SysTools.Process where
 
-#include "HsVersions.h"
-
 import GHC.Utils.Exception
 import GHC.Utils.Error
 import GHC.Driver.Session

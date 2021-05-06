@@ -23,8 +23,6 @@ module GHC.Tc.TyCl (
         wrongKindOfFamily
     ) where
 
-#include "HsVersions.h"
-
 import GHC.Prelude
 
 import GHC.Driver.Session

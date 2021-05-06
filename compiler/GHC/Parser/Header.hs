@@ -22,8 +22,6 @@ module GHC.Parser.Header
    )
 where
 
-#include "HsVersions.h"
-
 import GHC.Prelude
 
 import GHC.Platform

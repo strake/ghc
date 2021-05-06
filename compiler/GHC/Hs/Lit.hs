@@ -17,8 +17,6 @@
 -- | Source-language literals
 module GHC.Hs.Lit where
 
-#include "HsVersions.h"
-
 import GHC.Prelude
 
 import {-# SOURCE #-} GHC.Hs.Expr( HsExpr, pprExpr )

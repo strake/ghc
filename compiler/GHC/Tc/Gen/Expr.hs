@@ -28,8 +28,6 @@ module GHC.Tc.Gen.Expr
    )
 where
 
-#include "HsVersions.h"
-
 import GHC.Prelude
 
 import {-# SOURCE #-}   GHC.Tc.Gen.Splice( tcSpliceExpr, tcTypedBracket, tcUntypedBracket )

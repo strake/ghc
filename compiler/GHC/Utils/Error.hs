@@ -66,8 +66,6 @@ module GHC.Utils.Error (
         printOrThrowWarnings, handleFlagWarnings, shouldPrintWarning
     ) where
 
-#include "HsVersions.h"
-
 import GHC.Prelude
 
 import GHC.Driver.Session

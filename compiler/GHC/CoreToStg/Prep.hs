@@ -16,8 +16,6 @@ module GHC.CoreToStg.Prep
    )
 where
 
-#include "HsVersions.h"
-
 import GHC.Prelude
 
 import GHC.Platform
@@ -464,7 +462,7 @@ cpePair top_lvl is_rec dmd is_unlifted env bndr rhs
        ; (floats3, rhs3)
             <- if manifestArity rhs1 <= arity
                then return (floats2, cpeEtaExpand arity rhs2)
-               else WARN(True, text "CorePrep: silly extra arguments:" <+> ppr bndr)
+               else warnPprTrace True (text "CorePrep: silly extra arguments:" <+> ppr bndr) $
                                -- Note [Silly extra arguments]
                     (do { v <- newVar (idType bndr)
                         ; let float = mkFloat topDmd False v rhs2

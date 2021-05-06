@@ -63,8 +63,6 @@ import Data.Function ( on )
 
 import qualified GHC.LanguageExtensions  as LangExt
 
-#include "HsVersions.h"
-
 {- Note [The type family instance consistency story]
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

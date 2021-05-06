@@ -68,8 +68,6 @@ module GHC.Core.TyCo.Rep (
         typeSize, coercionSize, provSize,
     ) where
 
-#include "HsVersions.h"
-
 import GHC.Prelude
 
 import {-# SOURCE #-} GHC.Core.TyCo.Ppr ( pprType, pprCo, pprTyLit )

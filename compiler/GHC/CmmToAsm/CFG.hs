@@ -42,8 +42,6 @@ module GHC.CmmToAsm.CFG
      )
 where
 
-#include "HsVersions.h"
-
 import GHC.Prelude
 import GHC.Platform
 

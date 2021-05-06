@@ -65,8 +65,6 @@ module GHC.Utils.Binary
    putDictionary, getDictionary, putFS,
   ) where
 
-#include "HsVersions.h"
-
 import GHC.Prelude
 
 import {-# SOURCE #-} GHC.Types.Name (Name)

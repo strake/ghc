@@ -14,8 +14,6 @@ module GHC.Core.Opt.WorkWrap.Utils
    )
 where
 
-#include "HsVersions.h"
-
 import GHC.Prelude
 
 import GHC.Core
@@ -197,9 +195,9 @@ mkWwBodies dflags fam_envs rhs_fvs fun_id demands cpr_info
     too_many_args_for_join_point wrap_args
       | Just join_arity <- mb_join_arity
       , wrap_args `lengthExceeds` join_arity
-      = WARN(True, text "Unable to worker/wrapper join point with arity " <+>
+      = warnPprTrace True (text "Unable to worker/wrapper join point with arity " <+>
                      int join_arity <+> text "but" <+>
-                     int (length wrap_args) <+> text "args")
+                     int (length wrap_args) <+> text "args") $
         True
       | otherwise
       = False
@@ -463,7 +461,7 @@ mkWWargs subst fun_ty demands
                   res_ty) }
 
   | otherwise
-  = WARN( True, ppr fun_ty )                    -- Should not happen: if there is a demand
+  = warnPprTrace True (ppr fun_ty)              -- Should not happen: if there is a demand
     return ([], id, id, substTy subst fun_ty)   -- then there should be a function arrow
   where
     -- See Note [Join points and beta-redexes]
@@ -1078,7 +1076,7 @@ mkWWcpr opt_CprAnal fam_envs body_ty cpr
                     -> mkWWcpr_help dcac
                     |  otherwise
                        -- See Note [non-algebraic or open body type warning]
-                    -> WARN( True, text "mkWWcpr: non-algebraic or open body type" <+> ppr body_ty )
+                    -> warnPprTrace True (text "mkWWcpr: non-algebraic or open body type" <+> ppr body_ty) $
                        return (False, id, id, body_ty)
 
 mkWWcpr_help :: DataConAppContext
@@ -1239,7 +1237,7 @@ mk_absent_let dflags fam_envs arg
   | nty `eqType` voidPrimTy
   = Just (Let (NonRec arg (Var voidPrimId `mkCast` mkSymCo co)))
   | otherwise
-  = WARN( True, text "No absent value for" <+> ppr arg_ty )
+  = warnPprTrace True (text "No absent value for" <+> ppr arg_ty)
     Nothing -- Can happen for 'State#' and things of 'VecRep'
   where
     lifted_arg   = arg `setIdStrictness` botSig `setIdCprInfo` mkCprSig 0 botCpr

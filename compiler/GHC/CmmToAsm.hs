@@ -79,8 +79,6 @@ module GHC.CmmToAsm
    )
 where
 
-#include "HsVersions.h"
-
 import GHC.Prelude
 
 import qualified GHC.CmmToAsm.X86   as X86

@@ -36,8 +36,6 @@ module GHC.Tc.Deriv.Generate (
         mkRdrFunBind, mkRdrFunBindEC, mkRdrFunBindSE, error_Expr
     ) where
 
-#include "HsVersions.h"
-
 import GHC.Prelude
 
 import GHC.Tc.Utils.Monad

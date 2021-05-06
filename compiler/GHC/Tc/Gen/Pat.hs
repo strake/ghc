@@ -26,8 +26,6 @@ module GHC.Tc.Gen.Pat
    )
 where
 
-#include "HsVersions.h"
-
 import GHC.Prelude
 
 import {-# SOURCE #-}   GHC.Tc.Gen.Expr( tcSyntaxOp, tcSyntaxOpGen, tcInferSigma )

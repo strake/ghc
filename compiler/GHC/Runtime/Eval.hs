@@ -44,8 +44,6 @@ module GHC.Runtime.Eval (
         Term(..), obtainTermFromId, obtainTermFromVal, reconstructType
         ) where
 
-#include "HsVersions.h"
-
 import GHC.Prelude
 
 import GHC.Driver.Monad
@@ -649,7 +647,7 @@ rttiEnvironment hsc_env@HscEnv{hsc_IC=ic} = do
              Just new_ty -> do
               case improveRTTIType hsc_env old_ty new_ty of
                Nothing -> return $
-                        WARN(True, text (":print failed to calculate the "
+                        warnPprTrace True (text (":print failed to calculate the "
                                            ++ "improvement for a type")) hsc_env
                Just subst -> do
                  let dflags = hsc_dflags hsc_env

@@ -24,8 +24,6 @@ module GHC.Core.Unify (
         liftCoMatch
    ) where
 
-#include "HsVersions.h"
-
 import GHC.Prelude
 
 import GHC.Types.Var

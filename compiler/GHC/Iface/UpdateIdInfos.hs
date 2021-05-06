@@ -27,8 +27,6 @@ import GHC.Utils.Outputable
 import GHC.Utils.Panic
 import GHC.Utils.Panic.Plain
 
-#include "HsVersions.h"
-
 -- | Update CafInfos and LFInfos of all occurences (in rules, unfoldings, class
 -- instances).
 --

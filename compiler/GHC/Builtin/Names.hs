@@ -162,8 +162,6 @@ module GHC.Builtin.Names
    )
 where
 
-#include "HsVersions.h"
-
 import GHC.Prelude
 
 import GHC.Unit.Types

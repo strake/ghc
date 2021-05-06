@@ -10,8 +10,6 @@ module GHC.Tc.Solver.Flatten(
    unflattenWanteds
  ) where
 
-#include "HsVersions.h"
-
 import GHC.Prelude
 
 import GHC.Tc.Types
