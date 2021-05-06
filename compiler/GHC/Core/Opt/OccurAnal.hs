@@ -16,8 +16,6 @@ core expression with (hopefully) improved usage information.
 {-# OPTIONS_GHC -Wno-incomplete-record-updates #-}
 module GHC.Core.Opt.OccurAnal ( occurAnalysePgm, occurAnalyseExpr ) where
 
-#include "HsVersions.h"
-
 import GHC.Prelude
 
 import GHC.Core
@@ -71,8 +69,8 @@ occurAnalysePgm this_mod active_unf active_rule imp_rules binds
   = occ_anald_binds
 
   | otherwise   -- See Note [Glomming]
-  = WARN( True, hang (text "Glomming in" <+> ppr this_mod <> colon)
-                   2 (ppr final_usage ) )
+  = warnPprTrace True (hang (text "Glomming in" <+> ppr this_mod <> colon)
+                        2 (ppr final_usage))
     occ_anald_glommed_binds
   where
     init_env = initOccEnv { occ_rule_act = active_rule
@@ -2861,9 +2859,9 @@ decideJoinPointHood TopLevel _ _
   = False
 decideJoinPointHood NotTopLevel usage bndrs
   | isJoinId (head bndrs)
-  = WARN(not all_ok, text "OccurAnal failed to rediscover join point(s):" <+>
-                       ppr bndrs)
-    all_ok
+  = warnPprTrace (not all_ok)
+                 (text "OccurAnal failed to rediscover join point(s):" <+> ppr bndrs)
+                 all_ok
   | otherwise
   = all_ok
   where

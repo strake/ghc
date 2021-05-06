@@ -39,8 +39,6 @@ module GHC.HsToCore.PmCheck.Types (
         Deltas(..), initDeltas, liftDeltasM
     ) where
 
-#include "HsVersions.h"
-
 import GHC.Prelude
 
 import GHC.Data.Bag

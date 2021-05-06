@@ -21,8 +21,6 @@ module GHC.Core.Lint (
     GHC.Core.Lint.dumpIfSet,
  ) where
 
-#include "HsVersions.h"
-
 import GHC.Prelude
 
 import GHC.Driver.Session

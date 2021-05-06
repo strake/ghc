@@ -44,8 +44,6 @@ module GHC.HsToCore.Utils (
         isTrueLHsExpr
     ) where
 
-#include "HsVersions.h"
-
 import GHC.Prelude
 
 import {-# SOURCE #-} GHC.HsToCore.Match ( matchSimply )

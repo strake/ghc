@@ -8,8 +8,6 @@ module GHC.HsToCore.PmCheck.Ppr (
         pprUncovered
     ) where
 
-#include "HsVersions.h"
-
 import GHC.Prelude
 
 import GHC.Types.Basic

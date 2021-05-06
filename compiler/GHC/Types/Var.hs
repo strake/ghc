@@ -92,8 +92,6 @@ module GHC.Types.Var (
 
     ) where
 
-#include "HsVersions.h"
-
 import GHC.Prelude
 
 import {-# SOURCE #-}   GHC.Core.TyCo.Rep( Type, Kind )

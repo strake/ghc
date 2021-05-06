@@ -92,8 +92,6 @@ module GHC.Tc.Utils.TcMType (
   ensureNotLevPoly, checkForLevPoly, checkForLevPolyX, formatLevPolyErr
   ) where
 
-#include "HsVersions.h"
-
 -- friends:
 import GHC.Prelude
 
@@ -1797,7 +1795,7 @@ skolemiseUnboundMetaTyVar tv
         do { cts <- readMetaTyVar tv
            ; case cts of
                Flexi       -> return ()
-               Indirect ty -> WARN( True, ppr tv $$ ppr ty )
+               Indirect ty -> warnPprTrace True (ppr tv $$ ppr ty) $
                               return () }
 
 {- Note [Defaulting with -XNoPolyKinds]

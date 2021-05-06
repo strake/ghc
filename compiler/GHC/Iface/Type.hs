@@ -68,8 +68,6 @@ module GHC.Iface.Type (
         mkIfaceTySubst, substIfaceTyVar, substIfaceAppArgs, inDomIfaceTySubst
     ) where
 
-#include "HsVersions.h"
-
 import GHC.Prelude
 
 import {-# SOURCE #-} GHC.Builtin.Types

@@ -22,8 +22,6 @@ module GHC.Core.SimpleOpt (
         pushCoArg, pushCoValArg, pushCoTyArg, collectBindersPushingCo
     ) where
 
-#include "HsVersions.h"
-
 import GHC.Prelude
 
 import GHC.Core.Opt.Arity( etaExpandToJoinPoint )

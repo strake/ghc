@@ -36,8 +36,6 @@ module GHC.SysTools (
         getFrameworkOpts
  ) where
 
-#include "HsVersions.h"
-
 import GHC.Prelude
 
 import GHC.Settings.Utils

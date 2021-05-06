@@ -38,7 +38,6 @@ module GHC.CmmToLlvm.Base (
         aliasify, llvmDefLabel
     ) where
 
-#include "HsVersions.h"
 #include "ghcautoconf.h"
 
 import GHC.Prelude

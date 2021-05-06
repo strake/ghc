@@ -9,8 +9,6 @@ module GHC.Tc.Solver.Canonical(
      solveCallStack    -- For GHC.Tc.Solver
   ) where
 
-#include "HsVersions.h"
-
 import GHC.Prelude
 
 import GHC.Tc.Types.Constraint

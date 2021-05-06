@@ -55,7 +55,6 @@ module GHC.Tc.Types.Evidence (
   -- * QuoteWrapper
   QuoteWrapper(..), applyQuoteWrapper, quoteWrapperTyVarTy
   ) where
-#include "HsVersions.h"
 
 import GHC.Prelude
 

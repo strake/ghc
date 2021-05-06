@@ -68,8 +68,6 @@ module GHC.Types.Name.Reader (
         starInfo
   ) where
 
-#include "HsVersions.h"
-
 import GHC.Prelude
 
 import GHC.Unit.Module
@@ -368,13 +366,13 @@ emptyLocalRdrEnv = LRE { lre_env = emptyOccEnv
 extendLocalRdrEnv :: LocalRdrEnv -> Name -> LocalRdrEnv
 -- The Name should be a non-top-level thing
 extendLocalRdrEnv lre@(LRE { lre_env = env, lre_in_scope = ns }) name
-  = WARN( isExternalName name, ppr name )
+  = warnPprTrace (isExternalName name) (ppr name)
     lre { lre_env      = extendOccEnv env (nameOccName name) name
         , lre_in_scope = extendNameSet ns name }
 
 extendLocalRdrEnvList :: LocalRdrEnv -> [Name] -> LocalRdrEnv
 extendLocalRdrEnvList lre@(LRE { lre_env = env, lre_in_scope = ns }) names
-  = WARN( any isExternalName names, ppr names )
+  = warnPprTrace (any isExternalName names) (ppr names)
     lre { lre_env = extendOccEnvList env [(nameOccName n, n) | n <- names]
         , lre_in_scope = extendNameSetList ns names }
 

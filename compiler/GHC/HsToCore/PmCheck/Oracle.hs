@@ -23,8 +23,6 @@ module GHC.HsToCore.PmCheck.Oracle (
         provideEvidence
     ) where
 
-#include "HsVersions.h"
-
 import GHC.Prelude
 
 import GHC.HsToCore.PmCheck.Types

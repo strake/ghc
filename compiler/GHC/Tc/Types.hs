@@ -78,8 +78,6 @@ module GHC.Tc.Types(
         lookupRoleAnnot, getRoleAnnots
   ) where
 
-#include "HsVersions.h"
-
 import GHC.Prelude
 import GHC.Platform
 

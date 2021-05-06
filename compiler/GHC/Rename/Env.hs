@@ -46,8 +46,6 @@ module GHC.Rename.Env (
 
     ) where
 
-#include "HsVersions.h"
-
 import GHC.Prelude
 
 import GHC.Iface.Load   ( loadInterfaceForName, loadSrcInterface_maybe )

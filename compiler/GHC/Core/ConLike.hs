@@ -25,8 +25,6 @@ module GHC.Core.ConLike (
         , conLikeIsInfix
     ) where
 
-#include "HsVersions.h"
-
 import GHC.Prelude
 
 import GHC.Core.DataCon

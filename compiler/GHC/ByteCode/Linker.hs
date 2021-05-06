@@ -16,8 +16,6 @@ module GHC.ByteCode.Linker (
         nameToCLabel, linkFail
   ) where
 
-#include "HsVersions.h"
-
 import GHC.Prelude
 
 import GHC.Driver.Env

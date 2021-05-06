@@ -32,8 +32,6 @@ module GHC.Tc.Utils.Instantiate (
        tyCoVarsOfCt, tyCoVarsOfCts,
     ) where
 
-#include "HsVersions.h"
-
 import GHC.Prelude
 
 import GHC.Driver.Session

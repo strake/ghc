@@ -48,8 +48,6 @@ module GHC.Types.Literal
         , nullAddrLit, rubbishLit, float2DoubleLit, double2FloatLit
         ) where
 
-#include "HsVersions.h"
-
 import GHC.Prelude
 
 import GHC.Builtin.Types.Prim

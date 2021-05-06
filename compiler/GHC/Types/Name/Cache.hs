@@ -21,8 +21,6 @@ import GHC.Builtin.Names
 import GHC.Utils.Outputable
 import GHC.Utils.Panic
 
-#include "HsVersions.h"
-
 {-
 
 Note [The Name Cache]

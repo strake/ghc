@@ -172,8 +172,6 @@ import qualified Data.Set as S
 import Control.DeepSeq
 import Control.Monad
 
-#include "HsVersions.h"
-
 {-
 ************************************************************************
 *                                                                      *

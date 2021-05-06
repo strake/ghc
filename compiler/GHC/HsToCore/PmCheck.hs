@@ -20,8 +20,6 @@ module GHC.HsToCore.PmCheck (
         addTyCsDs, addScrutTmCs
     ) where
 
-#include "HsVersions.h"
-
 import GHC.Prelude
 
 import GHC.HsToCore.PmCheck.Types

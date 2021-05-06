@@ -23,8 +23,6 @@ module GHC.IfaceToCore (
         tcIfaceOneShot
  ) where
 
-#include "HsVersions.h"
-
 import GHC.Prelude
 
 import GHC.Driver.Env

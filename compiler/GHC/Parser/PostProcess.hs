@@ -148,8 +148,6 @@ import qualified Data.Monoid as Monoid
 import Data.Data       ( dataTypeOf, fromConstr, dataTypeConstrs )
 import Data.Kind       ( Type )
 
-#include "HsVersions.h"
-
 
 {- **********************************************************************
 

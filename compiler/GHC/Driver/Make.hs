@@ -31,8 +31,6 @@ module GHC.Driver.Make (
         IsBootInterface(..)
     ) where
 
-#include "HsVersions.h"
-
 import GHC.Prelude
 
 import GHC.Tc.Utils.Backpack

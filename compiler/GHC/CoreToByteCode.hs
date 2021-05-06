@@ -10,8 +10,6 @@
 -- | GHC.CoreToByteCode: Generate bytecode from Core
 module GHC.CoreToByteCode ( UnlinkedBCO, byteCodeGen, coreExprToBCOs ) where
 
-#include "HsVersions.h"
-
 import GHC.Prelude
 
 import GHC.Driver.Session

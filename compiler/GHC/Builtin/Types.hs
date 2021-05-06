@@ -137,8 +137,6 @@ module GHC.Builtin.Types (
         naturalNBDataCon, naturalNBDataConName
     ) where
 
-#include "HsVersions.h"
-
 import GHC.Prelude
 
 import {-# SOURCE #-} GHC.Types.Id.Make ( mkDataConWorkId, mkDictSelId )

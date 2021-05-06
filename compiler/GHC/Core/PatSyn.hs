@@ -23,8 +23,6 @@ module GHC.Core.PatSyn (
         updatePatSynIds, pprPatSynType
     ) where
 
-#include "HsVersions.h"
-
 import GHC.Prelude
 
 import GHC.Core.Type

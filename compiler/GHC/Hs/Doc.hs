@@ -21,8 +21,6 @@ module GHC.Hs.Doc
   , emptyArgDocMap
   ) where
 
-#include "HsVersions.h"
-
 import GHC.Prelude
 
 import GHC.Utils.Binary
