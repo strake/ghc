@@ -11,10 +11,6 @@
 -- | Highly random utility functions
 --
 module GHC.Utils.Misc (
-        -- * Flags dependent on the compiler build
-        ghciSupported, debugIsOn,
-        isWindowsHost, isDarwinHost,
-
         -- * Miscellaneous higher-order functions
         applyWhen, nTimes,
 
@@ -166,50 +162,6 @@ import {-# SOURCE #-} GHC.Utils.Outputable.Ppr ( warnPprTrace )
 
 infixr 9 `thenCmp`
 
-{-
-************************************************************************
-*                                                                      *
-\subsection{Is DEBUG on, are we on Windows, etc?}
-*                                                                      *
-************************************************************************
-
-These booleans are global constants, set by CPP flags.  They allow us to
-recompile a single module (this one) to change whether or not debug output
-appears. They sometimes let us avoid even running CPP elsewhere.
-
-It's important that the flags are literal constants (True/False). Then,
-with -0, tests of the flags in other modules will simplify to the correct
-branch of the conditional, thereby dropping debug code altogether when
-the flags are off.
--}
-
-ghciSupported :: Bool
-#if defined(HAVE_INTERNAL_INTERPRETER)
-ghciSupported = True
-#else
-ghciSupported = False
-#endif
-
-debugIsOn :: Bool
-#if defined(DEBUG)
-debugIsOn = True
-#else
-debugIsOn = False
-#endif
-
-isWindowsHost :: Bool
-#if defined(mingw32_HOST_OS)
-isWindowsHost = True
-#else
-isWindowsHost = False
-#endif
-
-isDarwinHost :: Bool
-#if defined(darwin_HOST_OS)
-isDarwinHost = True
-#else
-isDarwinHost = False
-#endif
 
 {-
 ************************************************************************
@@ -609,7 +561,7 @@ whenNonEmpty (x:xs) f = f (x :| xs)
 -}
 
 minWith :: Ord b => (a -> b) -> [a] -> a
-minWith get_key xs = ASSERT( not (null xs) )
+minWith get_key xs = assert (not (null xs) )
                      head (sortWith get_key xs)
 
 nubSort :: Ord a => [a] -> [a]

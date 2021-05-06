@@ -36,6 +36,7 @@ import GHC.Core.Coercion ( Coercion, coVarsOfCo )
 import GHC.Core.FamInstEnv
 import GHC.Utils.Misc
 import GHC.Utils.Panic
+import GHC.Utils.Panic.Plain
 import GHC.Data.Maybe         ( isJust )
 import GHC.Builtin.PrimOps
 import GHC.Builtin.Types.Prim ( realWorldStatePrimTy )
@@ -144,7 +145,7 @@ dmdAnalStar :: AnalEnv
 dmdAnalStar env dmd e
   | (dmd_shell, cd) <- toCleanDmd dmd
   , (dmd_ty, e')    <- dmdAnal env cd e
-  = ASSERT2( not (isUnliftedType (exprType e)) || exprOkForSpeculation e, ppr e )
+  = assertPpr (not (isUnliftedType (exprType e)) || exprOkForSpeculation e) (ppr e)
     -- The argument 'e' should satisfy the let/app invariant
     -- See Note [Analysing with absent demand] in GHC.Types.Demand
     (postProcessDmdType dmd_shell dmd_ty, e')
@@ -1029,7 +1030,7 @@ setBndrsDemandInfo :: [Var] -> [Demand] -> [Var]
 setBndrsDemandInfo (b:bs) (d:ds)
   | isTyVar b = b : setBndrsDemandInfo bs (d:ds)
   | otherwise = setIdDemandInfo b d : setBndrsDemandInfo bs ds
-setBndrsDemandInfo [] ds = ASSERT( null ds ) []
+setBndrsDemandInfo [] ds = assert (null ds) []
 setBndrsDemandInfo bs _  = pprPanic "setBndrsDemandInfo" (ppr bs)
 
 annotateBndr :: AnalEnv -> DmdType -> Var -> (DmdType, Var)
@@ -1053,7 +1054,7 @@ annotateLamIdBndr :: AnalEnv
 annotateLamIdBndr env arg_of_dfun dmd_ty id
 -- For lambdas we add the demand to the argument demands
 -- Only called for Ids
-  = ASSERT( isId id )
+  = assert (isId id) $
     -- pprTrace "annLamBndr" (vcat [ppr id, ppr _dmd_ty]) $
     (final_ty, setIdDemandInfo id dmd)
   where

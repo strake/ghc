@@ -29,6 +29,7 @@ import GHC.Types.Var.Set
 import GHC.Types.Var.Env
 import GHC.Utils.Outputable
 import GHC.Utils.Panic
+import GHC.Utils.Panic.Plain
 import GHC.Tc.Solver.Monad as TcS
 import GHC.Types.Basic( SwapFlag(..) )
 
@@ -1370,8 +1371,8 @@ flatten_fam_app :: TyCon -> [TcType] -> FlatM (Xi, Coercion)
   --   flatten_exact_fam_app_fully lifts out the application to top level
   -- Postcondition: Coercion :: Xi ~ F tys
 flatten_fam_app tc tys  -- Can be over-saturated
-    = ASSERT2( tys `lengthAtLeast` tyConArity tc
-             , ppr tc $$ ppr (tyConArity tc) $$ ppr tys)
+    = assertPpr (tys `lengthAtLeast` tyConArity tc)
+             (ppr tc $$ ppr (tyConArity tc) $$ ppr tys)
 
       do { mode <- getMode
          ; case mode of
@@ -1646,7 +1647,7 @@ flatten_tyvar2 tv fr@(_, eq_rel)
                          ppr rhs_ty $$ ppr ctev)
                     ; let rewrite_co1 = mkSymCo (ctEvCoercion ctev)
                           rewrite_co  = case (ct_eq_rel, eq_rel) of
-                            (ReprEq, _rel)  -> ASSERT( _rel == ReprEq )
+                            (ReprEq, _rel)  -> assert (_rel == ReprEq)
                                     -- if this ASSERT fails, then
                                     -- eqCanRewriteFR answered incorrectly
                                                rewrite_co1
@@ -1816,7 +1817,7 @@ unflattenWanteds tv_eqs funeqs
                         -- NB: unlike unflattenFmv, filling a fmv here /does/
                         --     bump the unification count; it is "improvement"
                         -- Note [Unflattening can force the solver to iterate]
-      = ASSERT2( tyVarKind tv `eqType` tcTypeKind rhs, ppr ct )
+      = assertPpr (tyVarKind tv `eqType` tcTypeKind rhs) (ppr ct)
            -- CTyEqCan invariant (TyEq:K) should ensure this is true
         do { is_filled <- isFilledMetaTyVar tv
            ; elim <- case is_filled of
@@ -1876,7 +1877,7 @@ tryFill :: CtEvidence -> TcTyVar -> TcType -> TcS Bool
 -- binds the evidence (which should be a CtWanted) to Refl<rhs>
 -- and return True.  Otherwise returns False
 tryFill ev tv rhs
-  = ASSERT2( not (isGiven ev), ppr ev )
+  = assertPpr (not (isGiven ev)) (ppr ev)
     do { rhs' <- zonkTcType rhs
        ; case () of
             _ | Just tv' <- tcGetTyVar_maybe rhs'

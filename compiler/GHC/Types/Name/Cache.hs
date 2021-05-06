@@ -18,7 +18,6 @@ import GHC.Types.Unique.Supply
 import GHC.Builtin.Types
 import GHC.Builtin.Names
 
-import GHC.Utils.Misc
 import GHC.Utils.Outputable
 import GHC.Utils.Panic
 
@@ -93,7 +92,7 @@ lookupOrigNameCache nc mod occ
 
 extendOrigNameCache :: OrigNameCache -> Name -> OrigNameCache
 extendOrigNameCache nc name
-  = ASSERT2( isExternalName name, ppr name )
+  = assertPpr (isExternalName name) (ppr name) $
     extendNameCache nc (nameModule name) (nameOccName name) name
 
 extendNameCache :: OrigNameCache -> Module -> OccName -> Name -> OrigNameCache

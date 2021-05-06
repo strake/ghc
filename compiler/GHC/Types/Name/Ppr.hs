@@ -109,7 +109,7 @@ mkPrintUnqualified unit_state home_unit env
                             -- Eg  f = True; g = 0; f = False
       where
         is_name :: Name -> Bool
-        is_name name = ASSERT2( isExternalName name, ppr name )
+        is_name name = assertPpr (isExternalName name) (ppr name) $
                        nameModule name == mod && nameOccName name == occ
 
         forceUnqualNames :: [Name]

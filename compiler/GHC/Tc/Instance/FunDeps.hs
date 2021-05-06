@@ -211,7 +211,7 @@ improveFromInstEnv :: InstEnvs
                                       -- of quantified variables
 -- Post: Equations oriented from the template (matching instance) to the workitem!
 improveFromInstEnv inst_env mk_loc pred
-  | Just (cls, tys) <- ASSERT2( isClassPred pred, ppr pred )
+  | Just (cls, tys) <- assertPpr (isClassPred pred) (ppr pred) $
                        getClassPredTys_maybe pred
   , let (cls_tvs, cls_fds) = classTvsFds cls
         instances          = classInstances inst_env cls
@@ -266,9 +266,9 @@ improveClsFD clas_tvs fd
   = []          -- Filter out ones that can't possibly match,
 
   | otherwise
-  = ASSERT2( equalLength tys_inst tys_actual &&
-             equalLength tys_inst clas_tvs
-            , ppr tys_inst <+> ppr tys_actual )
+  = assertPpr (equalLength tys_inst tys_actual &&
+               equalLength tys_inst clas_tvs)
+              (ppr tys_inst <+> ppr tys_actual) $
 
     case tcMatchTyKis ltys1 ltys2 of
         Nothing  -> []

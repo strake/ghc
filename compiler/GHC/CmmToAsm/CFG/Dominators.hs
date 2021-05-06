@@ -58,7 +58,7 @@ import Data.Array.Base hiding ((!))
   -- ,unsafeWrite,unsafeRead
   -- ,readArray,writeArray)
 
-import GHC.Utils.Misc (debugIsOn)
+import GHC.Utils.Constants (debugIsOn)
 
 -----------------------------------------------------------------------------
 

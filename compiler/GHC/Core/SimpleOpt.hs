@@ -56,8 +56,9 @@ import GHC.Unit.Module ( Module )
 import GHC.Utils.Outputable
 import GHC.Utils.Outputable.Ppr
 import GHC.Utils.Panic
-import GHC.Data.Pair
+import GHC.Utils.Panic.Plain
 import GHC.Utils.Misc
+import GHC.Data.Pair
 import GHC.Data.Maybe       ( orElse )
 import GHC.Data.FastString
 import Data.List
@@ -413,15 +414,15 @@ simple_bind_pair env@(SOE { soe_inl = inl_env, soe_subst = subst })
                  top_level
   | Type ty <- in_rhs        -- let a::* = TYPE ty in <body>
   , let out_ty = substTy (soe_subst rhs_env) ty
-  = ASSERT( isTyVar in_bndr )
+  = assertPpr (isTyVar in_bndr) (ppr in_bndr $$ ppr in_rhs) $
     (env { soe_subst = extendTvSubst subst in_bndr out_ty }, Nothing)
 
   | Coercion co <- in_rhs
   , let out_co = optCoercion (soe_co_opt_opts env) (getTCvSubst (soe_subst rhs_env)) co
-  = ASSERT( isCoVar in_bndr )
+  = assert (isCoVar in_bndr)
     (env { soe_subst = extendCvSubst subst in_bndr out_co }, Nothing)
 
-  | ASSERT2( isNonCoVarId in_bndr, ppr in_bndr )
+  | assertPpr (isNonCoVarId in_bndr) (ppr in_bndr)
     -- The previous two guards got rid of tyvars and coercions
     -- See Note [Core type and coercion invariant] in GHC.Core
     pre_inline_unconditionally
@@ -471,11 +472,11 @@ simple_out_bind :: TopLevelFlag
                 -> (SimpleOptEnv, Maybe (OutVar, OutExpr))
 simple_out_bind top_level env@(SOE { soe_subst = subst }) (in_bndr, out_rhs)
   | Type out_ty <- out_rhs
-  = ASSERT( isTyVar in_bndr )
+  = assertPpr (isTyVar in_bndr) (ppr in_bndr $$ ppr out_ty $$ ppr out_rhs)
     (env { soe_subst = extendTvSubst subst in_bndr out_ty }, Nothing)
 
   | Coercion out_co <- out_rhs
-  = ASSERT( isCoVar in_bndr )
+  = assert (isCoVar in_bndr)
     (env { soe_subst = extendCvSubst subst in_bndr out_co }, Nothing)
 
   | otherwise
@@ -489,7 +490,7 @@ simple_out_bind_pair :: SimpleOptEnv
                      -> (SimpleOptEnv, Maybe (OutVar, OutExpr))
 simple_out_bind_pair env in_bndr mb_out_bndr out_rhs
                      occ_info active stable_unf top_level
-  | ASSERT2( isNonCoVarId in_bndr, ppr in_bndr )
+  | assertPpr (isNonCoVarId in_bndr) (ppr in_bndr)
     -- Type and coercion bindings are caught earlier
     -- See Note [Core type and coercion invariant]
     post_inline_unconditionally
@@ -1335,7 +1336,7 @@ exprIsLambda_maybe (in_scope_set, id_unf) (Cast casted_e co)
     -- Only do value lambdas.
     -- this implies that x is not in scope in gamma (makes this code simpler)
     , not (isTyVar x) && not (isCoVar x)
-    , ASSERT( not $ x `elemVarSet` tyCoVarsOfCo co) True
+    , assert (not $ x `elemVarSet` tyCoVarsOfCo co) True
     , Just (x',e') <- pushCoercionIntoLambda in_scope_set x e co
     , let res = Just (x',e',ts)
     = --pprTrace "exprIsLambda_maybe:Cast" (vcat [ppr casted_e,ppr co,ppr res)])
@@ -1419,7 +1420,7 @@ pushCoTyArg co ty
   = Just (ty, MRefl)
 
   | isForAllTy_ty tyL
-  = ASSERT2( isForAllTy_ty tyR, ppr co $$ ppr ty )
+  = assertPpr (isForAllTy_ty tyR) (ppr co $$ ppr ty)
     Just (ty `mkCastTy` co1, MCo co2)
 
   | otherwise
@@ -1461,7 +1462,7 @@ pushCoValArg co
               -- If   co  :: (tyL1 -> tyL2) ~ (tyR1 -> tyR2)
               -- then co1 :: tyL1 ~ tyR1
               --      co2 :: tyL2 ~ tyR2
-  = ASSERT2( isFunTy tyR, ppr co $$ ppr arg )
+  = assertPpr (isFunTy tyR) (ppr co $$ ppr arg)
     Just (mkSymCo co1, MCo co2)
 
   | otherwise
@@ -1477,7 +1478,7 @@ pushCoercionIntoLambda
 -- ===>
 --    (\x'. e |> co')
 pushCoercionIntoLambda in_scope x e co
-    | ASSERT(not (isTyVar x) && not (isCoVar x)) True
+    | assert (not (isTyVar x) && not (isCoVar x)) True
     , Pair s1s2 t1t2 <- coercionKind co
     , Just (_s1,_s2) <- splitFunTy_maybe s1s2
     , Just (t1,_t2) <- splitFunTy_maybe t1t2
@@ -1545,8 +1546,7 @@ pushCoDataCon dc dc_args co
                          ppr arg_tys, ppr dc_args,
                          ppr ex_args, ppr val_args, ppr co, ppr from_ty, ppr to_ty, ppr to_tc ]
     in
-    ASSERT2( eqType from_ty (mkTyConApp to_tc (map exprToType $ takeList dc_univ_tyvars dc_args)), dump_doc )
-    ASSERT2( equalLength val_args arg_tys, dump_doc )
+    assertPpr (eqType from_ty (mkTyConApp to_tc (map exprToType $ takeList dc_univ_tyvars dc_args)) && equalLength val_args arg_tys) dump_doc
     Just (dc, to_tc_arg_tys, to_ex_args ++ new_val_args)
 
   | otherwise
@@ -1587,22 +1587,20 @@ collectBindersPushingCo e
     go_lam bs b e co
       | isTyVar b
       , let Pair tyL tyR = coercionKind co
-      , ASSERT( isForAllTy_ty tyL )
-        isForAllTy_ty tyR
+      , assert (isForAllTy_ty tyL) isForAllTy_ty tyR
       , isReflCo (mkNthCo Nominal 0 co)  -- See Note [collectBindersPushingCo]
       = go_c (b:bs) e (mkInstCo co (mkNomReflCo (mkTyVarTy b)))
 
       | isCoVar b
       , let Pair tyL tyR = coercionKind co
-      , ASSERT( isForAllTy_co tyL )
-        isForAllTy_co tyR
+      , assert (isForAllTy_co tyL) isForAllTy_co tyR
       , isReflCo (mkNthCo Nominal 0 co)  -- See Note [collectBindersPushingCo]
       , let cov = mkCoVarCo b
       = go_c (b:bs) e (mkInstCo co (mkNomReflCo (mkCoercionTy cov)))
 
       | isId b
       , let Pair tyL tyR = coercionKind co
-      , ASSERT( isFunTy tyL) isFunTy tyR
+      , assert (isFunTy tyL) isFunTy tyR
       , (co_arg, co_res) <- decomposeFunCo Representational co
       , isReflCo co_arg  -- See Note [collectBindersPushingCo]
       = go_c (b:bs) e co_res

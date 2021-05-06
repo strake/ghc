@@ -21,6 +21,7 @@ where
 
 import GHC.Prelude
 
+import GHC.Utils.Constants ( debugIsOn )
 import GHC.Utils.Exception
 import GHC.Utils.Misc
 import GHC.Utils.Outputable
@@ -98,16 +99,14 @@ pprTraceException heading doc =
 pprSTrace :: HasCallStack => SDoc -> a -> a
 pprSTrace doc = pprTrace "" (doc $$ callStackDoc)
 
-warnPprTrace :: HasCallStack => Bool -> String -> Int -> SDoc -> a -> a
+warnPprTrace :: HasCallStack => Bool -> SDoc -> a -> a
 -- ^ Just warn about an assertion failure, recording the given file and line number.
 -- Should typically be accessed with the WARN macros
-warnPprTrace _     _     _     _    x | not debugIsOn     = x
-warnPprTrace _     _file _line _msg x
+warnPprTrace _     _    x | not debugIsOn     = x
+warnPprTrace _     _msg x
    | unsafeHasNoDebugOutput = x
-warnPprTrace False _file _line _msg x = x
-warnPprTrace True   file  line  msg x
-  = pprDebugAndThen defaultSDocContext trace heading
-                    (msg $$ callStackDoc )
+warnPprTrace False _msg x = x
+warnPprTrace True   msg x
+  = pprDebugAndThen defaultSDocContext trace (text "WARNING:")
+                    (msg $$ callStackDoc)
                     x
-  where
-    heading = hsep [text "WARNING: file", text file <> comma, text "line", int line]

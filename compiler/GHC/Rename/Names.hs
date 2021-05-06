@@ -55,7 +55,6 @@ import qualified GHC.LanguageExtensions as LangExt
 import GHC.Utils.Outputable as Outputable
 import GHC.Utils.Outputable.Ppr
 import GHC.Utils.Misc as Utils
-import GHC.Utils.Panic
 
 import GHC.Types.Fixity.Env
 import GHC.Types.SafeHaskell
@@ -77,6 +76,7 @@ import GHC.Unit.Module.ModIface
 import GHC.Unit.Module.Imported
 import GHC.Unit.Module.Deps
 
+import GHC.Utils.Panic
 import GHC.Data.Maybe
 import GHC.Data.FastString
 import GHC.Data.FastString.Env
@@ -448,11 +448,11 @@ calculateAvails dflags iface mod_safe' want_boot imported_by =
       -- 'imp_finsts' if it defines an orphan or instance family; thus the
       -- orph_iface/has_iface tests.
 
-      orphans | orph_iface = ASSERT2( not (imp_sem_mod `elem` dep_orphs deps), ppr imp_sem_mod <+> ppr (dep_orphs deps) )
+      orphans | orph_iface = assertPpr (not (imp_sem_mod `elem` dep_orphs deps)) (ppr imp_sem_mod <+> ppr (dep_orphs deps)) $
                              imp_sem_mod : dep_orphs deps
               | otherwise  = dep_orphs deps
 
-      finsts | has_finsts = ASSERT2( not (imp_sem_mod `elem` dep_finsts deps), ppr imp_sem_mod <+> ppr (dep_orphs deps) )
+      finsts | has_finsts = assertPpr (not (imp_sem_mod `elem` dep_finsts deps)) (ppr imp_sem_mod <+> ppr (dep_orphs deps)) $
                             imp_sem_mod : dep_finsts deps
              | otherwise  = dep_finsts deps
 
@@ -485,8 +485,8 @@ calculateAvails dflags iface mod_safe' want_boot imported_by =
             -- Imported module is from another package
             -- Dump the dependent modules
             -- Add the package imp_mod comes from to the dependent packages
-            ASSERT2( not (ipkg `elem` (map fst $ dep_pkgs deps))
-                   , ppr ipkg <+> ppr (dep_pkgs deps) )
+            assertPpr (not (ipkg `elem` (map fst $ dep_pkgs deps)))
+                      (ppr ipkg <+> ppr (dep_pkgs deps))
             ([], (ipkg, False) : dep_pkgs deps, False)
 
   in ImportAvails {
@@ -967,8 +967,8 @@ filterImports iface decl_spec (Just (want_hiding, L l import_items))
         -- NB: the AvailTC can have fields as well as data constructors (#12127)
         combine (name1, a1@(AvailTC p1 _ _), mp1)
                 (name2, a2@(AvailTC p2 _ _), mp2)
-          = ASSERT2( name1 == name2 && isNothing mp1 && isNothing mp2
-                   , ppr name1 <+> ppr name2 <+> ppr mp1 <+> ppr mp2 )
+          = assertPpr (name1 == name2 && isNothing mp1 && isNothing mp2)
+                      (ppr name1 <+> ppr name2 <+> ppr mp1 <+> ppr mp2) $
             if p1 == name1 then (name1, a1, Just p2)
                            else (name1, a2, Just p1)
         combine x y = pprPanic "filterImports/combine" (ppr x $$ ppr y)
@@ -1069,7 +1069,7 @@ filterImports iface decl_spec (Just (want_hiding, L l import_items))
                          , [])
 
         IEThingWith xt ltc@(L l rdr_tc) wc rdr_ns rdr_fs ->
-          ASSERT2(null rdr_fs, ppr rdr_fs) do
+          assertPpr (null rdr_fs) (ppr rdr_fs) do
            (name, avail, mb_parent)
                <- lookup_name (IEThingAbs noExtField ltc) (ieWrappedName rdr_tc)
 

@@ -67,6 +67,7 @@ import GHC.Utils.Panic
 import GHC.Data.FastString
 import GHC.Data.Maybe
 import GHC.Data.Bag
+import GHC.Utils.Constants
 import GHC.Utils.Misc
 import Data.List
 import Data.Ord

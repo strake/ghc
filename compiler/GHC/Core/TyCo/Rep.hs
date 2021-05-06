@@ -905,7 +905,7 @@ which in turn is imported by Type
 -}
 
 mkTyVarTy  :: TyVar   -> Type
-mkTyVarTy v = ASSERT2( isTyVar v, ppr v <+> dcolon <+> ppr (tyVarKind v) )
+mkTyVarTy v = assertPpr (isTyVar v) (ppr v <+> dcolon <+> ppr (tyVarKind v)) $
               TyVarTy v
 
 mkTyVarTys :: [TyVar] -> [Type]
@@ -970,7 +970,7 @@ mkTyConApp tycon tys
 
   -- Note [mkTyConApp and Type]
   | tycon `hasKey` liftedTypeKindTyConKey
-  = ASSERT2( null tys, ppr tycon $$ ppr tys )
+  = assertPpr (null tys) (ppr tycon $$ ppr tys)
     liftedTypeKindTyConApp
   | otherwise
   = TyConApp tycon tys

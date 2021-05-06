@@ -54,6 +54,7 @@ import GHC.Types.Var.Env
 import GHC.Types.Unique
 import GHC.Iface.Make             ( mkIfaceExports )
 import GHC.Utils.Panic
+import GHC.Utils.Panic.Plain
 import GHC.Data.Maybe
 import GHC.Data.FastString
 

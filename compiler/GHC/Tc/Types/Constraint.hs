@@ -94,10 +94,10 @@ import GHC.Driver.Session
 import GHC.Types.Basic
 
 import GHC.Utils.Outputable
+import GHC.Utils.Panic
 import GHC.Types.SrcLoc
 import GHC.Data.Bag
 import GHC.Utils.Misc
-import GHC.Utils.Panic
 
 import Control.Monad ( msum )
 
@@ -1646,8 +1646,8 @@ funEqCanDischarge
                   --          from [W] to [WD]
 -- See Note [funEqCanDischarge]
 funEqCanDischarge ev1 ev2
-  = ASSERT2( ctEvEqRel ev1 == NomEq, ppr ev1 )
-    ASSERT2( ctEvEqRel ev2 == NomEq, ppr ev2 )
+  = assertPpr (ctEvEqRel ev1 == NomEq) (ppr ev1) $
+    assertPpr (ctEvEqRel ev2 == NomEq) (ppr ev2) $
     -- CFunEqCans are all Nominal, hence asserts
     funEqCanDischargeF (ctEvFlavour ev1) (ctEvFlavour ev2)
 

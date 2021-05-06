@@ -69,11 +69,13 @@ import GHC.Types.SourceFile
 import GHC.Types.TyThing
 import GHC.Types.HpcInfo
 
+import GHC.Types.Basic hiding ( SuccessFlag(..) )
+
 import GHC.Utils.Error
+import GHC.Utils.Misc  hiding ( eqListBy )
 import GHC.Utils.Outputable
 import GHC.Utils.Outputable.Ppr
-import GHC.Utils.Panic
-import GHC.Utils.Misc  hiding ( eqListBy )
+import GHC.Utils.Panic.Plain
 
 import GHC.Data.FastString
 import GHC.Data.Maybe
@@ -649,7 +651,7 @@ classToIfaceDecl env clas
         (env2, if_decl) = tyConToIfaceDecl env1 tc
 
     toIfaceClassOp (sel_id, def_meth)
-        = ASSERT( sel_tyvars == binderVars tc_binders )
+        = assert (sel_tyvars == binderVars tc_binders) $
           IfaceClassOp (getName sel_id)
                        (tidyToIfaceType env1 op_ty)
                        (fmap toDmSpec def_meth)
@@ -692,7 +694,7 @@ instanceToIfaceInst (ClsInst { is_dfun = dfun_id, is_flag = oflag
                              , is_cls_nm = cls_name, is_cls = cls
                              , is_tcs = mb_tcs
                              , is_orphan = orph })
-  = ASSERT( cls_name == className cls )
+  = assert (cls_name == className cls) $
     IfaceClsInst { ifDFun    = dfun_name,
                 ifOFlag   = oflag,
                 ifInstCls = cls_name,
@@ -719,7 +721,7 @@ famInstToIfaceFamInst (FamInst { fi_axiom    = axiom,
     do_rough (Just n) = Just (toIfaceTyCon_name n)
 
     fam_decl = tyConName $ coAxiomTyCon axiom
-    mod = ASSERT( isExternalName (coAxiomName axiom) )
+    mod = assert (isExternalName (coAxiomName axiom)) $
           nameModule (coAxiomName axiom)
     is_local name = nameIsLocalOrFrom mod name
 

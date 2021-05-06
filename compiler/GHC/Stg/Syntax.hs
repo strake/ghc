@@ -87,8 +87,7 @@ import GHC.Builtin.PrimOps ( PrimOp, PrimCall )
 import GHC.Core.TyCon    ( PrimRep(..), TyCon )
 import GHC.Core.Type     ( Type )
 import GHC.Types.RepType ( typePrimRep1 )
-import GHC.Utils.Misc
-import GHC.Utils.Panic
+import GHC.Utils.Panic.Plain
 
 import Data.List.NonEmpty ( NonEmpty, toList )
 
@@ -479,7 +478,7 @@ type instance XLetNoEscape 'CodeGen = NoExtFieldSilent
 
 stgRhsArity :: StgRhs -> Int
 stgRhsArity (StgRhsClosure _ _ _ bndrs _)
-  = ASSERT( all isId bndrs ) length bndrs
+  = assert (all isId bndrs) $ length bndrs
   -- The arity never includes type parameters, but they should have gone by now
 stgRhsArity (StgRhsCon _ _ _) = 0
 

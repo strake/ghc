@@ -122,6 +122,7 @@ import GHC.Utils.Misc
 import GHC.Utils.Outputable
 import GHC.Utils.Outputable.Ppr
 import GHC.Utils.Panic
+import GHC.Utils.Panic.Plain
 
 import Data.Data hiding (TyCon)
 import Data.Int
@@ -303,7 +304,7 @@ data AltCon
 -- The instance adheres to the order described in [Core case invariants]
 instance Ord AltCon where
   compare (DataAlt con1) (DataAlt con2) =
-    ASSERT( dataConTyCon con1 == dataConTyCon con2 )
+    assert (dataConTyCon con1 == dataConTyCon con2) $
     compare (dataConTag con1) (dataConTag con2)
   compare (DataAlt _) _ = GT
   compare _ (DataAlt _) = LT
@@ -2069,7 +2070,7 @@ mkCoBind cv co      = NonRec cv (Coercion co)
 varToCoreExpr :: CoreBndr -> Expr b
 varToCoreExpr v | isTyVar v = Type (mkTyVarTy v)
                 | isCoVar v = Coercion (mkCoVarCo v)
-                | otherwise = ASSERT( isId v ) Var v
+                | otherwise = assert (isId v) $ Var v
 
 varsToCoreExprs :: [CoreBndr] -> [Expr b]
 varsToCoreExprs vs = map varToCoreExpr vs

@@ -86,6 +86,7 @@ import GHC.Data.Maybe
 import GHC.Utils.Outputable as Outputable
 import GHC.Utils.Panic
 import GHC.Data.FastString
+import GHC.Utils.Panic.Plain
 import Control.Monad
 import GHC.Core.Class(classTyCon)
 import GHC.Types.Unique.Set ( nonDetEltsUniqSet )
@@ -795,7 +796,7 @@ following.
 -}
 
 tcExpr expr@(RecordUpd { rupd_expr = record_expr, rupd_flds = rbnds }) res_ty
-  = ASSERT( notNull rbnds )
+  = assert (notNull rbnds) $
     do  { -- STEP -2: typecheck the record_expr, the record to be updated
           (record_expr', record_rho) <- tcInferRho record_expr
 
@@ -819,7 +820,7 @@ tcExpr expr@(RecordUpd { rupd_expr = record_expr, rupd_flds = rbnds }) res_ty
         -- See note [Mixed Record Selectors]
         ; let (data_sels, pat_syn_sels) =
                 partition isDataConRecordSelector sel_ids
-        ; MASSERT( all isPatSynRecordSelector pat_syn_sels )
+        ; massert (all isPatSynRecordSelector pat_syn_sels)
         ; checkTc ( null data_sels || null pat_syn_sels )
                   ( mixedSelectors data_sels pat_syn_sels )
 
@@ -853,7 +854,7 @@ tcExpr expr@(RecordUpd { rupd_expr = record_expr, rupd_flds = rbnds }) res_ty
         ; checkTc (not (null relevant_cons)) (badFieldsUpd rbinds con_likes)
 
         -- Take apart a representative constructor
-        ; let con1 = ASSERT( not (null relevant_cons) ) head relevant_cons
+        ; let con1 = assert (not (null relevant_cons) ) head relevant_cons
               (con1_tvs, _, _, _prov_theta, req_theta, con1_arg_tys, _)
                  = conLikeFullSig con1
               con1_flds   = map flLabel $ conLikeFieldLabels con1
@@ -1477,7 +1478,7 @@ tcArg fun arg ty arg_no
 ----------------
 tcTupArgs :: [LHsTupArg GhcRn] -> [TcSigmaType] -> TcM [LHsTupArg GhcTc]
 tcTupArgs args tys
-  = ASSERT( equalLength args tys ) mapM go (args `zip` tys)
+  = assert (equalLength args tys) $ mapM go (args `zip` tys)
   where
     go (L l (Missing {}),   arg_ty) = return (L l (Missing arg_ty))
     go (L l (Present x expr), arg_ty) = do { expr' <- tcCheckExpr expr arg_ty
@@ -1566,11 +1567,11 @@ tcSynArgE orig sigma_ty syn_ty thing_inside
 
                          -- another nested arrow is too much for now,
                          -- but I bet we'll never need this
-                     ; MASSERT2( case arg_shape of
+                     ; massertPpr (case arg_shape of
                                    SynFun {} -> False;
-                                   _         -> True
-                               , text "Too many nested arrows in SyntaxOpType" $$
-                                 pprCtOrigin orig )
+                                   _         -> True)
+                                  (text "Too many nested arrows in SyntaxOpType" $$
+                                   pprCtOrigin orig)
 
                      ; tcSynArgA orig arg_tc_ty [] arg_shape $
                        \ arg_results ->
@@ -2579,7 +2580,7 @@ addFunResCtxt has_args fun fun_res_ty env_ty
                            Just env_ty -> zonkTcType env_ty
                            Nothing     ->
                              do { dumping <- doptM Opt_D_dump_tc_trace
-                                ; MASSERT( dumping )
+                                ; massert dumping
                                 ; newFlexiTyVarTy liftedTypeKind }
            ; let -- See Note [Splitting nested sigma types in mismatched
                  --           function types]
@@ -2686,7 +2687,7 @@ badFieldsUpd rbinds data_cons
             -- are redundant and can be dropped.
             map (fst . head) $ groupBy ((==) `on` snd) growingSets
 
-    aMember = ASSERT( not (null members) ) fst (head members)
+    aMember = assert (not (null members) ) fst (head members)
     (members, nonMembers) = partition (or . snd) membership
 
     -- For each field, which constructors contain the field?

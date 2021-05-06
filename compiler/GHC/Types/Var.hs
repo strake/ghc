@@ -108,6 +108,7 @@ import GHC.Utils.Misc
 import GHC.Utils.Binary
 import GHC.Utils.Outputable
 import GHC.Utils.Panic
+import GHC.Utils.Panic.Plain
 
 import Data.Data
 
@@ -647,7 +648,7 @@ mkTyCoVarBinder vis var = Bndr var vis
 -- 'var' should be a type variable
 mkTyVarBinder :: vis -> TyVar -> (VarBndr TyVar vis)
 mkTyVarBinder vis var
-  = ASSERT( isTyVar var )
+  = assert (isTyVar var) $
     Bndr var vis
 
 -- | Make many named binders
@@ -808,7 +809,7 @@ setIdExported tv                               = pprPanic "setIdExported" (ppr t
 
 setIdNotExported :: Id -> Id
 -- ^ We can only do this to LocalIds
-setIdNotExported id = ASSERT( isLocalId id )
+setIdNotExported id = assert (isLocalId id) $
                       id { idScope = LocalId NotExported }
 
 -----------------------

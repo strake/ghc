@@ -64,11 +64,11 @@ import GHC.Types.Name
 import GHC.Types.Basic
 import GHC.Core.Type
 import GHC.Core.PatSyn
+import GHC.Utils.Misc
 import GHC.Utils.Outputable
 import GHC.Utils.Outputable.Ppr
 import GHC.Utils.Panic
 import GHC.Data.FastString
-import GHC.Utils.Misc
 import GHC.Types.Var
 import GHC.Types.Var.Env
 import GHC.Types.Var.Set
@@ -626,15 +626,15 @@ toIfaceLFInfo nm lfi = case lfi of
     LFReEntrant top_lvl arity no_fvs _arg_descr ->
       -- Exported LFReEntrant closures are top level, and top-level closures
       -- don't have free variables
-      ASSERT2(isTopLevel top_lvl, ppr nm)
-      ASSERT2(no_fvs, ppr nm)
+      assertPpr (isTopLevel top_lvl) (ppr nm) $
+      assertPpr no_fvs (ppr nm) $
       IfLFReEntrant arity
     LFThunk top_lvl no_fvs updatable sfi mb_fun ->
       -- Exported LFThunk closures are top level (which don't have free
       -- variables) and non-standard (see cgTopRhsClosure)
-      ASSERT2(isTopLevel top_lvl, ppr nm)
-      ASSERT2(no_fvs, ppr nm)
-      ASSERT2(sfi == NonStandardThunk, ppr nm)
+      assertPpr (isTopLevel top_lvl) (ppr nm) $
+      assertPpr no_fvs (ppr nm) $
+      assertPpr (sfi == NonStandardThunk) (ppr nm) $
       IfLFThunk updatable mb_fun
     LFCon dc ->
       IfLFCon (dataConName dc)

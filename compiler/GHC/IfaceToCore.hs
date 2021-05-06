@@ -67,9 +67,12 @@ import GHC.Unit.Module
 import GHC.Unit.Module.ModDetails
 import GHC.Unit.Module.ModIface
 import GHC.Unit.Home.ModInfo
-import GHC.Utils.Outputable
+
+import GHC.Utils.Constants ( debugIsOn )
 import GHC.Utils.Misc
+import GHC.Utils.Outputable
 import GHC.Utils.Panic
+import GHC.Utils.Panic.Plain
 
 import GHC.Data.Maybe
 import GHC.Data.FastString
@@ -1427,12 +1430,12 @@ tcIfaceAlt :: CoreExpr -> (TyCon, [Type])
            -> (IfaceConAlt, [FastString], IfaceExpr)
            -> IfL (AltCon, [TyVar], CoreExpr)
 tcIfaceAlt _ _ (IfaceDefault, names, rhs)
-  = ASSERT( null names ) do
+  = assert (null names) $ do
     rhs' <- tcIfaceExpr rhs
     return (DEFAULT, [], rhs')
 
 tcIfaceAlt _ _ (IfaceLitAlt lit, names, rhs)
-  = ASSERT( null names ) do
+  = assert (null names) $ do
     lit' <- tcIfaceLit lit
     rhs' <- tcIfaceExpr rhs
     return (LitAlt lit', [], rhs')
