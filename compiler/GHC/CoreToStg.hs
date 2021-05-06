@@ -41,8 +41,8 @@ import GHC.Utils.Outputable
 import GHC.Utils.Outputable.Ppr
 import GHC.Utils.Monad
 import GHC.Data.FastString
-import GHC.Utils.Misc
 import GHC.Utils.Panic
+import GHC.Utils.Panic.Plain
 import GHC.Driver.Session
 import GHC.Platform.Ways
 import GHC.Types.ForeignCall
@@ -299,7 +299,7 @@ coreTopBindToStg dflags this_mod env ccs (NonRec id rhs)
     (env', ccs', bind)
 
 coreTopBindToStg dflags this_mod env ccs (Rec pairs)
-  = ASSERT( not (null pairs) )
+  = assert (not (null pairs)) $
     let
         binders = map fst pairs
 
@@ -336,7 +336,7 @@ coreToTopStgRhs dflags ccs this_mod (bndr, rhs)
              stg_arity =
                stgRhsArity stg_rhs
 
-       ; return (ASSERT2( arity_ok stg_arity, mk_arity_msg stg_arity) stg_rhs,
+       ; return (assertPpr (arity_ok stg_arity) (mk_arity_msg stg_arity) stg_rhs,
                  ccs') }
   where
         -- It's vital that the arity on a top-level Id matches
@@ -456,7 +456,7 @@ coreToStgExpr e0@(Case scrut bndr _ alts) = do
       = -- This case is a bit smelly.
         -- See Note [Nullary unboxed tuple] in GHC.Core.Type
         -- where a nullary tuple is mapped to (State# World#)
-        ASSERT( null binders )
+        assert (null binders) $
         do { rhs2 <- coreToStgExpr rhs
            ; return (DEFAULT, [], rhs2)  }
       | otherwise
@@ -483,8 +483,7 @@ mkStgAltType bndr alts
         Just tc
           | isAbstractTyCon tc -> look_for_better_tycon
           | isAlgTyCon tc      -> AlgAlt tc
-          | otherwise          -> ASSERT2( _is_poly_alt_tycon tc, ppr tc )
-                                  PolyAlt
+          | otherwise          -> assertPpr (_is_poly_alt_tycon tc) (ppr tc) PolyAlt
         Nothing                -> PolyAlt
       [unlifted] -> PrimAlt unlifted
       not_unary  -> MultiValAlt (length not_unary)
@@ -507,7 +506,7 @@ mkStgAltType bndr alts
         | ((DataAlt con, _, _) : _) <- data_alts =
                 AlgAlt (dataConTyCon con)
         | otherwise =
-                ASSERT(null data_alts)
+                assert (null data_alts)
                 PolyAlt
         where
                 (data_alts, _deflt) = findDefault alts
@@ -546,17 +545,17 @@ coreToStgApp f args ticks = do
                 -- Some primitive operator that might be implemented as a library call.
                 -- As noted by Note [Eta expanding primops] in GHC.Builtin.PrimOps
                 -- we require that primop applications be saturated.
-                PrimOpId op      -> ASSERT( saturated )
+                PrimOpId op      -> assert saturated $
                                     StgOpApp (StgPrimOp op) args' res_ty
 
                 -- A call to some primitive Cmm function.
                 FCallId (CCall (CCallSpec (StaticTarget _ lbl (Just pkgId) True)
                                           PrimCallConv _))
-                                 -> ASSERT( saturated )
+                                 -> assert saturated $
                                     StgOpApp (StgPrimCallOp (PrimCall lbl pkgId)) args' res_ty
 
                 -- A regular foreign call.
-                FCallId call     -> ASSERT( saturated )
+                FCallId call     -> assert saturated $
                                     StgOpApp (StgFCallOp call (idType f)) args' res_ty
 
                 TickBoxOpId {}   -> pprPanic "coreToStg TickBox" $ ppr (f,args')
@@ -586,7 +585,7 @@ coreToStgArgs (Coercion _ : args) -- Coercion argument; See Note [Coercion token
        ; return (StgVarArg coercionTokenId : args', ts) }
 
 coreToStgArgs (Tick t e : args)
-  = ASSERT( not (tickishIsCode t) )
+  = assert (not (tickishIsCode t)) $
     do { (args', ts) <- coreToStgArgs (e : args)
        ; return (args', t:ts) }
 
@@ -699,8 +698,8 @@ mkTopStgRhs dflags this_mod ccs bndr rhs
   , -- Dynamic StgConApps are updatable
     not (isDllConApp dflags this_mod con args)
   = -- CorePrep does this right, but just to make sure
-    ASSERT2( not (isUnboxedTupleCon con || isUnboxedSumCon con)
-           , ppr bndr $$ ppr con $$ ppr args)
+    assertPpr (not (isUnboxedTupleCon con || isUnboxedSumCon con))
+              (ppr bndr $$ ppr con $$ ppr args)
     ( StgRhsCon dontCareCCS con args, ccs )
 
   -- Otherwise it's a CAF, see Note [Cost-centre initialization plan].
@@ -745,7 +744,7 @@ mkStgRhs bndr rhs
                   (toList bndrs) body
 
   | isJoinId bndr -- must be a nullary join point
-  = ASSERT(idJoinArity bndr == 0)
+  = assert (idJoinArity bndr == 0)
     StgRhsClosure noExtFieldSilent
                   currentCCS
                   ReEntrant -- ignored for LNE
@@ -900,7 +899,7 @@ lookupVarCts v = CtsM $ \_ env -> lookupBinding env v
 lookupBinding :: IdEnv HowBound -> Id -> HowBound
 lookupBinding env v = case lookupVarEnv env v of
                         Just xx -> xx
-                        Nothing -> ASSERT2( isGlobalId v, ppr v ) ImportBound
+                        Nothing -> assertPpr (isGlobalId v) (ppr v) ImportBound
 
 getAllCAFsCC :: Module -> (CostCentre, CostCentreStack)
 getAllCAFsCC this_mod =
@@ -932,7 +931,7 @@ myCollectArgs expr
   where
     go (Var v)          as ts = (v, as, ts)
     go (App f a)        as ts = go f (a:as) ts
-    go (Tick t e)       as ts = ASSERT( all isTypeArg as )
+    go (Tick t e)       as ts = assert (all isTypeArg as) $
                                 go e as (t:ts) -- ticks can appear in type apps
     go (Cast e _)       as ts = go e as ts
     go (Lam b e)        as ts

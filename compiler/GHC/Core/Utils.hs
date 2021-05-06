@@ -91,9 +91,11 @@ import GHC.Core.TyCo.Rep( TyCoBinder(..), TyBinder )
 import GHC.Core.Coercion
 import GHC.Core.TyCon
 import GHC.Types.Unique
+import GHC.Utils.Constants (debugIsOn)
 import GHC.Utils.Outputable
 import GHC.Utils.Outputable.Ppr
 import GHC.Utils.Panic
+import GHC.Utils.Panic.Plain
 import GHC.Builtin.Types.Prim
 import GHC.Data.FastString
 import GHC.Data.Maybe
@@ -300,9 +302,9 @@ applyTypeToArgs e op_ty args
 -- identity coercions and coalescing nested coercions
 mkCast :: CoreExpr -> CoercionR -> CoreExpr
 mkCast e co
-  | ASSERT2( coercionRole co == Representational
-           , text "coercion" <+> ppr co <+> ptext (sLit "passed to mkCast")
-             <+> ppr e <+> text "has wrong role" <+> ppr (coercionRole co) )
+  | assertPpr (coercionRole co == Representational)
+              (text "coercion" <+> ppr co <+> ptext (sLit "passed to mkCast")
+               <+> ppr e <+> text "has wrong role" <+> ppr (coercionRole co)) $
     isReflCo co
   = e
 
@@ -608,8 +610,8 @@ This makes it easy to find, though it makes matching marginally harder.
 
 -- | Extract the default case alternative
 findDefault :: [(AltCon, [a], b)] -> ([(AltCon, [a], b)], Maybe b)
-findDefault ((DEFAULT,args,rhs) : alts) = ASSERT( null args ) (alts, Just rhs)
-findDefault alts                        =                     (alts, Nothing)
+findDefault ((DEFAULT,args,rhs) : alts) = assert (null args) (alts, Just rhs)
+findDefault alts                        =                    (alts, Nothing)
 
 addDefault :: [(AltCon, [a], b)] -> Maybe b -> [(AltCon, [a], b)]
 addDefault alts Nothing    = alts
@@ -634,7 +636,7 @@ findAlt con alts
       = case con `cmpAltCon` con1 of
           LT -> deflt   -- Missed it already; the alts are in increasing order
           EQ -> Just alt
-          GT -> ASSERT( not (con1 == DEFAULT) ) go alts deflt
+          GT -> assert (not (con1 == DEFAULT)) $ go alts deflt
 
 {- Note [Unreachable code]
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -689,8 +691,8 @@ trimConArgs :: AltCon -> [CoreArg] -> [CoreArg]
 -- We want to drop the leading type argument of the scrutinee
 -- leaving the arguments to match against the pattern
 
-trimConArgs DEFAULT      args = ASSERT( null args ) []
-trimConArgs (LitAlt _)   args = ASSERT( null args ) []
+trimConArgs DEFAULT      args = assert (null args) []
+trimConArgs (LitAlt _)   args = assert (null args) []
 trimConArgs (DataAlt dc) args = dropList (dataConUnivTyVars dc) args
 
 filterAlts :: TyCon                -- ^ Type constructor of scrutinee's type (used to prune possibilities)
@@ -1594,7 +1596,7 @@ expr_ok primop_ok other_expr
         Var f   -> app_ok primop_ok f args
         -- 'LitRubbish' is the only literal that can occur in the head of an
         -- application and will not be matched by the above case (Var /= Lit).
-        Lit lit -> ASSERT( lit == rubbishLit ) True
+        Lit lit -> assert (lit == rubbishLit) True
         _       -> False
 
 -----------------------------
@@ -2015,7 +2017,7 @@ dataConInstPat :: [FastString]          -- A long enough list of FSs to use for 
 --  where the double-primed variables are created with the FastStrings and
 --  Uniques given as fss and us
 dataConInstPat fss uniqs con inst_tys
-  = ASSERT( univ_tvs `equalLength` inst_tys )
+  = assert (univ_tvs `equalLength` inst_tys) $
     (ex_bndrs, arg_ids)
   where
     univ_tvs = dataConUnivTyVars con

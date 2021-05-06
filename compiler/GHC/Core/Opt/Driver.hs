@@ -46,6 +46,7 @@ import GHC.Core.Opt.WorkWrap     ( wwTopBinds )
 import GHC.Core.Seq (seqBinds)
 import GHC.Core.FamInstEnv
 
+import GHC.Utils.Constants ( debugIsOn )
 import qualified GHC.Utils.Error as Err
 import GHC.Utils.Error  ( withTiming, withTimingD, DumpFormat (..) )
 import GHC.Utils.Misc

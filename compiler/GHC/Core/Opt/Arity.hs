@@ -42,8 +42,8 @@ import GHC.Driver.Session ( DynFlags, GeneralFlag(..), gopt )
 import GHC.Utils.Outputable
 import GHC.Utils.Outputable.Ppr
 import GHC.Utils.Panic
+import GHC.Utils.Panic.Plain
 import GHC.Data.FastString
-import GHC.Utils.Misc     ( debugIsOn )
 
 {-
 ************************************************************************
@@ -559,7 +559,7 @@ findRhsArity dflags bndr rhs old_arity
     go cur_info@(cur_arity, _)
       | cur_arity <= old_arity = cur_info
       | new_arity == cur_arity = cur_info
-      | otherwise = ASSERT( new_arity < cur_arity )
+      | otherwise = assert (new_arity < cur_arity)
 #if defined(DEBUG)
                     pprTrace "Exciting arity"
                        (vcat [ ppr bndr <+> ppr cur_arity <+> ppr new_arity

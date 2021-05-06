@@ -1299,7 +1299,7 @@ warnIfDeprecated gre@(GRE { gre_name = name, gre_imp = iss })
   = return ()
   where
     occ = greOccName gre
-    name_mod = ASSERT2( isExternalName name, ppr name ) nameModule name
+    name_mod = assertPpr (isExternalName name) (ppr name) (nameModule name)
     doc = text "The name" <+> quotes (ppr occ) <+> ptext (sLit "is mentioned explicitly")
 
     mk_msg imp_spec txt

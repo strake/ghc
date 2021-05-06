@@ -69,7 +69,7 @@ import GHC.Utils.Monad
 import GHC.Utils.Outputable
 import GHC.Utils.Outputable.Ppr
 import GHC.Utils.Panic
-import GHC.Utils.Misc
+import GHC.Utils.Panic.Plain
 import GHC.Types.Unique.FM      ( pprUniqFM )
 
 import Data.List (mapAccumL)
@@ -321,17 +321,17 @@ updMode upd env = env { seMode = upd (seMode env) }
 ---------------------
 extendIdSubst :: SimplEnv -> Id -> SimplSR -> SimplEnv
 extendIdSubst env@(SimplEnv {seIdSubst = subst}) var res
-  = ASSERT2( isId var && not (isCoVar var), ppr var )
+  = assertPpr (isId var && not (isCoVar var)) (ppr var) $
     env { seIdSubst = extendVarEnv subst var res }
 
 extendTvSubst :: SimplEnv -> TyVar -> Type -> SimplEnv
 extendTvSubst env@(SimplEnv {seTvSubst = tsubst}) var res
-  = ASSERT2( isTyVar var, ppr var $$ ppr res )
+  = assertPpr (isTyVar var) (ppr var $$ ppr res) $
     env {seTvSubst = extendVarEnv tsubst var res}
 
 extendCvSubst :: SimplEnv -> CoVar -> Coercion -> SimplEnv
 extendCvSubst env@(SimplEnv {seCvSubst = csubst}) var co
-  = ASSERT( isCoVar var )
+  = assert (isCoVar var) $
     env {seCvSubst = extendVarEnv csubst var co}
 
 ---------------------
@@ -497,7 +497,7 @@ emptyJoinFloats = nilOL
 
 unitLetFloat :: OutBind -> LetFloats
 -- This key function constructs a singleton float with the right form
-unitLetFloat bind = ASSERT(all (not . isJoinId) (bindersOf bind))
+unitLetFloat bind = assert (all (not . isJoinId) (bindersOf bind)) $
                     LetFloats (unitOL bind) (flag bind)
   where
     flag (Rec {})                = FltLifted
@@ -507,12 +507,12 @@ unitLetFloat bind = ASSERT(all (not . isJoinId) (bindersOf bind))
           -- String literals can be floated freely.
           -- See Note [Core top-level string literals] in GHC.Core.
       | exprOkForSpeculation rhs = FltOkSpec  -- Unlifted, and lifted but ok-for-spec (eg HNF)
-      | otherwise                = ASSERT2( not (isUnliftedType (idType bndr)), ppr bndr )
+      | otherwise                = assertPpr (not (isUnliftedType (idType bndr))) (ppr bndr)
                                    FltCareful
       -- Unlifted binders can only be let-bound if exprOkForSpeculation holds
 
 unitJoinFloat :: OutBind -> JoinFloats
-unitJoinFloat bind = ASSERT(all isJoinId (bindersOf bind))
+unitJoinFloat bind = assert (all isJoinId (bindersOf bind)) $
                      unitOL bind
 
 mkFloatBind :: SimplEnv -> OutBind -> (SimplFloats, SimplEnv)
@@ -599,8 +599,8 @@ mkRecFloats :: SimplFloats -> SimplFloats
 mkRecFloats floats@(SimplFloats { sfLetFloats  = LetFloats bs ff
                                 , sfJoinFloats = jbs
                                 , sfInScope    = in_scope })
-  = ASSERT2( case ff of { FltLifted -> True; _ -> False }, ppr (fromOL bs) )
-    ASSERT2( isNilOL bs || isNilOL jbs, ppr floats )
+  = assertPpr (case ff of { FltLifted -> True; _ -> False }) (ppr (fromOL bs))
+    assertPpr (isNilOL bs || isNilOL jbs) (ppr floats)
     SimplFloats { sfLetFloats  = floats'
                 , sfJoinFloats = jfloats'
                 , sfInScope    = in_scope }
@@ -635,7 +635,7 @@ wrapJoinFloats join_floats body
 getTopFloatBinds :: SimplFloats -> [CoreBind]
 getTopFloatBinds (SimplFloats { sfLetFloats  = lbs
                               , sfJoinFloats = jbs})
-  = ASSERT( isNilOL jbs )  -- Can't be any top-level join bindings
+  = assert (isNilOL jbs) $  -- Can't be any top-level join bindings
     letFloatBinds lbs
 
 mapLetFloats :: LetFloats -> ((Id,CoreExpr) -> (Id,CoreExpr)) -> LetFloats
@@ -760,7 +760,7 @@ simplNonRecBndr env id
 simplRecBndrs :: SimplEnv -> [InBndr] -> SimplM SimplEnv
 -- Recursive let binders
 simplRecBndrs env@(SimplEnv {}) ids
-  = ASSERT(all (not . isJoinId) ids)
+  = assert (all (not . isJoinId) ids) $
     do  { let (env1, ids1) = mapAccumL substIdBndr env ids
         ; seqIds ids1 `seq` return env1 }
 
@@ -802,7 +802,7 @@ subst_id_bndr :: SimplEnv
               -> (SimplEnv, OutBndr)
 subst_id_bndr env@(SimplEnv { seInScope = in_scope, seIdSubst = id_subst })
               old_id adjust_type
-  = ASSERT2( not (isCoVar old_id), ppr old_id )
+  = assertPpr (not (isCoVar old_id)) (ppr old_id)
     (env { seInScope = in_scope `extendInScopeSet` new_id,
            seIdSubst = new_subst }, new_id)
     -- It's important that both seInScope and seIdSubt are updated with
@@ -899,7 +899,7 @@ simplRecJoinBndrs :: SimplEnv -> [InBndr]
 -- context being pushed inward may change types
 -- See Note [Return type for join points]
 simplRecJoinBndrs env@(SimplEnv {}) ids res_ty
-  = ASSERT(all isJoinId ids)
+  = assert (all isJoinId ids) $
     do  { let (env1, ids1) = mapAccumL (simplJoinBndr res_ty) env ids
         ; seqIds ids1 `seq` return env1 }
 
@@ -922,7 +922,7 @@ adjustJoinPointType :: Type     -- New result type
 -- INVARIANT: If any of the first n binders are foralls, those tyvars
 -- cannot appear in the original result type. See isValidJoinPointType.
 adjustJoinPointType new_res_ty join_id
-  = ASSERT( isJoinId join_id )
+  = assert (isJoinId join_id) $
     setIdType join_id new_join_ty
   where
     orig_ar = idJoinArity join_id

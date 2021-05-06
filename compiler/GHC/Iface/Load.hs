@@ -55,12 +55,14 @@ import GHC.Iface.Rename
 import GHC.Tc.Utils.Monad
 
 import GHC.Utils.Binary   ( BinData(..) )
+import GHC.Utils.Constants
 import GHC.Utils.Error
+import GHC.Utils.Exception
+import GHC.Utils.Fingerprint
 import GHC.Utils.Outputable as Outputable
 import GHC.Utils.Outputable.Ppr
 import GHC.Utils.Panic
-import GHC.Utils.Misc
-import GHC.Utils.Fingerprint
+import GHC.Utils.Panic.Plain
 
 import GHC.Settings.Constants
 
@@ -102,7 +104,6 @@ import GHC.Unit.Home.ModInfo
 import GHC.Unit.Finder
 
 import GHC.Data.Maybe
-import GHC.Utils.Exception
 import GHC.Data.FastString
 
 import Control.Monad
@@ -161,11 +162,11 @@ importDecl :: Name -> IfM lcl (MaybeErr MsgDoc TyThing)
 -- Get the TyThing for this Name from an interface file
 -- It's not a wired-in thing -- the caller caught that
 importDecl name
-  = ASSERT( not (isWiredInName name) )
+  = assert (not (isWiredInName name)) $
     do  { traceIf nd_doc
 
         -- Load the interface, which should populate the PTE
-        ; mb_iface <- ASSERT2( isExternalName name, ppr name )
+        ; mb_iface <- assertPpr (isExternalName name) (ppr name) $
                       loadInterface nd_doc (nameModule name) ImportBySystem
         ; case mb_iface of {
                 Failed err_msg  -> return (Failed err_msg) ;
@@ -237,7 +238,7 @@ checkWiredInTyCon tc
   | otherwise
   = do  { mod <- getModule
         ; traceIf (text "checkWiredInTyCon" <+> ppr tc_name $$ ppr mod)
-        ; ASSERT( isExternalName tc_name )
+        ; assert (isExternalName tc_name )
           when (mod /= nameModule tc_name)
                (initIfaceTcRn (loadWiredInHomeIface tc_name))
                 -- Don't look for (non-existent) Float.hi when
@@ -260,7 +261,7 @@ ifCheckWiredInThing thing
                 -- the HPT, so without the test we'll demand-load it into the PIT!
                 -- C.f. the same test in checkWiredInTyCon above
         ; let name = getName thing
-        ; ASSERT2( isExternalName name, ppr name )
+        ; assertPpr (isExternalName name) (ppr name) $
           when (needWiredInHomeIface thing && mod /= nameModule name)
                (loadWiredInHomeIface name) }
 
@@ -336,8 +337,8 @@ loadInterfaceForName :: SDoc -> Name -> TcRn ModIface
 loadInterfaceForName doc name
   = do { when debugIsOn $  -- Check pre-condition
          do { this_mod <- getModule
-            ; MASSERT2( not (nameIsLocalOrFrom this_mod name), ppr name <+> parens doc ) }
-      ; ASSERT2( isExternalName name, ppr name )
+            ; massertPpr (not (nameIsLocalOrFrom this_mod name)) (ppr name <+> parens doc) }
+      ; assertPpr (isExternalName name) (ppr name) $
         initIfaceTcRn $ loadSysInterface doc (nameModule name) }
 
 -- | Only loads the interface for external non-local names.
@@ -356,7 +357,7 @@ loadInterfaceForModule doc m
     -- Should not be called with this module
     when debugIsOn $ do
       this_mod <- getModule
-      MASSERT2( this_mod /= m, ppr m <+> parens doc )
+      massertPpr (this_mod /= m) (ppr m <+> parens doc)
     initIfaceTcRn $ loadSysInterface doc m
 
 {-
@@ -376,7 +377,7 @@ loadInterfaceForModule doc m
 -- See Note [Loading instances for wired-in things]
 loadWiredInHomeIface :: Name -> IfM lcl ()
 loadWiredInHomeIface name
-  = ASSERT( isWiredInName name )
+  = assert (isWiredInName name) $
     do _ <- loadSysInterface doc (nameModule name); return ()
   where
     doc = text "Need home interface for wired-in thing" <+> ppr name
@@ -662,7 +663,7 @@ computeInterface ::
        SDoc -> IsBootInterface -> Module
     -> TcRnIf gbl lcl (MaybeErr MsgDoc (ModIface, FilePath))
 computeInterface doc_str hi_boot_file mod0 = do
-    MASSERT( not (isHoleModule mod0) )
+    massert (not (isHoleModule mod0))
     dflags <- getDynFlags
     case getModuleInstantiation mod0 of
         (imod, Just indef) | homeUnitIsIndefinite dflags -> do

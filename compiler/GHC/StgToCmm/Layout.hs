@@ -63,6 +63,8 @@ import GHC.Utils.Misc
 import Data.List
 import GHC.Utils.Outputable
 import GHC.Utils.Panic
+import GHC.Utils.Panic.Plain
+import GHC.Utils.Constants (debugIsOn)
 import GHC.Data.FastString
 import Control.Monad
 
@@ -434,7 +436,7 @@ mkVirtHeapOffsetsWithPadding
 -- than the unboxed things
 
 mkVirtHeapOffsetsWithPadding profile header things =
-    ASSERT(not (any (isVoidRep . fst . fromNonVoid) things))
+    assert (not (any (isVoidRep . fst . fromNonVoid) things))
     ( tot_wds
     , bytesToWordsRoundUp platform bytes_of_ptrs
     , concat (ptrs_w_offsets ++ non_ptrs_w_offsets) ++ final_pad

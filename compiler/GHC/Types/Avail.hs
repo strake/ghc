@@ -37,9 +37,11 @@ import GHC.Types.Name.Set
 import GHC.Types.FieldLabel
 import GHC.Utils.Binary
 import GHC.Data.List.SetOps
+import GHC.Utils.Panic.Plain
 import GHC.Utils.Outputable
 import GHC.Utils.Panic
 import GHC.Utils.Misc
+import GHC.Utils.Constants (debugIsOn)
 
 import Data.Data ( Data )
 import Data.List ( find )
@@ -226,7 +228,7 @@ trimAvail :: AvailInfo -> Name -> AvailInfo
 trimAvail (Avail n)         _ = Avail n
 trimAvail (AvailTC n ns fs) m = case find ((== m) . flSelector) fs of
     Just x  -> AvailTC n [] [x]
-    Nothing -> ASSERT( m `elem` ns ) AvailTC n [m] []
+    Nothing -> assert (m `elem` ns) AvailTC n [m] []
 
 -- | filters 'AvailInfo's by the given predicate
 filterAvails  :: (Name -> Bool) -> [AvailInfo] -> [AvailInfo]

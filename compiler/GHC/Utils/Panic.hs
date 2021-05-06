@@ -10,45 +10,41 @@
 --
 -- It's hard to put these functions anywhere else without causing
 -- some unnecessary loops in the module dependency graph.
-module GHC.Utils.Panic
-   ( GhcException(..)
-   , showGhcException
-   , showGhcExceptionUnsafe
-   , throwGhcException
-   , throwGhcExceptionIO
-   , handleGhcException
+module GHC.Utils.Panic (
+     GhcException(..), showGhcException,
+     throwGhcException, throwGhcExceptionIO,
+     handleGhcException,
 
-   , GHC.Utils.Panic.Plain.progName
-   , pgmError
-   , panic
-   , pprPanic
-   , assertPanic
-   , assertPprPanic
-   , sorry
-   , trace
-   , panicDoc
-   , sorryDoc
-   , pgmErrorDoc
-   , cmdLineError
-   , cmdLineErrorIO
-   , callStackDoc
+     GHC.Utils.Panic.Plain.progName,
+     pgmError,
+     panic,
+     pprPanic,
+     assertPanic,
+     assertPprPanic,
+     assertPpr,
+     assertPprM,
+     massertPpr,
+     sorry,
+     trace,
+     panicDoc,
+     sorryDoc,
+     pgmErrorDoc,
+     cmdLineError,
+     cmdLineErrorIO,
+     callStackDoc,
 
-   , Exception.Exception(..)
-   , showException
-   , safeShowException
-   , try
-   , tryMost
-   , throwTo
-   , withSignalHandlers
-   )
-where
+     Exception.Exception(..), showException, safeShowException,
+     try, tryMost, throwTo,
+
+     withSignalHandlers,
+) where
 
 import GHC.Prelude
 import GHC.Stack
 
 import GHC.Utils.Outputable
 import GHC.Utils.Panic.Plain
-
+import GHC.Utils.Constants
 import GHC.Utils.Exception as Exception
 
 import Control.Monad.IO.Class
@@ -295,6 +291,20 @@ callStackDoc =
 
 -- | Panic with an assertion failure, recording the given file and
 -- line number. Should typically be accessed with the ASSERT family of macros
-assertPprPanic :: HasCallStack => String -> Int -> SDoc -> a
-assertPprPanic _file _line msg
-  = pprPanic "ASSERT failed!" msg
+assertPprPanic :: HasCallStack => SDoc -> a
+assertPprPanic msg = withFrozenCallStack (pprPanic "ASSERT failed!" msg)
+
+
+assertPpr :: HasCallStack => Bool -> SDoc -> a -> a
+{-# INLINE assertPpr #-}
+assertPpr cond msg a
+  | debugIsOn && not cond = withFrozenCallStack (assertPprPanic msg)
+  | otherwise = a
+
+massertPpr :: (HasCallStack, Applicative m) => Bool -> SDoc -> m ()
+{-# INLINE massertPpr #-}
+massertPpr cond msg = withFrozenCallStack (assertPpr cond msg (pure ()))
+
+assertPprM :: (HasCallStack, Monad m) => m Bool -> SDoc -> m ()
+{-# INLINE assertPprM #-}
+assertPprM mcond msg = withFrozenCallStack (mcond >>= \cond -> massertPpr cond msg)

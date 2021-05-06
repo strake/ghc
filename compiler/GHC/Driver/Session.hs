@@ -252,6 +252,7 @@ import {-# SOURCE #-} GHC.Core.Unfold
 import GHC.Driver.CmdLine hiding (WarnReason(..))
 import qualified GHC.Driver.CmdLine as Cmd
 import GHC.Settings.Constants
+import GHC.Utils.Constants (debugIsOn)
 import GHC.Utils.Panic
 import qualified GHC.Utils.Ppr.Colour as Col
 import GHC.Utils.Misc

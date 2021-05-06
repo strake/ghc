@@ -31,6 +31,7 @@ import GHC.Utils.Misc
 import GHC.Utils.Outputable
 import GHC.Utils.Outputable.Ppr
 import GHC.Utils.Panic
+import GHC.Utils.Panic.Plain
 import GHC.Core.FamInstEnv
 import GHC.Utils.Monad
 
@@ -492,8 +493,9 @@ tryWW dflags fam_envs is_rec fn_id rhs
     cpr_ty       = getCprSig (cprInfo fn_info)
     -- Arity of the CPR sig should match idArity when it's not a join point.
     -- See Note [Arity trimming for CPR signatures] in GHC.Core.Opt.CprAnal
-    cpr          = ASSERT2( isJoinId fn_id || cpr_ty == topCprType || ct_arty cpr_ty == arityInfo fn_info
-                          , ppr fn_id <> colon <+> text "ct_arty:" <+> int (ct_arty cpr_ty) <+> text "arityInfo:" <+> ppr (arityInfo fn_info))
+    cpr          = assertPpr (isJoinId fn_id || cpr_ty == topCprType || ct_arty cpr_ty == arityInfo fn_info)
+                             (ppr fn_id <> colon <+> text "ct_arty:" <+> int (ct_arty cpr_ty)
+                              <+> text "arityInfo:" <+> ppr (arityInfo fn_info)) $
                    ct_cpr cpr_ty
 
     new_fn_id = zapIdUsedOnceInfo (zapIdUsageEnvInfo fn_id)
@@ -789,9 +791,9 @@ then the splitting will go deeper too.
 
 splitThunk :: DynFlags -> FamInstEnvs -> RecFlag -> Var -> Expr Var -> UniqSM [(Var, Expr Var)]
 splitThunk dflags fam_envs is_rec fn_id rhs
-  = ASSERT(not (isJoinId fn_id))
+  = assert (not (isJoinId fn_id)) $
     do { (useful,_, wrap_fn, work_fn) <- mkWWstr dflags fam_envs False [fn_id]
        ; let res = [ (fn_id, Let (NonRec fn_id rhs) (wrap_fn (work_fn (Var fn_id)))) ]
-       ; if useful then ASSERT2( isNonRec is_rec, ppr fn_id ) -- The thunk must be non-recursive
+       ; if useful then assertPpr (isNonRec is_rec) (ppr fn_id) -- The thunk must be non-recursive
                    return res
                    else return [(fn_id, rhs)] }

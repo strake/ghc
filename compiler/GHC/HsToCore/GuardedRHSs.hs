@@ -31,6 +31,7 @@ import GHC.Utils.Misc
 import GHC.Types.SrcLoc
 import GHC.Utils.Outputable
 import GHC.Utils.Panic
+import GHC.Utils.Panic.Plain
 import Control.Monad ( zipWithM )
 import Data.List.NonEmpty ( NonEmpty, toList )
 
@@ -63,10 +64,10 @@ dsGRHSs :: HsMatchContext GhcRn
                                        --   to 'initDeltas' if 'Nothing'.
         -> DsM (MatchResult CoreExpr)
 dsGRHSs hs_ctx (GRHSs _ grhss binds) rhs_ty mb_rhss_deltas
-  = ASSERT( notNull grhss )
+  = assert (notNull grhss) $
     do { match_results <- case toList <$> mb_rhss_deltas of
            Nothing          -> mapM     (dsGRHS hs_ctx rhs_ty initDeltas) grhss
-           Just rhss_deltas -> ASSERT( length grhss == length rhss_deltas )
+           Just rhss_deltas -> assert (length grhss == length rhss_deltas)
                                zipWithM (dsGRHS hs_ctx rhs_ty) rhss_deltas grhss
        ; let match_result1 = foldr1 combineMatchResults match_results
              match_result2 = adjustMatchResultDs (dsLocalBinds binds) match_result1

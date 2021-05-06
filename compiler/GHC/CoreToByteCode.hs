@@ -51,6 +51,7 @@ import GHC.Utils.Error
 import GHC.Types.Unique
 import GHC.Data.FastString
 import GHC.Utils.Panic
+import GHC.Utils.Panic.Plain
 import GHC.Utils.Exception (evaluate)
 import GHC.StgToCmm.Closure ( NonVoid(..), fromNonVoid, nonVoidIds )
 import GHC.StgToCmm.Layout
@@ -709,7 +710,7 @@ protectNNLJoinPointBind x rhs@(fvs, _)
 -- See Note [Not-necessarily-lifted join points]
 protectNNLJoinPointId :: Id -> Id
 protectNNLJoinPointId x
-  = ASSERT( isNNLJoinPoint x )
+  = assert (isNNLJoinPoint x )
     updateVarType (voidPrimTy `mkVisFunTy`) x
 
 {-
@@ -871,13 +872,13 @@ mkConAppCode
     -> [AnnExpr' Id DVarSet]    -- Args, in *reverse* order
     -> BcM BCInstrList
 mkConAppCode _ _ _ con []       -- Nullary constructor
-  = ASSERT( isNullaryRepDataCon con )
+  = assert (isNullaryRepDataCon con)
     return (unitOL (PUSH_G (getName (dataConWorkId con))))
         -- Instead of doing a PACK, which would allocate a fresh
         -- copy of this constructor, use the single shared version.
 
 mkConAppCode orig_d _ p con args_r_to_l =
-    ASSERT( args_r_to_l `lengthIs` dataConRepArity con ) app_code
+    assert (args_r_to_l `lengthIs` dataConRepArity con) app_code
   where
     app_code = do
         profile <- getProfile
@@ -932,11 +933,11 @@ doTailCall
 doTailCall init_d s p fn args = do_pushes init_d args (map atomRep args)
   where
   do_pushes !d [] reps = do
-        ASSERT( null reps ) return ()
+        assert (null reps ) return ()
         (push_fn, sz) <- pushAtom d p (AnnVar fn)
         dflags <- getDynFlags
         let platform = targetPlatform dflags
-        ASSERT( sz == wordSize platform ) return ()
+        assert (sz == wordSize platform ) return ()
         let slide = mkSlideB platform (d - init_d + wordSize platform) (init_d - s)
         return (push_fn `appOL` (slide `appOL` unitOL ENTER))
   do_pushes !d args reps = do
@@ -1080,7 +1081,7 @@ doCase d s p (_,scrut) bndr alts is_unboxed_tuple
                         | (NonVoid arg, offset) <- args_offsets ]
                         p_alts
              in do
-             MASSERT(isAlgCase)
+             massert isAlgCase
              rhs_code <- schemeE stack_bot s p' rhs
              return (my_discr alt,
                      unitOL (UNPACK (trunc16W size)) `appOL` rhs_code)
@@ -1509,7 +1510,7 @@ implement_tagToId
     -> BcM BCInstrList
 -- See Note [Implementing tagToEnum#]
 implement_tagToId d s p arg names
-  = ASSERT( notNull names )
+  = assert (notNull names) $
     do (push_arg, arg_bytes) <- pushAtom d p arg
        labels <- getLabelsBc (genericLength names)
        label_fail <- getLabelBc
@@ -1610,7 +1611,7 @@ pushAtom d p (AnnVar var)
               fromIntegral $ ptrToWordPtr $ fromRemotePtr ptr
             Nothing -> do
                 let sz = idSizeCon platform var
-                MASSERT( sz == wordSize platform )
+                massert (sz == wordSize platform)
                 return (unitOL (PUSH_G (getName var)), sz)
 
 
@@ -1941,7 +1942,7 @@ atomPrimRep (AnnLit l)              = typePrimRep1 (literalType l)
 -- A case expression can be an atom because empty cases evaluate to bottom.
 -- See Note [Empty case alternatives] in GHC.Core
 atomPrimRep (AnnCase _ _ ty _)      =
-  ASSERT(case typePrimRep ty of [LiftedRep] -> True; _ -> False) LiftedRep
+  assert (case typePrimRep ty of [LiftedRep] -> True; _ -> False) LiftedRep
 atomPrimRep (AnnCoercion {})        = VoidRep
 atomPrimRep other = pprPanic "atomPrimRep" (ppr (deAnnotate' other))
 

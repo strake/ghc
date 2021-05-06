@@ -139,6 +139,7 @@ import Data.List
 import GHC.Driver.Session ( WarningFlag(..), DynFlags )
 import GHC.Utils.Error ( Messages )
 import GHC.Utils.Panic
+import GHC.Utils.Panic.Plain
 
 import Control.Monad
 import Text.ParserCombinators.ReadP as ReadP
@@ -436,8 +437,8 @@ cvBindGroup :: OrdList (LHsDecl GhcPs) -> P (HsValBinds GhcPs)
 cvBindGroup binding
   = do { (mbs, sigs, fam_ds, tfam_insts
          , dfam_insts, _) <- cvBindsAndSigs binding
-       ; ASSERT( null fam_ds && null tfam_insts && null dfam_insts)
-         return $ ValBinds noExtField mbs sigs }
+       ; massert (null fam_ds && null tfam_insts && null dfam_insts)
+       ; return $ ValBinds noExtField mbs sigs }
 
 cvBindsAndSigs :: OrdList (LHsDecl GhcPs)
   -> P (LHsBinds GhcPs, [LSig GhcPs], [LFamilyDecl GhcPs]

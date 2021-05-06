@@ -394,7 +394,7 @@ pmIsClosedType ty
   = case splitTyConApp_maybe ty of
       Just (tc, ty_args)
              | is_algebraic_like tc && not (isFamilyTyCon tc)
-             -> ASSERT2( ty_args `lengthIs` tyConArity tc, ppr ty ) True
+             -> assertPpr (ty_args `lengthIs` tyConArity tc) (ppr ty) True
       _other -> False
   where
     -- This returns True for TyCons which /act like/ algebraic types.
@@ -1102,7 +1102,7 @@ addVarCt delta@MkDelta{ delta_tm_st = TmSt env _ } x y
 -- See Note [TmState invariants].
 equate :: Delta -> Id -> Id -> MaybeT DsM Delta
 equate delta@MkDelta{ delta_tm_st = TmSt env reps } x y
-  = ASSERT( not (sameRepresentativeSDIE env x y) )
+  = assert (not (sameRepresentativeSDIE env x y))
     case (lookupSDIE env x, lookupSDIE env y) of
       (Nothing, _) -> pure (delta{ delta_tm_st = TmSt (setIndirectSDIE env x y) reps })
       (_, Nothing) -> pure (delta{ delta_tm_st = TmSt (setIndirectSDIE env y x) reps })
@@ -1110,7 +1110,7 @@ equate delta@MkDelta{ delta_tm_st = TmSt env reps } x y
       (Just vi_x, Just vi_y) -> do
         -- This assert will probably trigger at some point...
         -- We should decide how to break the tie
-        MASSERT2( vi_ty vi_x `eqType` vi_ty vi_y, text "Not same type" )
+        massertPpr (vi_ty vi_x `eqType` vi_ty vi_y) (text "Not same type")
         -- First assume that x and y are in the same equivalence class
         let env_ind = setIndirectSDIE env x y
         -- Then sum up the refinement counters

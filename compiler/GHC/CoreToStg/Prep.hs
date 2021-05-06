@@ -49,10 +49,10 @@ import GHC.Core.Opt.OccurAnal
 import GHC.Data.Maybe
 import GHC.Data.OrdList
 import GHC.Data.FastString
-
 import GHC.Utils.Error
 import GHC.Utils.Misc
 import GHC.Utils.Panic
+import GHC.Utils.Panic.Plain
 import GHC.Utils.Outputable
 import GHC.Utils.Outputable.Ppr ( warnPprTrace )
 import GHC.Utils.Monad  ( mapAccumLM )
@@ -230,7 +230,7 @@ corePrepTopBinds initialCorePrepEnv binds
     go _   []             = return emptyFloats
     go env (bind : binds) = do (env', floats, maybe_new_bind)
                                  <- cpeBind TopLevel env bind
-                               MASSERT(isNothing maybe_new_bind)
+                               massert (isNothing maybe_new_bind)
                                  -- Only join points get returned this way by
                                  -- cpeBind, and no join point may float to top
                                floatss <- go env' binds
@@ -409,7 +409,7 @@ cpeBind top_lvl env (NonRec bndr rhs)
        ; return (env2, floats1, Nothing) }
 
   | otherwise -- A join point; see Note [Join points and floating]
-  = ASSERT(not (isTopLevel top_lvl)) -- can't have top-level join point
+  = assert (not (isTopLevel top_lvl)) $ -- can't have top-level join point
     do { (_, bndr1) <- cpCloneBndr env bndr
        ; (bndr2, rhs1) <- cpeJoinPair env bndr1 rhs
        ; return (extendCorePrepEnv env bndr bndr2,
@@ -454,7 +454,7 @@ cpePair :: TopLevelFlag -> RecFlag -> Demand -> Bool
 -- Used for all bindings
 -- The binder is already cloned, hence an OutId
 cpePair top_lvl is_rec dmd is_unlifted env bndr rhs
-  = ASSERT(not (isJoinId bndr)) -- those should use cpeJoinPair
+  = assert (not (isJoinId bndr)) $ -- those should use cpeJoinPair
     do { (floats1, rhs1) <- cpeRhsE env rhs
 
        -- See if we are allowed to float this stuff out of the RHS
@@ -532,7 +532,7 @@ cpeJoinPair :: CorePrepEnv -> JoinId -> CoreExpr
 -- Used for all join bindings
 -- No eta-expansion: see Note [Do not eta-expand join points] in GHC.Core.Opt.Simplify.Utils
 cpeJoinPair env bndr rhs
-  = ASSERT(isJoinId bndr)
+  = assert (isJoinId bndr) $
     do { let Just join_arity = isJoinId_maybe bndr
              (bndrs, body)   = collectNBinders join_arity rhs
 
@@ -870,7 +870,7 @@ cpeApp top_env expr
         -> [Demand]
         -> UniqSM (CpeApp, Floats)
     rebuild_app [] app _ floats ss = do
-      MASSERT(null ss) -- make sure we used all the strictness info
+      massert (null ss) -- make sure we used all the strictness info
       return (app, floats)
     rebuild_app (a : as) fun' fun_ty floats ss = case a of
       CpeApp arg@(Type arg_ty) ->
@@ -1292,7 +1292,7 @@ mkFloat dmd is_unlifted bndr rhs
     -- Don't make a case for a HNF binding, even if it's strict
     -- Otherwise we get  case (\x -> e) of ...!
 
-  | is_unlifted = ASSERT2( exprOkForSpeculation rhs, ppr rhs )
+  | is_unlifted = assertPpr (exprOkForSpeculation rhs) (ppr rhs) $
                   FloatCase rhs bndr DEFAULT [] True
   | is_hnf    = FloatLet (NonRec bndr                       rhs)
   | otherwise = FloatLet (NonRec (setIdDemandInfo bndr dmd) rhs)
@@ -1727,7 +1727,7 @@ wrapTicks (Floats flag floats0) expr =
         -- those early, as relying on mkTick to spot it after the fact
         -- can yield O(n^3) complexity [#11095]
         go (floats, ticks) (FloatTick t)
-          = ASSERT(tickishPlace t == PlaceNonLam)
+          = assert (tickishPlace t == PlaceNonLam)
             (floats, if any (flip tickishContains t) ticks
                      then ticks else t:ticks)
         go (floats, ticks) f

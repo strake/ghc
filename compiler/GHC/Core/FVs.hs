@@ -82,7 +82,7 @@ import GHC.Types.Basic( Activation )
 
 import GHC.Utils.FV as FV
 import GHC.Utils.Misc
-import GHC.Utils.Panic
+import GHC.Utils.Panic.Plain
 
 {-
 ************************************************************************
@@ -626,14 +626,14 @@ varTypeTyCoFVs :: Var -> FV
 varTypeTyCoFVs var = tyCoFVsOfType (varType var)
 
 idFreeVars :: Id -> VarSet
-idFreeVars id = ASSERT( isId id) fvVarSet $ idFVs id
+idFreeVars id = assert (isId id) $ fvVarSet $ idFVs id
 
 dIdFreeVars :: Id -> DVarSet
 dIdFreeVars id = fvDVarSet $ idFVs id
 
 idFVs :: Id -> FV
 -- Type variables, rule variables, and inline variables
-idFVs id = ASSERT( isId id)
+idFVs id = assert (isId id) $
            varTypeTyCoFVs id `unionFV`
            bndrRuleAndUnfoldingFVs id
 
@@ -649,7 +649,7 @@ idRuleVars ::Id -> VarSet  -- Does *not* include CoreUnfolding vars
 idRuleVars id = fvVarSet $ idRuleFVs id
 
 idRuleFVs :: Id -> FV
-idRuleFVs id = ASSERT( isId id)
+idRuleFVs id = assert (isId id) $
   FV.mkFVs (dVarSetElems $ ruleInfoFreeVars (idSpecialisation id))
 
 idUnfoldingVars :: Id -> VarSet

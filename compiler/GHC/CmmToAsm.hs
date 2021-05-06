@@ -126,6 +126,8 @@ import GHC.Types.Unique.FM
 import GHC.Types.Unique.Supply
 import GHC.Driver.Session
 import GHC.Driver.Ppr
+
+import GHC.Utils.Constants
 import GHC.Utils.Misc
 
 import qualified GHC.Utils.Ppr as Pretty
@@ -706,8 +708,7 @@ maybeDumpCfg dflags (Just cfg) msg proc_name
 checkLayout :: [NatCmmDecl statics instr] -> [NatCmmDecl statics instr]
             -> [NatCmmDecl statics instr]
 checkLayout procsUnsequenced procsSequenced =
-        ASSERT2(setNull diff,
-                ppr "Block sequencing dropped blocks:" <> ppr diff)
+        assertPpr (setNull diff) (ppr "Block sequencing dropped blocks:" <> ppr diff)
         procsSequenced
   where
         blocks1 = foldl' (setUnion) setEmpty $

@@ -191,8 +191,6 @@ import GHC.Types.TyThing
 import GHC.Types.HpcInfo
 
 import GHC.Utils.Fingerprint ( Fingerprint )
-import GHC.Utils.Panic
-import GHC.Utils.Error
 import GHC.Utils.Outputable
 import GHC.Utils.Exception
 import GHC.Utils.Misc
@@ -307,7 +305,7 @@ ioMsgMaybe ioA = do
     logWarnings warns
     case mb_r of
         Nothing -> throwErrors errs
-        Just r  -> ASSERT( isEmptyBag errs ) return r
+        Just r  -> assert (isEmptyBag errs) return r
 
 -- | like ioMsgMaybe, except that we ignore error messages and return
 -- 'Nothing' instead.
@@ -511,7 +509,7 @@ hsc_typecheck keep_rn mod_summary mb_rdr_module = do
         src_filename  = ms_hspp_file mod_summary
         real_loc = realSrcLocSpan $ mkRealSrcLoc (mkFastString src_filename) 1 1
         keep_rn' = gopt Opt_WriteHie dflags || keep_rn
-    MASSERT( isHomeModule dflags outer_mod )
+    massert (isHomeModule dflags outer_mod)
     tc_result <- if hsc_src == HsigFile && not (isHoleModule inner_mod)
         then ioMsgMaybe $ tcRnInstantiateSignature hsc_env outer_mod' real_loc
         else

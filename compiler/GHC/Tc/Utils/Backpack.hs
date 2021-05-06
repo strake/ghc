@@ -79,7 +79,9 @@ import GHC.Tc.Utils.Env
 import GHC.Tc.Errors
 import GHC.Tc.Utils.Unify
 
-import GHC.Utils.Misc
+import GHC.Utils.Error
+import GHC.Utils.Outputable
+import GHC.Utils.Panic
 import GHC.Utils.Error
 import GHC.Utils.Outputable
 import GHC.Utils.Panic
@@ -1021,8 +1023,8 @@ instantiateSignature = do
     -- TODO: setup the local RdrEnv so the error messages look a little better.
     -- But this information isn't stored anywhere. Should we RETYPECHECK
     -- the local one just to get the information?  Hmm...
-    MASSERT( isHomeModule dflags outer_mod )
-    MASSERT( isJust (homeUnitInstanceOfId dflags) )
+    massert (isHomeModule dflags outer_mod)
+    massert (isJust (homeUnitInstanceOfId dflags))
     let Just uid = homeUnitInstanceOfId dflags
     inner_mod `checkImplements`
         Module

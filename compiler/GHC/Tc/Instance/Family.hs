@@ -48,6 +48,7 @@ import GHC.Types.Var.Set
 import GHC.Utils.Outputable
 import GHC.Utils.Misc
 import GHC.Utils.Panic
+import GHC.Utils.Panic.Plain
 import GHC.Utils.FV
 
 import GHC.Data.Bag( Bag, unionBags, unitBag )
@@ -175,8 +176,8 @@ addressed yet.
 newFamInst :: FamFlavor -> CoAxiom Unbranched -> TcM FamInst
 -- Freshen the type variables of the FamInst branches
 newFamInst flavor axiom@(CoAxiom { co_ax_tc = fam_tc })
-  = ASSERT2( tyCoVarsOfTypes lhs `subVarSet` tcv_set, text "lhs" <+> pp_ax )
-    ASSERT2( lhs_kind `eqType` rhs_kind, text "kind" <+> pp_ax $$ ppr lhs_kind $$ ppr rhs_kind )
+  = assertPpr (tyCoVarsOfTypes lhs `subVarSet` tcv_set) (text "lhs" <+> pp_ax)
+    assertPpr (lhs_kind `eqType` rhs_kind) (text "kind" <+> pp_ax $$ ppr lhs_kind $$ ppr rhs_kind)
     -- We used to have an assertion that the tyvars of the RHS were bound
     -- by tcv_set, but in error situations like  F Int = a that isn't
     -- true; a later check in checkValidFamInst rejects it
@@ -537,7 +538,7 @@ tcLookupDataFamInst_maybe fam_inst_envs tc tc_args
   , let rep_tc = dataFamInstRepTyCon rep_fam
         co     = mkUnbranchedAxInstCo Representational ax rep_args
                                       (mkCoVarCos cvs)
-  = ASSERT( null rep_cos ) -- See Note [Constrained family instances] in GHC.Core.FamInstEnv
+  = assert (null rep_cos) $ -- See Note [Constrained family instances] in GHC.Core.FamInstEnv
     Just (rep_tc, rep_args, co)
 
   | otherwise
@@ -778,7 +779,7 @@ reportInjectivityErrors
    -> [Bool]       -- ^ Injectivity annotation
    -> TcM ()
 reportInjectivityErrors dflags fi_ax axiom inj
-  = ASSERT2( any id inj, text "No injective type variables" )
+  = assertPpr (any id inj) (text "No injective type variables") $
     do let lhs             = coAxBranchLHS axiom
            rhs             = coAxBranchRHS axiom
            fam_tc          = coAxiomTyCon fi_ax

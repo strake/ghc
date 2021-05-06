@@ -2035,7 +2035,7 @@ getPendingGivenScs = do { lvl <- getTcLevel
 
 get_sc_pending :: TcLevel -> InertCans -> ([Ct], InertCans)
 get_sc_pending this_lvl ic@(IC { inert_dicts = dicts, inert_insts = insts })
-  = ASSERT2( all isGivenCt sc_pending, ppr sc_pending )
+  = assertPpr (all isGivenCt sc_pending) (ppr sc_pending)
        -- When getPendingScDics is called,
        -- there are never any Wanteds in the inert set
     (sc_pending, ic { inert_dicts = dicts', inert_insts = insts' })
@@ -3089,7 +3089,7 @@ unifyTyVar :: TcTyVar -> TcType -> TcS ()
 --
 -- We should never unify the same variable twice!
 unifyTyVar tv ty
-  = ASSERT2( isMetaTyVar tv, ppr tv )
+  = assertPpr (isMetaTyVar tv) (ppr tv) $
     TcS $ \ env ->
     do { TcM.traceTc "unifyTyVar" (ppr tv <+> text ":=" <+> ppr ty)
        ; TcM.writeMetaTyVar tv ty
@@ -3280,7 +3280,7 @@ unflattenFmv :: TcTyVar -> TcType -> TcS ()
 -- Fill a flatten-meta-var, simply by unifying it.
 -- This does NOT count as a unification in tcs_unified.
 unflattenFmv tv ty
-  = ASSERT2( isMetaTyVar tv, ppr tv )
+  = assertPpr (isMetaTyVar tv) (ppr tv)
     TcS $ \ _ ->
     do { TcM.traceTc "unflattenFmv" (ppr tv <+> text ":=" <+> ppr ty)
        ; TcM.writeMetaTyVar tv ty }
@@ -3328,7 +3328,7 @@ dischargeFunEq (CtGiven { ctev_evar = old_evar, ctev_loc = loc }) fsk co xi
     new_co   = mkTcSymCo (mkTcCoVarCo old_evar) `mkTcTransCo` co
 
 dischargeFunEq ev@(CtWanted { ctev_dest = dest }) fmv co xi
-  = ASSERT2( not (fmv `elemVarSet` tyCoVarsOfType xi), ppr ev $$ ppr fmv $$ ppr xi )
+  = assertPpr (not (fmv `elemVarSet` tyCoVarsOfType xi)) (ppr ev $$ ppr fmv $$ ppr xi)
     do { setWantedEvTerm dest (evCoercion co)
        ; unflattenFmv fmv xi
        ; n_kicked <- kickOutAfterUnification fmv

@@ -66,10 +66,12 @@ import GHC.Utils.Error
 import GHC.Driver.Session
 import GHC.Types.Basic
 import GHC.Data.Bag
+import GHC.Utils.Constants
 import GHC.Utils.Misc
-import qualified GHC.LanguageExtensions as LangExt
 import GHC.Utils.Outputable as Outputable
 import GHC.Utils.Panic
+import GHC.Utils.Panic.Plain
+import qualified GHC.LanguageExtensions as LangExt
 
 import Data.Maybe( isNothing )
 import Control.Monad
@@ -163,7 +165,7 @@ matchExpectedFunTys herald arity orig_ty thing_inside
       | Just ty' <- tcView ty = go acc_arg_tys n ty'
 
     go acc_arg_tys n (FunTy { ft_af = af, ft_arg = arg_ty, ft_res = res_ty })
-      = ASSERT( af == VisArg )
+      = assert (af == VisArg) $
         do { (result, wrap_res) <- go (mkCheckExpType arg_ty : acc_arg_tys)
                                       (n-1) res_ty
            ; return ( result
@@ -297,7 +299,7 @@ matchActualFunTysPart herald ct_orig mb_thing
       | Just ty' <- tcView ty = go n so_far ty'
 
     go n so_far (FunTy { ft_af = af, ft_arg = arg_ty, ft_res = res_ty })
-      = ASSERT( af == VisArg )
+      = assert (af == VisArg)
         do { (wrap_res, tys, ty_r) <- go (n-1) (arg_ty:so_far) res_ty
            ; return ( mkWpFun idHsWrapper wrap_res arg_ty ty_r doc
                     , arg_ty : tys, ty_r ) }
@@ -399,7 +401,7 @@ matchExpectedTyConApp :: TyCon                -- T :: forall kv1 ... kvm. k1 -> 
 -- Postcondition: (T k1 k2 k3 a b c) is well-kinded
 
 matchExpectedTyConApp tc orig_ty
-  = ASSERT(tc /= funTyCon) go orig_ty
+  = assert (tc /= funTyCon) $ go orig_ty
   where
     go ty
        | Just ty' <- tcView ty
@@ -919,9 +921,9 @@ fillInferResult orig_ty (IR { ir_uniq = u, ir_lvl = res_lvl
   where
     check_hole ty   -- Debug check only
       = do { let ty_lvl = tcTypeLevel ty
-           ; MASSERT2( not (ty_lvl `strictlyDeeperThan` res_lvl),
-                       ppr u $$ ppr res_lvl $$ ppr ty_lvl $$
-                       ppr ty <+> dcolon <+> ppr (tcTypeKind ty) $$ ppr orig_ty )
+           ; massertPpr (not (ty_lvl `strictlyDeeperThan` res_lvl))
+                      (ppr u $$ ppr res_lvl $$ ppr ty_lvl $$
+                       ppr ty <+> dcolon <+> ppr (tcTypeKind ty) $$ ppr orig_ty)
            ; cts <- readTcRef ref
            ; case cts of
                Just already_there -> pprPanic "writeExpType"
@@ -1258,7 +1260,7 @@ buildImplicationFor tclvl skol_info skol_tvs given wanted
   = return (emptyBag, emptyTcEvBinds)
 
   | otherwise
-  = ASSERT2( all (isSkolemTyVar <||> isTyVarTyVar) skol_tvs, ppr skol_tvs )
+  = assertPpr (all (isSkolemTyVar <||> isTyVarTyVar) skol_tvs) (ppr skol_tvs) $
       -- Why allow TyVarTvs? Because implicitly declared kind variables in
       -- non-CUSK type declarations are TyVarTvs, and we need to bring them
       -- into scope as a skolem in an implication. This is OK, though,
@@ -1451,7 +1453,7 @@ uType t_or_k origin orig_ty1 orig_ty2
     go (TyConApp tc1 tys1) (TyConApp tc2 tys2)
       -- See Note [Mismatched type lists and application decomposition]
       | tc1 == tc2, equalLength tys1 tys2
-      = ASSERT2( isGenerativeTyCon tc1 Nominal, ppr tc1 )
+      = assertPpr (isGenerativeTyCon tc1 Nominal) (ppr tc1) $
         do { cos <- zipWith3M (uType t_or_k) origins' tys1 tys2
            ; return $ mkTyConAppCo Nominal tc1 cos }
       where
@@ -1470,12 +1472,12 @@ uType t_or_k origin orig_ty1 orig_ty2
 
     go (AppTy s1 t1) (TyConApp tc2 ts2)
       | Just (ts2', t2') <- snocView ts2
-      = ASSERT( not (mustBeSaturated tc2) )
+      = assert (not (mustBeSaturated tc2)) $
         go_app (isNextTyConArgVisible tc2 ts2') s1 t1 (TyConApp tc2 ts2') t2'
 
     go (TyConApp tc1 ts1) (AppTy s2 t2)
       | Just (ts1', t1') <- snocView ts1
-      = ASSERT( not (mustBeSaturated tc1) )
+      = assert (not (mustBeSaturated tc1)) $
         go_app (isNextTyConArgVisible tc1 ts1') (TyConApp tc1 ts1') t1' s2 t2
 
     go (CoercionTy co1) (CoercionTy co2)
@@ -1725,7 +1727,7 @@ lhsPriority :: TcTyVar -> Int
 -- Higher => more important to be on the LHS
 -- See Note [TyVar/TyVar orientation]
 lhsPriority tv
-  = ASSERT2( isTyVar tv, ppr tv)
+  = assertPpr (isTyVar tv) (ppr tv) $
     case tcTyVarDetails tv of
       RuntimeUnk  -> 0
       SkolemTv {} -> 0

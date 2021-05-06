@@ -76,6 +76,7 @@ import GHC.Utils.Misc
 import GHC.Types.Var
 import GHC.Utils.Outputable
 import GHC.Utils.Panic
+import GHC.Utils.Panic.Plain
 import GHC.Utils.Lexeme
 import GHC.Data.FastString
 import GHC.Data.Pair
@@ -676,7 +677,7 @@ gen_Bounded_binds loc tycon
   | isEnumerationTyCon tycon
   = (listToBag [ min_bound_enum, max_bound_enum ], emptyBag)
   | otherwise
-  = ASSERT(isSingleton data_cons)
+  = assert (isSingleton data_cons)
     (listToBag [ min_bound_1con, max_bound_1con ], emptyBag)
   where
     data_cons = tyConDataCons tycon
@@ -1079,7 +1080,7 @@ gen_Read_binds get_fixity loc tycon
 
     data_con_str con = occNameString (getOccName con)
 
-    read_arg a ty = ASSERT( not (isUnliftedType ty) )
+    read_arg a ty = assert (not (isUnliftedType ty)) $
                     noLoc (mkPsBindStmt (nlVarPat a) (nlHsVarApps step_RDR [readPrec_RDR]))
 
     -- When reading field labels we might encounter
@@ -1152,7 +1153,7 @@ gen_Show_binds get_fixity loc tycon
 
     pats_etc data_con
       | nullary_con =  -- skip the showParen junk...
-         ASSERT(null bs_needed)
+         assert (null bs_needed)
          ([nlWildPat, con_pat], mk_showString_app op_con_str)
       | otherwise   =
          ([a_Pat, con_pat],
@@ -1816,7 +1817,7 @@ gen_Newtype_binds :: SrcSpan
 gen_Newtype_binds loc cls inst_tvs inst_tys rhs_ty
   = do let ats = classATs cls
            (binds, sigs) = mapAndUnzip mk_bind_and_sig (classMethods cls)
-       atf_insts <- ASSERT( all (not . isDataFamilyTyCon) ats )
+       atf_insts <- assert (all (not . isDataFamilyTyCon) ats) $
                     mapM mk_atf_inst ats
        return ( listToBag binds
               , sigs

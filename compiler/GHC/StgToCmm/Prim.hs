@@ -56,6 +56,7 @@ import GHC.Runtime.Heap.Layout
 import GHC.Data.FastString
 import GHC.Utils.Misc
 import GHC.Utils.Panic
+import GHC.Utils.Panic.Plain
 import Data.Maybe
 
 import Data.Bits ((.&.), bit)
@@ -1415,7 +1416,7 @@ emitPrimOp dflags primop = case primop of
     --         intToTg :: Enum a => Int -> a ; intToTg (I# x#) = tagToEnum# x#
     -- That won't work.
     let tycon = tyConAppTyCon res_ty
-    MASSERT(isEnumerationTyCon tycon)
+    massert (isEnumerationTyCon tycon)
     platform <- getPlatform
     pure [tagToClosure platform tycon amode]
 
