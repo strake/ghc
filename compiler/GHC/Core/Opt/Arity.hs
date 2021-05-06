@@ -19,8 +19,6 @@ module GHC.Core.Opt.Arity
    )
 where
 
-#include "HsVersions.h"
-
 import GHC.Prelude
 
 import GHC.Core
@@ -1211,7 +1209,7 @@ mkEtaWW orig_n ppr_orig_expr in_scope orig_ty
        | otherwise       -- We have an expression of arity > 0,
                          -- but its type isn't a function, or a binder
                          -- is levity-polymorphic
-       = WARN( True, (ppr orig_n <+> ppr orig_ty) $$ ppr_orig_expr )
+       = warnPprTrace True (ppr orig_n <+> ppr orig_ty) $$ ppr_orig_expr)
          (getTCvInScope subst, reverse eis)
         -- This *can* legitimately happen:
         -- e.g.  coerce Int (\x. x) Essentially the programmer is
@@ -1248,7 +1246,7 @@ etaExpandToJoinPoint join_arity expr
 
 etaExpandToJoinPointRule :: JoinArity -> CoreRule -> CoreRule
 etaExpandToJoinPointRule _ rule@(BuiltinRule {})
-  = WARN(True, (sep [text "Can't eta-expand built-in rule:", ppr rule]))
+  = warnPprTrace True (sep [text "Can't eta-expand built-in rule:", ppr rule])
       -- How did a local binding get a built-in rule anyway? Probably a plugin.
     rule
 etaExpandToJoinPointRule join_arity rule@(Rule { ru_bndrs = bndrs, ru_rhs = rhs

@@ -7,8 +7,6 @@
 -- | Generate infotables for interpreter-made bytecodes
 module GHC.ByteCode.InfoTable ( mkITbls ) where
 
-#include "HsVersions.h"
-
 import GHC.Prelude
 
 import GHC.Driver.Session

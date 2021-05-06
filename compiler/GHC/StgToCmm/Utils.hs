@@ -46,8 +46,6 @@ module GHC.StgToCmm.Utils (
         emitUpdRemSetPushThunk,
   ) where
 
-#include "HsVersions.h"
-
 import GHC.Prelude
 
 import GHC.Platform

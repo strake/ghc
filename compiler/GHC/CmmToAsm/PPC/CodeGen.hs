@@ -20,8 +20,6 @@ module GHC.CmmToAsm.PPC.CodeGen (
 
 where
 
-#include "HsVersions.h"
-
 -- NCG stuff:
 import GHC.Prelude
 

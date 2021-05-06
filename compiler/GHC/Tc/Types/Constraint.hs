@@ -66,8 +66,6 @@ module GHC.Tc.Types.Constraint (
   )
   where
 
-#include "HsVersions.h"
-
 import GHC.Prelude
 
 import {-# SOURCE #-} GHC.Tc.Types ( TcLclEnv, setLclEnvTcLevel, getLclEnvTcLevel

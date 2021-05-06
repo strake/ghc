@@ -43,8 +43,6 @@ module GHC.Core.Opt.Simplify.Env (
         wrapJoinFloats, wrapJoinFloatsX, unitJoinFloat, addJoinFlts
     ) where
 
-#include "HsVersions.h"
-
 import GHC.Prelude
 
 import GHC.Core.Opt.Simplify.Monad
@@ -682,7 +680,7 @@ refineFromInScope :: InScopeSet -> Var -> Var
 refineFromInScope in_scope v
   | isLocalId v = case lookupInScope in_scope v of
                   Just v' -> v'
-                  Nothing -> WARN( True, ppr v ) v  -- This is an error!
+                  Nothing -> warnPprTrace True (ppr v) v  -- This is an error!
   | otherwise = v
 
 lookupRecBndr :: SimplEnv -> InId -> OutId

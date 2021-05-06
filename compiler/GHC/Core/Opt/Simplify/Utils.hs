@@ -36,8 +36,6 @@ module GHC.Core.Opt.Simplify.Utils (
         isExitJoinId
     ) where
 
-#include "HsVersions.h"
-
 import GHC.Prelude
 
 import GHC.Core.Opt.Simplify.Env
@@ -511,8 +509,8 @@ mkArgInfo env fun rules n_val_args call_cont
                    else
                         map isStrictDmd demands ++ vanilla_stricts
                | otherwise
-               -> WARN( True, text "More demands than arity" <+> ppr fun <+> ppr (idArity fun)
-                                <+> ppr n_val_args <+> ppr demands )
+               -> warnPprTrace True (text "More demands than arity" <+> ppr fun <+> ppr (idArity fun)
+                                <+> ppr n_val_args <+> ppr demands) $
                    vanilla_stricts      -- Not enough args, or no strictness
 
     add_type_str :: Type -> [Bool] -> [Bool]
@@ -1552,9 +1550,9 @@ tryEtaExpandRhs mode bndr rhs
   | otherwise
   = do { (new_arity, is_bot, new_rhs) <- try_expand
 
-       ; WARN( new_arity < old_id_arity,
+       ; warnPprTrace (new_arity < old_id_arity)
                (text "Arity decrease:" <+> (ppr bndr <+> ppr old_id_arity
-                <+> ppr old_arity <+> ppr new_arity) $$ ppr new_rhs) )
+                <+> ppr old_arity <+> ppr new_arity) $$ ppr new_rhs $$ callStackDoc)) $
                         -- Note [Arity decrease] in GHC.Core.Opt.Simplify
          return (new_arity, is_bot, new_rhs) }
   where

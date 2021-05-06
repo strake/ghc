@@ -125,8 +125,6 @@ module GHC.Tc.Solver.Monad (
                                              -- here
 ) where
 
-#include "HsVersions.h"
-
 import GHC.Prelude
 
 import GHC.Driver.Env

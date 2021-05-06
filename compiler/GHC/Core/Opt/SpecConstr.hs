@@ -14,8 +14,6 @@ module GHC.Core.Opt.SpecConstr
    )
 where
 
-#include "HsVersions.h"
-
 import GHC.Prelude
 
 import GHC.Core
@@ -2071,9 +2069,9 @@ callToPats env bndr_occs call@(Call _ args con_env)
                 = emptyVarSet
 
         ; -- pprTrace "callToPats"  (ppr args $$ ppr bndr_occs) $
-          WARN( not (isEmptyVarSet bad_covars)
-              , text "SpecConstr: bad covars:" <+> ppr bad_covars
-                $$ ppr call )
+          warnPprTrace (not (isEmptyVarSet bad_covars))
+              ( text "SpecConstr: bad covars:" <+> ppr bad_covars
+                $$ ppr call) $
           if interesting && isEmptyVarSet bad_covars
           then return (Just (qvars', pats))
           else return Nothing }
@@ -2296,7 +2294,7 @@ samePat (vs1, as1) (vs2, as2)
     same e1 (Tick _ e2) = same e1 e2
     same e1 (Cast e2 _) = same e1 e2
 
-    same e1 e2 = WARN( bad e1 || bad e2, ppr e1 $$ ppr e2)
+    same e1 e2 = warnPprTrace (bad e1 || bad e2) (ppr e1 $$ ppr e2) $
                  False  -- Let, lambda, case should not occur
     bad (Case {}) = True
     bad (Let {})  = True

@@ -13,8 +13,6 @@ module GHC.ByteCode.Asm (
         iNTERP_STACK_CHECK_THRESH
   ) where
 
-#include "HsVersions.h"
-
 import GHC.Prelude
 
 import GHC.Driver.Env

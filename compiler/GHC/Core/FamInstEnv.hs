@@ -39,8 +39,6 @@ module GHC.Core.FamInstEnv (
         flattenTys
     ) where
 
-#include "HsVersions.h"
-
 import GHC.Prelude
 
 import GHC.Core.Unify

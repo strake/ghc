@@ -20,8 +20,6 @@ module GHC.Iface.Env (
         mkNameCacheUpdater, NameCacheUpdater(..),
    ) where
 
-#include "HsVersions.h"
-
 import GHC.Prelude
 
 import GHC.Driver.Env

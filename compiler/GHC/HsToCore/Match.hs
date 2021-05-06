@@ -21,8 +21,6 @@ module GHC.HsToCore.Match
    )
 where
 
-#include "HsVersions.h"
-
 import GHC.Prelude
 import GHC.Platform
 

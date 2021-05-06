@@ -27,8 +27,6 @@ module GHC.Runtime.Linker
    )
 where
 
-#include "HsVersions.h"
-
 import GHC.Prelude
 
 import GHC.Platform

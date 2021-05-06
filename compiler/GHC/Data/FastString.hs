@@ -97,8 +97,6 @@ module GHC.Data.FastString
         lengthPS
        ) where
 
-#include "HsVersions.h"
-
 import GHC.Prelude as Prelude
 
 import GHC.Utils.Encoding

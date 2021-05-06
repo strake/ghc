@@ -69,8 +69,6 @@ import qualified GHC.LanguageExtensions as LangExt
 import Data.List          ( nubBy, partition, find )
 import Control.Monad      ( unless, when )
 
-#include "HsVersions.h"
-
 {-
 These type renamers are in a separate module, rather than in (say) GHC.Rename.Module,
 to break several loops.

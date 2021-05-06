@@ -25,8 +25,6 @@ module GHC.Core.Opt.ConstantFold
    )
 where
 
-#include "HsVersions.h"
-
 import GHC.Prelude
 
 import {-# SOURCE #-} GHC.Types.Id.Make ( mkPrimOpId, magicDictId )
@@ -1073,7 +1071,7 @@ tagToEnumRule = do
       return $ mkTyApps (Var (dataConWorkId dc)) tc_args
 
     -- See Note [tagToEnum#]
-    _ -> WARN( True, text "tagToEnum# on non-enumeration type" <+> ppr ty )
+    _ -> warnPprTrace True (text "tagToEnum# on non-enumeration type" <+> ppr ty) $
          return $ mkRuntimeErrorApp rUNTIME_ERROR_ID ty "tagToEnum# on non-enumeration type"
 
 ------------------------------

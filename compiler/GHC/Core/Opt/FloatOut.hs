@@ -34,8 +34,6 @@ import qualified Data.IntMap as M
 
 import Data.List        ( partition )
 
-#include "HsVersions.h"
-
 {-
         -----------------
         Overall game plan

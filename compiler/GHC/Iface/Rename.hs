@@ -15,8 +15,6 @@ module GHC.Iface.Rename (
     tcRnModExports,
     ) where
 
-#include "HsVersions.h"
-
 import GHC.Prelude
 
 import GHC.Driver.Session

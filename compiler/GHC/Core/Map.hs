@@ -35,8 +35,6 @@ module GHC.Core.Map (
    (>.>), (|>), (|>>),
  ) where
 
-#include "HsVersions.h"
-
 import GHC.Prelude
 
 import GHC.Data.TrieMap
