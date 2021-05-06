@@ -129,6 +129,7 @@ import GHC.Data.Bag
 import GHC.Data.FastString
 import GHC.Data.Maybe( MaybeErr(..) )
 import qualified GHC.Data.EnumSet as EnumSet
+import GHC.Utils.Exception
 
 import qualified Language.Haskell.TH as TH
 -- THSyntax gives access to internal functions and data types
@@ -141,7 +142,6 @@ import Unsafe.Coerce    ( unsafeCoerce )
 #endif
 
 import Control.Monad
-import Control.Exception
 import Data.Binary
 import Data.Binary.Get
 import Data.List        ( find )

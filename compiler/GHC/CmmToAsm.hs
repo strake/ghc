@@ -132,9 +132,10 @@ import qualified GHC.Utils.Ppr as Pretty
 import GHC.Utils.BufHandle
 import GHC.Utils.Outputable as Outputable
 import GHC.Utils.Panic
+import GHC.Utils.Error
+import GHC.Utils.Exception (evaluate)
 import GHC.Data.FastString
 import GHC.Types.Unique.Set
-import GHC.Utils.Error
 import GHC.Unit
 import GHC.Data.Stream (Stream)
 import qualified GHC.Data.Stream as Stream
@@ -142,7 +143,6 @@ import qualified GHC.Data.Stream as Stream
 import Data.List
 import Data.Maybe
 import Data.Ord         ( comparing )
-import Control.Exception
 import Control.Monad
 import System.IO
 
