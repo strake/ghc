@@ -51,6 +51,7 @@ import GHC.Utils.Error
 import GHC.Types.Unique
 import GHC.Data.FastString
 import GHC.Utils.Panic
+import GHC.Utils.Exception (evaluate)
 import GHC.StgToCmm.Closure ( NonVoid(..), fromNonVoid, nonVoidIds )
 import GHC.StgToCmm.Layout
 import GHC.Runtime.Heap.Layout hiding (WordOff, ByteOff, wordsToBytes)
@@ -69,7 +70,6 @@ import Data.Char
 import GHC.Types.Unique.Supply
 import GHC.Unit.Module
 
-import Control.Exception
 import Data.Array
 import Data.ByteString (ByteString)
 import Data.Map (Map)

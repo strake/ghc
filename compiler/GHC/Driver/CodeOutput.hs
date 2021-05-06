@@ -40,6 +40,7 @@ import GHC.Utils.Error
 import GHC.Utils.Outputable
 import GHC.Utils.Outputable.Ppr hiding (showSDoc)
 import GHC.Utils.Panic
+import GHC.Utils.Exception (bracket)
 
 import GHC.Unit
 import GHC.Unit.State
@@ -50,7 +51,6 @@ import GHC.Types.CostCentre
 import GHC.Types.ForeignStubs
 import GHC.Types.Unique.Supply ( mkSplitUniqSupply )
 
-import Control.Exception
 import System.Directory
 import System.FilePath
 import System.IO

@@ -10,8 +10,8 @@ module GHC.Utils.Exception
 
 import GHC.Prelude
 
-import Control.Exception
-import Control.Exception as CE
+import Control.Exception hiding (assert)
+import Control.Exception as CE hiding (assert)
 import Control.Monad.IO.Class
 import Control.Monad.Catch
 
