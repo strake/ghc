@@ -6,7 +6,7 @@
 Loading interface files
 -}
 
-{-# LANGUAGE CPP, BangPatterns, RecordWildCards, NondecreasingIndentation #-}
+{-# LANGUAGE BangPatterns, RecordWildCards, NondecreasingIndentation #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module GHC.Iface.Load (

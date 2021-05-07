@@ -11,7 +11,7 @@ The occurrence analyser re-typechecks a core expression, returning a new
 core expression with (hopefully) improved usage information.
 -}
 
-{-# LANGUAGE CPP, BangPatterns, MultiWayIf, ViewPatterns  #-}
+{-# LANGUAGE BangPatterns, MultiWayIf, ViewPatterns  #-}
 
 {-# OPTIONS_GHC -Wno-incomplete-record-updates #-}
 module GHC.Core.Opt.OccurAnal ( occurAnalysePgm, occurAnalyseExpr ) where

@@ -5,7 +5,7 @@
 \section[Literal]{@Literal@: literals}
 -}
 
-{-# LANGUAGE CPP, DeriveDataTypeable, ScopedTypeVariables #-}
+{-# LANGUAGE DeriveDataTypeable, ScopedTypeVariables #-}
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
 module GHC.Types.Literal

@@ -19,7 +19,7 @@ Note [The Type-related module hierarchy]
 
 -- We expose the relevant stuff from this module via the Type module
 {-# OPTIONS_HADDOCK not-home #-}
-{-# LANGUAGE CPP, DeriveDataTypeable, MultiWayIf, PatternSynonyms, BangPatterns #-}
+{-# LANGUAGE DeriveDataTypeable, MultiWayIf, PatternSynonyms, BangPatterns #-}
 
 module GHC.Core.TyCo.Rep (
 

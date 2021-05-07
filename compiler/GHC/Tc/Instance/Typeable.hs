@@ -3,7 +3,6 @@
 (c) The GRASP/AQUA Project, Glasgow University, 1992-1999
 -}
 
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TypeFamilies #-}

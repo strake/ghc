@@ -4,8 +4,6 @@
 \section[Simplify]{The main module of the simplifier}
 -}
 
-{-# LANGUAGE CPP #-}
-
 {-# OPTIONS_GHC -Wno-incomplete-record-updates #-}
 module GHC.Core.Opt.Simplify ( simplTopBinds, simplExpr, simplRules ) where
 

@@ -1,8 +1,7 @@
-{-# LANGUAGE BangPatterns, CPP, DeriveFunctor #-}
+{-# LANGUAGE BangPatterns, DeriveFunctor #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
-
 
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 

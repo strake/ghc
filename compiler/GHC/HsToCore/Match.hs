@@ -6,7 +6,6 @@
 The @match@ function
 -}
 
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE MonadComprehensions #-}
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE TypeFamilies #-}

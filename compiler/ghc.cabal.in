@@ -671,6 +671,7 @@ Library
         GHC.Utils.Binary.Typeable
         GHC.Utils.BufHandle
         GHC.Utils.CliOption
+        GHC.Utils.Constants
         GHC.Utils.Encoding
         GHC.Utils.Error
         GHC.Utils.Exception

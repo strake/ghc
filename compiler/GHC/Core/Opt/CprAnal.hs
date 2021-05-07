@@ -1,5 +1,3 @@
-{-# LANGUAGE CPP #-}
-
 -- | Constructed Product Result analysis. Identifies functions that surely
 -- return heap-allocated records on every code path, so that we can eliminate
 -- said heap allocation by performing a worker/wrapper split.

@@ -4,8 +4,6 @@
 A library for the ``worker\/wrapper'' back-end to the strictness analyser
 -}
 
-{-# LANGUAGE CPP #-}
-
 module GHC.Core.Opt.WorkWrap.Utils
    ( mkWwBodies, mkWWstr, mkWorkerArgs
    , DataConAppContext(..), deepSplitProductType_maybe, wantToUnbox

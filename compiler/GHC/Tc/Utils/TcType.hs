@@ -4,7 +4,7 @@
 
 -}
 
-{-# LANGUAGE CPP, ScopedTypeVariables, MultiWayIf, FlexibleContexts #-}
+{-# LANGUAGE ScopedTypeVariables, MultiWayIf, FlexibleContexts #-}
 {-# OPTIONS_GHC -Wno-incomplete-record-updates #-}
 
 -- | Types used in the typechecker

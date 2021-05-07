@@ -1,6 +1,8 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ExistentialQuantification #-}
+
 {-# OPTIONS_GHC -Wno-incomplete-record-updates #-}
+
 module GHC.Tc.Errors.Hole
    ( findValidHoleFits
 

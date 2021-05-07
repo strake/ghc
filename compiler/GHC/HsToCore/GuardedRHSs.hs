@@ -6,7 +6,6 @@
 Matching guarded right-hand-sides (GRHSs)
 -}
 
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE ViewPatterns #-}
 
 module GHC.HsToCore.GuardedRHSs ( dsGuarded, dsGRHSs, isTrueLHsExpr ) where

@@ -4,7 +4,7 @@
 Extracting imported and top-level names in scope
 -}
 
-{-# LANGUAGE CPP, NondecreasingIndentation, MultiWayIf, NamedFieldPuns #-}
+{-# LANGUAGE NondecreasingIndentation, MultiWayIf, NamedFieldPuns #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}

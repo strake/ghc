@@ -1,4 +1,3 @@
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE TypeFamilies #-}
 
@@ -31,10 +30,12 @@ import GHC.Hs
 import GHC.Data.Graph.Directed
 import GHC.Data.Maybe
 
+import GHC.Utils.Constants (debugIsOn)
 import GHC.Utils.Error
 import GHC.Utils.Panic
 import GHC.Utils.Panic.Plain
 import GHC.Utils.Outputable as Outputable
+import GHC.Utils.Outputable.Ppr (pprTrace)
 import GHC.Utils.Misc as Utils hiding ( eqListBy )
 import GHC.Utils.Binary
 import GHC.Utils.Fingerprint
@@ -639,12 +640,9 @@ checkModUsage _this_pkg UsageFile{ usg_file_path = file,
          else return UpToDate
  where
    recomp  = RecompBecause (file ++ " changed")
-   handler =
-#if defined(DEBUG)
-       \e -> pprTrace "UsageFile" (text (show e)) $ return recomp
-#else
-       \_ -> return recomp -- if we can't find the file, just recompile, don't fail
-#endif
+   handler
+     | debugIsOn = \e -> pprTrace "UsageFile" (text (show e)) $ return recomp
+     | otherwise = \_ -> return recomp -- if we can't find the file, just recompile, don't fail
 
 ------------------------
 checkModuleFingerprint :: String -> Fingerprint -> Fingerprint

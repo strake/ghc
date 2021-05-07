@@ -69,6 +69,7 @@ import GHC.Prelude
 
 import {-# SOURCE #-} GHC.Types.Name (Name)
 import GHC.Data.FastString
+import GHC.Utils.Constants (debugIsOn)
 import GHC.Utils.Panic.Plain
 import GHC.Types.Unique.FM
 import GHC.Data.FastMutInt
@@ -412,9 +413,7 @@ getByte h = getWord8 h
 {-# SPECIALISE putULEB128 :: BinHandle -> Int16 -> IO () #-}
 putULEB128 :: forall a. (Integral a, FiniteBits a) => BinHandle -> a -> IO ()
 putULEB128 bh w =
-#if defined(DEBUG)
-    (if w < 0 then panic "putULEB128: Signed number" else id) $
-#endif
+    (if debugIsOn && w < 0 then panic "putULEB128: Signed number" else id) $
     go w
   where
     go :: a -> IO ()

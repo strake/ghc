@@ -1,7 +1,6 @@
 -- (c) The University of Glasgow, 1997-2006
 
-{-# LANGUAGE BangPatterns, CPP, MagicHash, UnboxedTuples,
-    GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE CPP, BangPatterns, MagicHash, UnboxedTuples, GeneralizedNewtypeDeriving #-}
 {-# OPTIONS_GHC -O2 -funbox-strict-fields #-}
 -- We always optimise this, otherwise performance of a non-optimised
 -- compiler is severely affected

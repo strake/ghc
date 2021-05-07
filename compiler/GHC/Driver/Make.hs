@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns, CPP, NondecreasingIndentation, ScopedTypeVariables #-}
+{-# LANGUAGE BangPatterns, NondecreasingIndentation, ScopedTypeVariables #-}
 {-# LANGUAGE RecordWildCards, NamedFieldPuns #-}
 
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
@@ -689,14 +689,10 @@ guessOutputFile = modifySession $ \env ->
         name = fmap dropExtension mainModuleSrcPath
 
         name_exe = do
-#if defined(mingw32_HOST_OS)
           -- we must add the .exe extension unconditionally here, otherwise
           -- when name has an extension of its own, the .exe extension will
           -- not be added by GHC.Driver.Pipeline.exeFileName.  See #2248
-          name' <- fmap (<.> "exe") name
-#else
           name' <- name
-#endif
           mainModuleSrcPath' <- mainModuleSrcPath
           -- #9930: don't clobber input files (unless they ask for it)
           if name' == mainModuleSrcPath'

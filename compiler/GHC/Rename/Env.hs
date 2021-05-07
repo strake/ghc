@@ -5,7 +5,7 @@ GHC.Rename.Env contains functions which convert RdrNames into Names.
 
 -}
 
-{-# LANGUAGE CPP, MultiWayIf, NamedFieldPuns #-}
+{-# LANGUAGE MultiWayIf, NamedFieldPuns #-}
 
 module GHC.Rename.Env (
         newTopSrcBinder,

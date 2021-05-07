@@ -2,8 +2,7 @@
 (c) The University of Glasgow 2006
 -}
 
-{-# LANGUAGE RankNTypes, CPP, MultiWayIf, FlexibleContexts, BangPatterns,
-             ScopedTypeVariables #-}
+{-# LANGUAGE RankNTypes, MultiWayIf, FlexibleContexts, BangPatterns, ScopedTypeVariables #-}
 
 -- | Module for (a) type kinds and (b) type coercions,
 -- as used in System FC. See 'GHC.Core.Expr' for

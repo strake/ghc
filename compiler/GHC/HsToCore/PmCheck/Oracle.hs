@@ -33,6 +33,7 @@ import GHC.Utils.Outputable
 import GHC.Utils.Error
 import GHC.Utils.Misc
 import GHC.Utils.Panic
+import GHC.Utils.Panic.Plain
 import GHC.Data.Bag
 import GHC.Types.Unique.Set
 import GHC.Types.Unique.DSet
