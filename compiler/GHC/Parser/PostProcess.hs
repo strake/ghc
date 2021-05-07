@@ -4,7 +4,6 @@
 
 -- Functions over HsSyn specialised to RdrName.
 
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeFamilies #-}

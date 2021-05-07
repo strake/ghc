@@ -4,7 +4,7 @@
 
 -}
 
-{-# LANGUAGE CPP, MultiWayIf, TupleSections #-}
+{-# LANGUAGE MultiWayIf, TupleSections #-}
 {-# LANGUAGE FlexibleContexts #-}
 
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns   #-}

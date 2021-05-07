@@ -6,7 +6,6 @@
 The Desugarer: turning HsSyn into Core.
 -}
 
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
@@ -61,11 +60,9 @@ import GHC.Data.OrdList
 
 import GHC.Utils.Error
 import GHC.Utils.Outputable
-import GHC.Utils.Panic
+import GHC.Utils.Panic.Plain
 import GHC.Utils.Misc
 import GHC.Utils.Monad
-import GHC.Utils.Panic
-import GHC.Utils.Panic.Plain
 
 import GHC.Types.Id
 import GHC.Types.Id.Info

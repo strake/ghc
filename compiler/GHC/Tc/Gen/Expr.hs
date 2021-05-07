@@ -5,7 +5,7 @@
 
 -}
 
-{-# LANGUAGE CPP, TupleSections, ScopedTypeVariables #-}
+{-# LANGUAGE TupleSections, ScopedTypeVariables #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TypeFamilies, DataKinds, TypeApplications #-}
 {-# LANGUAGE UndecidableInstances #-} -- Wrinkle in Note [Trees That Grow]

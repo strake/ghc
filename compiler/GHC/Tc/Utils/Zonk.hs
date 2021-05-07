@@ -4,7 +4,7 @@
 
 -}
 
-{-# LANGUAGE CPP, TupleSections #-}
+{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ViewPatterns #-}

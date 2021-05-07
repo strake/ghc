@@ -5,8 +5,6 @@
 Taken quite directly from the Peyton Jones/Lester paper.
 -}
 
-{-# LANGUAGE CPP #-}
-
 -- | A module concerned with finding the free variables of an expression.
 module GHC.Core.FVs (
         -- * Free variables of expressions and binding groups

@@ -1,4 +1,4 @@
-{-# LANGUAGE CPP, FlexibleInstances, DeriveFunctor, DerivingVia #-}
+{-# LANGUAGE FlexibleInstances, DeriveFunctor, DerivingVia #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 -----------------------------------------------------------------------------

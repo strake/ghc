@@ -2,8 +2,7 @@
 --
 -- FamInstEnv: Type checked family instance declarations
 
-{-# LANGUAGE CPP, GADTs, ScopedTypeVariables, BangPatterns, TupleSections,
-    DeriveFunctor #-}
+{-# LANGUAGE GADTs, ScopedTypeVariables, BangPatterns, TupleSections, DeriveFunctor #-}
 
 {-# OPTIONS_GHC -Wno-incomplete-record-updates #-}
 

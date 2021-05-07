@@ -6,7 +6,6 @@
 Desugaring arrow commands
 -}
 
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ViewPatterns #-}
 

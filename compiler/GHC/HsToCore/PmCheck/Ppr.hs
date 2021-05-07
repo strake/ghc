@@ -1,4 +1,4 @@
-{-# LANGUAGE CPP, ViewPatterns #-}
+{-# LANGUAGE ViewPatterns #-}
 
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 

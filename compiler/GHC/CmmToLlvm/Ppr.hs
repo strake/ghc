@@ -1,5 +1,3 @@
-{-# LANGUAGE CPP #-}
-
 -- ----------------------------------------------------------------------------
 -- | Pretty print helpers for the LLVM Code generator.
 --

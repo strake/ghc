@@ -1,5 +1,3 @@
-{-# LANGUAGE CPP #-}
-{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NondecreasingIndentation #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -82,9 +80,7 @@ import GHC.Tc.Utils.Unify
 import GHC.Utils.Error
 import GHC.Utils.Outputable
 import GHC.Utils.Panic
-import GHC.Utils.Error
-import GHC.Utils.Outputable
-import GHC.Utils.Panic
+import GHC.Utils.Panic.Plain
 
 import GHC.Data.FastString
 import GHC.Data.Maybe

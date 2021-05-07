@@ -10,7 +10,6 @@ being one that happens to be ideally suited to spineless tagless code
 generation.
 -}
 
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE FlexibleContexts #-}

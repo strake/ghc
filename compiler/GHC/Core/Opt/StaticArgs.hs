@@ -48,7 +48,6 @@ The previous patch, to fix polymorphic floatout demand signatures, is
 essential to make this work well!
 -}
 
-{-# LANGUAGE CPP #-}
 module GHC.Core.Opt.StaticArgs ( doStaticArgs ) where
 
 import GHC.Prelude

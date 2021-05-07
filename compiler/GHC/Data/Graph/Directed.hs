@@ -1,6 +1,6 @@
 -- (c) The University of Glasgow 2006
 
-{-# LANGUAGE CPP, ScopedTypeVariables, ViewPatterns #-}
+{-# LANGUAGE ScopedTypeVariables, ViewPatterns #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 module GHC.Data.Graph.Directed (

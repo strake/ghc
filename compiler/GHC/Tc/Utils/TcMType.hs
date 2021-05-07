@@ -4,7 +4,7 @@
 
 -}
 
-{-# LANGUAGE CPP, TupleSections, MultiWayIf #-}
+{-# LANGUAGE TupleSections, MultiWayIf #-}
 
 {-# OPTIONS_GHC -Wno-incomplete-record-updates #-}
 
@@ -339,15 +339,13 @@ newCoercionHole blocker pred_ty
 
 -- | Put a value in a coercion hole
 fillCoercionHole :: CoercionHole -> Coercion -> TcM ()
-fillCoercionHole (CoercionHole { ch_ref = ref, ch_co_var = cv }) co
-  = do {
-#if defined(DEBUG)
-       ; cts <- readTcRef ref
-       ; whenIsJust cts $ \old_co ->
-         pprPanic "Filling a filled coercion hole" (ppr cv $$ ppr co $$ ppr old_co)
-#endif
-       ; traceTc "Filling coercion hole" (ppr cv <+> text ":=" <+> ppr co)
-       ; writeTcRef ref (Just co) }
+fillCoercionHole (CoercionHole { ch_ref = ref, ch_co_var = cv }) co = do
+  when debugIsOn $ do
+    cts <- readTcRef ref
+    whenIsJust cts $ \old_co ->
+      pprPanic "Filling a filled coercion hole" (ppr cv $$ ppr co $$ ppr old_co)
+  traceTc "Filling coercion hole" (ppr cv <+> text ":=" <+> ppr co)
+  writeTcRef ref (Just co)
 
 -- | Is a coercion hole filled in?
 isFilledCoercionHole :: CoercionHole -> TcM Bool

@@ -14,7 +14,6 @@ GHC.Hs.Type: Abstract syntax: user-defined types
 {-# LANGUAGE UndecidableInstances #-} -- Wrinkle in Note [Trees That Grow]
                                       -- in module GHC.Hs.Extension
 {-# LANGUAGE ConstraintKinds #-}
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE TypeFamilies #-}
 
 module GHC.Hs.Type (

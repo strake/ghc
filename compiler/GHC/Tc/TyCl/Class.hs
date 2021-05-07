@@ -4,7 +4,7 @@
 
 -}
 
-{-# LANGUAGE CPP #-}
+
 {-# LANGUAGE TypeFamilies #-}
 
 {-# OPTIONS_GHC -Wno-incomplete-record-updates #-}
@@ -64,7 +64,6 @@ import GHC.Types.Basic
 import GHC.Data.Bag
 import GHC.Data.FastString
 import GHC.Data.BooleanFormula
-import GHC.Utils.Misc
 
 import Control.Monad
 import Data.List ( mapAccumL, partition )

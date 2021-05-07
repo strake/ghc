@@ -4,7 +4,6 @@
 \section[ErrsUtils]{Utilities for error reporting}
 -}
 
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE RankNTypes #-}

@@ -1,5 +1,3 @@
-{-# LANGUAGE CPP #-}
-
 module GHC.Tc.Solver(
        simplifyInfer, InferMode(..),
        growThetaTyVars,

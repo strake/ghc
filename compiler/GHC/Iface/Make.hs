@@ -3,7 +3,7 @@
 (c) The GRASP/AQUA Project, Glasgow University, 1993-1998
 -}
 
-{-# LANGUAGE CPP, NondecreasingIndentation #-}
+{-# LANGUAGE NondecreasingIndentation #-}
 {-# LANGUAGE MultiWayIf #-}
 
 -- | Module for constructing @ModIface@ values (interface files),
@@ -61,7 +61,6 @@ import GHC.Types.Avail
 import GHC.Types.Name.Reader
 import GHC.Types.Name.Env
 import GHC.Types.Name.Set
-import GHC.Types.Basic hiding ( SuccessFlag(..) )
 import GHC.Types.TypeEnv
 import GHC.Types.SourceFile
 import GHC.Types.TyThing

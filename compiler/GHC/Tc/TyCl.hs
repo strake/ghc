@@ -4,7 +4,8 @@
 
 -}
 
-{-# LANGUAGE CPP, TupleSections, ScopedTypeVariables, MultiWayIf #-}
+{-# LANGUAGE CPP #-}
+{-# LANGUAGE TupleSections, ScopedTypeVariables, MultiWayIf #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ViewPatterns #-}
 
@@ -82,8 +83,10 @@ import GHC.Data.List.SetOps
 import GHC.Unit
 import GHC.Unit.State ( homeUnitIsDefinite )
 
+import GHC.Utils.Constants ( debugIsOn )
 import GHC.Utils.Outputable
 import GHC.Utils.Panic
+import GHC.Utils.Panic.Plain
 import GHC.Utils.Misc
 
 import Control.Monad

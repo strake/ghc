@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns, CPP, MagicHash, NondecreasingIndentation #-}
+{-# LANGUAGE BangPatterns, MagicHash, NondecreasingIndentation #-}
 {-# OPTIONS_GHC -fprof-auto-top #-}
 
 -------------------------------------------------------------------------------
@@ -172,6 +172,7 @@ import GHC.Unit.Module.Deps
 import GHC.Unit.Module.Status
 import GHC.Unit.Home.ModInfo
 
+import GHC.Types.Error
 import GHC.Types.Id
 import GHC.Types.SourceError
 import GHC.Types.SafeHaskell
@@ -192,6 +193,9 @@ import GHC.Types.HpcInfo
 
 import GHC.Utils.Fingerprint ( Fingerprint )
 import GHC.Utils.Outputable
+import GHC.Utils.Panic
+import GHC.Utils.Panic.Plain
+import GHC.Utils.Error
 import GHC.Utils.Exception
 import GHC.Utils.Misc
 

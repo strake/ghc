@@ -4,7 +4,6 @@
 The simplifier utilities
 -}
 
-{-# LANGUAGE CPP #-}
 
 module GHC.Core.Opt.Simplify.Utils (
         -- Rebuilding
@@ -66,6 +65,7 @@ import GHC.Data.OrdList ( isNilOL )
 import GHC.Utils.Monad
 import GHC.Utils.Outputable
 import GHC.Utils.Outputable.Ppr
+import GHC.Utils.Panic ( callStackDoc )
 import GHC.Utils.Panic.Plain
 import GHC.Core.Opt.ConstantFold
 import GHC.Data.FastString ( fsLit )
@@ -1552,7 +1552,7 @@ tryEtaExpandRhs mode bndr rhs
 
        ; warnPprTrace (new_arity < old_id_arity)
                (text "Arity decrease:" <+> (ppr bndr <+> ppr old_id_arity
-                <+> ppr old_arity <+> ppr new_arity) $$ ppr new_rhs $$ callStackDoc)) $
+                <+> ppr old_arity <+> ppr new_arity) $$ ppr new_rhs $$ callStackDoc) $
                         -- Note [Arity decrease] in GHC.Core.Opt.Simplify
          return (new_arity, is_bot, new_rhs) }
   where
