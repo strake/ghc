@@ -1,9 +1,4 @@
-{-
-(c) The University of Glasgow 2006
-
--}
-
-{-# LANGUAGE CPP, ExplicitForAll, FlexibleInstances, BangPatterns #-}
+{-# LANGUAGE ExplicitForAll, FlexibleInstances, BangPatterns #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 {-# OPTIONS_GHC -Wno-incomplete-record-updates #-}

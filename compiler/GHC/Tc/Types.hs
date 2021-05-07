@@ -4,8 +4,7 @@
 
 -}
 
-{-# LANGUAGE CPP, DeriveFunctor, ExistentialQuantification, GeneralizedNewtypeDeriving,
-             ViewPatterns #-}
+{-# LANGUAGE DeriveFunctor, ExistentialQuantification, GeneralizedNewtypeDeriving, ViewPatterns #-}
 
 -- | Various types used during typechecking.
 --

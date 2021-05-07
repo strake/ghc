@@ -6,8 +6,6 @@
 Utility functions on @Core@ syntax
 -}
 
-{-# LANGUAGE CPP #-}
-
 -- | Commonly useful utilities for manipulating the Core language
 module GHC.Core.Utils (
         -- * Constructing expressions

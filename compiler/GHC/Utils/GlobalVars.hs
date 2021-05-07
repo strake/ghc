@@ -19,8 +19,6 @@ module GHC.Utils.GlobalVars
    )
 where
 
-#include "HsVersions.h"
-
 import GHC.Prelude
 
 import GHC.Conc.Sync ( sharedCAF )
@@ -29,6 +27,30 @@ import System.IO.Unsafe
 import Data.IORef
 import Foreign (Ptr)
 
+#define GLOBAL_VAR(name,value,ty)  \
+{-# NOINLINE name #-};             \
+name :: IORef (ty);                \
+name = GHC.Utils.GlobalVars.global (value);
+
+#define GLOBAL_VAR_M(name,value,ty) \
+{-# NOINLINE name #-};              \
+name :: IORef (ty);                 \
+name = GHC.Utils.GlobalVars.globalM (value);
+
+
+#define SHARED_GLOBAL_VAR(name,accessor,saccessor,value,ty) \
+{-# NOINLINE name #-};                                      \
+name :: IORef (ty);                                         \
+name = GHC.Utils.GlobalVars.sharedGlobal (value) (accessor);\
+foreign import ccall unsafe saccessor                       \
+  accessor :: Ptr (IORef a) -> IO (Ptr (IORef a));
+
+#define SHARED_GLOBAL_VAR_M(name,accessor,saccessor,value,ty)  \
+{-# NOINLINE name #-};                                         \
+name :: IORef (ty);                                            \
+name = GHC.Utils.GlobalVars.sharedGlobalM (value) (accessor);  \
+foreign import ccall unsafe saccessor                          \
+  accessor :: Ptr (IORef a) -> IO (Ptr (IORef a));
 
 --------------------------------------------------------------------------
 -- Do not use global variables!

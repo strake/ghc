@@ -7,7 +7,6 @@ A ``lint'' pass to check for Core correctness.
 See Note [Core Lint guarantee].
 -}
 
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE ScopedTypeVariables, DeriveFunctor #-}
 
 module GHC.Core.Lint (

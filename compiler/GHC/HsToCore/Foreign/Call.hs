@@ -6,7 +6,6 @@
 Desugaring foreign calls
 -}
 
-{-# LANGUAGE CPP #-}
 
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 

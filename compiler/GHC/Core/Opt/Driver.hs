@@ -47,7 +47,6 @@ import GHC.Core.FamInstEnv
 import GHC.Utils.Constants ( debugIsOn )
 import qualified GHC.Utils.Error as Err
 import GHC.Utils.Error  ( withTiming, withTimingD, DumpFormat (..) )
-import GHC.Utils.Misc
 import GHC.Utils.Outputable
 import GHC.Utils.Outputable.Ppr
 import GHC.Utils.Panic

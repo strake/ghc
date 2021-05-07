@@ -5,7 +5,7 @@
 Core pass to saturate constructors and PrimOps
 -}
 
-{-# LANGUAGE BangPatterns, CPP, MultiWayIf #-}
+{-# LANGUAGE BangPatterns, MultiWayIf #-}
 
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 

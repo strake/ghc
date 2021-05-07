@@ -5,7 +5,6 @@
 
 -}
 
-{-# LANGUAGE CPP #-}
 
 -- | Functional dependencies
 --

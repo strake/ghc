@@ -1,5 +1,3 @@
-{-# LANGUAGE CPP #-}
-
 module GHC.Core.TyCo.FVs
   (     shallowTyCoVarsOfType, shallowTyCoVarsOfTypes,
         tyCoVarsOfType,        tyCoVarsOfTypes,

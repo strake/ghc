@@ -5,7 +5,6 @@
 \section[PatSyn]{@PatSyn@: Pattern synonyms}
 -}
 
-{-# LANGUAGE CPP #-}
 
 module GHC.Core.PatSyn (
         -- * Main data types

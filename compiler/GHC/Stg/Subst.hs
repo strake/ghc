@@ -1,5 +1,3 @@
-{-# LANGUAGE CPP #-}
-
 module GHC.Stg.Subst where
 
 import GHC.Prelude

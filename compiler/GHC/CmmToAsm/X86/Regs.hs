@@ -1,5 +1,3 @@
-{-# LANGUAGE CPP #-}
-
 module GHC.CmmToAsm.X86.Regs (
         -- squeese functions for the graph allocator
         virtualRegSqueeze,

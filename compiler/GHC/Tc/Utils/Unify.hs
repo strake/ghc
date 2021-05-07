@@ -4,7 +4,7 @@
 
 -}
 
-{-# LANGUAGE CPP, DeriveFunctor, MultiWayIf, TupleSections,
+{-# LANGUAGE DeriveFunctor, MultiWayIf, TupleSections,
     ScopedTypeVariables #-}
 
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns   #-}

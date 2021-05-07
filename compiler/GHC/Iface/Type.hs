@@ -6,6 +6,7 @@
 This module defines interface types and binders
 -}
 
+
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleInstances #-}
   -- FlexibleInstances for Binary (DefMethSpec IfaceType)

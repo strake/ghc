@@ -6,7 +6,6 @@
 Pattern-matching constructors
 -}
 
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ViewPatterns #-}
 

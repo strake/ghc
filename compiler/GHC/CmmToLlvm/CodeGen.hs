@@ -1,9 +1,9 @@
-{-# LANGUAGE CPP, GADTs, MultiWayIf #-}
+{-# LANGUAGE CPP #-}
+{-# LANGUAGE GADTs, MultiWayIf #-}
 {-# OPTIONS_GHC -fno-warn-type-defaults #-}
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
--- ----------------------------------------------------------------------------
+
 -- | Handle conversion of CmmProc to LLVM code.
---
 module GHC.CmmToLlvm.CodeGen ( genLlvmProc ) where
 
 import GHC.Prelude
@@ -35,7 +35,7 @@ import GHC.Types.ForeignCall
 import GHC.Types.Unique.Supply
 import GHC.Types.Unique
 
-import GHC.Utils.Outputable hiding (panic, pprPanic)
+import GHC.Utils.Outputable
 import GHC.Utils.Panic.Plain (massert)
 import qualified GHC.Utils.Panic as Panic
 

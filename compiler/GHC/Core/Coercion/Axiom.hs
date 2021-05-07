@@ -1,6 +1,6 @@
 -- (c) The University of Glasgow 2012
 
-{-# LANGUAGE CPP, DataKinds, DeriveDataTypeable, GADTs, KindSignatures,
+{-# LANGUAGE DataKinds, DeriveDataTypeable, GADTs, KindSignatures,
              ScopedTypeVariables, StandaloneDeriving, RoleAnnotations #-}
 
 -- | Module for coercion axioms, used to represent type family instances

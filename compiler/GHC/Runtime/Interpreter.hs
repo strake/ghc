@@ -1,4 +1,4 @@
-{-# LANGUAGE RecordWildCards, ScopedTypeVariables, BangPatterns, CPP #-}
+{-# LANGUAGE CPP, RecordWildCards, ScopedTypeVariables, BangPatterns #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE TupleSections #-}
 

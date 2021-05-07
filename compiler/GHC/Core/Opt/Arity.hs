@@ -7,7 +7,6 @@
 -}
 
 {-# LANGUAGE CPP #-}
-
 {-# OPTIONS_GHC -Wno-incomplete-record-updates #-}
 
 -- | Arity and eta expansion
@@ -1209,7 +1208,7 @@ mkEtaWW orig_n ppr_orig_expr in_scope orig_ty
        | otherwise       -- We have an expression of arity > 0,
                          -- but its type isn't a function, or a binder
                          -- is levity-polymorphic
-       = warnPprTrace True (ppr orig_n <+> ppr orig_ty) $$ ppr_orig_expr)
+       = warnPprTrace True ((ppr orig_n <+> ppr orig_ty) $$ ppr_orig_expr)
          (getTCvInScope subst, reverse eis)
         -- This *can* legitimately happen:
         -- e.g.  coerce Int (\x. x) Essentially the programmer is

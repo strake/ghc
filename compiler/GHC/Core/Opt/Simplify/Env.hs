@@ -4,7 +4,6 @@
 \section[GHC.Core.Opt.Simplify.Monad]{The simplifier Monad}
 -}
 
-{-# LANGUAGE CPP #-}
 
 module GHC.Core.Opt.Simplify.Env (
         -- * The simplifier mode

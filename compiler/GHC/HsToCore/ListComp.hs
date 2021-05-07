@@ -6,7 +6,7 @@
 Desugaring list comprehensions, monad comprehensions and array comprehensions
 -}
 
-{-# LANGUAGE CPP, NamedFieldPuns #-}
+{-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MonadComprehensions #-}

@@ -4,7 +4,6 @@
 
 -}
 
-{-# LANGUAGE CPP #-}
 
 -- | Set-like operations on lists
 --

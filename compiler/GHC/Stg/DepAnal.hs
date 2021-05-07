@@ -1,5 +1,3 @@
-{-# LANGUAGE CPP #-}
-
 module GHC.Stg.DepAnal (depSortStgPgm) where
 
 import GHC.Prelude
