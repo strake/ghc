@@ -102,6 +102,7 @@ data Extension
    | RoleAnnotations
    | ParallelListComp
    | TransformListComp
+   | ApplicativeComprehensions
    | MonadComprehensions
    | GeneralizedNewtypeDeriving
    | RecursiveDo
