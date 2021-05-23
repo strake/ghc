@@ -17,13 +17,24 @@
 -----------------------------------------------------------------------------
 
 
-module GHC.Num (module GHC.Num, module GHC.Integer, module GHC.Natural) where
+module GHC.Num
+   ( module GHC.Num
+   , module GHC.Num.Integer
+   , module GHC.Num.Natural
+    -- reexported for backward compatibility
+   , module GHC.Natural
+   , module GHC.Integer
+   )
+where
 
 #include "MachDeps.h"
 
+import qualified GHC.Natural
+import qualified GHC.Integer
+
 import GHC.Base
-import GHC.Integer
-import GHC.Natural
+import GHC.Num.Integer
+import GHC.Num.Natural
 
 infixl 7  *
 infixl 6  +, -
@@ -98,7 +109,7 @@ instance  Num Int  where
              | otherwise   = 1
 
     {-# INLINE fromInteger #-}   -- Just to be sure!
-    fromInteger i = I# (integerToInt i)
+    fromInteger i = integerToInt i
 
 -- | @since 2.01
 instance Num Word where
@@ -109,30 +120,33 @@ instance Num Word where
     abs x                  = x
     signum 0               = 0
     signum _               = 1
-    fromInteger i          = W# (integerToWord i)
+    fromInteger i          = integerToWord i
 
 -- | @since 2.01
 instance  Num Integer  where
-    (+) = plusInteger
-    (-) = minusInteger
-    (*) = timesInteger
-    negate         = negateInteger
-    fromInteger x  =  x
+    (+) = integerAdd
+    (-) = integerSub
+    (*) = integerMul
+    negate         = integerNegate
+    fromInteger x  = x
 
-    abs = absInteger
-    signum = signumInteger
+    abs    = integerAbs
+    signum = integerSignum
 
 -- | Note that `Natural`'s 'Num' instance isn't a ring: no element but 0 has an
 -- additive inverse. It is a semiring though.
 --
 -- @since 4.8.0.0
 instance  Num Natural  where
-    (+) = plusNatural
-    (-) = minusNatural
-    (*) = timesNatural
-    negate      = negateNatural
-    fromInteger = naturalFromInteger
+    (+) = naturalAdd
+    (-) = naturalSubThrow
+    (*) = naturalMul
+    negate = naturalNegate
+    fromInteger = integerToNaturalThrow
+    abs    = id
+    signum = naturalSignum
 
-    abs = id
-    signum = signumNatural
+{-# DEPRECATED quotRemInteger "Use integerQuotRem# instead" #-}
+quotRemInteger :: Integer -> Integer -> (# Integer, Integer #)
+quotRemInteger = integerQuotRem#
 

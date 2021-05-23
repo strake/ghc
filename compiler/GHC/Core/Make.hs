@@ -14,7 +14,7 @@ module GHC.Core.Make (
 
         -- * Constructing boxed literals
         mkWordExpr, mkWordExprWord,
-        mkIntExpr, mkIntExprInt,
+        mkIntExpr, mkIntExprInt, mkUncheckedIntExpr,
         mkIntegerExpr, mkNaturalExpr,
         mkFloatExpr, mkDoubleExpr,
         mkCharExpr, mkStringExpr, mkStringExprFS, mkStringExprFSWith,
@@ -252,6 +252,11 @@ castBottomExpr e res_ty
 mkIntExpr :: Platform -> Integer -> CoreExpr        -- Result = I# i :: Int
 mkIntExpr platform i = mkCoreConApps intDataCon  [mkIntLit platform i]
 
+-- | Create a 'CoreExpr' which will evaluate to the given @Int@. Don't check
+-- that the number is in the range of the target platform @Int@
+mkUncheckedIntExpr :: Integer -> CoreExpr        -- Result = I# i :: Int
+mkUncheckedIntExpr i = mkCoreConApps intDataCon  [Lit (mkLitIntUnchecked i)]
+
 -- | Create a 'CoreExpr' which will evaluate to the given @Int@
 mkIntExprInt :: Platform -> Int -> CoreExpr         -- Result = I# i :: Int
 mkIntExprInt platform i = mkCoreConApps intDataCon  [mkIntLitInt platform i]
@@ -265,14 +270,12 @@ mkWordExprWord :: Platform -> Word -> CoreExpr
 mkWordExprWord platform w = mkCoreConApps wordDataCon [mkWordLitWord platform w]
 
 -- | Create a 'CoreExpr' which will evaluate to the given @Integer@
-mkIntegerExpr  :: MonadThings m => Integer -> m CoreExpr  -- Result :: Integer
-mkIntegerExpr i = do t <- lookupTyCon integerTyConName
-                     return (Lit (mkLitInteger i (mkTyConTy t)))
+mkIntegerExpr  :: Integer -> CoreExpr  -- Result :: Integer
+mkIntegerExpr i = Lit (mkLitInteger i)
 
 -- | Create a 'CoreExpr' which will evaluate to the given @Natural@
-mkNaturalExpr  :: MonadThings m => Integer -> m CoreExpr
-mkNaturalExpr i = do t <- lookupTyCon naturalTyConName
-                     return (Lit (mkLitNatural i (mkTyConTy t)))
+mkNaturalExpr  :: Integer -> CoreExpr
+mkNaturalExpr i = Lit (mkLitNatural i)
 
 -- | Create a 'CoreExpr' which will evaluate to the given @Float@
 mkFloatExpr :: Float -> CoreExpr
@@ -736,7 +739,10 @@ errorIds
       rEC_SEL_ERROR_ID,
       aBSENT_ERROR_ID,
       aBSENT_SUM_FIELD_ERROR_ID,
-      tYPE_ERROR_ID   -- Used with Opt_DeferTypeErrors, see #10284
+      tYPE_ERROR_ID,   -- Used with Opt_DeferTypeErrors, see #10284
+      rAISE_OVERFLOW_ID,
+      rAISE_UNDERFLOW_ID,
+      rAISE_DIVZERO_ID
       ]
 
 recSelErrorName, runtimeErrorName, absentErrorName :: Name
@@ -744,6 +750,7 @@ recConErrorName, patErrorName :: Name
 nonExhaustiveGuardsErrorName, noMethodBindingErrorName :: Name
 typeErrorName :: Name
 absentSumFieldErrorName :: Name
+raiseOverflowName, raiseUnderflowName, raiseDivZeroName :: Name
 
 recSelErrorName     = err_nm "recSelError"     recSelErrorIdKey     rEC_SEL_ERROR_ID
 absentErrorName     = err_nm "absentError"     absentErrorIdKey     aBSENT_ERROR_ID
@@ -763,6 +770,7 @@ err_nm str uniq id = mkWiredInIdName cONTROL_EXCEPTION_BASE (fsLit str) uniq id
 rEC_SEL_ERROR_ID, rUNTIME_ERROR_ID, rEC_CON_ERROR_ID :: Id
 pAT_ERROR_ID, nO_METHOD_BINDING_ERROR_ID, nON_EXHAUSTIVE_GUARDS_ERROR_ID :: Id
 tYPE_ERROR_ID, aBSENT_ERROR_ID, aBSENT_SUM_FIELD_ERROR_ID :: Id
+rAISE_OVERFLOW_ID, rAISE_UNDERFLOW_ID, rAISE_DIVZERO_ID :: Id
 rEC_SEL_ERROR_ID                = mkRuntimeErrorId recSelErrorName
 rUNTIME_ERROR_ID                = mkRuntimeErrorId runtimeErrorName
 rEC_CON_ERROR_ID                = mkRuntimeErrorId recConErrorName
@@ -836,8 +844,36 @@ absentSumFieldErrorName
       absentSumFieldErrorIdKey
       aBSENT_SUM_FIELD_ERROR_ID
 
-aBSENT_SUM_FIELD_ERROR_ID
-  = mkVanillaGlobalWithInfo absentSumFieldErrorName
+raiseOverflowName
+   = mkWiredInIdName
+      gHC_PRIM_EXCEPTION
+      (fsLit "raiseOverflow")
+      raiseOverflowIdKey
+      rAISE_OVERFLOW_ID
+
+raiseUnderflowName
+   = mkWiredInIdName
+      gHC_PRIM_EXCEPTION
+      (fsLit "raiseUnderflow")
+      raiseUnderflowIdKey
+      rAISE_UNDERFLOW_ID
+
+raiseDivZeroName
+   = mkWiredInIdName
+      gHC_PRIM_EXCEPTION
+      (fsLit "raiseDivZero")
+      raiseDivZeroIdKey
+      rAISE_DIVZERO_ID
+
+aBSENT_SUM_FIELD_ERROR_ID = mkExceptionId absentSumFieldErrorName
+rAISE_OVERFLOW_ID         = mkExceptionId raiseOverflowName
+rAISE_UNDERFLOW_ID        = mkExceptionId raiseUnderflowName
+rAISE_DIVZERO_ID          = mkExceptionId raiseDivZeroName
+
+-- | Exception with type \"forall a. a\"
+mkExceptionId :: Name -> Id
+mkExceptionId name
+  = mkVanillaGlobalWithInfo name
       (mkSpecForAllTys [alphaTyVar] (mkTyVarTy alphaTyVar)) -- forall a . a
       (vanillaIdInfo `setStrictnessInfo` mkClosedStrictSig [] botDiv
                      `setCprInfo` mkCprSig 0 botCpr
