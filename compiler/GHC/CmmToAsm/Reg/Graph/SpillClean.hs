@@ -44,7 +44,7 @@ import GHC.Cmm
 import GHC.Types.Unique.Set
 import GHC.Types.Unique.FM
 import GHC.Types.Unique
-import GHC.Utils.Monad.State
+import GHC.Utils.Monad.State.Strict
 import GHC.Utils.Outputable
 import GHC.Utils.Panic
 import GHC.Platform
