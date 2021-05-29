@@ -62,7 +62,7 @@ import GHC.Types.Unique.Set
 import GHC.Types.Unique.FM
 import GHC.Types.Unique.Supply
 import GHC.Data.Bag
-import GHC.Utils.Monad.State
+import GHC.Utils.Monad.State.Strict
 
 import Data.List
 import Data.Maybe
