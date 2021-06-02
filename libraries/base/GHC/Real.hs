@@ -379,16 +379,17 @@ instance Real Word where
 
 -- | @since 2.01
 instance Integral Word where
+    -- see Note [INLINE division wrappers] in GHC.Base
+    {-# INLINE quot    #-}
+    {-# INLINE rem     #-}
+    {-# INLINE quotRem #-}
+    {-# INLINE div     #-}
+    {-# INLINE mod     #-}
+    {-# INLINE divMod  #-}
     quot    (W# x#) y@(W# y#)
         | y /= 0                = W# (x# `quotWord#` y#)
         | otherwise             = divZeroError
     rem     (W# x#) y@(W# y#)
-        | y /= 0                = W# (x# `remWord#` y#)
-        | otherwise             = divZeroError
-    div     (W# x#) y@(W# y#)
-        | y /= 0                = W# (x# `quotWord#` y#)
-        | otherwise             = divZeroError
-    mod     (W# x#) y@(W# y#)
         | y /= 0                = W# (x# `remWord#` y#)
         | otherwise             = divZeroError
     quotRem (W# x#) y@(W# y#)
@@ -396,9 +397,9 @@ instance Integral Word where
                                   (# q, r #) ->
                                       (W# q, W# r)
         | otherwise             = divZeroError
-    divMod  (W# x#) y@(W# y#)
-        | y /= 0                = (W# (x# `quotWord#` y#), W# (x# `remWord#` y#))
-        | otherwise             = divZeroError
+    div = quot
+    mod = rem
+    divMod = quotRem
     toInteger (W# x#)           = integerFromWord# x#
 
 --------------------------------------------------------------
@@ -455,31 +456,28 @@ instance  Integral Integer where
 
 -- | @since 4.8.0.0
 instance Integral Natural where
+    -- see Note [INLINE division wrappers] in GHC.Base
+    {-# INLINE quot    #-}
+    {-# INLINE rem     #-}
+    {-# INLINE quotRem #-}
+    {-# INLINE div     #-}
+    {-# INLINE mod     #-}
+    {-# INLINE divMod  #-}
+
     toInteger = integerFromNatural
 
-    {-# INLINE quot #-}
     _ `quot` 0 = divZeroError
     n `quot` d = n `naturalQuot` d
 
-    {-# INLINE rem #-}
     _ `rem` 0 = divZeroError
     n `rem` d = n `naturalRem` d
 
-    {-# INLINE div #-}
-    _ `div` 0 = divZeroError
-    n `div` d = n `naturalQuot` d
-
-    {-# INLINE mod #-}
-    _ `mod` 0 = divZeroError
-    n `mod` d = n `naturalRem` d
-
-    {-# INLINE divMod #-}
-    _ `divMod` 0 = divZeroError
-    n `divMod` d = n `naturalQuotRem` d
-
-    {-# INLINE quotRem #-}
     _ `quotRem` 0 = divZeroError
     n `quotRem` d = n `naturalQuotRem` d
+
+    div = quot
+    mod = rem
+    divMod = quotRem
 
 --------------------------------------------------------------
 -- Instances for @Ratio@
