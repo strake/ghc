@@ -227,6 +227,9 @@ ifeq "$(CHECK_PPR)" ""
 CHECK_PPR := $(abspath $(TOP)/../inplace/bin/check-ppr)
 endif
 
+ifeq "$(COUNT_DEPS)" ""
+COUNT_DEPS := $(abspath $(TOP)/../inplace/bin/count-deps)
+endif
 
 # -----------------------------------------------------------------------------
 # configuration of TEST_HC
@@ -292,4 +295,3 @@ DARWIN = YES
 else
 DARWIN = NO
 endif
-
