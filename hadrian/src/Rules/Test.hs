@@ -1,5 +1,6 @@
 module Rules.Test (testRules) where
 
+import Data.Foldable (toList)
 import System.Environment
 
 import Base
@@ -32,10 +33,17 @@ checkApiAnnotationsProgPath, checkApiAnnotationsSourcePath :: FilePath
 checkApiAnnotationsProgPath = "test/bin/check-api-annotations" <.> exe
 checkApiAnnotationsSourcePath = "utils/check-api-annotations/Main.hs"
 
-checkPrograms :: [(FilePath, FilePath, Package)]
+countDepsProgPath, countDepsSourcePath :: FilePath
+countDepsProgPath = "test/bin/count-deps" <.> exe
+countDepsSourcePath = "utils/count-deps/Main.hs"
+countDepsExtra :: Maybe String
+countDepsExtra = Just "-iutils/count-deps"
+
+checkPrograms :: [(FilePath, FilePath, Maybe String, Package)]
 checkPrograms =
-    [ (checkPprProgPath, checkPprSourcePath, checkPpr)
-    , (checkApiAnnotationsProgPath, checkApiAnnotationsSourcePath, checkApiAnnotations)
+    [ (checkPprProgPath, checkPprSourcePath, Nothing, checkPpr)
+    , (checkApiAnnotationsProgPath, checkApiAnnotationsSourcePath, Nothing, checkApiAnnotations)
+    , (countDepsProgPath, countDepsSourcePath, countDepsExtra, countDeps)
     ]
 
 ghcConfigPath :: FilePath
@@ -55,7 +63,7 @@ testRules = do
 
     -- Rules for building check-ppr and check-ppr-annotations with the compiler
     -- we are going to test (in-tree or out-of-tree).
-    forM_ checkPrograms $ \(progPath, sourcePath, progPkg) ->
+    forM_ checkPrograms $ \(progPath, sourcePath, extras, progPkg) ->
         root -/- progPath %> \path -> do
             need [ sourcePath ]
             testGhc <- testCompiler <$> userSetting defaultTestArgs
@@ -79,6 +87,7 @@ testRules = do
             cmd [bindir </> "ghc" <.> exe] $
                 concatMap (\p -> ["-package", pkgName p]) depsPkgs ++
                 ["-o", top -/- path, top -/- sourcePath] ++
+                toList extras ++
                 -- If GHC is build with debug options, then build check-ppr
                 -- also with debug options.  This allows, e.g., to print debug
                 -- messages of various RTS subsystems while using check-ppr.
@@ -125,7 +134,11 @@ testRules = do
               ]
 
         pythonPath      <- builderPath Python
-        need [ root -/- checkPprProgPath, root -/- checkApiAnnotationsProgPath ]
+        need
+          [ root -/- checkPprProgPath
+          , root -/- checkApiAnnotationsProgPath
+          , root -/- countDepsProgPath
+          ]
 
         -- Set environment variables for test's Makefile.
         -- TODO: Ideally we would define all those env vars in 'env', so that
@@ -143,6 +156,7 @@ testRules = do
             setEnv "CHECK_PPR" (top -/- root -/- checkPprProgPath)
             setEnv "CHECK_API_ANNOTATIONS"
                    (top -/- root -/- checkApiAnnotationsProgPath)
+            setEnv "COUNT_DEPS" (top -/- root -/- countDepsProgPath)
 
             -- This lets us bypass the need to generate a config
             -- through Make, which happens in testsuite/mk/boilerplate.mk
