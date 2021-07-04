@@ -254,5 +254,5 @@ test('T16111', exit_code(1), compile_and_run, [''])
 test('T16943a', normal, compile_and_run, [''])
 test('T16943b', normal, compile_and_run, [''])
 # This frequently times out with slow bignum implementations
-test('T17499', [when(have_slow_bignum(), skip), collect_stats('bytes allocated',5)],
+test('T17499', [collect_stats('bytes allocated',5)],
      compile_and_run, ['-O -w'])
