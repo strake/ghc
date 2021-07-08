@@ -773,7 +773,7 @@ instance Binary Integer where
         -- Large integer
         1 -> negate <$!> getInt
         2 -> getInt
-        _ -> panic "Binary Integer - Invalid byte"
+        _ -> fail "Binary Integer - Invalid byte"
         where
           getInt :: IO Integer
           getInt = roll <$!> (get bh :: IO [Word8])

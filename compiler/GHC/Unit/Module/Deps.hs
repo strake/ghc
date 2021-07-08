@@ -217,7 +217,7 @@ instance Binary Usage where
             mod <- get bh
             hash <- get bh
             return UsageMergedRequirement { usg_mod = mod, usg_mod_hash = hash }
-          i -> error ("Binary.get(Usage): " ++ show i)
+          i -> fail ("Binary.get(Usage): " ++ show i)
 
 
 {-
