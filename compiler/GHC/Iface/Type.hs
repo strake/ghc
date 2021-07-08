@@ -1690,7 +1690,7 @@ instance Binary IfaceTyLit where
                  ; return (IfaceNumTyLit n) }
          2 -> do { n <- get bh
                  ; return (IfaceStrTyLit n) }
-         _ -> panic ("get IfaceTyLit " ++ show tag)
+         _ -> fail ("get IfaceTyLit " ++ show tag)
 
 instance Binary IfaceAppArgs where
   put_ bh tk =
@@ -1707,7 +1707,7 @@ instance Binary IfaceAppArgs where
            ts <- get bh
            return $! IA_Arg t a ts
          1 -> return IA_Nil
-         _ -> panic ("get IfaceAppArgs " ++ show c)
+         _ -> fail ("get IfaceAppArgs " ++ show c)
 
 -------------------
 
@@ -1832,7 +1832,7 @@ instance Binary IfaceMCoercion where
          1 -> return IfaceMRefl
          2 -> do a <- get bh
                  return $ IfaceMCo a
-         _ -> panic ("get IfaceMCoercion " ++ show tag)
+         _ -> fail ("get IfaceMCoercion " ++ show tag)
 
 instance Binary IfaceCoercion where
   put_ bh (IfaceReflCo a) = do
@@ -1967,7 +1967,7 @@ instance Binary IfaceCoercion where
            17-> do a <- get bh
                    b <- get bh
                    return $ IfaceAxiomRuleCo a b
-           _ -> panic ("get IfaceCoercion " ++ show tag)
+           _ -> fail ("get IfaceCoercion " ++ show tag)
 
 instance Binary IfaceUnivCoProv where
   put_ bh (IfacePhantomProv a) = do
@@ -1989,7 +1989,7 @@ instance Binary IfaceUnivCoProv where
                    return $ IfaceProofIrrelProv a
            3 -> do a <- get bh
                    return $ IfacePluginProv a
-           _ -> panic ("get IfaceUnivCoProv " ++ show tag)
+           _ -> fail ("get IfaceUnivCoProv " ++ show tag)
 
 
 instance Binary (DefMethSpec IfaceType) where

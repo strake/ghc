@@ -196,7 +196,7 @@ instance Binary (HieType TypeIndex) where
       6 -> HLitTy <$> get bh
       7 -> HCastTy <$> get bh
       8 -> return HCoercionTy
-      _ -> panic "Binary (HieArgs Int): invalid tag"
+      _ -> fail "Binary (HieArgs Int): invalid tag"
 
 
 -- | A list of type arguments along with their respective visibilities (ie. is
@@ -493,7 +493,7 @@ instance Binary ContextInfo where
       9 -> return MatchBind
       10 -> EvidenceVarBind <$> get bh <*> get bh <*> get bh
       11 -> return EvidenceVarUse
-      _ -> panic "Binary ContextInfo: invalid tag"
+      _ -> fail "Binary ContextInfo: invalid tag"
 
 data EvVarSource
   = EvPatternBind -- ^ bound by a pattern match
@@ -526,7 +526,7 @@ instance Binary EvVarSource where
       3 -> pure EvImplicitBind
       4 -> EvInstBind <$> get bh <*> get bh
       5 -> EvLetBind <$> get bh
-      _ -> panic "Binary EvVarSource: invalid tag"
+      _ -> fail "Binary EvVarSource: invalid tag"
 
 instance Outputable EvVarSource where
   ppr EvPatternBind = text "bound by a pattern"
@@ -651,7 +651,7 @@ instance Binary Scope where
       0 -> return NoScope
       1 -> LocalScope <$> get bh
       2 -> return ModuleScope
-      _ -> panic "Binary Scope: invalid tag"
+      _ -> fail "Binary Scope: invalid tag"
 
 
 -- | Scope of a type variable.
@@ -702,7 +702,7 @@ instance Binary TyVarScope where
     case t of
       0 -> ResolvedScopes <$> get bh
       1 -> UnresolvedScope <$> get bh <*> get bh
-      _ -> panic "Binary TyVarScope: invalid tag"
+      _ -> fail "Binary TyVarScope: invalid tag"
 
 -- | `Name`'s get converted into `HieName`'s before being written into @.hie@
 -- files. See 'toHieName' and 'fromHieName' for logic on how to convert between
