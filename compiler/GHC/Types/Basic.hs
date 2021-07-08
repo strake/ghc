@@ -432,7 +432,7 @@ instance Binary FunctionOrData where
         case h of
           0 -> return IsFunction
           1 -> return IsData
-          _ -> panic "Binary FunctionOrData"
+          _ -> fail "Binary FunctionOrData"
 
 {-
 ************************************************************************
@@ -685,7 +685,7 @@ instance Binary OverlapMode where
             2 -> (get bh) >>= \s -> return $ Incoherent s
             3 -> (get bh) >>= \s -> return $ Overlapping s
             4 -> (get bh) >>= \s -> return $ Overlappable s
-            _ -> panic ("get OverlapMode" ++ show h)
+            _ -> fail ("get OverlapMode" ++ show h)
 
 
 instance Binary OverlapFlag where

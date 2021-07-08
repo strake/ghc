@@ -432,7 +432,7 @@ instance Binary IfaceLFInfo where
             2 -> IfLFCon <$> get bh
             3 -> IfLFUnknown <$> get bh
             4 -> pure IfLFUnlifted
-            _ -> panic "Invalid byte"
+            _ -> fail "Invalid byte"
 
 {-
 Note [Versioning of instances]
@@ -1911,7 +1911,7 @@ instance Binary IfaceDecl where
                     ~(ty, details, idinfo) <- lazyGet bh
                     -- See Note [Lazy deserialization of IfaceId]
                     return (IfaceId name ty details idinfo)
-            1 -> error "Binary.get(TyClDecl): ForeignType"
+            1 -> fail "Binary.get(TyClDecl): ForeignType"
             2 -> do a1  <- getIfaceTopBndr bh
                     a2  <- get bh
                     a3  <- get bh
@@ -1980,7 +1980,7 @@ instance Binary IfaceDecl where
                         ifBinders = a3,
                         ifFDs     = a4,
                         ifBody = IfAbstractClass })
-            _ -> panic (unwords ["Unknown IfaceDecl tag:", show h])
+            _ -> fail (unwords ["Unknown IfaceDecl tag:", show h])
 
 {- Note [Lazy deserialization of IfaceId]
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -2022,8 +2022,7 @@ instance Binary IfaceFamTyConFlav where
                     2 -> do { mb <- get bh
                             ; return (IfaceClosedSynFamilyTyCon mb) }
                     3 -> return IfaceAbstractClosedSynFamilyTyCon
-                    _ -> pprPanic "Binary.get(IfaceFamTyConFlav): Invalid tag"
-                                  (ppr (fromIntegral h :: Int)) }
+                    _ -> fail ("Binary.get(IfaceFamTyConFlav): Invalid tag " ++ show h) }
 
 instance Binary IfaceClassOp where
     put_ bh (IfaceClassOp n ty def) = do
@@ -2074,7 +2073,7 @@ instance Binary IfaceConDecls where
             0 -> return IfAbstractTyCon
             1 -> liftM IfDataTyCon (get bh)
             2 -> liftM IfNewTyCon (get bh)
-            _ -> error "Binary(IfaceConDecls).get: Invalid IfaceConDecls"
+            _ -> fail "Binary(IfaceConDecls).get: Invalid IfaceConDecls"
 
 instance Binary IfaceConDecl where
     put_ bh (IfCon a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11) = do
@@ -2354,7 +2353,7 @@ instance Binary IfaceExpr where
             13 -> do a <- get bh
                      b <- get bh
                      return (IfaceECase a b)
-            _ -> panic ("get IfaceExpr " ++ show h)
+            _ -> fail ("get IfaceExpr " ++ show h)
 
 instance Binary IfaceTickish where
     put_ bh (IfaceHpcTick m ix) = do
@@ -2394,7 +2393,7 @@ instance Binary IfaceTickish where
                         end = mkRealSrcLoc file el ec
                     name <- get bh
                     return (IfaceSource (mkRealSrcSpan start end) name)
-            _ -> panic ("get IfaceTickish " ++ show h)
+            _ -> fail ("get IfaceTickish " ++ show h)
 
 instance Binary IfaceConAlt where
     put_ bh IfaceDefault      = putByte bh 0

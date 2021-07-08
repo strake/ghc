@@ -111,7 +111,7 @@ instance Binary SourceText where
       1 -> do
         s <- get bh
         return (SourceText s)
-      _ -> panic $ "Binary SourceText:" ++ show h
+      _ -> panic ("Binary SourceText:" ++ show h)
 
 -- | Special combinator for showing string literals.
 pprWithSourceText :: SourceText -> SDoc -> SDoc

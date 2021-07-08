@@ -518,7 +518,7 @@ instance Binary Role where
               case tag of 1 -> return Nominal
                           2 -> return Representational
                           3 -> return Phantom
-                          _ -> panic ("get Role " ++ show tag)
+                          _ -> fail ("get Role " ++ show tag)
 
 {-
 ************************************************************************
