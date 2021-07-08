@@ -1769,6 +1769,7 @@ mkMultiBranch maybe_ncons raw_ways = do
                 DiscrP _ -> ( DiscrP algMinBound, DiscrP algMaxBound )
                 NoDiscr -> panic "mkMultiBranch NoDiscr"
 
+         algMinBound, algMaxBound :: Word16
          (algMinBound, algMaxBound)
             = case maybe_ncons of
                  -- XXX What happens when n == 0?
