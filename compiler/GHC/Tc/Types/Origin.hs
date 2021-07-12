@@ -101,8 +101,6 @@ data UserTypeCtxt
   | ClassSCCtxt Name    -- Superclasses of a class
   | SigmaCtxt           -- Theta part of a normal for-all type
                         --      f :: <S> => a -> a
-  | DataTyCtxt Name     -- The "stupid theta" part of a data decl
-                        --      data <S> => T a = MkT a
   | DerivClauseCtxt     -- A 'deriving' clause
   | TyVarBndrKindCtxt Name  -- The kind of a type variable being bound
   | DataKindCtxt Name   -- The kind of a data/newtype (instance)
@@ -144,7 +142,6 @@ pprUserTypeCtxt GenSigCtxt        = text "a type expected by the context"
 pprUserTypeCtxt (GhciCtxt {})     = text "a type in a GHCi command"
 pprUserTypeCtxt (ClassSCCtxt c)   = text "the super-classes of class" <+> quotes (ppr c)
 pprUserTypeCtxt SigmaCtxt         = text "the context of a polymorphic type"
-pprUserTypeCtxt (DataTyCtxt tc)   = text "the context of the data type declaration for" <+> quotes (ppr tc)
 pprUserTypeCtxt (PatSynCtxt n)    = text "the signature for pattern synonym" <+> quotes (ppr n)
 pprUserTypeCtxt (DerivClauseCtxt) = text "a `deriving' clause"
 pprUserTypeCtxt (TyVarBndrKindCtxt n) = text "the kind annotation on the type variable" <+> quotes (ppr n)

@@ -917,11 +917,7 @@ tcExpr expr@(RecordUpd { rupd_expr = record_expr, rupd_flds = rbnds }) res_ty
         -- Typecheck the bindings
         ; rbinds'      <- tcRecordUpd con1 con1_arg_tys' rbinds
 
-        -- STEP 6: Deal with the stupid theta
-        ; let theta' = substThetaUnchecked scrut_subst (conLikeStupidTheta con1)
-        ; instStupidTheta RecordUpdOrigin theta'
-
-        -- Step 7: make a cast for the scrutinee, in the
+        -- Step 6: make a cast for the scrutinee, in the
         --         case that it's from a data family
         ; let fam_co :: HsWrapper   -- RepT t1 .. tn ~R scrut_ty
               fam_co | Just tycon <- mtycon
@@ -930,7 +926,7 @@ tcExpr expr@(RecordUpd { rupd_expr = record_expr, rupd_flds = rbnds }) res_ty
                      | otherwise
                      = idHsWrapper
 
-        -- Step 8: Check that the req constraints are satisfied
+        -- Step 7: Check that the req constraints are satisfied
         -- For normal data constructors req_theta is empty but we must do
         -- this check for pattern synonyms.
         ; let req_theta' = substThetaUnchecked scrut_subst req_theta
@@ -1853,34 +1849,14 @@ tc_infer_id lbl id_name
                     -- hence no checkTh stuff here
 
              AGlobal (AConLike cl) -> case cl of
-                 RealDataCon con -> return_data_con con
+                 RealDataCon con ->
+                     pure (HsConLikeOut noExtField (RealDataCon con), dataConUserType con)
                  PatSynCon ps    -> tcPatSynBuilderOcc ps
 
              _ -> failWithTc $
                   ppr thing <+> text "used where a value identifier was expected" }
   where
     return_id id = return (HsVar noExtField (noLoc id), idType id)
-
-    return_data_con con
-       -- For data constructors, must perform the stupid-theta check
-      | null stupid_theta
-      = return (HsConLikeOut noExtField (RealDataCon con), con_ty)
-
-      | otherwise
-       -- See Note [Instantiating stupid theta]
-      = do { let (tvs, theta, rho) = tcSplitSigmaTy con_ty
-           ; (subst, tvs') <- newMetaTyVars tvs
-           ; let tys'   = mkTyVarTys tvs'
-                 theta' = substTheta subst theta
-                 rho'   = substTy subst rho
-           ; wrap <- instCall (OccurrenceOf id_name) tys' theta'
-           ; addDataConStupidTheta con tys'
-           ; return ( mkHsWrap wrap (HsConLikeOut noExtField (RealDataCon con))
-                    , rho') }
-
-      where
-        con_ty         = dataConUserType con
-        stupid_theta   = dataConStupidTheta con
 
     check_naughty id
       | isNaughtyRecordSelector id = failWithTc (naughtyRecordSel lbl)
@@ -1940,18 +1916,6 @@ Usually that coercion is hidden inside the wrappers for
 constructors of F [Int] but here we have to do it explicitly.
 
 It's all grotesquely complicated.
-
-Note [Instantiating stupid theta]
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-Normally, when we infer the type of an Id, we don't instantiate,
-because we wish to allow for visible type application later on.
-But if a datacon has a stupid theta, we're a bit stuck. We need
-to emit the stupid theta constraints with instantiated types. It's
-difficult to defer this to the lazy instantiation, because a stupid
-theta has no spot to put it in a type. So we just instantiate eagerly
-in this case. Thus, users cannot use visible type application with
-a data constructor sporting a stupid theta. I won't feel so bad for
-the users that complain.
 
 -}
 

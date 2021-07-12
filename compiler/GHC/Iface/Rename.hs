@@ -449,13 +449,11 @@ rnIfaceDecl d@IfaceId{} = do
 rnIfaceDecl d@IfaceData{} = do
             name <- rnIfaceGlobal (ifName d)
             binders <- mapM rnIfaceTyConBinder (ifBinders d)
-            ctxt <- mapM rnIfaceType (ifCtxt d)
             cons <- rnIfaceConDecls (ifCons d)
             res_kind <- rnIfaceType (ifResKind d)
             parent <- rnIfaceTyConParent (ifParent d)
             return d { ifName = name
                      , ifBinders = binders
-                     , ifCtxt = ctxt
                      , ifCons = cons
                      , ifResKind = res_kind
                      , ifParent = parent

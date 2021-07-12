@@ -550,8 +550,7 @@ irTyCon tc
        ; unless (all (== Nominal) old_roles) $  -- also catches data families,
                                                 -- which don't want or need role inference
          irTcTyVars tc $
-         do { mapM_ (irType emptyVarSet) (tyConStupidTheta tc)  -- See #8958
-            ; whenIsJust (tyConClass_maybe tc) irClass
+         do { whenIsJust (tyConClass_maybe tc) irClass
             ; mapM_ irDataCon (visibleDataCons $ algTyConRhs tc) }}
 
   | Just ty <- synTyConRhs_maybe tc
@@ -878,7 +877,6 @@ mkOneRecordSelector all_cons idDetails fl
     is_naughty = not (tyCoVarsOfType field_ty `subVarSet` data_tv_set)
     sel_ty | is_naughty = unitTy  -- See Note [Naughty record selectors]
            | otherwise  = mkForAllTys (tyVarSpecToBinders data_tvbs) $
-                          mkPhiTy (conLikeStupidTheta con1) $   -- Urgh!
                           -- req_theta is empty for normal DataCon
                           mkPhiTy req_theta                 $
                           mkVisFunTy data_ty                $
