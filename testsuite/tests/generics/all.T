@@ -4,12 +4,10 @@ test('GenDerivOutput',  normal, compile, ['-dsuppress-uniques'])
 
 test('GenShouldFail0',  normal, compile_fail, [''])
 test('GenCannotDoRep0_0', normal, compile_fail, [''])
-test('GenCannotDoRep0_1', normal, compile_fail, [''])
 test('GenCannotDoRep0_2', normal, compile_fail, [''])
 
 test('GenShouldFail1_0',  normal, compile_fail, [''])
 test('GenCannotDoRep1_0', normal, compile_fail, [''])
-test('GenCannotDoRep1_1', normal, compile_fail, [''])
 test('GenCannotDoRep1_2', normal, compile_fail, [''])
 test('GenCannotDoRep1_3', normal, compile_fail, [''])
 test('GenCannotDoRep1_4', normal, compile_fail, [''])

@@ -20,7 +20,6 @@ test('TcCoercible', [], compile_and_run, [''])
 
 setTestOpts(when(fast(), skip))
 
-test('tcrun006', normal, compile_and_run, [''])
 test('tcrun008', normal, compile_and_run, [''])
 test('tcrun009', normal, compile_and_run, [''])
 test('tcrun010', normal, compile_and_run, [''])
@@ -43,7 +42,6 @@ test('tcrun025', [extra_files(['TcRun025_B.hs'])], multimod_compile_and_run, ['t
 test('tcrun026', normal, compile_and_run, [''])
 test('tcrun027', normal, compile_and_run, [''])
 test('tcrun028', normal, compile_and_run, [''])
-test('tcrun029', normal, compile_and_run, [''])
 test('tcrun030', normal, compile_and_run, [''])
 test('tcrun031', normal, compile_and_run, [''])
 test('tcrun032', normal, compile_and_run, [''])

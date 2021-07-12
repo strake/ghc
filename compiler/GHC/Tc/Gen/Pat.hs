@@ -20,7 +20,6 @@ module GHC.Tc.Gen.Pat
    , LetBndrSpec(..)
    , tcCheckPat, tcCheckPat_O, tcInferPat
    , tcPats
-   , addDataConStupidTheta
    , badFieldCon
    , polyPatSig
    )
@@ -761,9 +760,6 @@ tcDataConPat penv (L con_span con_name) data_con pat_ty
         ; (wrap, ctxt_res_tys) <- matchExpectedConTy penv tycon pat_ty
         ; pat_ty <- readExpType pat_ty
 
-          -- Add the stupid theta
-        ; setSrcSpan con_span $ addDataConStupidTheta data_con ctxt_res_tys
-
         ; let all_arg_tys = eqSpecPreds eq_spec ++ theta ++ arg_tys
         ; checkExistentials ex_tvs all_arg_tys penv
 
@@ -1057,23 +1053,6 @@ tcConArgs con_like arg_tys penv con_args thing_inside = case con_args of
 
 tcConArg :: Checker (LPat GhcRn, TcSigmaType) (LPat GhcTc)
 tcConArg penv (arg_pat, arg_ty) = tc_lpat (mkCheckExpType arg_ty) penv arg_pat
-
-addDataConStupidTheta :: DataCon -> [TcType] -> TcM ()
--- Instantiate the "stupid theta" of the data con, and throw
--- the constraints into the constraint set
-addDataConStupidTheta data_con inst_tys
-  | null stupid_theta = return ()
-  | otherwise         = instStupidTheta origin inst_theta
-  where
-    origin = OccurrenceOf (dataConName data_con)
-        -- The origin should always report "occurrence of C"
-        -- even when C occurs in a pattern
-    stupid_theta = dataConStupidTheta data_con
-    univ_tvs     = dataConUnivTyVars data_con
-    tenv = zipTvSubst univ_tvs (takeList univ_tvs inst_tys)
-         -- NB: inst_tys can be longer than the univ tyvars
-         --     because the constructor might have existentials
-    inst_theta = substTheta tenv stupid_theta
 
 {-
 Note [Arrows and patterns]

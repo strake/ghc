@@ -1,4 +1,4 @@
-{-# LANGUAGE MultiParamTypeClasses,RankNTypes,ExistentialQuantification,DatatypeContexts #-}
+{-# LANGUAGE MultiParamTypeClasses,RankNTypes,ExistentialQuantification #-}
 module RnFail055 where
 
 f1 :: Float -> Int
@@ -11,18 +11,16 @@ type S3 t = [t]
 
 data T1 a b = T1 [a] [b]
 
-data (Eq a) => T2 a b = T2 a
+data T2 = T2
+data T2' = T2'
 
-data T3 = T3
-data T3' = T3'
+data T3 b = T3 (forall a. b -> a)
 
-data T4 b = T4 (forall a. b -> a)
+data T4 a = T4 a
 
-data T5 a = T5 a
+data T5 = T5 !Int
 
-data T6 = T6 !Int
-
-data T7 a = forall b . T7 a
+data T6 a = forall b . T6 a
 
 class C1 a b where { m1 :: a -> b }
 class C2 a b where { m2 :: a -> b }

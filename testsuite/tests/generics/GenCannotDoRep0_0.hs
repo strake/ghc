@@ -3,7 +3,6 @@
 {-# LANGUAGE StandaloneDeriving         #-}
 {-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE TypeFamilies               #-}
-{-# LANGUAGE DatatypeContexts           #-}
 
 module CannotDoRep0_0 where
 
@@ -19,12 +18,12 @@ deriving instance Generic (P Int)
 -- This gets trickier for data families
 data family D a b
 data instance D Char b
-data instance (Show b) => D Int b
+data instance D Int b
 data instance D () ()
 
 -- Bad: second argument is instantiated
 deriving instance Generic (D Char Char)
--- Bad: has context
+-- Ok
 deriving instance Generic (D Int a)
 -- Ok
 deriving instance Generic (D () ())

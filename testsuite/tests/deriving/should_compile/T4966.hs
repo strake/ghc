@@ -1,6 +1,5 @@
 {-# OPTIONS -fno-warn-redundant-constraints #-}
 
-{-# LANGUAGE DatatypeContexts #-}
 {-# LANGUAGE EmptyDataDecls #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE UndecidableInstances #-}
@@ -30,7 +29,7 @@ data StateEntry a
 getObjectFromTreeList :: CItem a => StateEntry a -> Bool  
 getObjectFromTreeList state = state == state
 
-data CItem a => TreeListObject a
+data TreeListObject a
 
 instance {-# OVERLAPPING #-} CItem a => Eq (TreeListObject a)
 
