@@ -2,7 +2,6 @@
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE DatatypeContexts #-}
 
 module ShouldCompile where
 
@@ -28,9 +27,6 @@ data NotPrimitivelyRecursive a
     = S1 (NotPrimitivelyRecursive (a,a))
     | S2 a
   deriving (Functor,Eq)
-
-data Eq a => StupidConstraint a b = Stupid a b
-  deriving (Functor)
 
 -- requires Functor constraint on f and g
 data Compose f g a = Compose (f (g a))
