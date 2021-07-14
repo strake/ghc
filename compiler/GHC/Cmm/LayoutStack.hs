@@ -5,6 +5,9 @@ module GHC.Cmm.LayoutStack (
 
 import GHC.Prelude hiding ((<*>))
 
+import GHC.Platform
+import GHC.Platform.Profile
+
 import GHC.StgToCmm.Utils      ( callerSaveVolatileRegs, newTemp  ) -- XXX layering violation
 import GHC.StgToCmm.Foreign    ( saveThreadState, loadThreadState ) -- XXX layering violation
 
@@ -29,7 +32,6 @@ import GHC.Data.Maybe
 import GHC.Types.Unique.FM
 import GHC.Utils.Misc
 
-import GHC.Platform
 import GHC.Driver.Session
 import GHC.Data.FastString
 import GHC.Utils.Outputable hiding ( isEmpty )
@@ -247,6 +249,7 @@ cmmLayoutStack dflags procpoints entry_args
     let liveness = cmmLocalLiveness platform graph
         blocks = revPostorder graph
         platform = targetPlatform dflags
+        profile = targetProfile dflags
 
     (final_stackmaps, _final_high_sp, new_blocks) <-
           mfix $ \ ~(rec_stackmaps, rec_high_sp, _new_blocks) ->
@@ -255,7 +258,7 @@ cmmLayoutStack dflags procpoints entry_args
 
     blocks_with_reloads <-
         insertReloadsAsNeeded platform procpoints final_stackmaps entry new_blocks
-    new_blocks' <- mapM (lowerSafeForeignCall dflags) blocks_with_reloads
+    new_blocks' <- mapM (lowerSafeForeignCall profile) blocks_with_reloads
     return (ofBlockList entry new_blocks', final_stackmaps)
 
 -- -----------------------------------------------------------------------------
@@ -1132,18 +1135,18 @@ expecting them (see Note [safe foreign call convention]). Note also
 that safe foreign call is replace by an unsafe one in the Cmm graph.
 -}
 
-lowerSafeForeignCall :: DynFlags -> CmmBlock -> UniqSM CmmBlock
-lowerSafeForeignCall dflags block
+lowerSafeForeignCall :: Profile -> CmmBlock -> UniqSM CmmBlock
+lowerSafeForeignCall profile block
   | (entry@(CmmEntry _ tscp), middle, CmmForeignCall { .. }) <- blockSplit block
   = do
-    let platform = targetPlatform dflags
+    let platform = profilePlatform profile
     -- Both 'id' and 'new_base' are KindNonPtr because they're
     -- RTS-only objects and are not subject to garbage collection
     id <- newTemp (bWord platform)
     new_base <- newTemp (cmmRegType platform baseReg)
-    let (caller_save, caller_load) = callerSaveVolatileRegs dflags
-    save_state_code <- saveThreadState dflags
-    load_state_code <- loadThreadState dflags
+    let (caller_save, caller_load) = callerSaveVolatileRegs platform
+    save_state_code <- saveThreadState profile
+    load_state_code <- loadThreadState profile
     let suspend = save_state_code  <*>
                   caller_save <*>
                   mkMiddle (callSuspendThread platform id intrbl)
@@ -1156,7 +1159,7 @@ lowerSafeForeignCall dflags block
                   load_state_code
 
         (_, regs, copyout) =
-             copyOutOflow dflags NativeReturn Jump (Young succ)
+             copyOutOflow profile NativeReturn Jump (Young succ)
                             (map (CmmReg . CmmLocal) res)
                             ret_off []
 

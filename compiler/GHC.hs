@@ -337,7 +337,7 @@ import GHC.Driver.Finder
 import GHC.Driver.Types
 import GHC.Driver.CmdLine
 import GHC.Driver.Session hiding (WarnReason(..))
-import GHC.Driver.Ways
+import GHC.Platform.Ways
 import GHC.Driver.Ppr
 import GHC.SysTools
 import GHC.SysTools.BaseDir
@@ -1682,9 +1682,10 @@ interpretPackageEnv dflags = do
   where
     -- Loading environments (by name or by location)
 
+    archOS = platformArchOS (targetPlatform dflags)
     namedEnvPath :: String -> MaybeT IO FilePath
     namedEnvPath name = do
-     appdir <- versionedAppDir dflags
+     appdir <- versionedAppDir (programName dflags) archOS
      return $ appdir </> "environments" </> name
 
     probeEnvName :: String -> MaybeT IO FilePath
@@ -1721,7 +1722,7 @@ interpretPackageEnv dflags = do
 
     -- e.g. .ghc.environment.x86_64-linux-7.6.3
     localEnvFileName :: FilePath
-    localEnvFileName = ".ghc.environment" <.> versionedFilePath dflags
+    localEnvFileName = ".ghc.environment" <.> versionedFilePath archOS
 
     -- Search for an env file, starting in the current dir and looking upwards.
     -- Fail if we get to the users home dir or the filesystem root. That is,

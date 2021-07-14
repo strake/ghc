@@ -42,7 +42,8 @@ import GHC.Prelude
 import GHC.Driver.Pipeline.Monad
 import GHC.Unit
 import GHC.Unit.State
-import GHC.Driver.Ways
+import GHC.Platform.Ways
+import GHC.Platform.ArchOS
 import GHC.Parser.Header
 import GHC.Driver.Phases
 import GHC.SysTools
@@ -896,16 +897,18 @@ llvmOptions dflags =
                | WayDyn `elem` ways dflags  = "dynamic-no-pic"
                | otherwise                  = "static"
 
+        platform = targetPlatform dflags
+
         align :: Int
-        align = case platformArch (targetPlatform dflags) of
+        align = case platformArch platform of
                   ArchX86_64 | isAvxEnabled dflags -> 32
                   _                                -> 0
 
         attrs :: String
         attrs = intercalate "," $ mattr
               ++ ["+sse42"   | isSse4_2Enabled dflags   ]
-              ++ ["+sse2"    | isSse2Enabled dflags     ]
-              ++ ["+sse"     | isSseEnabled dflags      ]
+              ++ ["+sse2"    | isSse2Enabled platform   ]
+              ++ ["+sse"     | isSseEnabled platform    ]
               ++ ["+avx512f" | isAvx512fEnabled dflags  ]
               ++ ["+avx2"    | isAvx2Enabled dflags     ]
               ++ ["+avx"     | isAvxEnabled dflags      ]
@@ -1963,6 +1966,7 @@ linkStaticLib dflags o_files dep_packages = do
 
 doCpp :: DynFlags -> Bool -> FilePath -> FilePath -> IO ()
 doCpp dflags raw input_fn output_fn = do
+    let platform = targetPlatform dflags
     let hscpp_opts = picPOpts dflags
     let cmdline_include_paths = includePaths dflags
 
@@ -1989,8 +1993,8 @@ doCpp dflags raw input_fn output_fn = do
         -- and BUILD is the same as our HOST.
 
     let sse_defs =
-          [ "-D__SSE__"      | isSseEnabled      dflags ] ++
-          [ "-D__SSE2__"     | isSse2Enabled     dflags ] ++
+          [ "-D__SSE__"      | isSseEnabled      platform ] ++
+          [ "-D__SSE2__"     | isSse2Enabled     platform ] ++
           [ "-D__SSE4_2__"   | isSse4_2Enabled   dflags ]
 
     let avx_defs =

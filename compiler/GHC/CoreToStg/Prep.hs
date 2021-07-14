@@ -54,7 +54,7 @@ import GHC.Data.Maybe
 import GHC.Data.OrdList
 import GHC.Utils.Error
 import GHC.Driver.Session
-import GHC.Driver.Ways
+import GHC.Platform.Ways
 import GHC.Utils.Misc
 import GHC.Utils.Panic
 import GHC.Utils.Outputable

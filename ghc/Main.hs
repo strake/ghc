@@ -26,7 +26,7 @@ import GHC.Driver.Main      ( newHscEnv )
 import GHC.Driver.Pipeline  ( oneShot, compileFile )
 import GHC.Driver.MakeFile  ( doMkDependHS )
 import GHC.Driver.Backpack  ( doBackpack )
-import GHC.Driver.Ways
+import GHC.Platform.Ways
 #if defined(HAVE_INTERNAL_INTERPRETER)
 import GHCi.UI          ( interactiveUI, ghciWelcomeMsg, defaultGhciSettings )
 #endif
@@ -793,16 +793,16 @@ showSupportedExtensions m_top_dir = do
       Nothing -> throwE $ SettingsError_MissingData "Could not find the top directory, missing -B flag"
       Just dir -> pure dir
     initSettings top_dir
-  targetPlatformMini <- case res of
-    Right s -> pure $ platformMini $ sTargetPlatform s
+  arch_os <- case res of
+    Right s -> pure $ platformArchOS $ sTargetPlatform s
     Left (SettingsError_MissingData msg) -> do
       hPutStrLn stderr $ "WARNING: " ++ show msg
       hPutStrLn stderr $ "cannot know target platform so guessing target == host (native compiler)."
-      pure cHostPlatformMini
+      pure hostPlatformArchOS
     Left (SettingsError_BadData msg) -> do
       hPutStrLn stderr msg
       exitWith $ ExitFailure 1
-  mapM_ putStrLn $ supportedLanguagesAndExtensions targetPlatformMini
+  mapM_ putStrLn $ supportedLanguagesAndExtensions arch_os
 
 showVersion :: IO ()
 showVersion = putStrLn (cProjectName ++ ", version " ++ cProjectVersion)
