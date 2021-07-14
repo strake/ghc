@@ -63,7 +63,7 @@ module GHC.Driver.Session (
         optimisationFlags,
         setFlagsFromEnvFile,
 
-        addWay',
+        addWay', targetProfile,
 
         homeUnit, mkHomeModule, isHomeModule,
 
@@ -197,11 +197,7 @@ module GHC.Driver.Session (
         -- * Compiler configuration suitable for display to the user
         compilerInfo,
 
-#include "GHCConstantsHaskellExports.hs"
-        bLOCK_SIZE_W,
         wordAlignment,
-        tAG_MASK,
-        mAX_PTR_TAG,
 
         unsafeGlobalDynFlags, setUnsafeGlobalDynFlags,
 
@@ -240,6 +236,8 @@ module GHC.Driver.Session (
 import GHC.Prelude
 
 import GHC.Platform
+import GHC.Platform.Ways
+import GHC.Platform.Profile
 import GHC.UniqueSubdir (uniqueSubdir)
 import GHC.Unit.Types
 import GHC.Unit.Parser
@@ -251,7 +249,6 @@ import GHC.Builtin.Names ( mAIN )
 import {-# SOURCE #-} GHC.Unit.State (PackageState, emptyPackageState, PackageDatabase, updateIndefUnitId)
 import GHC.Driver.Phases ( Phase(..), phaseInputExt )
 import GHC.Driver.Flags
-import GHC.Driver.Ways
 import GHC.Driver.Backend
 import GHC.Settings.Config
 import GHC.Utils.CliOption
@@ -290,7 +287,6 @@ import Control.Monad.Trans.Reader
 import Control.Monad.Trans.Except
 
 import Data.Ord
-import Data.Bits
 import Data.Char
 import Data.List
 import Data.Map (Map)
@@ -466,7 +462,6 @@ data DynFlags = DynFlags {
   targetPlatform    :: Platform,       -- Filled in by SysTools
   toolSettings      :: {-# UNPACK #-} !ToolSettings,
   platformMisc      :: {-# UNPACK #-} !PlatformMisc,
-  platformConstants :: PlatformConstants,
   rawSettings       :: [(String, String)],
 
   llvmConfig            :: LlvmConfig,
@@ -911,7 +906,7 @@ settings dflags = Settings
   , sTargetPlatform = targetPlatform dflags
   , sToolSettings = toolSettings dflags
   , sPlatformMisc = platformMisc dflags
-  , sPlatformConstants = platformConstants dflags
+  , sPlatformConstants = platformConstants (targetPlatform dflags)
   , sRawSettings = rawSettings dflags
   }
 
@@ -1005,14 +1000,14 @@ opt_i dflags= toolSettings_opt_i $ toolSettings dflags
 -- | The directory for this version of ghc in the user's app directory
 -- (typically something like @~/.ghc/x86_64-linux-7.6.3@)
 --
-versionedAppDir :: DynFlags -> MaybeT IO FilePath
-versionedAppDir dflags = do
+versionedAppDir :: String -> ArchOS -> MaybeT IO FilePath
+versionedAppDir appname platform = do
   -- Make sure we handle the case the HOME isn't set (see #11678)
-  appdir <- tryMaybeT $ getAppUserDataDirectory (programName dflags)
-  return $ appdir </> versionedFilePath dflags
+  appdir <- tryMaybeT $ getAppUserDataDirectory appname
+  return $ appdir </> versionedFilePath platform
 
-versionedFilePath :: DynFlags -> FilePath
-versionedFilePath dflags = uniqueSubdir $ platformMini $ targetPlatform dflags
+versionedFilePath :: ArchOS -> FilePath
+versionedFilePath platform = uniqueSubdir platform
 
 -- | The 'GhcMode' tells us whether we're doing multi-module
 -- compilation (controlled via the "GHC" API) or one-shot
@@ -1331,7 +1326,6 @@ defaultDynFlags mySettings llvmConfig =
         toolSettings = sToolSettings mySettings,
         targetPlatform = sTargetPlatform mySettings,
         platformMisc = sPlatformMisc mySettings,
-        platformConstants = sPlatformConstants mySettings,
         rawSettings = sRawSettings mySettings,
 
         -- See Note [LLVM configuration].
@@ -3621,8 +3615,8 @@ supportedLanguages = map (flagSpecName . snd) languageFlagsDeps
 supportedLanguageOverlays :: [String]
 supportedLanguageOverlays = map (flagSpecName . snd) safeHaskellFlagsDeps
 
-supportedExtensions :: PlatformMini -> [String]
-supportedExtensions targetPlatformMini = concatMap toFlagSpecNamePair xFlags
+supportedExtensions :: ArchOS -> [String]
+supportedExtensions (ArchOS _ os) = concatMap toFlagSpecNamePair xFlags
   where
     toFlagSpecNamePair flg
       -- IMPORTANT! Make sure that `ghc --supported-extensions` omits
@@ -3633,13 +3627,13 @@ supportedExtensions targetPlatformMini = concatMap toFlagSpecNamePair xFlags
       | isAIX, flagSpecFlag flg == LangExt.QuasiQuotes      = [noName]
       | otherwise = [name, noName]
       where
-        isAIX = platformMini_os targetPlatformMini == OSAIX
+        isAIX = os == OSAIX
         noName = "No" ++ name
         name = flagSpecName flg
 
-supportedLanguagesAndExtensions :: PlatformMini -> [String]
-supportedLanguagesAndExtensions targetPlatformMini =
-    supportedLanguages ++ supportedLanguageOverlays ++ supportedExtensions targetPlatformMini
+supportedLanguagesAndExtensions :: ArchOS -> [String]
+supportedLanguagesAndExtensions arch_os =
+    supportedLanguages ++ supportedLanguageOverlays ++ supportedExtensions arch_os
 
 -- | These -X<blah> flags cannot be reversed with -XNo<blah>
 languageFlagsDeps :: [(Deprecation, FlagSpec Language)]
@@ -4822,7 +4816,7 @@ compilerInfo dflags
        -- Whether or not we support the @-this-unit-id@ flag
        ("Uses unit IDs",               "YES"),
        -- Whether or not GHC compiles libraries as dynamic by default
-       ("Dynamic by default",          showBool $ dYNAMIC_BY_DEFAULT dflags),
+       ("Dynamic by default",          showBool $ pc_DYNAMIC_BY_DEFAULT constants),
        -- Whether or not GHC was compiled using -dynamic
        ("GHC Dynamic",                 showBool hostIsDynamic),
        -- Whether or not GHC was compiled using -prof
@@ -4835,25 +4829,19 @@ compilerInfo dflags
   where
     showBool True  = "YES"
     showBool False = "NO"
-    isWindows = platformOS (targetPlatform dflags) == OSMinGW32
+    platform  = targetPlatform dflags
+    constants = platformConstants platform
+    isWindows = platformOS platform == OSMinGW32
     expandDirectories :: FilePath -> Maybe FilePath -> String -> String
     expandDirectories topd mtoold = expandToolDir mtoold . expandTopDir topd
 
--- Produced by deriveConstants
-#include "GHCConstantsHaskellWrappers.hs"
-
-bLOCK_SIZE_W :: DynFlags -> Int
-bLOCK_SIZE_W dflags = bLOCK_SIZE dflags `quot` platformWordSizeInBytes platform
-   where platform = targetPlatform dflags
 
 wordAlignment :: Platform -> Alignment
 wordAlignment platform = alignmentOf (platformWordSizeInBytes platform)
 
-tAG_MASK :: DynFlags -> Int
-tAG_MASK dflags = (1 `shiftL` tAG_BITS dflags) - 1
-
-mAX_PTR_TAG :: DynFlags -> Int
-mAX_PTR_TAG = tAG_MASK
+-- | Get target profile
+targetProfile :: DynFlags -> Profile
+targetProfile dflags = Profile (targetPlatform dflags) (ways dflags)
 
 {- -----------------------------------------------------------------------------
 Note [DynFlags consistency]
@@ -4995,14 +4983,14 @@ setUnsafeGlobalDynFlags = writeIORef v_unsafeGlobalDynFlags
 -- check if SSE is enabled, we might have x86-64 imply the -msse2
 -- flag.
 
-isSseEnabled :: DynFlags -> Bool
-isSseEnabled dflags = case platformArch (targetPlatform dflags) of
+isSseEnabled :: Platform -> Bool
+isSseEnabled platform = case platformArch platform of
     ArchX86_64 -> True
     ArchX86    -> True
     _          -> False
 
-isSse2Enabled :: DynFlags -> Bool
-isSse2Enabled dflags = case platformArch (targetPlatform dflags) of
+isSse2Enabled :: Platform -> Bool
+isSse2Enabled platform = case platformArch platform of
   -- We Assume  SSE1 and SSE2 operations are available on both
   -- x86 and x86_64. Historically we didn't default to SSE2 and
   -- SSE1 on x86, which results in defacto nondeterminism for how
@@ -5054,7 +5042,7 @@ isBmi2Enabled dflags = case platformArch (targetPlatform dflags) of
 
 -- | Indicate if cost-centre profiling is enabled
 sccProfilingEnabled :: DynFlags -> Bool
-sccProfilingEnabled dflags = ways dflags `hasWay` WayProf
+sccProfilingEnabled dflags = profileIsProfiling (targetProfile dflags)
 
 -- -----------------------------------------------------------------------------
 -- Linker/compiler information

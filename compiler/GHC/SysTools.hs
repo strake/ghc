@@ -48,7 +48,7 @@ import GHC.Utils.Error
 import GHC.Utils.Panic
 import GHC.Platform
 import GHC.Driver.Session
-import GHC.Driver.Ways
+import GHC.Platform.Ways
 
 import Control.Monad.Trans.Except (runExceptT)
 import System.FilePath

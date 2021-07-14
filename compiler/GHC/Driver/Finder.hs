@@ -43,7 +43,7 @@ import GHC.Data.FastString
 import GHC.Utils.Misc
 import GHC.Builtin.Names ( gHC_PRIM )
 import GHC.Driver.Session
-import GHC.Driver.Ways
+import GHC.Platform.Ways
 import GHC.Utils.Outputable as Outputable
 import GHC.Utils.Panic
 import GHC.Data.Maybe    ( expectJust )
