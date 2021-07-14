@@ -75,7 +75,9 @@ import GHC.Unit.Module
 import GHC.Unit.Subst
 import GHC.Driver.Ppr
 import GHC.Driver.Session
-import GHC.Driver.Ways
+import GHC.Platform (Platform (..))
+import GHC.Platform.ArchOS
+import GHC.Platform.Ways
 import GHC.Types.Unique.FM
 import GHC.Types.Unique.DFM
 import GHC.Types.Unique.Set
@@ -309,7 +311,76 @@ instance Monoid UnitVisibility where
              }
     mappend = (Semigroup.<>)
 
-type WiredUnitId = DefUnitId
+-- | Unit configuration
+data UnitConfig = UnitConfig
+   { unitConfigPlatformArchOS :: !ArchOS        -- ^ Platform arch and OS
+   , unitConfigWays           :: !(Set Way)     -- ^ Ways to use
+   , unitConfigProgramName    :: !String
+      -- ^ Name of the compiler (e.g. "GHC", "GHCJS"). Used to fetch environment
+      -- variables such as "GHC[JS]_PACKAGE_PATH".
+
+   , unitConfigGlobalDB :: !FilePath    -- ^ Path to global DB
+   , unitConfigGHCDir   :: !FilePath    -- ^ Main GHC dir: contains settings, etc.
+   , unitConfigDBName   :: !String      -- ^ User DB name (e.g. "package.conf.d")
+
+   , unitConfigAutoLink       :: ![UnitId] -- ^ Units to link automatically (e.g. base, rts)
+   , unitConfigDistrustAll    :: !Bool     -- ^ Distrust all units by default
+   , unitConfigHideAll        :: !Bool     -- ^ Hide all units by default
+   , unitConfigHideAllPlugins :: !Bool     -- ^ Hide all plugins units by default
+
+   , unitConfigAllowVirtualUnits :: !Bool
+      -- ^ Allow the use of virtual units instantiated on-the-fly (see Note
+      -- [About units] in GHC.Unit). This should only be used when we are
+      -- type-checking an indefinite unit (not producing any code).
+
+   , unitConfigDBCache      :: Maybe [PackageDatabase UnitId]
+      -- ^ Cache of databases to use, in the order they were specified on the
+      -- command line (later databases shadow earlier ones).
+      -- If Nothing, databases will be found using `unitConfigFlagsDB`.
+
+   -- command-line flags
+   , unitConfigFlagsDB      :: [PackageDBFlag]     -- ^ Unit databases flags
+   , unitConfigFlagsExposed :: [PackageFlag]       -- ^ Exposed units
+   , unitConfigFlagsIgnored :: [IgnorePackageFlag] -- ^ Ignored units
+   , unitConfigFlagsTrusted :: [TrustFlag]         -- ^ Trusted units
+   , unitConfigFlagsPlugins :: [PackageFlag]       -- ^ Plugins exposed units
+   }
+
+initUnitConfig :: DynFlags -> UnitConfig
+initUnitConfig dflags =
+   let autoLink
+         | not (gopt Opt_AutoLinkPackages dflags) = []
+         -- By default we add base & rts to the preload units (when they are
+         -- found in the unit database) except when we are building them
+         | otherwise = filter ((/= homeUnitId dflags) . toUnitId) [baseUnitId, rtsUnitId]
+
+   in UnitConfig
+      { unitConfigPlatformArchOS = platformArchOS (targetPlatform dflags)
+      , unitConfigProgramName    = programName dflags
+      , unitConfigWays           = ways dflags
+
+      , unitConfigGlobalDB       = globalPackageDatabasePath dflags
+      , unitConfigGHCDir         = topDir dflags
+      , unitConfigDBName         = "package.conf.d"
+
+      , unitConfigAutoLink       = toUnitId <$> autoLink
+      , unitConfigDistrustAll    = gopt Opt_DistrustAllPackages dflags
+      , unitConfigHideAll        = gopt Opt_HideAllPackages dflags
+      , unitConfigHideAllPlugins = gopt Opt_HideAllPluginPackages dflags
+
+        -- when the home unit is indefinite, it means we are type-checking it
+        -- only (not producing any code). Hence we can use virtual units
+        -- instantiated on-the-fly (see Note [About units] in GHC.Unit)
+      , unitConfigAllowVirtualUnits = homeUnitIsIndefinite dflags
+
+      , unitConfigDBCache      = pkgDatabase dflags
+      , unitConfigFlagsDB      = packageDBFlags dflags
+      , unitConfigFlagsExposed = packageFlags dflags
+      , unitConfigFlagsIgnored = ignorePackageFlags dflags
+      , unitConfigFlagsTrusted = trustFlags dflags
+      , unitConfigFlagsPlugins = pluginPackageFlags dflags
+
+      }
 
 -- | Map from 'ModuleName' to a set of module providers (i.e. a 'Module' and
 -- its 'ModuleOrigin').
@@ -318,6 +389,8 @@ type WiredUnitId = DefUnitId
 -- origin for a given 'Module'
 type ModuleNameProvidersMap =
     Map ModuleName (Map Module ModuleOrigin)
+
+type WiredUnitId = DefUnitId
 
 data PackageState = PackageState {
   -- | A mapping of 'Unit' to 'UnitInfo'.  This list is adjusted
@@ -504,8 +577,10 @@ initPackages dflags = withTiming dflags
 readPackageDatabases :: DynFlags -> IO [PackageDatabase UnitId]
 readPackageDatabases dflags = do
   conf_refs <- getPackageConfRefs dflags
-  confs     <- liftM catMaybes $ mapM (resolvePackageDatabase dflags) conf_refs
+  confs     <- catMaybes <$> traverse (resolvePackageDatabase uc) conf_refs
   mapM (readPackageDatabase dflags) confs
+  where
+    uc = initUnitConfig dflags
 
 
 getPackageConfRefs :: DynFlags -> IO [PkgDbRef]
@@ -548,11 +623,11 @@ getPackageConfRefs dflags = do
 -- NB: This logic is reimplemented in Cabal, so if you change it,
 -- make sure you update Cabal. (Or, better yet, dump it in the
 -- compiler info so Cabal can use the info.)
-resolvePackageDatabase :: DynFlags -> PkgDbRef -> IO (Maybe FilePath)
-resolvePackageDatabase dflags GlobalPkgDb = return $ Just (globalPackageDatabasePath dflags)
-resolvePackageDatabase dflags UserPkgDb = runMaybeT $ do
-  dir <- versionedAppDir dflags
-  let pkgconf = dir </> "package.conf.d"
+resolvePackageDatabase :: UnitConfig -> PkgDbRef -> IO (Maybe FilePath)
+resolvePackageDatabase cfg GlobalPkgDb = return $ Just (unitConfigGlobalDB cfg)
+resolvePackageDatabase cfg UserPkgDb = runMaybeT $ do
+  dir <- versionedAppDir (unitConfigProgramName cfg) (unitConfigPlatformArchOS cfg)
+  let pkgconf = dir </> unitConfigDBName cfg
   exist <- tryMaybeT $ doesDirectoryExist pkgconf
   if exist then return pkgconf else mzero
 resolvePackageDatabase _ (PkgDbPath name) = return $ Just name
