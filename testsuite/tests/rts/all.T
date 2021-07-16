@@ -70,8 +70,6 @@ test('divbyzero',
       when(opsys('mingw32'), omit_ways(prof_ways))],
      compile_and_run, ['-with-rtsopts="--generate-stack-traces=no"'])
 
-test('outofmem', when(opsys('darwin'), skip),
-                 makefile_test, ['outofmem'])
 test('outofmem2', normal, makefile_test, ['outofmem2'])
 
 test('T2047',

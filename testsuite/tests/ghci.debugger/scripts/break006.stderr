@@ -6,8 +6,8 @@
       Relevant bindings include it :: a (bound at <interactive>:4:1)
       These potential instances exist:
         instance Show Ordering -- Defined in ‘GHC.Show’
-        instance Show Integer -- Defined in ‘GHC.Show’
         instance Show a => Show (Maybe a) -- Defined in ‘GHC.Show’
+        instance Show Integer -- Defined in ‘GHC.Show’
         ...plus 22 others
         ...plus 18 instances involving out-of-scope types
         (use -fprint-potential-instances to see them all)
@@ -20,8 +20,8 @@
       Relevant bindings include it :: a (bound at <interactive>:6:1)
       These potential instances exist:
         instance Show Ordering -- Defined in ‘GHC.Show’
-        instance Show Integer -- Defined in ‘GHC.Show’
         instance Show a => Show (Maybe a) -- Defined in ‘GHC.Show’
+        instance Show Integer -- Defined in ‘GHC.Show’
         ...plus 22 others
         ...plus 18 instances involving out-of-scope types
         (use -fprint-potential-instances to see them all)

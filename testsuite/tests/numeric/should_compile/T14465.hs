@@ -5,6 +5,7 @@ module M where
 
 import Numeric.Natural
 import GHC.Natural
+import GHC.Num.Natural
 
 -- test Natural literals
 one :: Natural

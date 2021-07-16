@@ -14,7 +14,7 @@ main =
                 dflags <- getSessionDynFlags
                 setSessionDynFlags dflags
                 dflags <- getSessionDynFlags
-                let state = unitState dflags
+                let state = pkgState dflags
                 liftIO $ print (mkModuleName "GHC.Utils.Outputable" `elem` listVisibleModuleNames state)
      _ <- runGhc (Just libdir) $ do
                 dflags <- getSessionDynFlags
@@ -24,6 +24,6 @@ main =
                                                   (ModRenaming True [])]
                     })
                 dflags <- getSessionDynFlags
-                let state = unitState dflags
+                let state = pkgState dflags
                 liftIO $ print (mkModuleName "GHC.Utils.Outputable" `elem` listVisibleModuleNames state)
      return ()
