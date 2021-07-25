@@ -50,7 +50,6 @@ import GHC.Core.FamInstEnv
 import GHC.Driver.Env
 import GHC.Driver.Backend
 import GHC.Driver.Session
-import GHC.Driver.Ppr
 import GHC.Driver.Plugins (LoadedPlugin(..))
 
 import GHC.Types.Id
@@ -72,6 +71,7 @@ import GHC.Types.HpcInfo
 
 import GHC.Utils.Error
 import GHC.Utils.Outputable
+import GHC.Utils.Outputable.Ppr
 import GHC.Utils.Panic
 import GHC.Utils.Misc  hiding ( eqListBy )
 

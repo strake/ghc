@@ -13,8 +13,6 @@ where
 
 import GHC.Prelude
 
-import GHC.Driver.Ppr
-
 import GHC.Core.TyCo.Rep
 import GHC.Core.TyCo.Subst
 import GHC.Core.Coercion
@@ -32,6 +30,7 @@ import GHC.Core.InstEnv
 import Control.Monad   ( zipWithM )
 
 import GHC.Utils.Outputable
+import GHC.Utils.Outputable.Ppr
 import GHC.Utils.Misc
 import GHC.Utils.Panic
 

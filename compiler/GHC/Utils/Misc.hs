@@ -161,7 +161,7 @@ import Data.Time
 
 #if defined(DEBUG)
 import {-# SOURCE #-} GHC.Utils.Outputable ( text )
-import {-# SOURCE #-} GHC.Driver.Ppr ( warnPprTrace )
+import {-# SOURCE #-} GHC.Utils.Outputable.Ppr ( warnPprTrace )
 #endif
 
 infixr 9 `thenCmp`

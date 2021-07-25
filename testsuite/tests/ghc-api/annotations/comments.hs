@@ -1,4 +1,5 @@
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE NoMonomorphismRestriction #-}
 
 -- This program must be called with GHC's libdir as the single command line
 -- argument.
@@ -10,9 +11,9 @@ import Data.List (intercalate)
 import System.IO
 import GHC
 import GHC.Driver.Session
-import GHC.Driver.Ppr
 import GHC.Utils.Monad
 import GHC.Utils.Outputable
+import GHC.Utils.Outputable.Ppr (showPprDefault)
 import GHC.Data.Bag (filterBag,isEmptyBag)
 import System.Directory (removeFile)
 import System.Environment( getArgs )
@@ -68,4 +69,4 @@ showAnns anns = "[\n" ++ (intercalate "\n"
 showToks ts = intercalate ",\n\n"
             $ map (\(L p t) -> "(" ++ pp p ++ "," ++ show t ++ ")") ts
 
-pp a = showPprUnsafe a
+pp = showPprDefault

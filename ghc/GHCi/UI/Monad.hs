@@ -39,6 +39,7 @@ import GHCi.UI.Info (ModInfo)
 import qualified GHC
 import GHC.Driver.Monad hiding (liftIO)
 import GHC.Utils.Outputable
+import qualified GHC.Utils.Outputable.Ppr as Ppr hiding (showSDoc)
 import qualified GHC.Driver.Ppr as Ppr
 import GHC.Types.Name.Occurrence
 import GHC.Driver.Session
@@ -333,26 +334,30 @@ unsetOption opt
 printForUserNeverQualify :: GhcMonad m => SDoc -> m ()
 printForUserNeverQualify doc = do
   dflags <- getDynFlags
-  liftIO $ Ppr.printForUser dflags stdout neverQualify AllTheWay doc
+  let ctx = initSDocContext dflags (mkUserStyle neverQualify AllTheWay)
+  liftIO $ Ppr.printForUser ctx stdout doc
 
 printForUserModInfo :: GhcMonad m => GHC.ModuleInfo -> SDoc -> m ()
 printForUserModInfo info doc = do
   dflags <- getDynFlags
   mUnqual <- GHC.mkPrintUnqualifiedForModule info
   unqual <- maybe GHC.getPrintUnqual return mUnqual
-  liftIO $ Ppr.printForUser dflags stdout unqual AllTheWay doc
+  let ctx = initSDocContext dflags (mkUserStyle unqual AllTheWay)
+  liftIO $ Ppr.printForUser ctx stdout doc
 
 printForUser :: GhcMonad m => SDoc -> m ()
 printForUser doc = do
   unqual <- GHC.getPrintUnqual
   dflags <- getDynFlags
-  liftIO $ Ppr.printForUser dflags stdout unqual AllTheWay doc
+  let ctx = initSDocContext dflags (mkUserStyle unqual AllTheWay)
+  liftIO $ Ppr.printForUser ctx stdout doc
 
 printForUserPartWay :: GhcMonad m => SDoc -> m ()
 printForUserPartWay doc = do
   unqual <- GHC.getPrintUnqual
   dflags <- getDynFlags
-  liftIO $ Ppr.printForUser dflags stdout unqual DefaultDepth doc
+  let ctx = initSDocContext dflags (mkUserStyle unqual DefaultDepth)
+  liftIO $ Ppr.printForUser ctx stdout doc
 
 -- | Run a single Haskell expression
 runStmt

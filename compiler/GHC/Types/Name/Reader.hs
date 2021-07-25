@@ -80,14 +80,14 @@ import GHC.Data.Maybe
 import GHC.Types.SrcLoc as SrcLoc
 import GHC.Data.FastString
 import GHC.Types.FieldLabel
-import GHC.Utils.Outputable
+import GHC.Types.Name.Env
 import GHC.Types.Unique
 import GHC.Types.Unique.FM
 import GHC.Types.Unique.Set
 import GHC.Utils.Misc
+import GHC.Utils.Outputable
+import GHC.Utils.Outputable.Ppr (warnPprTrace)
 import GHC.Utils.Panic
-import GHC.Types.Name.Env
-import GHC.Driver.Ppr (warnPprTrace)
 
 import Data.Data
 import Data.List( sortBy )

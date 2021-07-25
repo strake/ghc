@@ -53,8 +53,8 @@ import GHC.Builtin.Types
 import GHC.Builtin.Names
 import GHC.Types.Basic
 import GHC.Unit.Module ( Module )
-import GHC.Driver.Ppr
 import GHC.Utils.Outputable
+import GHC.Utils.Outputable.Ppr
 import GHC.Utils.Panic
 import GHC.Data.Pair
 import GHC.Utils.Misc

@@ -23,8 +23,6 @@ where
 
 import GHC.Prelude
 
-import GHC.Driver.Ppr
-
 import GHC.Core
 import GHC.Core.FVs
 import GHC.Core.Utils
@@ -42,6 +40,7 @@ import GHC.Types.Basic
 import GHC.Types.Unique
 import GHC.Driver.Session ( DynFlags, GeneralFlag(..), gopt )
 import GHC.Utils.Outputable
+import GHC.Utils.Outputable.Ppr
 import GHC.Utils.Panic
 import GHC.Data.FastString
 import GHC.Utils.Misc     ( debugIsOn )

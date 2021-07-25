@@ -21,8 +21,6 @@ module GHC.Types.TyThing.Ppr (
 
 import GHC.Prelude
 
-import GHC.Driver.Ppr (warnPprTrace)
-
 import GHC.Types.TyThing ( TyThing(..), tyThingParent_maybe )
 import GHC.Types.Name
 import GHC.Types.Var.Env( emptyTidyEnv )
@@ -37,6 +35,7 @@ import GHC.Iface.Syntax ( ShowSub(..), ShowHowMuch(..), AltPpr(..)
 import GHC.Iface.Make ( tyThingToIfaceDecl )
 
 import GHC.Utils.Outputable
+import GHC.Utils.Outputable.Ppr (warnPprTrace)
 
 -- -----------------------------------------------------------------------------
 -- Pretty-printing entities that we get from the GHC API

@@ -24,7 +24,6 @@ where
 
 import GHC.Prelude
 
-import GHC.Driver.Ppr
 import GHC.Driver.Session
 import GHC.Unit.Finder.Types
 
@@ -61,6 +60,7 @@ import GHC.Data.Bag
 import GHC.Unit.Module.Graph
 
 import GHC.Utils.Outputable
+import GHC.Utils.Outputable.Ppr
 import GHC.Utils.Monad
 import GHC.Utils.Error
 import GHC.Utils.Misc

@@ -71,12 +71,13 @@ module GHC.Utils.Error (
 import GHC.Prelude
 
 import GHC.Driver.Session
-import GHC.Driver.Ppr
+import qualified GHC.Driver.Ppr as Driver.Ppr
 import qualified GHC.Driver.CmdLine as CmdLine
 
 import GHC.Data.Bag
 import GHC.Utils.Exception
 import GHC.Utils.Outputable as Outputable
+import GHC.Utils.Outputable.Ppr
 import GHC.Utils.Panic
 import GHC.Types.SourceError
 import GHC.Types.Error
@@ -133,7 +134,7 @@ mk_err_msg dflags sev locn print_unqual doc
  = ErrMsg { errMsgSpan = locn
           , errMsgContext = print_unqual
           , errMsgDoc = doc
-          , errMsgShortString = showSDoc dflags (vcat (errDocImportant doc))
+          , errMsgShortString = Driver.Ppr.showSDoc dflags (vcat (errDocImportant doc))
           , errMsgSeverity = sev
           , errMsgReason = NoReason }
 
@@ -433,7 +434,7 @@ fatalErrorMsg'' fm msg = fm msg
 
 compilationProgressMsg :: DynFlags -> SDoc -> IO ()
 compilationProgressMsg dflags msg = do
-    let str = showSDoc dflags msg
+    let str = Driver.Ppr.showSDoc dflags msg
     traceEventIO $ "GHC progress: " ++ str
     ifVerbose dflags 1 $
         logOutput dflags $ withPprStyle defaultUserStyle msg
@@ -779,7 +780,7 @@ defaultDumpAction dflags sty dumpOpt title _fmt doc = do
 
 -- | Default action for 'traceAction' hook
 defaultTraceAction :: TraceAction
-defaultTraceAction dflags title doc = pprTraceWithFlags dflags title doc
+defaultTraceAction dflags title doc = Driver.Ppr.pprTraceWithFlags dflags title doc
 
 -- | Helper for `dump_action`
 dumpAction :: DumpAction

@@ -15,7 +15,6 @@ import GHC.Prelude
 
 import GHC.Platform
 import GHC.Driver.Session
-import GHC.Driver.Ppr
 import GHC.Driver.Config
 import GHC.Core.SimpleOpt   ( exprIsConApp_maybe )
 import GHC.Core.Opt.Simplify.Monad
@@ -62,6 +61,7 @@ import GHC.Types.Var    ( isTyCoVar )
 import GHC.Data.Maybe   ( orElse )
 import Control.Monad
 import GHC.Utils.Outputable
+import GHC.Utils.Outputable.Ppr
 import GHC.Utils.Panic
 import GHC.Data.FastString
 import GHC.Utils.Misc
