@@ -22,7 +22,6 @@ import GHC.Core.Type
 import GHC.Types.Unique.Supply
 import GHC.Types.Basic
 import GHC.Driver.Session
-import GHC.Driver.Ppr
 import GHC.Driver.Config
 import GHC.Types.Demand
 import GHC.Types.Cpr
@@ -30,6 +29,7 @@ import GHC.Types.SourceText
 import GHC.Core.Opt.WorkWrap.Utils
 import GHC.Utils.Misc
 import GHC.Utils.Outputable
+import GHC.Utils.Outputable.Ppr
 import GHC.Utils.Panic
 import GHC.Core.FamInstEnv
 import GHC.Utils.Monad

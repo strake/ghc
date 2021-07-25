@@ -35,7 +35,6 @@ module GHC.Rename.Names (
 import GHC.Prelude
 
 import GHC.Driver.Session
-import GHC.Driver.Ppr
 
 import GHC.Rename.Env
 import GHC.Rename.Fixity
@@ -54,6 +53,7 @@ import GHC.Core.TyCo.Ppr
 import qualified GHC.LanguageExtensions as LangExt
 
 import GHC.Utils.Outputable as Outputable
+import GHC.Utils.Outputable.Ppr
 import GHC.Utils.Misc as Utils
 import GHC.Utils.Panic
 
@@ -1639,7 +1639,7 @@ printMinimalImports imports_w_usage
        ; this_mod <- getModule
        ; dflags   <- getDynFlags
        ; liftIO $ withFile (mkFilename dflags this_mod) WriteMode $ \h ->
-          printForUser dflags h neverQualify AllTheWay (vcat (map ppr imports'))
+          printForUser (initSDocContext dflags (mkUserStyle neverQualify AllTheWay)) h (vcat (map ppr imports'))
               -- The neverQualify is important.  We are printing Names
               -- but they are in the context of an 'import' decl, and
               -- we never qualify things inside there

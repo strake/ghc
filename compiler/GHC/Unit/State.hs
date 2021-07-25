@@ -78,7 +78,7 @@ import GHC.Unit.Ppr
 import GHC.Unit.Types
 import GHC.Unit.Module
 import GHC.Unit.Subst
-import GHC.Driver.Ppr
+import qualified GHC.Driver.Ppr as Driver.Ppr
 import GHC.Driver.Session
 import GHC.Platform (Platform (..))
 import GHC.Platform.ArchOS
@@ -981,7 +981,7 @@ packageFlagErr' :: DynFlags
                -> [(UnitInfo, UnusablePackageReason)]
                -> IO a
 packageFlagErr' dflags flag_doc reasons
-  = throwGhcExceptionIO (CmdLineError (showSDoc dflags $ err))
+  = throwGhcExceptionIO (CmdLineError (Driver.Ppr.showSDoc dflags $ err))
   where err = text "cannot satisfy " <> flag_doc <>
                 (if null reasons then Outputable.empty else text ": ") $$
               nest 4 (ppr_reasons $$
@@ -1707,7 +1707,7 @@ mkModuleNameProvidersMap dflags pkg_db vis_map =
     rnBinding (orig, new) = (new, setOrigins origEntry fromFlag)
      where origEntry = case lookupUFM esmap orig of
             Just r -> r
-            Nothing -> throwGhcException (CmdLineError (showSDoc dflags
+            Nothing -> throwGhcException (CmdLineError (Driver.Ppr.showSDoc dflags
                         (text "package flag: could not find module name" <+>
                             ppr orig <+> text "in package" <+> ppr pk)))
 
@@ -2058,7 +2058,7 @@ closeDeps dflags pkg_map ps
 throwErr :: DynFlags -> MaybeErr MsgDoc a -> IO a
 throwErr dflags m
               = case m of
-                Failed e    -> throwGhcExceptionIO (CmdLineError (showSDoc dflags e))
+                Failed e    -> throwGhcExceptionIO (CmdLineError (Driver.Ppr.showSDoc dflags e))
                 Succeeded r -> return r
 
 closeDepsErr :: UnitInfoMap

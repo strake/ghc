@@ -59,6 +59,7 @@ import GHC.Types.Id
 import GHC.Utils.Monad    ( foldlM )
 import GHC.Utils.Misc
 import GHC.Utils.Outputable
+import GHC.Utils.Outputable.Ppr hiding (showSDoc)
 import GHC.Utils.Panic
 
 import GHC.Unit.Module( HasModule (..), Module )

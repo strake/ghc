@@ -49,6 +49,7 @@ import GHC.Tc.Utils.Env
 import GHC.Tc.Utils.Monad
 
 import GHC.Utils.Outputable
+import GHC.Utils.Outputable.Ppr (warnPprTrace)
 import GHC.Utils.Misc( filterOut )
 import GHC.Utils.Panic
 import qualified GHC.Utils.Error as Err

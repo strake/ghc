@@ -38,6 +38,7 @@ import GHC.SysTools.FileCleanup
 
 import GHC.Utils.Error
 import GHC.Utils.Outputable
+import GHC.Utils.Outputable.Ppr hiding (showSDoc)
 import GHC.Utils.Panic
 
 import GHC.Unit
@@ -156,7 +157,8 @@ outputC dflags filenm cmm_stream packages
             hPutStr h ("/* GHC_PACKAGES " ++ unwords pkg_names ++ "\n*/\n")
             hPutStr h cc_injects
             let platform = targetPlatform dflags
-                writeC = printForC dflags h . cmmToC platform
+                writeC = printForC ctx h . cmmToC platform
+                ctx = initSDocContext dflags (PprCode CStyle)
             Stream.consume cmm_stream writeC
 
 {-

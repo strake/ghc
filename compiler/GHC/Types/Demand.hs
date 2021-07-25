@@ -72,9 +72,8 @@ import GHC.Core.DataCon ( splitDataProductType_maybe )
 import GHC.Utils.Binary
 import GHC.Utils.Misc
 import GHC.Utils.Outputable
+import GHC.Utils.Outputable.Ppr
 import GHC.Utils.Panic
-
-import GHC.Driver.Ppr
 
 {-
 ************************************************************************

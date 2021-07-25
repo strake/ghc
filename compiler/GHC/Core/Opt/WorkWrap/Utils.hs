@@ -49,6 +49,7 @@ import GHC.Driver.Session
 import GHC.Driver.Ppr
 import GHC.Data.FastString
 import GHC.Data.List.SetOps
+import GHC.Utils.Outputable.Ppr hiding (showSDoc)
 
 {-
 ************************************************************************

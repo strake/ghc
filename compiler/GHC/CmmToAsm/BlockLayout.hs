@@ -17,7 +17,6 @@ where
 import GHC.Prelude
 
 import GHC.Driver.Session (gopt, GeneralFlag(..), DynFlags, targetPlatform)
-import GHC.Driver.Ppr     (pprTrace)
 
 import GHC.CmmToAsm.Instr
 import GHC.CmmToAsm.Monad
@@ -35,6 +34,7 @@ import GHC.Utils.Misc
 
 import GHC.Data.Graph.Directed
 import GHC.Utils.Outputable
+import GHC.Utils.Outputable.Ppr (pprTrace)
 import GHC.Utils.Panic
 import GHC.Data.Maybe
 

@@ -91,6 +91,7 @@ import GHC.Utils.Monad
 import GHC.Utils.Panic
 import GHC.Utils.Error
 import GHC.Utils.Outputable
+import GHC.Utils.Outputable.Ppr (warnPprTrace)
 import GHC.Utils.Misc
 
 import qualified GHC.Parser.Lexer as Lexer (P (..), ParseResult(..), unP, initParserState)

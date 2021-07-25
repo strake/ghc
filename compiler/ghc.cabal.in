@@ -685,6 +685,7 @@ Library
         GHC.Utils.Monad
         GHC.Utils.Monad.State
         GHC.Utils.Outputable
+        GHC.Utils.Outputable.Ppr
         GHC.Utils.Panic
         GHC.Utils.Panic.Plain
         GHC.Utils.Ppr

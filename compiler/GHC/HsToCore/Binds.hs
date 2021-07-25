@@ -62,6 +62,7 @@ import GHC.Core.Rules
 import GHC.Types.Var.Env
 import GHC.Types.Var( EvVar )
 import GHC.Utils.Outputable
+import GHC.Utils.Outputable.Ppr (pprTrace)
 import GHC.Utils.Panic
 import GHC.Unit.Module
 import GHC.Types.SrcLoc

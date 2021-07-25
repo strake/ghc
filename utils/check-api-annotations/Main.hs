@@ -3,8 +3,8 @@
 import Data.Data
 import Data.List
 import GHC
-import GHC.Driver.Ppr
 import GHC.Utils.Outputable
+import GHC.Utils.Outputable.Ppr
 import GHC.Parser.Annotation
 import GHC.Types.SrcLoc
 import System.Environment( getArgs )
@@ -97,7 +97,7 @@ showAnnsList annsList = "[\n" ++ (intercalate ",\n"
     ++ "\n]\n"
 
 pp :: (Outputable a) => a -> String
-pp a = showPprUnsafe a
+pp = showPprDefault
 
 
 -- ---------------------------------------------------------------------

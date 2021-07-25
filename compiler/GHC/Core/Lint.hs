@@ -63,6 +63,7 @@ import GHC.Utils.Error as Err
 import GHC.Data.List.SetOps
 import GHC.Builtin.Names
 import GHC.Utils.Outputable as Outputable
+import GHC.Utils.Outputable.Ppr hiding (showPpr, showSDoc)
 import GHC.Utils.Panic
 import GHC.Data.FastString
 import GHC.Utils.Misc
