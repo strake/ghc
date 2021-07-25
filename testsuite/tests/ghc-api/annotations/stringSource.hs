@@ -15,11 +15,11 @@ import GHC.Types.Basic
 import GHC.Types.SourceText
 import GHC.Unit.Module.Warnings
 import GHC.Driver.Session
-import GHC.Driver.Ppr
 import GHC.Data.FastString
 import GHC.Types.ForeignCall
 import GHC.Utils.Monad
 import GHC.Utils.Outputable
+import GHC.Utils.Outputable.Ppr (showPprDefault)
 import GHC.Hs.Decls
 import GHC.Data.Bag (filterBag,isEmptyBag)
 import System.Directory (removeFile)
@@ -98,7 +98,7 @@ showAnns anns = "[\n" ++ (intercalate "\n"
    $ Map.toList anns)
     ++ "]\n"
 
-pp a = showPprUnsafe a
+pp = showPprDefault
 
 -- ---------------------------------------------------------------------
 

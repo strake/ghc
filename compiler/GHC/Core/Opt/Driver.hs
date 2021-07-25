@@ -13,7 +13,6 @@ module GHC.Core.Opt.Driver ( core2core, simplifyExpr ) where
 import GHC.Prelude
 
 import GHC.Driver.Session
-import GHC.Driver.Ppr
 import GHC.Driver.Plugins ( withPlugins, installCoreToDos )
 import GHC.Driver.Env
 
@@ -51,6 +50,7 @@ import qualified GHC.Utils.Error as Err
 import GHC.Utils.Error  ( withTiming, withTimingD, DumpFormat (..) )
 import GHC.Utils.Misc
 import GHC.Utils.Outputable
+import GHC.Utils.Outputable.Ppr
 import GHC.Utils.Panic
 
 import GHC.Unit.External

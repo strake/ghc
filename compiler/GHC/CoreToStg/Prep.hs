@@ -54,6 +54,7 @@ import GHC.Utils.Error
 import GHC.Utils.Misc
 import GHC.Utils.Panic
 import GHC.Utils.Outputable
+import GHC.Utils.Outputable.Ppr ( warnPprTrace )
 import GHC.Utils.Monad  ( mapAccumLM )
 
 import GHC.Types.Demand

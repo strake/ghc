@@ -1,40 +1,11 @@
--- | Printing related functions that depend on session state (DynFlags)
-module GHC.Driver.Ppr
-   ( showSDoc
-   , showSDocForUser
-   , showSDocDebug
-   , showSDocDump
-   , showPpr
-   , showPprUnsafe
-   , pprDebugAndThen
-   , printForUser
-   , printForC
-   -- ** Trace
-   , warnPprTrace
-   , pprTrace
-   , pprTraceWithFlags
-   , pprTraceM
-   , pprTraceDebug
-   , pprTraceIt
-   , pprSTrace
-   , pprTraceException
-   )
-where
+module GHC.Driver.Ppr where
 
 import GHC.Prelude
-
-import {-# SOURCE #-} GHC.Driver.Session
-
-import GHC.Utils.Exception
-import GHC.Utils.Misc
-import GHC.Utils.Outputable
-import GHC.Utils.Panic
-import GHC.Utils.GlobalVars
-import GHC.Utils.Ppr       ( Mode(..) )
+import {-# SOURCE #-} GHC.Driver.Session (DynFlags, hasNoDebugOutput, initSDocContext, pkgState)
 import {-# SOURCE #-} GHC.Unit.State
-
-import System.IO ( Handle )
-import Control.Monad.IO.Class
+import GHC.Utils.Outputable
+import GHC.Utils.Outputable.Ppr (pprDebugAndThen)
+import GHC.Utils.Panic (trace)
 
 -- | Show a SDoc as a String with the default user style
 showSDoc :: DynFlags -> SDoc -> String
@@ -43,41 +14,6 @@ showSDoc dflags sdoc = renderWithStyle (initSDocContext dflags defaultUserStyle)
 showPpr :: Outputable a => DynFlags -> a -> String
 showPpr dflags thing = showSDoc dflags (ppr thing)
 
-showPprUnsafe :: Outputable a => a -> String
-showPprUnsafe a = renderWithStyle defaultSDocContext (ppr a)
-
--- | Allows caller to specify the PrintUnqualified to use
-showSDocForUser :: DynFlags -> PrintUnqualified -> SDoc -> String
-showSDocForUser dflags unqual doc = renderWithStyle (initSDocContext dflags style) doc'
-   where
-      pkgstate = pkgState dflags
-      style = mkUserStyle unqual AllTheWay
-      doc' = pprWithUnitState pkgstate doc
-
-showSDocDump :: SDocContext -> SDoc -> String
-showSDocDump ctx d = renderWithStyle ctx (withPprStyle defaultDumpStyle d)
-
-showSDocDebug :: SDocContext -> SDoc -> String
-showSDocDebug ctx = showSDocDump ctx { sdocPprDebug = True }
-
-printForUser :: DynFlags -> Handle -> PrintUnqualified -> Depth -> SDoc -> IO ()
-printForUser dflags handle unqual depth doc
-  = printSDocLn ctx PageMode handle doc
-    where ctx = initSDocContext dflags (mkUserStyle unqual depth)
-
--- | Like 'printSDocLn' but specialized with 'LeftMode' and
--- @'PprCode' 'CStyle'@.  This is typically used to output C-- code.
-printForC :: DynFlags -> Handle -> SDoc -> IO ()
-printForC dflags handle doc =
-  printSDocLn ctx LeftMode handle doc
-  where ctx = initSDocContext dflags (PprCode CStyle)
-
-pprDebugAndThen :: SDocContext -> (String -> a) -> SDoc -> SDoc -> a
-pprDebugAndThen ctx cont heading pretty_msg
- = cont (showSDocDump ctx doc)
- where
-     doc = sep [heading, nest 2 pretty_msg]
-
 -- | If debug output is on, show some 'SDoc' on the screen
 pprTraceWithFlags :: DynFlags -> String -> SDoc -> a -> a
 pprTraceWithFlags dflags str doc x
@@ -85,53 +21,9 @@ pprTraceWithFlags dflags str doc x
   | otherwise               = pprDebugAndThen (initSDocContext dflags defaultDumpStyle)
         trace (text str) doc x
 
--- | If debug output is on, show some 'SDoc' on the screen
-pprTrace :: String -> SDoc -> a -> a
-pprTrace str doc x
-  | unsafeHasNoDebugOutput = x
-  | otherwise              = pprDebugAndThen defaultSDocContext trace (text str) doc x
-
-pprTraceM :: Applicative f => String -> SDoc -> f ()
-pprTraceM str doc = pprTrace str doc (pure ())
-
-pprTraceDebug :: String -> SDoc -> a -> a
-pprTraceDebug str doc x
-   | debugIsOn && unsafeHasPprDebug = pprTrace str doc x
-   | otherwise                      = x
-
--- | @pprTraceWith desc f x@ is equivalent to @pprTrace desc (f x) x@.
--- This allows you to print details from the returned value as well as from
--- ambient variables.
-pprTraceWith :: String -> (a -> SDoc) -> a -> a
-pprTraceWith desc f x = pprTrace desc (f x) x
-
--- | @pprTraceIt desc x@ is equivalent to @pprTrace desc (ppr x) x@
-pprTraceIt :: Outputable a => String -> a -> a
-pprTraceIt desc x = pprTraceWith desc ppr x
-
--- | @pprTraceException desc x action@ runs action, printing a message
--- if it throws an exception.
-pprTraceException :: ExceptionMonad m => String -> SDoc -> m a -> m a
-pprTraceException heading doc =
-    handleGhcException $ \exc -> liftIO $ do
-        putStrLn $ showSDocDump defaultSDocContext (sep [text heading, nest 2 doc])
-        throwGhcExceptionIO exc
-
--- | If debug output is on, show some 'SDoc' on the screen along
--- with a call stack when available.
-pprSTrace :: HasCallStack => SDoc -> a -> a
-pprSTrace doc = pprTrace "" (doc $$ callStackDoc)
-
-warnPprTrace :: HasCallStack => Bool -> String -> Int -> SDoc -> a -> a
--- ^ Just warn about an assertion failure, recording the given file and line number.
--- Should typically be accessed with the WARN macros
-warnPprTrace _     _     _     _    x | not debugIsOn     = x
-warnPprTrace _     _file _line _msg x
-   | unsafeHasNoDebugOutput = x
-warnPprTrace False _file _line _msg x = x
-warnPprTrace True   file  line  msg x
-  = pprDebugAndThen defaultSDocContext trace heading
-                    (msg $$ callStackDoc )
-                    x
+showSDocForUser :: DynFlags -> PrintUnqualified -> SDoc -> String
+showSDocForUser dflags unqual = renderWithStyle ctx . pprWithUnitState pkgstate
   where
-    heading = hsep [text "WARNING: file", text file <> comma, text "line", int line]
+    pkgstate = pkgState dflags
+    style = mkUserStyle unqual AllTheWay
+    ctx = initSDocContext dflags style

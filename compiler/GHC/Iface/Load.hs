@@ -43,7 +43,6 @@ import {-# SOURCE #-} GHC.IfaceToCore
 import GHC.Driver.Env
 import GHC.Driver.Session
 import GHC.Driver.Backend
-import GHC.Driver.Ppr
 import GHC.Driver.Hooks
 import GHC.Driver.Plugins
 
@@ -58,6 +57,7 @@ import GHC.Tc.Utils.Monad
 import GHC.Utils.Binary   ( BinData(..) )
 import GHC.Utils.Error
 import GHC.Utils.Outputable as Outputable
+import GHC.Utils.Outputable.Ppr
 import GHC.Utils.Panic
 import GHC.Utils.Misc
 import GHC.Utils.Fingerprint

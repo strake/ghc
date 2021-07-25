@@ -1,6 +1,7 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE NoMonomorphismRestriction #-}
 
 -- This program must be called with GHC's libdir as the single command line
 -- argument.
@@ -15,11 +16,10 @@ import GHC.Types.Basic
 import GHC.Types.SourceText
 import GHC.Types.Fixity
 import GHC.Driver.Session
-import GHC.Driver.Ppr
 import GHC.Data.FastString
 import GHC.Types.ForeignCall
 import GHC.Utils.Monad
-import GHC.Utils.Outputable
+import GHC.Utils.Outputable.Ppr (showPprDefault)
 import GHC.Hs.Decls
 import GHC.Data.Bag (filterBag,isEmptyBag)
 import System.Directory (removeFile)
@@ -85,7 +85,7 @@ showAnns anns = "[\n" ++ (intercalate "\n"
    $ Map.toList anns)
     ++ "]\n"
 
-pp a = showPprUnsafe a
+pp = showPprDefault
 
 -- ---------------------------------------------------------------------
 

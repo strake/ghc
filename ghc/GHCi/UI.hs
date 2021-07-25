@@ -43,7 +43,7 @@ import GHCi.BreakArray
 import GHC.ByteCode.Types
 import GHC.Driver.Phases
 import GHC.Driver.Session as DynFlags
-import GHC.Driver.Ppr hiding (printForUser)
+import GHC.Driver.Ppr
 import GHC.Utils.Error hiding (traceCmd)
 import GHC.Driver.Monad ( modifySession )
 import GHC.Driver.Config

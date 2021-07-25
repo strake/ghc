@@ -29,8 +29,6 @@ where
 
 import GHC.Prelude
 
-import GHC.Driver.Ppr
-
 import {-# SOURCE #-} GHC.Types.Id.Make ( mkPrimOpId, magicDictId )
 
 import GHC.Core
@@ -58,6 +56,7 @@ import GHC.Builtin.Names
 import GHC.Data.Maybe      ( orElse )
 import GHC.Types.Name ( Name, nameOccName )
 import GHC.Utils.Outputable
+import GHC.Utils.Outputable.Ppr
 import GHC.Data.FastString
 import GHC.Types.Basic
 import GHC.Platform
