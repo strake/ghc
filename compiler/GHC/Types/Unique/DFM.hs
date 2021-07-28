@@ -72,7 +72,6 @@ import Data.Data
 import Data.Functor.Classes (Eq1 (..))
 import Data.List (sortBy)
 import Data.Function (on)
-import qualified Data.Semigroup as Semi
 import GHC.Types.Unique.FM (UniqFM, nonDetUFMToList, ufmToIntMap, unsafeIntMapToUFM)
 import Unsafe.Coerce
 
@@ -402,13 +401,6 @@ anyUDFM p (UDFM m _i) = M.foldr ((||) . p . taggedFst) False m
 
 allUDFM :: (elt -> Bool) -> UniqDFM key elt -> Bool
 allUDFM p (UDFM m _i) = M.foldr ((&&) . p . taggedFst) True m
-
-instance Semi.Semigroup (UniqDFM key a) where
-  (<>) = plusUDFM
-
-instance Monoid (UniqDFM key a) where
-  mempty = emptyUDFM
-  mappend = (Semi.<>)
 
 -- This should not be used in committed code, provided for convenience to
 -- make ad-hoc conversions when developing
