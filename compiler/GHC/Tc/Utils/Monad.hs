@@ -1916,7 +1916,7 @@ initIfaceLclWithSubst mod loc_doc hi_boot_file nsubst thing_inside
   = setLclEnv ((mkIfLclEnv mod loc_doc hi_boot_file) { if_nsubst = Just nsubst }) thing_inside
 
 getIfModule :: IfL Module
-getIfModule = do { env <- getLclEnv; return (if_mod env) }
+getIfModule = if_mod <$> getLclEnv
 
 --------------------
 failIfM :: MsgDoc -> IfL a
@@ -1971,12 +1971,9 @@ forkM_maybe doc thing_inside
         }}
 
 forkM :: SDoc -> IfL a -> IfL a
-forkM doc thing_inside
- = do   { mb_res <- forkM_maybe doc thing_inside
-        ; return (case mb_res of
-                        Nothing -> pgmError "Cannot continue after interface file error"
-                                   -- pprPanic "forkM" doc
-                        Just r  -> r) }
+forkM doc thing_inside = fromMaybe e <$> forkM_maybe doc thing_inside
+  where
+    e = pgmError "Cannot continue after interface file error"
 
 setImplicitEnvM :: TypeEnv -> IfL a -> IfL a
 setImplicitEnvM tenv m = updLclEnv (\lcl -> lcl

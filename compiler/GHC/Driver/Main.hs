@@ -219,6 +219,7 @@ import Data.Set (Set)
 import Data.Functor
 import Control.DeepSeq (force)
 import Data.Bifunctor (first)
+import Lens.Micro (over)
 
 {- **********************************************************************
 %*                                                                      *
@@ -766,35 +767,28 @@ hscIncrementalCompile always_do_basic_recompilation_check m_tc_result
     -- See also Note [hsc_type_env_var hack]
     type_env_var <- newIORef emptyNameEnv
     let mod = ms_mod mod_summary
-        hsc_env | isOneShot (ghcMode (hsc_dflags hsc_env''))
-                = hsc_env'' { hsc_type_env_var = Just (mod, type_env_var) }
-                | otherwise
-                = hsc_env''
+        hsc_env
+          | isOneShot (ghcMode (hsc_dflags hsc_env''))
+          = hsc_env'' { hsc_type_env_var = Just (mod, type_env_var) }
+          | otherwise
+          = hsc_env''
 
     -- NB: enter Hsc monad here so that we don't bail out early with
     -- -Werror on typechecker warnings; we also want to run the desugarer
     -- to get those warnings too. (But we'll always exit at that point
     -- because the desugarer runs ioMsgMaybe.)
-    runHsc hsc_env $ do
-    e <- hscIncrementalFrontend always_do_basic_recompilation_check m_tc_result mHscMessage
-            mod_summary source_modified mb_old_iface mod_index
-    case e of
+    runHsc hsc_env $ hscIncrementalFrontend always_do_basic_recompilation_check m_tc_result mHscMessage mod_summary source_modified mb_old_iface mod_index >>= \ case
         -- We didn't need to do any typechecking; the old interface
         -- file on disk was good enough.
         Left iface -> do
             -- Knot tying!  See Note [Knot-tying typecheckIface]
             details <- liftIO . fixIO $ \details' -> do
-                let hsc_env' =
-                        hsc_env {
-                            hsc_HPT = addToHpt (hsc_HPT hsc_env)
-                                        (ms_mod_name mod_summary) (HomeModInfo iface details' Nothing)
-                        }
+                let hsc_env' = over hsc_HPTL (addToHpt `flip` ms_mod_name mod_summary `flip` HomeModInfo iface details' Nothing) hsc_env
                 -- NB: This result is actually not that useful
                 -- in one-shot mode, since we're not going to do
                 -- any further typechecking.  It's much more useful
                 -- in make mode, since this HMI will go into the HPT.
-                details <- genModDetails hsc_env' iface
-                return details
+                genModDetails hsc_env' iface
             return (HscUpToDate iface details, hsc_env')
         -- We finished type checking.  (mb_old_hash is the hash of
         -- the interface that existed on disk; it's possible we had
@@ -1338,12 +1332,9 @@ hscSimplify hsc_env plugins modguts =
 
 hscSimplify' :: [String] -> ModGuts -> Hsc ModGuts
 hscSimplify' plugins ds_result = do
-    hsc_env <- getHscEnv
-    let hsc_env_with_plugins = hsc_env
-          { hsc_dflags = foldr addPluginModuleName (hsc_dflags hsc_env) plugins
-          }
+    hsc_env <- over hsc_dflagsL (foldr addPluginModuleName `flip` plugins) <$> getHscEnv
     {-# SCC "Core2Core" #-}
-      liftIO $ core2core hsc_env_with_plugins ds_result
+      liftIO $ core2core hsc_env ds_result
 
 --------------------------------------------------------------
 -- Interface generators

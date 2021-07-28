@@ -102,3 +102,6 @@
 [submodule "libraries/exceptions"]
 	path = libraries/exceptions
 	url = https://gitlab.haskell.org/ghc/packages/exceptions.git
+[submodule "libraries/microlens"]
+	path = libraries/microlens
+	url = https://github.com/monadfix/microlens

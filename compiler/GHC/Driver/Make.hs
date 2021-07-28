@@ -109,6 +109,7 @@ import Data.Foldable (toList)
 import Data.Maybe
 import Data.Ord ( comparing )
 import Data.Time
+import Lens.Micro (over, set)
 import System.Directory
 import System.FilePath
 import System.IO        ( fixIO )
@@ -382,7 +383,7 @@ warnUnusedPackages = do
 -- produced by calling 'depanal'.
 load' :: GhcMonad m => LoadHowMuch -> Maybe Messager -> ModuleGraph -> m SuccessFlag
 load' how_much mHscMessage mod_graph = do
-    modifySession $ \hsc_env -> hsc_env { hsc_mod_graph = mod_graph }
+    modifySession $ set hsc_mod_graphL mod_graph
     guessOutputFile
     hsc_env <- getSession
 
@@ -631,7 +632,7 @@ load' how_much mHscMessage mod_graph = do
           linkresult <- liftIO $
               link (ghcLink dflags) (hsc_hooks hsc_env) dflags False hpt5
 
-          modifySession $ \hsc_env -> hsc_env{ hsc_HPT = hpt5 }
+          modifySession $ set hsc_HPTL hpt5
           loadFinish Failed linkresult
 
 
@@ -662,15 +663,11 @@ discardProg hsc_env
 -- It will also keep ic_int_print and ic_monad if their names are from
 -- external packages.
 discardIC :: HscEnv -> HscEnv
-discardIC hsc_env
-  = hsc_env { hsc_IC = empty_ic { ic_int_print = new_ic_int_print
-                                , ic_monad = new_ic_monad } }
-  where
+discardIC = over hsc_ICL $ \ old_ic -> let
   -- Force the new values for ic_int_print and ic_monad to avoid leaking old_ic
   !new_ic_int_print = keep_external_name ic_int_print
   !new_ic_monad = keep_external_name ic_monad
   dflags = ic_dflags old_ic
-  old_ic = hsc_IC hsc_env
   empty_ic = emptyInteractiveContext dflags
   keep_external_name ic_name
     | nameIsFromExternalPackage this_pkg old_name = old_name
@@ -678,6 +675,8 @@ discardIC hsc_env
     where
     this_pkg = homeUnit dflags
     old_name = ic_name old_ic
+
+  in empty_ic { ic_int_print = new_ic_int_print, ic_monad = new_ic_monad }
 
 -- | If there is no -o option, guess the name of target executable
 -- by using top-level source file name as a base.

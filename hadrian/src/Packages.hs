@@ -6,7 +6,7 @@ module Packages (
     exceptions, filepath, genapply, genprimopcode, ghc, ghcBignum, ghcBoot, ghcBootTh,
     ghcCompact, ghcHeap, ghci, ghcPkg, ghcPrim, haddock, haskeline,
     hsc2hs, hp2ps, hpc, hpcBin, integerGmp, integerSimple, iserv, iservProxy,
-    libffi, libiserv, mtl, parsec, pretty, primitive, process, remoteIserv, rts,
+    libffi, libiserv, microlens, mtl, parsec, pretty, primitive, process, remoteIserv, rts,
     runGhc, stm, templateHaskell, terminfo, text, time, timeout, touchy,
     transformers, unlit, unix, win32, xhtml, ghcPackages, isGhcPackage,
 
@@ -35,7 +35,7 @@ ghcPackages =
     , compareSizes, compiler, containers, deepseq, deriveConstants, directory
     , exceptions, filepath, genapply, genprimopcode, ghc, ghcBignum, ghcBoot, ghcBootTh
     , ghcCompact, ghcHeap, ghci, ghcPkg, ghcPrim, haddock, haskeline, hsc2hs
-    , hp2ps, hpc, hpcBin, integerGmp, integerSimple, iserv, libffi, libiserv, mtl
+    , hp2ps, hpc, hpcBin, integerGmp, integerSimple, iserv, libffi, libiserv, microlens, mtl
     , parsec, pretty, process, rts, runGhc, stm, templateHaskell
     , terminfo, text, time, touchy, transformers, unlit, unix, win32, xhtml
     , timeout ]
@@ -83,6 +83,7 @@ iserv               = util "iserv"
 iservProxy          = util "iserv-proxy"
 libffi              = top  "libffi"
 libiserv            = lib  "libiserv"
+microlens           = lib  "microlens"       `setPath` "libraries/microlens/microlens"
 mtl                 = lib  "mtl"
 parsec              = lib  "parsec"
 pretty              = lib  "pretty"

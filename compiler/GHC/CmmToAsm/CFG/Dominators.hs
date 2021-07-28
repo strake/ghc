@@ -558,8 +558,8 @@ renum from = (\(_,m,g)->(g,m))
 -----------------------------------------------------------------------------
 
 newtype S z s a = S {unS :: forall o. (a -> s -> ST z o) -> s -> ST z o}
-instance Functor (S z s) where
-  fmap f (S g) = S (\k -> g (k . f))
+  deriving stock (Functor)
+
 instance Monad (S z s) where
   return = pure
   S g >>= f = S (\k -> g (\a -> unS (f a) k))

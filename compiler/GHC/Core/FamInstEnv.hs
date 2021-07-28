@@ -3,8 +3,11 @@
 -- FamInstEnv: Type checked family instance declarations
 
 {-# LANGUAGE GADTs, ScopedTypeVariables, BangPatterns, TupleSections #-}
+{-# LANGUAGE CPP #-}
 
 {-# OPTIONS_GHC -Wno-incomplete-record-updates #-}
+
+#include "lens.h"
 
 module GHC.Core.FamInstEnv (
         FamInst(..), FamFlavor(..), famInstAxiom, famInstTyCon, famInstRHS,
@@ -59,6 +62,7 @@ import GHC.Data.FastString
 import Control.Monad
 import Data.List( mapAccumL )
 import Data.Array( Array, assocs )
+import Lens.Micro (over)
 
 import GHC.Utils.Misc
 import GHC.Utils.Outputable
@@ -1720,13 +1724,13 @@ data FlattenEnv
                , fe_in_scope :: InScopeSet }
                  -- See Note [Flattening]
 
+fe_type_mapL LENS_FIELD(fe_type_map)
+fe_in_scopeL LENS_FIELD(fe_in_scope)
+
 emptyFlattenEnv :: InScopeSet -> FlattenEnv
 emptyFlattenEnv in_scope
   = FlattenEnv { fe_type_map = emptyTypeMap
                , fe_in_scope = in_scope }
-
-updateInScopeSet :: FlattenEnv -> (InScopeSet -> InScopeSet) -> FlattenEnv
-updateInScopeSet env upd = env { fe_in_scope = upd (fe_in_scope env) }
 
 flattenTys :: InScopeSet -> [Type] -> [Type]
 -- See Note [Flattening]
@@ -1796,7 +1800,7 @@ coreFlattenCo subst env co
     covar         = mkFlattenFreshCoVar (fe_in_scope env1) kind'
     -- Add the covar to the FlattenEnv's in-scope set.
     -- See Note [Flattening], wrinkle 2A.
-    env2          = updateInScopeSet env1 (flip extendInScopeSet covar)
+    env2          = over fe_in_scopeL (flip extendInScopeSet covar) env1
 
 coreFlattenVarBndr :: TvSubstEnv -> FlattenEnv
                    -> TyCoVar -> (FlattenEnv, TvSubstEnv, TyVar)
@@ -1808,7 +1812,7 @@ coreFlattenVarBndr subst env tv
     (env1, kind') = coreFlattenTy subst env kind
     tv'           = uniqAway (fe_in_scope env1) (setVarType tv kind')
     subst'        = extendVarEnv subst tv (mkTyVarTy tv')
-    env2          = updateInScopeSet env1 (flip extendInScopeSet tv')
+    env2          = over fe_in_scopeL (flip extendInScopeSet tv') env1
 
 coreFlattenTyFamApp :: TvSubstEnv -> FlattenEnv
                     -> TyCon         -- type family tycon

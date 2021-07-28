@@ -31,9 +31,7 @@ import GHC.Parser.Lexer
 import GHC.Unit.Types
 
 newtype PD a = PD { unPD :: DynFlags -> PState -> ParseResult a }
-
-instance Functor PD where
-  fmap = liftM
+  deriving stock (Functor)
 
 instance Applicative PD where
   pure = returnPD

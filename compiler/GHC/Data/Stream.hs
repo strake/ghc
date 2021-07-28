@@ -40,8 +40,8 @@ import Control.Monad hiding (mapM)
 --
 newtype Stream m a b = Stream { runStream :: m (Either b (a, Stream m a b)) }
 
-instance Monad f => Functor (Stream f a) where
-  fmap = liftM
+instance Functor m => Functor (Stream m a) where
+  fmap f (Stream m) = Stream ((\ case Left b -> Left (f b); Right x -> Right (fmap f <$> x)) <$> m)
 
 instance Monad m => Applicative (Stream m a) where
   pure a = Stream (return (Left a))

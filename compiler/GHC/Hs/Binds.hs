@@ -1241,8 +1241,7 @@ data RecordPatSynField a
       , recordPatSynPatVar :: a
       -- Filled in by renamer, the name used internally
       -- by the pattern
-      } deriving (Data, Functor)
-
+      } deriving (Data, Foldable, Functor, Traversable)
 
 
 {-
@@ -1268,18 +1267,6 @@ the distinction between the two names clear
 -}
 instance Outputable a => Outputable (RecordPatSynField a) where
     ppr (RecordPatSynField { recordPatSynSelectorId = v }) = ppr v
-
-instance Foldable RecordPatSynField  where
-    foldMap f (RecordPatSynField { recordPatSynSelectorId = visible
-                                 , recordPatSynPatVar = hidden })
-      = f visible `mappend` f hidden
-
-instance Traversable RecordPatSynField where
-    traverse f (RecordPatSynField { recordPatSynSelectorId =visible
-                                  , recordPatSynPatVar = hidden })
-      = (\ sel_id pat_var -> RecordPatSynField { recordPatSynSelectorId = sel_id
-                                               , recordPatSynPatVar = pat_var })
-          <$> f visible <*> f hidden
 
 
 -- | Haskell Pattern Synonym Direction

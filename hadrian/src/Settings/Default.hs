@@ -74,6 +74,7 @@ stage0Packages = do
              , haddock
              , hsc2hs
              , hpc
+             , microlens
              , mtl
              , parsec
              , templateHaskell

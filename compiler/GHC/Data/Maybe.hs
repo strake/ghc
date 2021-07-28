@@ -97,7 +97,9 @@ data MaybeErr err val = Succeeded val | Failed err
 
 instance Applicative (MaybeErr err) where
   pure  = Succeeded
-  (<*>) = ap
+  Failed err <*> _ = Failed err
+  _ <*> Failed err = Failed err
+  Succeeded f <*> Succeeded x = Succeeded (f x)
 
 instance Monad (MaybeErr err) where
   Succeeded v >>= k = k v

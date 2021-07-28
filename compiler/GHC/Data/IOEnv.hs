@@ -53,34 +53,12 @@ import Control.Applicative (Alternative(..))
 ----------------------------------------------------------------------
 
 
-newtype IOEnv env a = IOEnv (env -> IO a)
+newtype IOEnv env a = IOEnv { unIOEnv :: env -> IO a }
   deriving (Functor)
-  deriving (MonadThrow, MonadCatch, MonadMask, MonadIO) via (ReaderT env IO)
-
-unIOEnv :: IOEnv env a -> (env -> IO a)
-unIOEnv (IOEnv m) = m
-
-instance Monad (IOEnv m) where
-    (>>=)  = thenM
-    (>>)   = (*>)
+  deriving (Applicative, Monad, MonadThrow, MonadCatch, MonadMask, MonadIO) via (ReaderT env IO)
 
 instance MonadFail (IOEnv m) where
     fail _ = failM -- Ignore the string
-
-instance Applicative (IOEnv m) where
-    pure = returnM
-    IOEnv f <*> IOEnv x = IOEnv (\ env -> f env <*> x env )
-    (*>) = thenM_
-
-returnM :: a -> IOEnv env a
-returnM a = IOEnv (\ _ -> return a)
-
-thenM :: IOEnv env a -> (a -> IOEnv env b) -> IOEnv env b
-thenM (IOEnv m) f = IOEnv (\ env -> do { r <- m env ;
-                                         unIOEnv (f r) env })
-
-thenM_ :: IOEnv env a -> IOEnv env b -> IOEnv env b
-thenM_ (IOEnv m) f = IOEnv (\ env -> do { _ <- m env ; unIOEnv f env })
 
 failM :: IOEnv env a
 failM = IOEnv (\ _ -> throwIO IOEnvFailure)

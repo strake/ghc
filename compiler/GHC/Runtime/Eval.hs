@@ -1,4 +1,4 @@
-{-# LANGUAGE CPP, MagicHash, RecordWildCards, BangPatterns #-}
+{-# LANGUAGE CPP, MagicHash, RecordWildCards, BangPatterns, BlockArguments #-}
 
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
@@ -128,6 +128,7 @@ import Control.Monad.Catch as MC
 import Data.Array
 import GHC.Utils.Exception
 import Unsafe.Coerce ( unsafeCoerce )
+import Lens.Micro (over, set)
 
 import GHC.Tc.Module ( runTcInteractive, tcRnType, loadUnqualIfaces )
 import GHC.Tc.Utils.Zonk ( ZonkFlexi (SkolemiseFlexi) )
@@ -169,10 +170,7 @@ findEnclosingDecls hsc_env (BreakInfo modl ix) =
 
 -- | Update fixity environment in the current interactive context.
 updateFixityEnv :: GhcMonad m => FixityEnv -> m ()
-updateFixityEnv fix_env = do
-  hsc_env <- getSession
-  let ic = hsc_IC hsc_env
-  setSession $ hsc_env { hsc_IC = ic { ic_fix_env = fix_env } }
+updateFixityEnv = modifySession . set (hsc_ICL . ic_fix_envL)
 
 -- -----------------------------------------------------------------------------
 -- execStmt
@@ -255,17 +253,12 @@ runDeclsWithLocation source line_num input = do
 -- Useful when doing preprocessing on the AST before execution, e.g. in GHCi
 -- (see GHCi.UI.runStmt).
 runParsedDecls :: GhcMonad m => [LHsDecl GhcPs] -> m [Name]
-runParsedDecls decls = do
-    hsc_env <- getSession
-    (tyThings, ic) <- liftIO (hscParsedDecls hsc_env decls)
-
-    setSession $ hsc_env { hsc_IC = ic }
-    hsc_env <- getSession
-    hsc_env' <- liftIO $ rttiEnvironment hsc_env
-    setSession hsc_env'
-    return $ filter (not . isDerivedOccName . nameOccName)
-             -- For this filter, see Note [What to show to users]
-           $ map getName tyThings
+runParsedDecls decls =
+    filter (not . isDerivedOccName . nameOccName) . fmap getName <$>
+    -- For this filter, see Note [What to show to users]
+    stateSessionM \ hsc_env -> liftIO $ do
+        (tyThings, ic) <- hscParsedDecls hsc_env decls
+        (,) tyThings <$> rttiEnvironment hsc_env { hsc_IC = ic }
 
 {- Note [What to show to users]
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -817,8 +810,7 @@ mkTopLevEnv hpt modl
 -- set of modules from which we take the full top-level scope, and the set
 -- of modules from which we take just the exports respectively.
 getContext :: GhcMonad m => m [InteractiveImport]
-getContext = withSession $ \HscEnv{ hsc_IC=ic } ->
-             return (ic_imports ic)
+getContext = ic_imports . hsc_IC <$> getSession
 
 -- | Returns @True@ if the specified module is interpreted, and hence has
 -- its full top-level scope available.
@@ -1295,10 +1287,9 @@ obtainTermFromVal hsc_env _bound _force _ty _x = withInterp hsc_env $ \case
 obtainTermFromId :: HscEnv -> Int -> Bool -> Id -> IO Term
 obtainTermFromId hsc_env bound force id =  do
   hv <- Linker.getHValue hsc_env (varName id)
-  cvObtainTerm (updEnv hsc_env) bound force (idType id) hv
- where updEnv env = env {hsc_dflags =                             -- #14828
-            xopt_set (hsc_dflags env) ImpredicativeTypes}
-         -- See Note [Setting ImpredicativeTypes for :print command]
+  cvObtainTerm (over hsc_dflagsL (`xopt_set` ImpredicativeTypes) hsc_env) bound force (idType id) hv
+  -- #14828
+  -- See Note [Setting ImpredicativeTypes for :print command]
 
 -- Uses RTTI to reconstruct the type of an Id, making it less polymorphic
 reconstructType :: HscEnv -> Int -> Id -> IO (Maybe Type)
