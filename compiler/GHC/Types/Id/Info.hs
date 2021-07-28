@@ -9,9 +9,6 @@ Haskell. [WDP 94/11])
 -}
 
 
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE BinaryLiterals #-}
-
 {-# OPTIONS_GHC -Wno-incomplete-record-updates #-}
 
 module GHC.Types.Id.Info (

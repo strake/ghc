@@ -11,7 +11,6 @@ therefore, is almost nothing but re-exporting.
 
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE UndecidableInstances #-} -- Wrinkle in Note [Trees That Grow]
                                       -- in module GHC.Hs.Extension
 {-# LANGUAGE ConstraintKinds #-}

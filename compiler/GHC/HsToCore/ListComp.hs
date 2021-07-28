@@ -8,7 +8,6 @@ Desugaring list comprehensions, monad comprehensions and array comprehensions
 
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MonadComprehensions #-}
 {-# LANGUAGE ViewPatterns #-}
 

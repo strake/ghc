@@ -1,6 +1,4 @@
 -- (c) The University of Glasgow 2006
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE FlexibleContexts #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}  -- instance MonadThings is necessarily an
                                        -- orphan
 {-# LANGUAGE UndecidableInstances #-} -- Wrinkle in Note [Trees That Grow]

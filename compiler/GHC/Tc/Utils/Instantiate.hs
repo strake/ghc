@@ -5,7 +5,6 @@
 -}
 
 {-# LANGUAGE MultiWayIf, TupleSections #-}
-{-# LANGUAGE FlexibleContexts #-}
 
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns   #-}
 {-# OPTIONS_GHC -Wno-incomplete-record-updates #-}

@@ -4,7 +4,6 @@
 \section[GHC.Core.Opt.Simplify.Monad]{The simplifier Monad}
 -}
 
-{-# LANGUAGE DeriveFunctor #-}
 module GHC.Core.Opt.Simplify.Monad (
         -- The monad
         SimplM,

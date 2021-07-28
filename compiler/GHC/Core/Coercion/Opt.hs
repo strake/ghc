@@ -1,7 +1,5 @@
 -- (c) The University of Glasgow 2006
 
-{-# LANGUAGE CPP #-}
-
 module GHC.Core.Coercion.Opt
    ( optCoercion
    , checkAxInstCo

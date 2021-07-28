@@ -7,7 +7,6 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE FlexibleContexts #-}
 
 module GHC.CmmToAsm.BlockLayout
     ( sequenceTop, backendMaintainsCfg)

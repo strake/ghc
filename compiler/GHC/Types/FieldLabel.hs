@@ -57,9 +57,6 @@ Of course, datatypes with no constructors cannot have any fields.
 -}
 
 {-# LANGUAGE DeriveDataTypeable #-}
-{-# LANGUAGE DeriveFunctor #-}
-{-# LANGUAGE DeriveFoldable #-}
-{-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE StandaloneDeriving #-}
 
 module GHC.Types.FieldLabel

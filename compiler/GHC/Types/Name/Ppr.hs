@@ -1,5 +1,3 @@
-{-# LANGUAGE CPP #-}
-
 module GHC.Types.Name.Ppr
    ( mkPrintUnqualified
    , mkQualModule

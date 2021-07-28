@@ -12,7 +12,6 @@ lower levels it is preserved with @let@/@letrec@s).
 
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ViewPatterns #-}
-{-# LANGUAGE FlexibleContexts #-}
 
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 

@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns, CPP, DeriveFunctor, FlexibleContexts, MagicHash, RecordWildCards #-}
+{-# LANGUAGE BangPatterns, CPP, MagicHash, RecordWildCards #-}
 {-# OPTIONS_GHC -optc-DNON_POSIX_SOURCE #-}
 --
 --  (c) The University of Glasgow 2002-2006

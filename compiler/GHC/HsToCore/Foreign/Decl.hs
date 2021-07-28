@@ -6,7 +6,6 @@
 Desugaring foreign declarations (see also GHC.HsToCore.Foreign.Call).
 -}
 
-{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ViewPatterns #-}
 

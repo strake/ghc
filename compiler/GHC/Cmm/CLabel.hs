@@ -7,7 +7,6 @@
 -----------------------------------------------------------------------------
 
 {-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 
 module GHC.Cmm.CLabel (

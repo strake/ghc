@@ -5,7 +5,6 @@ Extracting imported and top-level names in scope
 -}
 
 {-# LANGUAGE NondecreasingIndentation, MultiWayIf, NamedFieldPuns #-}
-{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies #-}

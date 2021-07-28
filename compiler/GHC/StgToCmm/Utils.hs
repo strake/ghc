@@ -1,5 +1,3 @@
-{-# LANGUAGE LambdaCase #-}
-
 -----------------------------------------------------------------------------
 --
 -- Code generator utilities; mostly monadic

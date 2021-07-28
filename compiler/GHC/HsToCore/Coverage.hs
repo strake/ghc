@@ -6,7 +6,6 @@
 {-# LANGUAGE NondecreasingIndentation, RecordWildCards #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE DeriveFunctor #-}
 
 {-# OPTIONS_GHC -Wno-incomplete-record-updates #-}
 

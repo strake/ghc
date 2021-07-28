@@ -31,9 +31,7 @@
 --
 -- A useful example pass over Cmm is in nativeGen/MachCodeGen.hs
 --
-{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE FlexibleInstances #-}
 
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 

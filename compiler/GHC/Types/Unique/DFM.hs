@@ -15,8 +15,6 @@ is not deterministic.
 -}
 
 {-# LANGUAGE DeriveDataTypeable #-}
-{-# LANGUAGE DeriveFunctor #-}
-{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TupleSections #-}
 {-# OPTIONS_GHC -Wall #-}
 

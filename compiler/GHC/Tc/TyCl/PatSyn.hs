@@ -5,7 +5,6 @@
 -}
 
 {-# LANGUAGE CPP #-}
-{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ViewPatterns #-}
 

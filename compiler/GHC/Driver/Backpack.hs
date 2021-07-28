@@ -1,6 +1,5 @@
 {-# LANGUAGE NondecreasingIndentation #-}
 {-# LANGUAGE TypeSynonymInstances #-}
-{-# LANGUAGE FlexibleInstances #-}
 
 -- | This is the driver for the 'ghc --backpack' mode, which
 -- is a reimplementation of the "package manager" bits of

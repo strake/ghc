@@ -7,7 +7,6 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE LambdaCase #-}
 
 module GHC.Utils.Error (
         -- * Basic types

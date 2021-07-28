@@ -3,11 +3,9 @@ Types for the .hie file format are defined here.
 
 For more information see https://gitlab.haskell.org/ghc/ghc/wikis/hie-files
 -}
-{-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TypeSynonymInstances #-}
-{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE OverloadedStrings #-}
 module GHC.Iface.Ext.Types where

@@ -1,5 +1,4 @@
 {-# LANGUAGE CPP, MagicHash, RecordWildCards, BangPatterns #-}
-{-# LANGUAGE LambdaCase #-}
 
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 

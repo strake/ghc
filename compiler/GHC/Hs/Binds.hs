@@ -8,10 +8,7 @@ Datatype for: @BindGroup@, @Bind@, @Sig@, @Bind@.
 -}
 
 {-# LANGUAGE DeriveDataTypeable #-}
-{-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE UndecidableInstances #-} -- Wrinkle in Note [Trees That Grow]
                                       -- in module GHC.Hs.Extension
 {-# LANGUAGE ConstraintKinds #-}
@@ -19,7 +16,6 @@ Datatype for: @BindGroup@, @Bind@, @Sig@, @Bind@.
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE LambdaCase #-}
 
 module GHC.Hs.Binds where
 
