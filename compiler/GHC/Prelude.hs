@@ -1,5 +1,3 @@
-{-# LANGUAGE CPP #-}
-
 -- | Custom GHC "Prelude"
 --
 -- This module serves as a replacement for the "Prelude" module

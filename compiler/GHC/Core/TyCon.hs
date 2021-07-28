@@ -6,9 +6,6 @@
 The @TyCon@ datatype
 -}
 
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE LambdaCase #-}
-
 module GHC.Core.TyCon(
         -- * Main TyCon data types
         TyCon,

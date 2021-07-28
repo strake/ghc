@@ -1,5 +1,4 @@
 {-# LANGUAGE CPP #-}
-{-# LANGUAGE DeriveFunctor #-}
 
 module GHC.Tc.Solver.Canonical(
      canonicalize,

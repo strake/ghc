@@ -12,8 +12,7 @@ ToDo:
    (i1 + i2) only if it results in a valid Float.
 -}
 
-{-# LANGUAGE RankNTypes, PatternSynonyms, ViewPatterns, RecordWildCards, DeriveFunctor #-}
-{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE RankNTypes, PatternSynonyms, ViewPatterns, RecordWildCards #-}
 {-# OPTIONS_GHC -optc-DNON_POSIX_SOURCE -Wno-incomplete-uni-patterns #-}
 
 module GHC.Core.Opt.ConstantFold

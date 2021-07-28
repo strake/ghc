@@ -4,8 +4,6 @@ Traversable instances.
 -}
 
 
-{-# LANGUAGE DeriveFunctor #-}
-
 module GHC.Data.Pair
    ( Pair(..)
    , unPair

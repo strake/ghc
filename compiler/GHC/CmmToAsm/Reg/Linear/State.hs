@@ -1,4 +1,4 @@
-{-# LANGUAGE CPP, PatternSynonyms, DeriveFunctor #-}
+{-# LANGUAGE CPP, PatternSynonyms #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 #if !defined(GHC_LOADED_INTO_GHCI)

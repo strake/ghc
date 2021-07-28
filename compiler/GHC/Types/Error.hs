@@ -1,5 +1,3 @@
-{-# LANGUAGE LambdaCase #-}
-
 module GHC.Types.Error
    ( Messages
    , WarningMessages

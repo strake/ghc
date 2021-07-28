@@ -5,11 +5,8 @@
 --
 -- -----------------------------------------------------------------------------
 
-{-# LANGUAGE BangPatterns, CPP, GADTs, ScopedTypeVariables, PatternSynonyms,
-    DeriveFunctor #-}
+{-# LANGUAGE BangPatterns, CPP, GADTs, ScopedTypeVariables, PatternSynonyms #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE FlexibleContexts #-}
 
 
 #if !defined(GHC_LOADED_INTO_GHCI)

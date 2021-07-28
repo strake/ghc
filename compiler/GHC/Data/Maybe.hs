@@ -1,7 +1,5 @@
 {-# LANGUAGE ConstraintKinds #-}
-{-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE KindSignatures #-}
-{-# LANGUAGE FlexibleContexts #-}
 
 {-
 (c) The University of Glasgow 2006

@@ -1,4 +1,3 @@
-{-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE TupleSections #-}
 -- | Our extended FCode monad.
 

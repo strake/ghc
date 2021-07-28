@@ -1,6 +1,6 @@
 {-# LANGUAGE GADTs, BangPatterns, RecordWildCards,
     GeneralizedNewtypeDeriving, NondecreasingIndentation, TupleSections,
-    ScopedTypeVariables, OverloadedStrings, LambdaCase #-}
+    ScopedTypeVariables, OverloadedStrings #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE DerivingStrategies #-}

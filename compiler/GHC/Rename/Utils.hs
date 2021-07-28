@@ -3,7 +3,6 @@
 This module contains miscellaneous functions related to renaming.
 
 -}
-{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE TypeFamilies #-}
 

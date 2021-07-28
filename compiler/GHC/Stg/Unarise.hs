@@ -1,5 +1,3 @@
-{-# LANGUAGE FlexibleContexts #-}
-
 {-
 (c) The GRASP/AQUA Project, Glasgow University, 1992-2012
 
@@ -194,7 +192,7 @@ STG programs after unarisation have these invariants:
   * Binders always have zero (for void arguments) or one PrimRep.
 -}
 
-{-# LANGUAGE CPP, TupleSections #-}
+{-# LANGUAGE TupleSections #-}
 
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 

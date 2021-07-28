@@ -6,8 +6,6 @@
 --
 -----------------------------------------------------------------------------
 
-{-# LANGUAGE LambdaCase #-}
-
 module GHC.StgToCmm.ArgRep (
         ArgRep(..), toArgRep, argRepSizeW,
 

@@ -4,7 +4,6 @@
 \section[Specialise]{Stamping out overloading, and (optionally) polymorphism}
 -}
 
-{-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE ViewPatterns #-}

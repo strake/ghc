@@ -5,7 +5,6 @@
 -}
 
 {-# LANGUAGE RankNTypes, ScopedTypeVariables #-}
-{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ViewPatterns #-}
 
