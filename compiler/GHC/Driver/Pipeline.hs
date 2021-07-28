@@ -25,9 +25,9 @@ module GHC.Driver.Pipeline (
    link,
 
         -- Exports for hooks to override runPhase and link
-   PhasePlus(..), CompPipeline(..), PipeEnv(..), PipeState(..),
+   PhasePlus(..), CompPipeline, PipeEnv(..), PipeState(..),
    phaseOutputFilename, getOutputFilename, getPipeState, getPipeEnv,
-   hscPostBackendPhase, getLocation, setModLocation, setDynFlags,
+   hscPostBackendPhase, getLocation,
    runPhase, exeFileName,
    maybeCreateManifest,
    doCpp,
@@ -60,8 +60,8 @@ import GHC.SysTools.ExtraObj
 import GHC.SysTools.FileCleanup
 import GHC.SysTools.Ar
 
+import GHC.Utils.Lens.Monad
 import GHC.Utils.Outputable
-import GHC.Unit.Module
 import GHC.Utils.Error
 import GHC.Utils.Panic
 import GHC.Utils.Panic.Plain
@@ -783,9 +783,9 @@ pipeLoop phase input_fn = do
                    -- per run.
                    let noDynToo = pipeLoop next_phase output_fn
                    let dynToo = do
-                          setDynFlags $ gopt_unset dflags Opt_BuildDynamicToo
+                          setting_ (hsc_envL . hsc_dflagsL) (gopt_unset dflags Opt_BuildDynamicToo)
                           r <- pipeLoop next_phase output_fn
-                          setDynFlags $ dynamicTooMkDynamicDynFlags dflags
+                          setting_ (hsc_envL . hsc_dflagsL) (dynamicTooMkDynamicDynFlags dflags)
                           -- TODO shouldn't ignore result:
                           _ <- pipeLoop phase input_fn
                           return r
@@ -990,7 +990,7 @@ runPhase (RealPhase (Cpp sf)) input_fn
        src_opts <- liftIO $ getOptionsFromFile dflags0 input_fn
        (dflags1, unhandled_flags, warns)
            <- liftIO $ parseDynamicFilePragma dflags0 src_opts
-       setDynFlags dflags1
+       setting_ (hsc_envL . hsc_dflagsL) dflags1
        liftIO $ checkProcessArgsResult dflags1 unhandled_flags
 
        if not (xopt LangExt.Cpp dflags1) then do
@@ -1015,7 +1015,7 @@ runPhase (RealPhase (Cpp sf)) input_fn
                 liftIO $ handleFlagWarnings dflags2 warns
             -- the HsPp pass below will emit warnings
 
-            setDynFlags dflags2
+            setting_ (hsc_envL . hsc_dflagsL) dflags2
 
             return (RealPhase (HsPp sf), output_fn)
 
@@ -1043,7 +1043,7 @@ runPhase (RealPhase (HsPp sf)) input_fn
             src_opts <- liftIO $ getOptionsFromFile dflags output_fn
             (dflags1, unhandled_flags, warns)
                 <- liftIO $ parseDynamicFilePragma dflags src_opts
-            setDynFlags dflags1
+            setting_ (hsc_envL . hsc_dflagsL) dflags1
             liftIO $ checkProcessArgsResult dflags1 unhandled_flags
             liftIO $ handleFlagWarnings dflags1 warns
 
@@ -1055,7 +1055,7 @@ runPhase (RealPhase (HsPp sf)) input_fn
 -- Compilation of a single module, in "legacy" mode (_not_ under
 -- the direction of the compilation manager).
 runPhase (RealPhase (Hsc src_flavour)) input_fn
- = do   dflags0 <- getDynFlags
+ = do   dflags <- getDynFlags
         -- normal Hsc mode, not mkdependHS
         PipeEnv{ stop_phase=stop,
                  src_basename=basename,
@@ -1066,10 +1066,9 @@ runPhase (RealPhase (Hsc src_flavour)) input_fn
   -- what gcc does, and it's probably what you want.
         let current_dir = takeDirectory basename
             new_includes = addQuoteInclude paths [current_dir]
-            paths = includePaths dflags0
-            dflags = dflags0 { includePaths = new_includes }
+            paths = includePaths dflags
 
-        setDynFlags dflags
+        setting_ (hsc_envL . hsc_dflagsL) dflags { includePaths = new_includes }
 
   -- gather the imports and module name
         (hspp_buf,mod_name,imps,src_imps) <- liftIO $ do
@@ -1149,17 +1148,17 @@ runPhase (RealPhase (Hsc src_flavour)) input_fn
                             mod_summary source_unchanged Nothing (1,1)
 
         -- In the rest of the pipeline use the loaded plugins
-        setPlugins (hsc_plugins        plugin_hsc_env)
-                   (hsc_static_plugins plugin_hsc_env)
+        setting_ (hsc_envL . hsc_pluginsL) (hsc_plugins plugin_hsc_env)
+        setting_ (hsc_envL . hsc_static_pluginsL) (hsc_static_plugins plugin_hsc_env)
         -- "driver" plugins may have modified the DynFlags so we update them
-        setDynFlags (hsc_dflags plugin_hsc_env)
+        setting_ (hsc_envL . hsc_dflagsL) (hsc_dflags plugin_hsc_env)
 
         return (HscOut src_flavour mod_name result,
                 panic "HscOut doesn't have an input filename")
 
 runPhase (HscOut src_flavour mod_name result) _ = do
         location <- getLocation src_flavour mod_name
-        setModLocation location
+        setting_ maybe_locL (Just location)
 
         dflags <- getDynFlags
 
@@ -1205,7 +1204,7 @@ runPhase (HscOut src_flavour mod_name result) _ = do
                     final_iface <- liftIO (mkFullIface hsc_env'{hsc_dflags=iface_dflags} partial_iface (Just cg_infos))
                     let final_mod_details = {-# SCC updateModDetailsIdInfos #-}
                                             updateModDetailsIdInfos iface_dflags cg_infos mod_details
-                    setIface final_iface final_mod_details
+                    setting_ ifaceL $ Just (final_iface, final_mod_details)
 
                     -- See Note [Writing interface files]
                     let if_dflags = dflags `gopt_unset` Opt_BuildDynamicToo
@@ -1214,7 +1213,7 @@ runPhase (HscOut src_flavour mod_name result) _ = do
                     stub_o <- liftIO (mapM (compileStub hsc_env') mStub)
                     foreign_os <- liftIO $
                       mapM (uncurry (compileForeign hsc_env')) foreign_files
-                    setForeignOs (maybe [] return stub_o ++ foreign_os)
+                    setting_ foreign_osL (maybe id (:) stub_o foreign_os)
 
                     return (RealPhase next_phase, outputFilename)
 

@@ -9,7 +9,6 @@
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
 module GHC.StgToCmm.Heap (
-        getVirtHp, setVirtHp, setRealHp,
         getHpRelOffset,
 
         entryHeapCheck, altHeapCheck, noEscapeHeapCheck, altHeapCheckReturnsTo,
@@ -49,6 +48,8 @@ import GHC.Driver.Session
 import GHC.Platform
 import GHC.Platform.Profile
 import GHC.Data.FastString( mkFastString, fsLit )
+import GHC.Utils.Lens.Monad
+import GHC.Utils.Monad.RS.Lazy
 import GHC.Utils.Panic( sorry )
 
 import Control.Monad (when)
@@ -119,7 +120,7 @@ allocHeapClosure
 allocHeapClosure rep info_ptr use_cc payload = do
   profDynAlloc rep use_cc
 
-  virt_hp <- getVirtHp
+  virt_hp <- virtHp . cgs_hp_usg <$> get
 
   -- Find the offset of the info-ptr word
   let info_offset = virt_hp + 1
@@ -137,9 +138,7 @@ allocHeapClosure rep info_ptr use_cc payload = do
 
   -- Bump the virtual heap pointer
   profile <- getProfile
-  setVirtHp (virt_hp + heapClosureSizeW profile rep)
-
-  return base
+  base <$ setting_ (cgs_hp_usgL . virtHpL) (virt_hp + heapClosureSizeW profile rep)
 
 
 emitSetDynHdr :: CmmExpr -> CmmExpr -> CmmExpr -> FCode ()
@@ -542,7 +541,7 @@ heapCheck checkStack checkYield do_gc code
                       | otherwise  = Nothing
         ; codeOnly $ do_checks stk_hwm checkYield mb_alloc_bytes do_gc
         ; tickyAllocHeap True hpHw
-        ; setRealHp hpHw
+        ; setting_ (cgs_hp_usgL . realHpL) hpHw
         ; code }
 
 heapStackCheckGen :: Maybe CmmExpr -> Maybe CmmExpr -> FCode ()

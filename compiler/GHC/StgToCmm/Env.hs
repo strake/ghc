@@ -34,7 +34,7 @@ import GHC.Cmm.BlockId
 import GHC.Cmm.Expr
 import GHC.Cmm.Utils
 import GHC.Types.Id
-import GHC.Cmm.Graph
+import GHC.Cmm.Graph hiding ((<*>))
 import GHC.Types.Name
 import GHC.Stg.Syntax
 import GHC.Core.Type
@@ -42,6 +42,8 @@ import GHC.Builtin.Types.Prim
 import GHC.Types.Unique.FM
 import GHC.Types.Var.Env
 
+import GHC.Utils.Lens.Monad
+import GHC.Utils.Monad.RS.Lazy 
 import GHC.Utils.Outputable
 import GHC.Utils.Panic
 import GHC.Utils.Panic.Plain
@@ -107,22 +109,16 @@ maybeLetNoEscape _other                                      = Nothing
 ---------------------------------------------------------
 
 addBindC :: CgIdInfo -> FCode ()
-addBindC stuff_to_bind = do
-        binds <- getBinds
-        setBinds $ extendVarEnv binds (cg_id stuff_to_bind) stuff_to_bind
+addBindC x = modifying_ cgs_bindsL $ extendVarEnv `flip` cg_id x `flip` x
 
 addBindsC :: [CgIdInfo] -> FCode ()
-addBindsC new_bindings = do
-        binds <- getBinds
-        let new_binds = foldl' (\ binds info -> extendVarEnv binds (cg_id info) info)
-                               binds
-                               new_bindings
-        setBinds new_binds
+addBindsC =
+    modifying_ cgs_bindsL . (flip . foldl') (\ binds -> extendVarEnv binds =<< cg_id)
 
 getCgIdInfo :: Id -> FCode CgIdInfo
 getCgIdInfo id
   = do  { platform <- targetPlatform <$> getDynFlags
-        ; local_binds <- getBinds -- Try local bindings first
+        ; local_binds <- cgs_binds <$> get -- Try local bindings first
         ; case lookupVarEnv local_binds id of {
             Just info -> return info ;
             Nothing   -> do {
@@ -145,7 +141,7 @@ getCgIdInfo id
 
 cgLookupPanic :: Id -> FCode a
 cgLookupPanic id
-  = do  local_binds <- getBinds
+  = do  local_binds <- cgs_binds <$> get
         pprPanic "GHC.StgToCmm.Env: variable not found"
                 (vcat [ppr id,
                 text "local binds for:",

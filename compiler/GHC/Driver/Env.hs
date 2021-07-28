@@ -1,3 +1,7 @@
+{-# LANGUAGE CPP #-}
+
+#include "lens.h"
+
 module GHC.Driver.Env
    ( Hsc(..)
    , HscEnv (..)
@@ -14,6 +18,7 @@ module GHC.Driver.Env
    , prepareAnnotations
    , lookupType
    , lookupIfaceByModule
+   , hsc_dflagsL, hsc_targetsL, hsc_mod_graphL, hsc_ICL, hsc_HPTL, hsc_EPSL, hsc_NCL, hsc_FCL, hsc_type_env_varL, hsc_interpL, hsc_dynLinkerL, hsc_pluginsL, hsc_static_pluginsL
    )
 where
 
@@ -59,36 +64,25 @@ import GHC.Unit.Module.Graph
 import GHC.Utils.Outputable
 import GHC.Utils.Outputable.Ppr
 import GHC.Utils.Monad
+import GHC.Utils.Monad.RS.Lazy
 import GHC.Utils.Error
 import GHC.Utils.Misc
 
-import Control.Monad    ( guard, ap )
+import Control.Monad    ( guard )
 import Data.IORef
 
 -- | The Hsc monad: Passing an environment and warning state
 newtype Hsc a = Hsc (HscEnv -> WarningMessages -> IO (a, WarningMessages))
     deriving (Functor)
-
-instance Applicative Hsc where
-    pure a = Hsc $ \_ w -> return (a, w)
-    (<*>) = ap
-
-instance Monad Hsc where
-    Hsc m >>= k = Hsc $ \e w -> do (a, w1) <- m e w
-                                   case k a of
-                                       Hsc k' -> k' e w1
-
-instance MonadIO Hsc where
-    liftIO io = Hsc $ \_ w -> do a <- io; return (a, w)
+    deriving (Applicative, Monad, MonadIO) via RST HscEnv WarningMessages IO
 
 instance HasDynFlags Hsc where
-    getDynFlags = Hsc $ \e w -> return (hsc_dflags e, w)
+    getDynFlags = Hsc $ \e w -> pure (hsc_dflags e, w)
 
 runHsc :: HscEnv -> Hsc a -> IO a
 runHsc hsc_env (Hsc hsc) = do
     (a, w) <- hsc hsc_env emptyBag
-    printOrThrowWarnings (hsc_dflags hsc_env) w
-    return a
+    a <$ printOrThrowWarnings (hsc_dflags hsc_env) w
 
 -- | Switches in the DynFlags and Plugins from the InteractiveContext
 mkInteractiveHscEnv :: HscEnv -> HscEnv
@@ -194,6 +188,20 @@ data HscEnv
                 -- To add dynamically loaded plugins through the GHC API see
                 -- 'addPluginModuleName' instead.
  }
+
+hsc_dflagsL LENS_FIELD(hsc_dflags)
+hsc_targetsL LENS_FIELD(hsc_targets)
+hsc_mod_graphL LENS_FIELD(hsc_mod_graph)
+hsc_ICL LENS_FIELD(hsc_IC)
+hsc_HPTL LENS_FIELD(hsc_HPT)
+hsc_EPSL LENS_FIELD(hsc_EPS)
+hsc_NCL LENS_FIELD(hsc_NC)
+hsc_FCL LENS_FIELD(hsc_FC)
+hsc_type_env_varL LENS_FIELD(hsc_type_env_var)
+hsc_interpL LENS_FIELD(hsc_interp)
+hsc_dynLinkerL LENS_FIELD(hsc_dynLinker)
+hsc_pluginsL LENS_FIELD(hsc_plugins)
+hsc_static_pluginsL LENS_FIELD(hsc_static_plugins)
 
 {-
 

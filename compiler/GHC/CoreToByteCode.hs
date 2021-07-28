@@ -1,7 +1,11 @@
 {-# LANGUAGE MagicHash, RecordWildCards, BangPatterns #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE CPP #-}
 {-# OPTIONS_GHC -fprof-auto-top #-}
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
+
+#include "lens.h"
+
 --
 --  (c) The University of Glasgow 2002-2006
 --
@@ -50,6 +54,7 @@ import GHC.Data.FastString
 import GHC.Utils.Panic
 import GHC.Utils.Panic.Plain
 import GHC.Utils.Exception (evaluate)
+import GHC.Utils.Lens.Monad
 import GHC.StgToCmm.Closure ( NonVoid(..), fromNonVoid, nonVoidIds )
 import GHC.StgToCmm.Layout
 import GHC.Runtime.Heap.Layout hiding (WordOff, ByteOff, wordsToBytes)
@@ -68,6 +73,9 @@ import Data.Char
 import GHC.Types.Unique.Supply
 import GHC.Unit.Module
 
+import Control.Monad.IO.Class (MonadIO (..))
+import Control.Monad.State.Class (MonadState (..), get)
+import Control.Monad.Trans.State.Lazy (StateT (..), gets)
 import Data.Array
 import Data.ByteString (ByteString)
 import Data.Map (Map)
@@ -78,6 +86,7 @@ import qualified GHC.Data.FiniteMap as Map
 import Data.Ord
 import GHC.Stack.CCS
 import Data.Either ( partitionEithers )
+import Data.Tuple (swap)
 
 -- -----------------------------------------------------------------------------
 -- Generating byte code for a complete module
@@ -136,8 +145,7 @@ allocateTopStrings
   -> IO [(Var, RemotePtr ())]
 allocateTopStrings hsc_env topStrings = do
   let !(bndrs, strings) = unzip topStrings
-  ptrs <- iservCmd hsc_env $ MallocStrings strings
-  return $ zip bndrs ptrs
+  zip bndrs <$> iservCmd hsc_env (MallocStrings strings)
 
 {-
 Note [generating code for top-level string literal bindings]
@@ -320,7 +328,7 @@ schemeTopBind (id, rhs)
         -- because mkConAppCode treats nullary constructor applications
         -- by just re-using the single top-level definition.  So
         -- for the worker itself, we must allocate it directly.
-    -- ioToBc (putStrLn $ "top level BCO")
+    -- liftIO (putStrLn $ "top level BCO")
     emitBc (mkProtoBCO platform (getName id) (toOL [PACK data_con 0, ENTER])
                        (Right rhs) 0 0 [{-no bitmap-}] False{-not alts-})
 
@@ -410,7 +418,7 @@ schemeER_wrk d p rhs
   | AnnTick (Breakpoint tick_no fvs) (_annot, newRhs) <- rhs
   = do  code <- schemeE d 0 p newRhs
         cc_arr <- getCCArray
-        this_mod <- moduleName <$> getCurrentModule
+        this_mod <- moduleName . thisModule <$> get
         platform <- profilePlatform <$> getProfile
         let idOffSets = getVarOffSets platform d p fvs
         let breakInfo = CgBreakInfo
@@ -1353,7 +1361,7 @@ generateCCall d0 s p (CCallSpec target cconv safety) fn args_r_to_l
      let ffires = primRepToFFIType platform r_rep
          ffiargs = map (primRepToFFIType platform) a_reps
      hsc_env <- getHscEnv
-     token <- ioToBc $ iservCmd hsc_env (PrepFFI conv ffiargs ffires)
+     token <- liftIO $ iservCmd hsc_env (PrepFFI conv ffiargs ffires)
      recordFFIBc token
 
      let
@@ -1601,7 +1609,7 @@ pushAtom d p (AnnVar var)
         -- slots on to the top of the stack.
 
    | otherwise  -- var must be a global variable
-   = do topStrings <- getTopStrings
+   = do topStrings <- topStrings <$> get
         platform <- targetPlatform <$> getDynFlags
         case lookupVarEnv topStrings var of
             Just ptr -> pushAtom d p $ AnnLit $ mkLitWord platform $
@@ -1972,100 +1980,60 @@ data BcM_State
           -- See Note [generating code for top-level string literal bindings].
         }
 
-newtype BcM r = BcM (BcM_State -> IO (BcM_State, r)) deriving (Functor)
+bcm_hsc_envL LENS_FIELD(bcm_hsc_env)
+uniqSupplyL LENS_FIELD(uniqSupply)
+thisModuleL LENS_FIELD(thisModule)
+nextlabelL LENS_FIELD(nextlabel)
+ffisL LENS_FIELD(ffis)
+modBreaksL LENS_FIELD(modBreaks)
+breakInfoL LENS_FIELD(breakInfo)
+topStringsL LENS_FIELD(topStrings)
 
-ioToBc :: IO a -> BcM a
-ioToBc io = BcM $ \st -> do
-  x <- io
-  return (st, x)
+newtype BcM r = BcM (BcM_State -> IO (r, BcM_State))
+  deriving (Functor)
+  deriving (Applicative, Monad, MonadIO, MonadState BcM_State) via StateT BcM_State IO
 
 runBc :: HscEnv -> UniqSupply -> Module -> Maybe ModBreaks
       -> IdEnv (RemotePtr ())
       -> BcM r
       -> IO (BcM_State, r)
 runBc hsc_env us this_mod modBreaks topStrings (BcM m)
-   = m (BcM_State hsc_env us this_mod 0 [] modBreaks IntMap.empty topStrings)
-
-thenBc :: BcM a -> (a -> BcM b) -> BcM b
-thenBc (BcM expr) cont = BcM $ \st0 -> do
-  (st1, q) <- expr st0
-  let BcM k = cont q
-  (st2, r) <- k st1
-  return (st2, r)
-
-thenBc_ :: BcM a -> BcM b -> BcM b
-thenBc_ (BcM expr) (BcM cont) = BcM $ \st0 -> do
-  (st1, _) <- expr st0
-  (st2, r) <- cont st1
-  return (st2, r)
-
-returnBc :: a -> BcM a
-returnBc result = BcM $ \st -> (return (st, result))
-
-instance Applicative BcM where
-    pure = returnBc
-    (<*>) = ap
-    (*>) = thenBc_
-
-instance Monad BcM where
-  (>>=) = thenBc
-  (>>)  = (*>)
+   = swap <$> m (BcM_State hsc_env us this_mod 0 [] modBreaks IntMap.empty topStrings)
 
 instance HasDynFlags BcM where
-    getDynFlags = BcM $ \st -> return (st, hsc_dflags (bcm_hsc_env st))
+    getDynFlags = hsc_dflags <$> getHscEnv
 
 getHscEnv :: BcM HscEnv
-getHscEnv = BcM $ \st -> return (st, bcm_hsc_env st)
+getHscEnv = BcM $ runStateT $ gets bcm_hsc_env
 
 getProfile :: BcM Profile
 getProfile = targetProfile <$> getDynFlags
 
 emitBc :: ([FFIInfo] -> ProtoBCO Name) -> BcM (ProtoBCO Name)
-emitBc bco
-  = BcM $ \st -> return (st{ffis=[]}, bco (ffis st))
+emitBc bco = bco <$> setting ffisL []
 
 recordFFIBc :: RemotePtr C_ffi_cif -> BcM ()
-recordFFIBc a
-  = BcM $ \st -> return (st{ffis = FFIInfo a : ffis st}, ())
+recordFFIBc a = modifying_ ffisL (FFIInfo a :)
 
 getLabelBc :: BcM Word16
-getLabelBc
-  = BcM $ \st -> do let nl = nextlabel st
-                    when (nl == maxBound) $
-                        panic "getLabelBc: Ran out of labels"
-                    return (st{nextlabel = nl + 1}, nl)
+getLabelBc = do
+    nl <- modifying nextlabelL (+1)
+    nl <$ when (nl == maxBound) (panic "getLabelBc: Ran out of labels")
 
 getLabelsBc :: Word16 -> BcM [Word16]
-getLabelsBc n
-  = BcM $ \st -> let ctr = nextlabel st
-                 in return (st{nextlabel = ctr+n}, [ctr .. ctr+n-1])
+getLabelsBc n = (\ ctr -> [ctr..ctr+n-1]) <$> modifying nextlabelL (+n)
 
 getCCArray :: BcM (Array BreakIndex (RemotePtr CostCentre))
-getCCArray = BcM $ \st ->
-  let breaks = expectJust "GHC.CoreToByteCode.getCCArray" $ modBreaks st in
-  return (st, modBreaks_ccs breaks)
-
+getCCArray = modBreaks_ccs . expectJust "GHC.CoreToByteCode.getCCArray" . modBreaks <$> get
 
 newBreakInfo :: BreakIndex -> CgBreakInfo -> BcM ()
-newBreakInfo ix info = BcM $ \st ->
-  return (st{breakInfo = IntMap.insert ix info (breakInfo st)}, ())
+newBreakInfo ix info = modifying_ breakInfoL $ IntMap.insert ix info
 
 newUnique :: BcM Unique
-newUnique = BcM $
-   \st -> case takeUniqFromSupply (uniqSupply st) of
-             (uniq, us) -> let newState = st { uniqSupply = us }
-                           in  return (newState, uniq)
-
-getCurrentModule :: BcM Module
-getCurrentModule = BcM $ \st -> return (st, thisModule st)
-
-getTopStrings :: BcM (IdEnv (RemotePtr ()))
-getTopStrings = BcM $ \st -> return (st, topStrings st)
+newUnique = stating uniqSupplyL takeUniqFromSupply
 
 newId :: Type -> BcM Id
-newId ty = do
-    uniq <- newUnique
-    return $ mkSysLocal tickFS uniq ty
+newId ty = [mkSysLocal tickFS uniq ty | uniq <- newUnique]
 
 tickFS :: FastString
 tickFS = fsLit "ticked"

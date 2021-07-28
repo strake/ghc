@@ -434,7 +434,10 @@ data UnifyResultM a = Unifiable a        -- the subst that unifies the types
 
 instance Applicative UnifyResultM where
   pure  = Unifiable
-  (<*>) = ap
+  SurelyApart <*> _ = SurelyApart
+  MaybeApart f <*> Unifiable x = MaybeApart (f x)
+  MaybeApart f <*> x = f <$> x
+  Unifiable f <*> x = f <$> x
 
 instance Monad UnifyResultM where
 

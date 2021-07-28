@@ -16,7 +16,7 @@ module GHC.Driver.Monad (
         reflectGhc, reifyGhc,
         getSessionDynFlags,
         liftIO,
-        Session(..), withSession, modifySession, modifySessionM,
+        Session(..), withSession, modifySession, modifySessionM, stateSessionM,
         withTempSession,
 
         -- ** Warnings
@@ -81,6 +81,12 @@ modifySessionM f = do h <- getSession
                       h' <- f h
                       setSession $! h'
 
+stateSessionM :: GhcMonad m => (HscEnv -> m (a, HscEnv)) -> m a
+stateSessionM f = do
+    h <- getSession
+    (a, h') <- f h
+    a <$ (setSession $! h')
+
 withSavedSession :: GhcMonad m => m a -> m a
 withSavedSession m = do
   saved_session <- getSession
@@ -105,7 +111,7 @@ logWarnings warns = do
 -- 'GhcT'.
 newtype Ghc a = Ghc { unGhc :: Session -> IO a }
   deriving (Functor)
-  deriving (MonadThrow, MonadCatch, MonadMask) via (ReaderT Session IO)
+  deriving (Applicative, Monad, MonadFail, MonadFix, MonadThrow, MonadCatch, MonadMask) via (ReaderT Session IO)
 
 -- | The Session is a handle to the complete state of a compilation
 -- session.  A compilation session consists of a set of modules
@@ -113,18 +119,8 @@ newtype Ghc a = Ghc { unGhc :: Session -> IO a }
 -- interactive evaluation, and various caches.
 data Session = Session !(IORef HscEnv)
 
-instance Applicative Ghc where
-  pure a = Ghc $ \_ -> return a
-  g <*> m = do f <- g; a <- m; return (f a)
-
-instance Monad Ghc where
-  m >>= g  = Ghc $ \s -> do a <- unGhc m s; unGhc (g a) s
-
 instance MonadIO Ghc where
   liftIO ioA = Ghc $ \_ -> ioA
-
-instance MonadFix Ghc where
-  mfix f = Ghc $ \s -> mfix (\x -> unGhc (f x) s)
 
 instance HasDynFlags Ghc where
   getDynFlags = getSessionDynFlags
@@ -161,20 +157,10 @@ reifyGhc act = Ghc $ act
 -- Note that the wrapped monad must support IO and handling of exceptions.
 newtype GhcT m a = GhcT { unGhcT :: Session -> m a }
   deriving (Functor)
-  deriving (MonadThrow, MonadCatch, MonadMask) via (ReaderT Session m)
+  deriving (Applicative, Monad, MonadIO, MonadThrow, MonadCatch, MonadMask) via (ReaderT Session m)
 
 liftGhcT :: m a -> GhcT m a
 liftGhcT m = GhcT $ \_ -> m
-
-instance Applicative m => Applicative (GhcT m) where
-  pure x  = GhcT $ \_ -> pure x
-  g <*> m = GhcT $ \s -> unGhcT g s <*> unGhcT m s
-
-instance Monad m => Monad (GhcT m) where
-  m >>= k  = GhcT $ \s -> do a <- unGhcT m s; unGhcT (k a) s
-
-instance MonadIO m => MonadIO (GhcT m) where
-  liftIO ioA = GhcT $ \_ -> liftIO ioA
 
 instance MonadIO m => HasDynFlags (GhcT m) where
   getDynFlags = GhcT $ \(Session r) -> liftM hsc_dflags (liftIO $ readIORef r)

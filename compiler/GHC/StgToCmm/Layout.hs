@@ -59,12 +59,14 @@ import GHC.Unit
 
 import GHC.Utils.Misc
 import Data.List
+import GHC.Utils.Monad.RS.Lazy
 import GHC.Utils.Outputable
 import GHC.Utils.Panic
 import GHC.Utils.Panic.Plain
 import GHC.Utils.Constants (debugIsOn)
 import GHC.Data.FastString
 import Control.Monad
+import Lens.Micro (set)
 
 ------------------------------------------------------------------------
 --                Call and return sequences
@@ -148,7 +150,7 @@ adjustHpBackwards :: FCode ()
 -- It *does not* deal with high-water-mark adjustment.  That's done by
 -- functions which allocate heap.
 adjustHpBackwards
-  = do  { hp_usg <- getHpUsage
+  = do  { hp_usg <- cgs_hp_usg <$> get
         ; let rHp = realHp hp_usg
               vHp = virtHp hp_usg
               adjust_words = vHp -rHp
@@ -160,7 +162,7 @@ adjustHpBackwards
 
         ; tickyAllocHeap False adjust_words -- ...ditto
 
-        ; setRealHp vHp
+        ; modify (set (cgs_hp_usgL . virtHpL) vHp)
         }
 
 
@@ -400,7 +402,7 @@ getHpRelOffset :: VirtualHpOffset -> FCode CmmExpr
 -- See Note [Virtual and real heap pointers] in GHC.StgToCmm.Monad
 getHpRelOffset virtual_offset
   = do platform <- getPlatform
-       hp_usg <- getHpUsage
+       hp_usg <- cgs_hp_usg <$> get
        return (cmmRegOffW platform hpReg (hpRel (realHp hp_usg) virtual_offset))
 
 data FieldOffOrPadding a

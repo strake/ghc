@@ -1,3 +1,7 @@
+{-# LANGUAGE CPP #-}
+
+#include "lens.h"
+
 module GHC.Runtime.Context
    ( InteractiveContext (..)
    , InteractiveImport (..)
@@ -10,6 +14,7 @@ module GHC.Runtime.Context
    , icInteractiveModule
    , icInScopeTTs
    , icPrintUnqual
+   , ic_fix_envL, ic_monadL
    )
 where
 
@@ -248,6 +253,9 @@ data InteractiveContext
              -- ^ Cache of loaded plugins. We store them here to avoid having to
              -- load them everytime we switch to the interctive context.
     }
+
+ic_fix_envL LENS_FIELD(ic_fix_env)
+ic_monadL LENS_FIELD(ic_monad)
 
 data InteractiveImport
   = IIDecl (ImportDecl GhcPs)

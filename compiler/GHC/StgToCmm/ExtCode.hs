@@ -60,6 +60,7 @@ import GHC.Types.Unique
 import GHC.Types.Unique.Supply
 
 import Control.Monad (ap)
+import Control.Monad.Fix (mfix)
 
 -- | The environment contains variable definitions or blockids.
 data Named
@@ -123,7 +124,7 @@ getPtrOpts = EC (\_ _ d -> (d,) <$> F.getPtrOpts)
 loopDecls :: CmmParse a -> CmmParse a
 loopDecls (EC fcode) =
       EC $ \c e globalDecls -> do
-        (_, a) <- F.fixC $ \ ~(decls, _) ->
+        (_, a) <- mfix $ \ ~(decls, _) ->
           fcode c (addListToUFM e decls) globalDecls
         return (globalDecls, a)
 

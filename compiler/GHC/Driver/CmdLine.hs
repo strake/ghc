@@ -11,7 +11,7 @@
 module GHC.Driver.CmdLine
     (
       processArgs, OptKind(..), GhcFlagMode(..),
-      CmdLineP(..), getCmdLineState, putCmdLineState,
+      CmdLineP, runCmdLine, getCmdLineState, putCmdLineState,
       Flag(..), defFlag, defGhcFlag, defGhciFlag, defHiddenFlag,
       errorsToGhcException,
 
@@ -34,7 +34,9 @@ import GHC.Utils.Json
 import Data.Function
 import Data.List
 
-import Control.Monad (liftM, ap)
+import Control.Monad (ap)
+import Control.Monad.Trans.State (State, runState)
+import qualified Control.Monad.Trans.State as State
 
 --------------------------------------------------------
 --         The Flag and OptKind types
@@ -114,9 +116,7 @@ type Warns = Bag Warn
 newtype EwM m a = EwM { unEwM :: Located String -- Current parse arg
                               -> Errs -> Warns
                               -> m (Errs, Warns, a) }
-
-instance Monad m => Functor (EwM m) where
-    fmap = liftM
+  deriving (Functor)
 
 instance Monad m => Applicative (EwM m) where
     pure v = EwM (\_ e w -> return (e, w, v))
@@ -162,24 +162,14 @@ liftEwM action = EwM (\_ es ws -> do { r <- action; return (es, ws, r) })
 --------------------------------------------------------
 
 -- (CmdLineP s) typically instantiates the 'm' in (EwM m) and (OptKind m)
-newtype CmdLineP s a = CmdLineP { runCmdLine :: s -> (a, s) }
-    deriving (Functor)
-
-instance Applicative (CmdLineP s) where
-    pure a = CmdLineP $ \s -> (a, s)
-    (<*>) = ap
-
-instance Monad (CmdLineP s) where
-    m >>= k = CmdLineP $ \s ->
-                  let (a, s') = runCmdLine m s
-                  in runCmdLine (k a) s'
-
+type CmdLineP s = State s
 
 getCmdLineState :: CmdLineP s s
-getCmdLineState   = CmdLineP $ \s -> (s,s)
+getCmdLineState = State.get
 putCmdLineState :: s -> CmdLineP s ()
-putCmdLineState s = CmdLineP $ \_ -> ((),s)
-
+putCmdLineState = State.put
+runCmdLine :: CmdLineP s a -> s -> (a, s)
+runCmdLine = runState
 
 --------------------------------------------------------
 --         Processing arguments

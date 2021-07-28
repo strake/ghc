@@ -47,6 +47,7 @@ import GHC.Types.CostCentre ( CostCentreStack, currentCCS )
 import GHC.Data.Maybe
 import GHC.Utils.Misc
 import GHC.Data.FastString
+import GHC.Utils.Monad.RS.Lazy
 import GHC.Utils.Outputable
 import GHC.Utils.Panic
 import GHC.Utils.Panic.Plain
@@ -427,7 +428,7 @@ cgCase (StgOpApp (StgPrimOp SeqOp) [StgVarArg a, _] _) bndr alt_type alts
 cgCase scrut bndr alt_type alts
   = -- the general case
     do { platform <- getPlatform
-       ; up_hp_usg <- getVirtHp        -- Upstream heap usage
+       ; up_hp_usg <- virtHp . cgs_hp_usg <$> get        -- Upstream heap usage
        ; let ret_bndrs = chooseReturnBndrs bndr alt_type alts
              alt_regs  = map (idToReg platform) ret_bndrs
        ; simple_scrut <- isSimpleScrut scrut alt_type

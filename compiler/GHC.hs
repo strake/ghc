@@ -32,7 +32,7 @@ module GHC (
         GhcMode(..), GhcLink(..),
         parseDynamicFlags,
         getSessionDynFlags, setSessionDynFlags,
-        getProgramDynFlags, setProgramDynFlags, setLogAction,
+        getProgramDynFlags, setProgramDynFlags,
         getInteractiveDynFlags, setInteractiveDynFlags,
         interpretPackageEnv,
 
@@ -406,6 +406,7 @@ import System.FilePath
 import Control.Concurrent
 import Control.Applicative ((<|>))
 import Control.Monad.Catch as MC
+import Lens.Micro (over, set)
 
 import GHC.Data.Maybe
 import System.IO.Error  ( isDoesNotExistError )
@@ -677,15 +678,6 @@ setSessionDynFlags dflags = do
 setProgramDynFlags :: GhcMonad m => DynFlags -> m [UnitId]
 setProgramDynFlags dflags = setProgramDynFlags_ True dflags
 
--- | Set the action taken when the compiler produces a message.  This
--- can also be accomplished using 'setProgramDynFlags', but using
--- 'setLogAction' avoids invalidating the cached module graph.
-setLogAction :: GhcMonad m => LogAction -> m ()
-setLogAction action = do
-  dflags' <- getProgramDynFlags
-  void $ setProgramDynFlags_ False $
-    dflags' { log_action = action }
-
 setProgramDynFlags_ :: GhcMonad m => Bool -> DynFlags -> m [UnitId]
 setProgramDynFlags_ invalidate_needed dflags = do
   dflags' <- checkNewDynFlags dflags
@@ -694,7 +686,7 @@ setProgramDynFlags_ invalidate_needed dflags = do
     if (packageFlagsChanged dflags_prev dflags')
        then liftIO $ initPackages dflags'
        else return (dflags', [])
-  modifySession $ \h -> h{ hsc_dflags = dflags'' }
+  modifySession $ set hsc_dflagsL dflags''
   when invalidate_needed $ invalidateModSummaryCache
   return preload
 
@@ -719,8 +711,7 @@ setProgramDynFlags_ invalidate_needed dflags = do
 -- correct ModSummary.
 --
 invalidateModSummaryCache :: GhcMonad m => m ()
-invalidateModSummaryCache =
-  modifySession $ \h -> h { hsc_mod_graph = mapMG inval (hsc_mod_graph h) }
+invalidateModSummaryCache = modifySession $ over hsc_mod_graphL $ mapMG inval
  where
   inval ms = ms { ms_hs_date = addUTCTime (-1) (ms_hs_date ms) }
 
@@ -813,15 +804,12 @@ getTargets = withSession (return . hsc_targets)
 
 -- | Add another target.
 addTarget :: GhcMonad m => Target -> m ()
-addTarget target
-  = modifySession (\h -> h{ hsc_targets = target : hsc_targets h })
+addTarget target = modifySession $ over hsc_targetsL (target :)
 
 -- | Remove a target
 removeTarget :: GhcMonad m => TargetId -> m ()
-removeTarget target_id
-  = modifySession (\h -> h{ hsc_targets = filter (hsc_targets h) })
-  where
-   filter targets = [ t | t@(Target id _ _) <- targets, id /= target_id ]
+removeTarget target_id = modifySession $ over hsc_targetsL $ \ targets ->
+  [ t | t@(Target id _ _) <- targets, id /= target_id ]
 
 -- | Attempts to guess what Target a string refers to.  This function
 -- implements the @--make@/GHCi command-line syntax for filenames:
@@ -1085,7 +1073,7 @@ loadModule tcm = do
                                     hsc_env ms 1 1 Nothing mb_linkable
                                     source_modified
 
-   modifySession $ \e -> e{ hsc_HPT = addToHpt (hsc_HPT e) mod mod_info }
+   modifySession $ over hsc_HPTL $ addToHpt `flip` mod `flip` mod_info
    return tcm
 
 
@@ -1607,9 +1595,7 @@ moduleTrustReqs m = withSession $ \hsc_env ->
 setGHCiMonad :: GhcMonad m => String -> m ()
 setGHCiMonad name = withSession $ \hsc_env -> do
     ty <- liftIO $ hscIsGHCiMonad hsc_env name
-    modifySession $ \s ->
-        let ic = (hsc_IC s) { ic_monad = ty }
-        in s { hsc_IC = ic }
+    modifySession $ set (hsc_ICL . ic_monadL) ty
 
 -- | Get the monad GHCi lifts user statements into.
 getGHCiMonad :: GhcMonad m => m Name

@@ -38,6 +38,7 @@ import GHC.Utils.Monad ( zipWith3M )
 import Data.Foldable ( foldrM )
 
 import Control.Arrow ( first )
+import Control.Monad.Trans.Reader (ReaderT (..))
 
 {-
 Note [The flattening story]
@@ -490,16 +491,8 @@ eqFlattenMode _  _ = False
 -- See Note [The flattening work list].
 newtype FlatM a
   = FlatM { runFlatM :: FlattenEnv -> TcS a }
-  deriving (Functor)
-
-instance Monad FlatM where
-  m >>= k  = FlatM $ \env ->
-             do { a  <- runFlatM m env
-                ; runFlatM (k a) env }
-
-instance Applicative FlatM where
-  pure x = FlatM $ const (pure x)
-  (<*>) = ap
+  deriving stock (Functor)
+  deriving (Applicative, Monad) via ReaderT FlattenEnv TcS
 
 liftTcS :: TcS a -> FlatM a
 liftTcS thing_inside
