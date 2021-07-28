@@ -4,7 +4,7 @@ Authors: George Karachalias <george.karachalias@cs.kuleuven.be>
          Ryan Scott <ryan.gl.scott@gmail.com>
 -}
 
-{-# LANGUAGE CPP, LambdaCase, TupleSections, PatternSynonyms, ViewPatterns, MultiWayIf #-}
+{-# LANGUAGE TupleSections, PatternSynonyms, ViewPatterns, MultiWayIf #-}
 
 -- | The pattern match oracle. The main export of the module are the functions
 -- 'addPmCts' for adding facts to the oracle, and 'provideEvidence' to turn a

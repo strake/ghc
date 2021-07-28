@@ -6,8 +6,6 @@
 
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE LambdaCase #-}
 
 -- | The deriving code for the Functor, Foldable, and Traversable classes
 module GHC.Tc.Deriv.Functor

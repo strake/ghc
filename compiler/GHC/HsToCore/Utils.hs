@@ -8,8 +8,6 @@ Utilities for desugaring
 This module exports some utility functions of no great interest.
 -}
 
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ViewPatterns #-}
 

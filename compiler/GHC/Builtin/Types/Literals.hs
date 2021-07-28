@@ -1,5 +1,3 @@
-{-# LANGUAGE LambdaCase #-}
-
 module GHC.Builtin.Types.Literals
   ( typeNatTyCons
   , typeNatCoAxiomRules

@@ -4,8 +4,6 @@
 -}
 
 
-{-# LANGUAGE FlexibleContexts #-}
-
 -- | Module finder
 module GHC.Unit.Finder (
     FindResult(..),

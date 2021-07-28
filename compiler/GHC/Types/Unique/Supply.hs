@@ -8,7 +8,6 @@
     -- See Note [Optimising the unique supply]
 
 {-# LANGUAGE CPP #-}
-{-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE BangPatterns #-}
 

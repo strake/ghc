@@ -1,4 +1,3 @@
-{-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE UnboxedTuples #-}
 
 module GHC.Utils.Monad.State where

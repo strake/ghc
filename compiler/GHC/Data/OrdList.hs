@@ -4,8 +4,6 @@
 
 
 -}
-{-# LANGUAGE DeriveFunctor #-}
-
 {-# LANGUAGE BangPatterns #-}
 
 -- | Provide trees (of instructions), so that lists of instructions can be

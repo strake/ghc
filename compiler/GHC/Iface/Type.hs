@@ -8,12 +8,10 @@ This module defines interface types and binders
 
 
 {-# LANGUAGE CPP #-}
-{-# LANGUAGE FlexibleInstances #-}
   -- FlexibleInstances for Binary (DefMethSpec IfaceType)
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE TupleSections #-}
-{-# LANGUAGE LambdaCase #-}
 
 #if !MIN_VERSION_GLASGOW_HASKELL(8,10,0,0)
 {-# OPTIONS_GHC -Wno-overlapping-patterns -Wno-incomplete-patterns #-}

@@ -6,7 +6,6 @@
 
 
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TypeFamilies #-}
 
 module GHC.Stg.Pipeline ( stg2stg ) where

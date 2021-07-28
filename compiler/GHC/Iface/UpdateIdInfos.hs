@@ -1,4 +1,4 @@
-{-# LANGUAGE CPP, BangPatterns, Strict, RecordWildCards #-}
+{-# LANGUAGE BangPatterns, Strict, RecordWildCards #-}
 
 module GHC.Iface.UpdateIdInfos
   ( updateModDetailsIdInfos

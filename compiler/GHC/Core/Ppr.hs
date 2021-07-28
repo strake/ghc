@@ -7,7 +7,6 @@ Printing of Core syntax
 -}
 
 {-# LANGUAGE MultiWayIf #-}
-{-# LANGUAGE LambdaCase #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module GHC.Core.Ppr (

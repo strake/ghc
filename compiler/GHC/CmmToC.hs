@@ -1,5 +1,4 @@
-{-# LANGUAGE DeriveFunctor, GADTs, PatternSynonyms #-}
-{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE GADTs, PatternSynonyms #-}
 
 -----------------------------------------------------------------------------
 --
