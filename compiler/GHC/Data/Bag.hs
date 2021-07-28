@@ -35,7 +35,6 @@ import Control.Monad
 import Data.Data
 import Data.Maybe( mapMaybe )
 import Data.List ( partition, mapAccumL )
-import qualified Data.Foldable as Foldable
 
 infixr 3 `consBag`
 infixl 3 `snocBag`
@@ -45,7 +44,7 @@ data Bag a
   | UnitBag a
   | TwoBags (Bag a) (Bag a) -- INVARIANT: neither branch is empty
   | ListBag [a]             -- INVARIANT: the list is non-empty
-  deriving (Functor)
+  deriving (Foldable, Functor, Traversable)
 
 emptyBag :: Bag a
 emptyBag = EmptyBag
@@ -311,25 +310,3 @@ instance Data a => Data (Bag a) where
   gunfold _ _  = error "gunfold"
   dataTypeOf _ = mkNoRepType "Bag"
   dataCast1 x  = gcast1 x
-
-instance Foldable.Foldable Bag where
-  foldr _ z EmptyBag        = z
-  foldr k z (UnitBag x)     = k x z
-  foldr k z (TwoBags b1 b2) = foldr k (foldr k z b2) b1
-  foldr k z (ListBag xs)    = foldr k z xs
-
-  foldl _ z EmptyBag        = z
-  foldl k z (UnitBag x)     = k z x
-  foldl k z (TwoBags b1 b2) = foldl k (foldl k z b1) b2
-  foldl k z (ListBag xs)    = foldl k z xs
-
-  foldl' _ z EmptyBag        = z
-  foldl' k z (UnitBag x)     = k z x
-  foldl' k z (TwoBags b1 b2) = let r1 = foldl' k z b1 in seq r1 $ foldl' k r1 b2
-  foldl' k z (ListBag xs)    = foldl' k z xs
-
-instance Traversable Bag where
-  traverse _ EmptyBag        = pure EmptyBag
-  traverse f (UnitBag x)     = UnitBag <$> f x
-  traverse f (TwoBags b1 b2) = TwoBags <$> traverse f b1 <*> traverse f b2
-  traverse f (ListBag xs)    = ListBag <$> traverse f xs

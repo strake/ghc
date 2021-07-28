@@ -71,6 +71,8 @@ Library
                    hpc        == 0.6.*,
                    transformers == 0.5.*,
                    exceptions == 0.10.*,
+                   microlens  == 0.4.12.*,
+                   mtl        == 2.2.2,
                    ghc-boot   == @ProjectVersionMunged@,
                    ghc-boot-th == @ProjectVersionMunged@,
                    ghc-heap   == @ProjectVersionMunged@,
@@ -152,6 +154,7 @@ Library
         BinaryLiterals
         BlockArguments
         DeriveTraversable
+        DerivingVia
         EmptyCase
         FlexibleContexts
         FlexibleInstances
@@ -683,9 +686,11 @@ Library
         GHC.Utils.GlobalVars
         GHC.Utils.IO.Unsafe
         GHC.Utils.Json
+        GHC.Utils.Lens.Monad
         GHC.Utils.Lexeme
         GHC.Utils.Misc
         GHC.Utils.Monad
+        GHC.Utils.Monad.RS.Lazy
         GHC.Utils.Monad.State
         GHC.Utils.Outputable
         GHC.Utils.Outputable.Ppr

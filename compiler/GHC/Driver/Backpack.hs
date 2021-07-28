@@ -69,6 +69,7 @@ import System.Exit
 import Control.Monad
 import System.FilePath
 import Data.Version
+import Lens.Micro (over, set)
 
 -- for the unification
 import Data.IORef
@@ -83,7 +84,7 @@ doBackpack [src_filename] = do
     let dflags1 = dflags0
     src_opts <- liftIO $ getOptionsFromFile dflags1 src_filename
     (dflags, unhandled_flags, warns) <- liftIO $ parseDynamicFilePragma dflags1 src_opts
-    modifySession (\hsc_env -> hsc_env {hsc_dflags = dflags})
+    modifySession $ set hsc_dflagsL dflags
     -- Cribbed from: preprocessFile / GHC.Driver.Pipeline
     liftIO $ checkProcessArgsResult dflags unhandled_flags
     liftIO $ handleFlagWarnings dflags warns
@@ -163,7 +164,7 @@ withBkpSession cid insts deps session_type do_this = do
                  -- Special case when package is definite
                  , not (null insts) = sub_comp (key_base p) </> uid_str
                  | otherwise = sub_comp (key_base p)
-    withTempSession (overHscDynFlags (\dflags ->
+    withTempSession (over hsc_dflagsL $ \dflags ->
       -- If we're type-checking an indefinite package, we want to
       -- turn on interface writing.  However, if the user also
       -- explicitly passed in `-fno-code`, we DON'T want to write
@@ -209,7 +210,7 @@ withBkpSession cid insts deps session_type do_this = do
             (showSDoc dflags
                 (text "-unit-id" <+> ppr uid <+> ppr rn))
             (UnitIdArg uid) rn) deps
-      } )) $ do
+      } ) $ do
         dflags <- getSessionDynFlags
         -- pprTrace "flags" (ppr insts <> ppr deps) $ return ()
         -- Calls initPackages
@@ -459,10 +460,6 @@ getBkpEnv = getEnv
 -- | Get the nesting level, when recursively compiling modules.
 getBkpLevel :: BkpM Int
 getBkpLevel = bkp_level `fmap` getBkpEnv
-
--- | Apply a function on 'DynFlags' on an 'HscEnv'
-overHscDynFlags :: (DynFlags -> DynFlags) -> HscEnv -> HscEnv
-overHscDynFlags f hsc_env = hsc_env { hsc_dflags = f (hsc_dflags hsc_env) }
 
 -- | Run a 'BkpM' computation, with the nesting level bumped one.
 innerBkpM :: BkpM a -> BkpM a

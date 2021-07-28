@@ -56,11 +56,12 @@ import qualified Data.ByteString as BS
 import Control.Monad.ST
 import Data.Bits
 import Data.Char
+import Data.Functor.Identity (Identity (..))
 import Data.List (intersperse)
 import Data.Map (Map)
 import Data.Word
 import qualified Data.Map as Map
-import Control.Monad (ap)
+import Control.Monad.Trans.State (State, StateT (..))
 import qualified Data.Array.Unsafe as U ( castSTUArray )
 import Data.Array.ST
 
@@ -1071,14 +1072,9 @@ pprExternDecl platform lbl
         <> semi
 
 type TEState = (UniqSet LocalReg, Map CLabel ())
-newtype TE a = TE { unTE :: TEState -> (a, TEState) } deriving (Functor)
-
-instance Applicative TE where
-      pure a = TE $ \s -> (a, s)
-      (<*>) = ap
-
-instance Monad TE where
-   TE m >>= k  = TE $ \s -> case m s of (a, s') -> unTE (k a) s'
+newtype TE a = TE { unTE :: TEState -> (a, TEState) }
+  deriving stock (Functor)
+  deriving (Applicative, Monad) via State TEState
 
 te_lbl :: CLabel -> TE ()
 te_lbl lbl = TE $ \(temps,lbls) -> ((), (temps, Map.insert lbl () lbls))

@@ -177,6 +177,7 @@ import GHC.Data.Maybe
 
 import GHC.Core.Map
 import Control.Monad
+import Control.Monad.Trans.Reader (ReaderT (..))
 import GHC.Utils.Monad
 import Data.IORef
 import Data.List ( partition, mapAccumL )
@@ -2684,17 +2685,9 @@ data TcSEnv
     }
 
 ---------------
-newtype TcS a = TcS { unTcS :: TcSEnv -> TcM a } deriving (Functor)
-
-instance Applicative TcS where
-  pure x = TcS (\_ -> return x)
-  (<*>) = ap
-
-instance Monad TcS where
-  m >>= k   = TcS (\ebs -> unTcS m ebs >>= \r -> unTcS (k r) ebs)
-
-instance MonadFail TcS where
-  fail err  = TcS (\_ -> fail err)
+newtype TcS a = TcS { unTcS :: TcSEnv -> TcM a }
+  deriving stock (Functor)
+  deriving (Applicative, Monad, MonadFail) via ReaderT TcSEnv TcM
 
 instance MonadUnique TcS where
    getUniqueSupplyM = wrapTcS getUniqueSupplyM

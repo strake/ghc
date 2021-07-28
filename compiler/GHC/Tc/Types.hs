@@ -136,7 +136,7 @@ import GHC.Utils.Panic
 
 import GHC.Builtin.Names ( isUnboundName )
 
-import Control.Monad (ap)
+import Control.Monad.Trans.Reader (ReaderT (..))
 import Data.Set      ( Set )
 import qualified Data.Set as S
 import Data.List ( sort )
@@ -1612,19 +1612,9 @@ type TcPluginSolver = [Ct]    -- given
                    -> [Ct]    -- wanted
                    -> TcPluginM TcPluginResult
 
-newtype TcPluginM a = TcPluginM (EvBindsVar -> TcM a) deriving (Functor)
-
-instance Applicative TcPluginM where
-  pure x = TcPluginM (const $ pure x)
-  (<*>) = ap
-
-instance Monad TcPluginM where
-  TcPluginM m >>= k =
-    TcPluginM (\ ev -> do a <- m ev
-                          runTcPluginM (k a) ev)
-
-instance MonadFail TcPluginM where
-  fail x   = TcPluginM (const $ fail x)
+newtype TcPluginM a = TcPluginM (EvBindsVar -> TcM a)
+  deriving stock (Functor)
+  deriving (Applicative, Monad, MonadFail) via ReaderT EvBindsVar TcM
 
 runTcPluginM :: TcPluginM a -> EvBindsVar -> TcM a
 runTcPluginM (TcPluginM m) = m

@@ -2150,6 +2150,7 @@ data ParseResult a
       PState -- ^ The parsing state right before failure, including the fatal
              --   parse error. 'getMessages' and 'getErrorMessages' must return
              --   a non-empty bag of errors.
+  deriving (Functor)
 
 -- | Test whether a 'WarningFlag' is set
 warnopt :: WarningFlag -> ParserOpts -> Bool
@@ -2222,9 +2223,7 @@ data ALRLayout = ALRLayoutLet
 
 -- | The parsing monad, isomorphic to @StateT PState Maybe@.
 newtype P a = P { unP :: PState -> ParseResult a }
-
-instance Functor P where
-  fmap = liftM
+  deriving stock (Functor)
 
 instance Applicative P where
   pure = returnP

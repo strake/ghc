@@ -1,25 +1,28 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE NamedFieldPuns #-}
+
+#include "lens.h"
+
 -- | The CompPipeline monad and associated ops
 --
 -- Defined in separate module so that it can safely be imported from Hooks
 module GHC.Driver.Pipeline.Monad (
-    CompPipeline(..), evalP
+    CompPipeline, evalP
   , PhasePlus(..)
   , PipeEnv(..), PipeState(..), PipelineOutput(..)
   , getPipeEnv, getPipeState, getPipeSession
-  , setDynFlags, setModLocation, setForeignOs, setIface
-  , pipeStateDynFlags, pipeStateModIface, setPlugins
+  , pipeStateDynFlags, pipeStateModIface
+  , hsc_envL, maybe_locL, foreign_osL, ifaceL
   ) where
 
 import GHC.Prelude
 
-import GHC.Utils.Monad
+import GHC.Utils.Monad.RS.Lazy
 import GHC.Utils.Outputable
 
 import GHC.Driver.Session
 import GHC.Driver.Phases
 import GHC.Driver.Env
-import GHC.Driver.Plugins
 
 import GHC.SysTools.FileCleanup (TempFileLifetime)
 
@@ -30,24 +33,12 @@ import GHC.Unit.Module.ModDetails
 import GHC.Unit.Module.ModIface
 import GHC.Unit.Module.Status
 
-import Control.Monad
+import Data.Tuple (swap)
 
-newtype CompPipeline a = P { unP :: PipeEnv -> PipeState -> IO (PipeState, a) }
-    deriving (Functor)
+type CompPipeline = RST PipeEnv PipeState IO
 
 evalP :: CompPipeline a -> PipeEnv -> PipeState -> IO (PipeState, a)
-evalP (P f) env st = f env st
-
-instance Applicative CompPipeline where
-    pure a = P $ \_env state -> return (state, a)
-    (<*>) = ap
-
-instance Monad CompPipeline where
-  P m >>= k = P $ \env state -> do (state',a) <- m env state
-                                   unP (k a) env state'
-
-instance MonadIO CompPipeline where
-    liftIO m = P $ \_env state -> do a <- m; return (state, a)
+evalP (RST f) env st = swap <$> f env st
 
 data PhasePlus = RealPhase Phase
                | HscOut HscSource ModuleName HscStatus
@@ -86,6 +77,11 @@ data PipeState = PipeState {
          -- phase runs.
   }
 
+hsc_envL LENS_FIELD(hsc_env)
+maybe_locL LENS_FIELD(maybe_loc)
+foreign_osL LENS_FIELD(foreign_os)
+ifaceL LENS_FIELD(iface)
+
 pipeStateDynFlags :: PipeState -> DynFlags
 pipeStateDynFlags = hsc_dflags . hsc_env
 
@@ -107,33 +103,13 @@ data PipelineOutput
     deriving Show
 
 getPipeEnv :: CompPipeline PipeEnv
-getPipeEnv = P $ \env state -> return (state, env)
+getPipeEnv = ask
 
 getPipeState :: CompPipeline PipeState
-getPipeState = P $ \_env state -> return (state, state)
+getPipeState = get
 
 getPipeSession :: CompPipeline HscEnv
-getPipeSession = P $ \_env state -> pure (state, hsc_env state)
+getPipeSession = hsc_env <$> get
 
 instance HasDynFlags CompPipeline where
     getDynFlags = hsc_dflags <$> getPipeSession
-
-setDynFlags :: DynFlags -> CompPipeline ()
-setDynFlags dflags = P $ \_env state ->
-  return (state{hsc_env= (hsc_env state){ hsc_dflags = dflags }}, ())
-
-setPlugins :: [LoadedPlugin] -> [StaticPlugin] -> CompPipeline ()
-setPlugins dyn static = P $ \_env state ->
-  let hsc_env' = (hsc_env state){ hsc_plugins = dyn, hsc_static_plugins = static }
-  in return (state{hsc_env = hsc_env'}, ())
-
-setModLocation :: ModLocation -> CompPipeline ()
-setModLocation loc = P $ \_env state ->
-  return (state{ maybe_loc = Just loc }, ())
-
-setForeignOs :: [FilePath] -> CompPipeline ()
-setForeignOs os = P $ \_env state ->
-  return (state{ foreign_os = os }, ())
-
-setIface :: ModIface -> ModDetails -> CompPipeline ()
-setIface iface details = P $ \_env state -> return (state{ iface = Just (iface, details) }, ())

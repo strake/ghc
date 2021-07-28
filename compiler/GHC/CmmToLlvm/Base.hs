@@ -63,7 +63,7 @@ import GHC.Utils.Error
 import qualified GHC.Data.Stream as Stream
 
 import Data.Maybe (fromJust)
-import Control.Monad (ap)
+import Control.Monad.Trans.State (StateT (..))
 import Data.Char (isDigit)
 import Data.List (sortBy, groupBy, intercalate)
 import Data.Ord (comparing)
@@ -318,14 +318,7 @@ type LlvmEnvMap = UniqFM Unique LlvmType
 -- | The Llvm monad. Wraps @LlvmEnv@ state as well as the @IO@ monad
 newtype LlvmM a = LlvmM { runLlvmM :: LlvmEnv -> IO (a, LlvmEnv) }
     deriving (Functor)
-
-instance Applicative LlvmM where
-    pure x = LlvmM $ \env -> return (x, env)
-    (<*>) = ap
-
-instance Monad LlvmM where
-    m >>= f  = LlvmM $ \env -> do (x, env') <- runLlvmM m env
-                                  runLlvmM (f x) env'
+    deriving (Applicative, Monad) via StateT LlvmEnv IO
 
 instance HasDynFlags LlvmM where
     getDynFlags = LlvmM $ \env -> return (envDynFlags env, env)

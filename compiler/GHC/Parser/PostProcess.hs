@@ -2923,12 +2923,11 @@ data PV_Accum =
     }
 
 data PV_Result a = PV_Ok PV_Accum a | PV_Failed PV_Accum
+  deriving stock (Functor)
 
 -- See Note [Parser-Validator]
 newtype PV a = PV { unPV :: PV_Context -> PV_Accum -> PV_Result a }
-
-instance Functor PV where
-  fmap = liftM
+  deriving stock (Functor)
 
 instance Applicative PV where
   pure a = a `seq` PV (\_ acc -> PV_Ok acc a)

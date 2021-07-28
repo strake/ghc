@@ -1,5 +1,9 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE NamedFieldPuns #-}
+
+#include "lens.h"
 
 -----------------------------------------------------------------------------
 --
@@ -12,7 +16,7 @@
 module GHC.StgToCmm.Monad (
         FCode,        -- type
 
-        initC, runC, fixC,
+        initC, runC,
         newUnique,
 
         emitLabel,
@@ -43,18 +47,17 @@ module GHC.StgToCmm.Monad (
 
         withUpdFrameOff, getUpdFrameOff, initUpdFrameOff,
 
-        HeapUsage(..), VirtualHpOffset,        initHpUsage,
-        getHpUsage,  setHpUsage, heapHWM,
-        setVirtHp, getVirtHp, setRealHp,
+        HeapUsage(..), VirtualHpOffset, initHpUsage,
+        cgs_hp_usgL, heapHWM, virtHpL, realHpL,
 
         getModuleName,
 
         -- ideally we wouldn't export these, but some other modules access internal state
-        getState, setState, getSelfLoop, withSelfLoop, getInfoDown, getDynFlags,
+        getSelfLoop, withSelfLoop, getDynFlags,
 
         -- more localised access to monad state
         CgIdInfo(..),
-        getBinds, setBinds,
+        cgs_bindsL,
 
         -- out of general friendliness, we also export ...
         CgInfoDownwards(..), CgState(..)        -- non-abstract
@@ -68,7 +71,8 @@ import GHC.Cmm
 import GHC.StgToCmm.Closure
 import GHC.Driver.Session
 import GHC.Cmm.Dataflow.Collections
-import GHC.Cmm.Graph as CmmGraph
+import GHC.Cmm.Graph hiding ((<*>))
+import qualified GHC.Cmm.Graph as CmmGraph
 import GHC.Cmm.BlockId
 import GHC.Cmm.CLabel
 import GHC.Cmm.Info
@@ -81,13 +85,17 @@ import GHC.Types.Basic( ConTagZ )
 import GHC.Types.Unique
 import GHC.Types.Unique.Supply
 import GHC.Data.FastString
+import GHC.Utils.Lens.Monad
+import GHC.Utils.Monad.RS.Lazy
 import GHC.Utils.Outputable
 import GHC.Utils.Panic
 import GHC.Utils.Constants (debugIsOn)
+import GHC.Data.Pair (Pair (..))
 
+import Lens.Micro (over, set)
 import Control.Monad
 import Data.List
-
+import Data.Tuple (swap)
 
 
 --------------------------------------------------------
@@ -116,40 +124,22 @@ import Data.List
 
 --------------------------------------------------------
 
-newtype FCode a = FCode { doFCode :: CgInfoDownwards -> CgState -> (a, CgState) }
-    deriving (Functor)
+type FCode = RS CgInfoDownwards CgState
 
-instance Applicative FCode where
-    pure val = FCode (\_info_down state -> (val, state))
-    {-# INLINE pure #-}
-    (<*>) = ap
-
-instance Monad FCode where
-    FCode m >>= k = FCode $
-        \info_down state ->
-            case m info_down state of
-              (m_result, new_state) ->
-                 case k m_result of
-                   FCode kcode -> kcode info_down new_state
-    {-# INLINE (>>=) #-}
+doFCode :: FCode a -> CgInfoDownwards -> CgState -> (a, CgState)
+doFCode = runRS
 
 instance MonadUnique FCode where
-  getUniqueSupplyM = cgs_uniqs <$> getState
-  getUniqueM = FCode $ \_ st ->
+  getUniqueSupplyM = cgs_uniqs <$> get
+  getUniqueM = state $ \st ->
     let (u, us') = takeUniqFromSupply (cgs_uniqs st)
     in (u, st { cgs_uniqs = us' })
 
 initC :: IO CgState
-initC  = do { uniqs <- mkSplitUniqSupply 'c'
-            ; return (initCgState uniqs) }
+initC  = initCgState <$> mkSplitUniqSupply 'c'
 
 runC :: DynFlags -> Module -> CgState -> FCode a -> (a,CgState)
 runC dflags mod st fcode = doFCode fcode (initCgInfoDown dflags mod) st
-
-fixC :: (a -> FCode a) -> FCode a
-fixC fcode = FCode $
-    \info_down state -> let (v, s) = doFCode (fcode v) info_down state
-                        in (v, s)
 
 --------------------------------------------------------
 --        The code generator environment
@@ -172,6 +162,14 @@ data CgInfoDownwards        -- information only passed *downwards* by the monad
                                             -- GHC.StgToCmm.Expr
         cgd_tick_scope:: CmmTickScope       -- Tick scope for new blocks & ticks
   }
+
+cgd_dflagsL LENS_FIELD(cgd_dflags)
+cgd_modL LENS_FIELD(cgd_mod)
+cgd_updfr_offL LENS_FIELD(cgd_updfr_off)
+cgd_tickyL LENS_FIELD(cgd_ticky)
+cgd_sequelL LENS_FIELD(cgd_sequel)
+cgd_self_loopL LENS_FIELD(cgd_self_loop)
+cgd_tick_scopeL LENS_FIELD(cgd_tick_scope)
 
 type CgBindings = IdEnv CgIdInfo
 
@@ -321,6 +319,9 @@ data HeapUsage   -- See Note [Virtual and real heap pointers]
                                          --   Used in instruction addressing modes
     }
 
+virtHpL LENS_FIELD(virtHp)
+realHpL LENS_FIELD(realHp)
+
 type VirtualHpOffset = WordOff
 
 
@@ -363,12 +364,17 @@ initCgState uniqs
               , cgs_hp_usg = initHpUsage
               , cgs_uniqs  = uniqs }
 
+cgs_stmtsL LENS_FIELD(cgs_stmts)
+cgs_topsL LENS_FIELD(cgs_tops)
+cgs_bindsL LENS_FIELD(cgs_binds)
+cgs_hp_usgL LENS_FIELD(cgs_hp_usg)
+cgs_uniqsL LENS_FIELD(cgs_uniqs)
+
 stateIncUsage :: CgState -> CgState -> CgState
 -- stateIncUsage@ e1 e2 incorporates in e1
 -- the heap high water mark found in e2.
-stateIncUsage s1 s2@(MkCgState { cgs_hp_usg = hp_usg })
-     = s1 { cgs_hp_usg  = cgs_hp_usg  s1 `maxHpHw`  virtHp hp_usg }
-       `addCodeBlocksFrom` s2
+stateIncUsage s1 s2@(MkCgState { cgs_hp_usg = HeapUsage { virtHp } })
+     = over (cgs_hp_usgL . virtHpL) (max virtHp) s1 `addCodeBlocksFrom` s2
 
 addCodeBlocksFrom :: CgState -> CgState -> CgState
 -- Add code blocks from the latter to the former
@@ -391,89 +397,29 @@ heapHWM = virtHp
 initHpUsage :: HeapUsage
 initHpUsage = HeapUsage { virtHp = 0, realHp = 0 }
 
-maxHpHw :: HeapUsage -> VirtualHpOffset -> HeapUsage
-hp_usg `maxHpHw` hw = hp_usg { virtHp = virtHp hp_usg `max` hw }
-
 --------------------------------------------------------
 -- Operators for getting and setting the state and "info_down".
 --------------------------------------------------------
 
-getState :: FCode CgState
-getState = FCode $ \_info_down state -> (state, state)
-
-setState :: CgState -> FCode ()
-setState state = FCode $ \_info_down _ -> ((), state)
-
-getHpUsage :: FCode HeapUsage
-getHpUsage = do
-        state <- getState
-        return $ cgs_hp_usg state
-
-setHpUsage :: HeapUsage -> FCode ()
-setHpUsage new_hp_usg = do
-        state <- getState
-        setState $ state {cgs_hp_usg = new_hp_usg}
-
-setVirtHp :: VirtualHpOffset -> FCode ()
-setVirtHp new_virtHp
-  = do  { hp_usage <- getHpUsage
-        ; setHpUsage (hp_usage {virtHp = new_virtHp}) }
-
-getVirtHp :: FCode VirtualHpOffset
-getVirtHp
-  = do  { hp_usage <- getHpUsage
-        ; return (virtHp hp_usage) }
-
-setRealHp ::  VirtualHpOffset -> FCode ()
-setRealHp new_realHp
-  = do  { hp_usage <- getHpUsage
-        ; setHpUsage (hp_usage {realHp = new_realHp}) }
-
-getBinds :: FCode CgBindings
-getBinds = do
-        state <- getState
-        return $ cgs_binds state
-
-setBinds :: CgBindings -> FCode ()
-setBinds new_binds = do
-        state <- getState
-        setState $ state {cgs_binds = new_binds}
-
 withState :: FCode a -> CgState -> FCode (a,CgState)
-withState (FCode fcode) newstate = FCode $ \info_down state ->
-  case fcode info_down newstate of
+withState fcode newstate = rs $ \ info_down state -> case runRS fcode info_down newstate of
     (retval, state2) -> ((retval,state2), state)
 
 newUniqSupply :: FCode UniqSupply
-newUniqSupply = do
-        state <- getState
-        let (us1, us2) = splitUniqSupply (cgs_uniqs state)
-        setState $ state { cgs_uniqs = us1 }
-        return us2
+newUniqSupply = stating cgs_uniqsL (swap . splitUniqSupply)
 
 newUnique :: FCode Unique
-newUnique = do
-        state <- getState
-        let (u,us') = takeUniqFromSupply (cgs_uniqs state)
-        setState $ state { cgs_uniqs = us' }
-        return u
+newUnique = stating cgs_uniqsL takeUniqFromSupply
 
 ------------------
-getInfoDown :: FCode CgInfoDownwards
-getInfoDown = FCode $ \info_down state -> (info_down,state)
-
 getSelfLoop :: FCode (Maybe SelfLoopInfo)
-getSelfLoop = do
-        info_down <- getInfoDown
-        return $ cgd_self_loop info_down
+getSelfLoop = cgd_self_loop <$> ask
 
 withSelfLoop :: SelfLoopInfo -> FCode a -> FCode a
-withSelfLoop self_loop code = do
-        info_down <- getInfoDown
-        withInfoDown code (info_down {cgd_self_loop = Just self_loop})
+withSelfLoop self_loop = locally cgd_self_loopL (\ _ -> Just self_loop)
 
 instance HasDynFlags FCode where
-    getDynFlags = liftM cgd_dflags getInfoDown
+    getDynFlags = cgd_dflags <$> ask
 
 getProfile :: FCode Profile
 getProfile = targetProfile <$> getDynFlags
@@ -482,45 +428,40 @@ getPlatform :: FCode Platform
 getPlatform = profilePlatform <$> getProfile
 
 getCallOpts :: FCode CallOpts
-getCallOpts = do
-   dflags <- getDynFlags
-   profile <- getProfile
-   pure $ CallOpts
+getCallOpts =
+  [ CallOpts
     { co_profile       = profile
     , co_loopification = gopt Opt_Loopification dflags
     , co_ticky         = gopt Opt_Ticky dflags
     }
+  | dflags <- getDynFlags
+  , profile <- getProfile
+  ]
 
 getPtrOpts :: FCode PtrOpts
-getPtrOpts = do
-   dflags <- getDynFlags
-   profile <- getProfile
-   pure $ PtrOpts
-      { po_profile     = profile
-      , po_align_check = gopt Opt_AlignmentSanitisation dflags
-      }
-
-
-withInfoDown :: FCode a -> CgInfoDownwards -> FCode a
-withInfoDown (FCode fcode) info_down = FCode $ \_ state -> fcode info_down state
+getPtrOpts =
+  [ PtrOpts
+    { po_profile     = profile
+    , po_align_check = gopt Opt_AlignmentSanitisation dflags
+    }
+  | dflags <- getDynFlags
+  , profile <- getProfile
+  ]
 
 -- ----------------------------------------------------------------------------
 -- Get the current module name
 
 getModuleName :: FCode Module
-getModuleName = do { info <- getInfoDown; return (cgd_mod info) }
+getModuleName = cgd_mod <$> ask
 
 -- ----------------------------------------------------------------------------
 -- Get/set the end-of-block info
 
 withSequel :: Sequel -> FCode a -> FCode a
-withSequel sequel code
-  = do  { info  <- getInfoDown
-        ; withInfoDown code (info {cgd_sequel = sequel, cgd_self_loop = Nothing }) }
+withSequel sequel = local (set cgd_sequelL sequel . set cgd_self_loopL Nothing)
 
 getSequel :: FCode Sequel
-getSequel = do  { info <- getInfoDown
-                ; return (cgd_sequel info) }
+getSequel = cgd_sequel <$> ask
 
 -- ----------------------------------------------------------------------------
 -- Get/set the size of the update frame
@@ -533,36 +474,26 @@ getSequel = do  { info <- getInfoDown
 -- in the size of the update frame -- hence the default case on `get'.
 
 withUpdFrameOff :: UpdFrameOffset -> FCode a -> FCode a
-withUpdFrameOff size code
-  = do  { info  <- getInfoDown
-        ; withInfoDown code (info {cgd_updfr_off = size }) }
+withUpdFrameOff size = local (set cgd_updfr_offL size)
 
 getUpdFrameOff :: FCode UpdFrameOffset
-getUpdFrameOff
-  = do  { info  <- getInfoDown
-        ; return $ cgd_updfr_off info }
+getUpdFrameOff = cgd_updfr_off <$> ask
 
 -- ----------------------------------------------------------------------------
 -- Get/set the current ticky counter label
 
 getTickyCtrLabel :: FCode CLabel
-getTickyCtrLabel = do
-        info <- getInfoDown
-        return (cgd_ticky info)
+getTickyCtrLabel = cgd_ticky <$> ask
 
 setTickyCtrLabel :: CLabel -> FCode a -> FCode a
-setTickyCtrLabel ticky code = do
-        info <- getInfoDown
-        withInfoDown code (info {cgd_ticky = ticky})
+setTickyCtrLabel = locally cgd_tickyL . pure
 
 -- ----------------------------------------------------------------------------
 -- Manage tick scopes
 
 -- | The current tick scope. We will assign this to generated blocks.
 getTickScope :: FCode CmmTickScope
-getTickScope = do
-        info <- getInfoDown
-        return (cgd_tick_scope info)
+getTickScope = cgd_tick_scope <$> ask
 
 -- | Places blocks generated by the given code into a fresh
 -- (sub-)scope. This will make sure that Cmm annotations in our scope
@@ -570,11 +501,11 @@ getTickScope = do
 -- way around.
 tickScope :: FCode a -> FCode a
 tickScope code = do
-        info <- getInfoDown
+        info <- ask
         if debugLevel (cgd_dflags info) == 0 then code else do
           u <- newUnique
           let scope' = SubScope u (cgd_tick_scope info)
-          withInfoDown code info{ cgd_tick_scope = scope' }
+          locally cgd_tick_scopeL (pure scope') code
 
 
 --------------------------------------------------------
@@ -591,15 +522,15 @@ forkClosureBody :: FCode () -> FCode ()
 
 forkClosureBody body_code
   = do  { platform <- getPlatform
-        ; info   <- getInfoDown
+        ; info   <- ask
         ; us     <- newUniqSupply
-        ; state  <- getState
+        ; state  <- get
         ; let body_info_down = info { cgd_sequel    = initSequel
                                     , cgd_updfr_off = initUpdFrameOff platform
                                     , cgd_self_loop = Nothing }
               fork_state_in = (initCgState us) { cgs_binds = cgs_binds state }
               ((),fork_state_out) = doFCode body_code body_info_down fork_state_in
-        ; setState $ state `addCodeBlocksFrom` fork_state_out }
+        ; put (state `addCodeBlocksFrom` fork_state_out) }
 
 forkLneBody :: FCode a -> FCode a
 -- 'forkLneBody' takes a body of let-no-escape binding and compiles
@@ -609,82 +540,71 @@ forkLneBody :: FCode a -> FCode a
 -- the successor.  In particular, any heap usage from the enclosed
 -- code is discarded; it should deal with its own heap consumption.
 forkLneBody body_code
-  = do  { info_down <- getInfoDown
+  = do  { info_down <- ask
         ; us        <- newUniqSupply
-        ; state     <- getState
+        ; state     <- get
         ; let fork_state_in = (initCgState us) { cgs_binds = cgs_binds state }
               (result, fork_state_out) = doFCode body_code info_down fork_state_in
-        ; setState $ state `addCodeBlocksFrom` fork_state_out
-        ; return result }
+        ; result <$ put (state `addCodeBlocksFrom` fork_state_out) }
 
 codeOnly :: FCode () -> FCode ()
 -- Emit any code from the inner thing into the outer thing
 -- Do not affect anything else in the outer state
 -- Used in almost-circular code to prevent false loop dependencies
 codeOnly body_code
-  = do  { info_down <- getInfoDown
+  = do  { info_down <- ask
         ; us        <- newUniqSupply
-        ; state     <- getState
+        ; state     <- get
         ; let   fork_state_in = (initCgState us) { cgs_binds   = cgs_binds state
                                                  , cgs_hp_usg  = cgs_hp_usg state }
                 ((), fork_state_out) = doFCode body_code info_down fork_state_in
-        ; setState $ state `addCodeBlocksFrom` fork_state_out }
+        ; put $ state `addCodeBlocksFrom` fork_state_out }
 
-forkAlts :: [FCode a] -> FCode [a]
+forkAlts :: Traversable t => t (FCode a) -> FCode (t a)
 -- (forkAlts' bs d) takes fcodes 'bs' for the branches of a 'case', and
 -- an fcode for the default case 'd', and compiles each in the current
 -- environment.  The current environment is passed on unmodified, except
 -- that the virtual Hp is moved on to the worst virtual Hp for the branches
 
 forkAlts branch_fcodes
-  = do  { info_down <- getInfoDown
+  = do  { info_down <- ask
         ; us <- newUniqSupply
-        ; state <- getState
-        ; let compile us branch
-                = (us2, doFCode branch info_down branch_state)
+        ; state <- get
+        ; let compile us branch = (us2, doFCode branch info_down branch_state)
                 where
                   (us1,us2) = splitUniqSupply us
-                  branch_state = (initCgState us1) {
-                                        cgs_binds  = cgs_binds state
+                  branch_state = (initCgState us1)
+                                      { cgs_binds  = cgs_binds state
                                       , cgs_hp_usg = cgs_hp_usg state }
               (_us, results) = mapAccumL compile us branch_fcodes
-              (branch_results, branch_out_states) = unzip results
-        ; setState $ foldl' stateIncUsage state branch_out_states
-                -- NB foldl.  state is the *left* argument to stateIncUsage
-        ; return branch_results }
+              (branch_results, branch_out_states) = (fst <$> results, snd <$> results)
+        ; branch_results <$ put (foldl' stateIncUsage state branch_out_states)
+                {- NB foldl.  state is the *left* argument to stateIncUsage -} }
 
 forkAltPair :: FCode a -> FCode a -> FCode (a,a)
 -- Most common use of 'forkAlts'; having this helper function avoids
 -- accidental use of failible pattern-matches in @do@-notation
-forkAltPair x y = do
-  xy' <- forkAlts [x,y]
-  case xy' of
-    [x',y'] -> return (x',y')
-    _ -> panic "forkAltPair"
+forkAltPair x y = (\ (Pair x' y') -> (x', y')) <$> forkAlts (Pair x y)
 
 -- collect the code emitted by an FCode computation
 getCodeR :: FCode a -> FCode (a, CmmAGraph)
 getCodeR fcode
-  = do  { state1 <- getState
+  = do  { state1 <- get
         ; (a, state2) <- withState fcode (state1 { cgs_stmts = mkNop })
-        ; setState $ state2 { cgs_stmts = cgs_stmts state1  }
-        ; return (a, cgs_stmts state2) }
+        ; (a, cgs_stmts state2) <$ put state2 { cgs_stmts = cgs_stmts state1 } }
 
 getCode :: FCode a -> FCode CmmAGraph
-getCode fcode = do { (_,stmts) <- getCodeR fcode; return stmts }
+getCode fcode = snd <$> getCodeR fcode
 
 -- | Generate code into a fresh tick (sub-)scope and gather generated code
 getCodeScoped :: FCode a -> FCode (a, CmmAGraphScoped)
 getCodeScoped fcode
-  = do  { state1 <- getState
+  = do  { state1 <- get
         ; ((a, tscope), state2) <-
             tickScope $
             flip withState state1 { cgs_stmts = mkNop } $
-            do { a   <- fcode
-               ; scp <- getTickScope
-               ; return (a, scp) }
-        ; setState $ state2 { cgs_stmts = cgs_stmts state1  }
-        ; return (a, (cgs_stmts state2, tscope)) }
+            (,) <$> fcode <*> getTickScope
+        ; (a, (cgs_stmts state2, tscope)) <$ put state2 { cgs_stmts = cgs_stmts state1 } }
 
 
 -- 'getHeapUsage' applies a function to the amount of heap that it uses.
@@ -698,23 +618,19 @@ getCodeScoped fcode
 
 getHeapUsage :: (VirtualHpOffset -> FCode a) -> FCode a
 getHeapUsage fcode
-  = do  { info_down <- getInfoDown
-        ; state <- getState
+  = do  { info_down <- ask
+        ; state <- get
         ; let   fstate_in = state { cgs_hp_usg  = initHpUsage }
                 (r, fstate_out) = doFCode (fcode hp_hw) info_down fstate_in
                 hp_hw = heapHWM (cgs_hp_usg fstate_out)        -- Loop here!
 
-        ; setState $ fstate_out { cgs_hp_usg = cgs_hp_usg state }
-        ; return r }
+        ; r <$ put fstate_out { cgs_hp_usg = cgs_hp_usg state } }
 
 -- ----------------------------------------------------------------------------
 -- Combinators for emitting code
 
 emitCgStmt :: CgStmt -> FCode ()
-emitCgStmt stmt
-  = do  { state <- getState
-        ; setState $ state { cgs_stmts = cgs_stmts state `snocOL` stmt }
-        }
+emitCgStmt stmt = modify $ cgs_stmtsL `over` flip snocOL stmt
 
 emitLabel :: BlockId -> FCode ()
 emitLabel id = do tscope <- getTickScope
@@ -741,14 +657,10 @@ emitStore :: CmmExpr  -> CmmExpr -> FCode ()
 emitStore l r = emitCgStmt (CgStmt (CmmStore l r))
 
 emit :: CmmAGraph -> FCode ()
-emit ag
-  = do  { state <- getState
-        ; setState $ state { cgs_stmts = cgs_stmts state CmmGraph.<*> ag } }
+emit ag = modify $ cgs_stmtsL `over` (CmmGraph.<*> ag)
 
 emitDecl :: CmmDecl -> FCode ()
-emitDecl decl
-  = do  { state <- getState
-        ; setState $ state { cgs_tops = cgs_tops state `snocOL` decl } }
+emitDecl decl = modify $ cgs_topsL `over` flip snocOL decl
 
 emitOutOfLine :: BlockId -> CmmAGraphScoped -> FCode ()
 emitOutOfLine l (stmts, tscope) = emitCgStmt (CgFork l stmts tscope)
@@ -802,18 +714,16 @@ emitProc mb_info lbl live blocks offset do_layout
 
               proc_block = CmmProc tinfo lbl live blks
 
-        ; state <- getState
-        ; setState $ state { cgs_tops = cgs_tops state `snocOL` proc_block } }
+        ; modify $ cgs_topsL `over` flip snocOL proc_block }
 
 getCmm :: FCode () -> FCode CmmGroup
 -- Get all the CmmTops (there should be no stmts)
 -- Return a single Cmm which may be split from other Cmms by
 -- object splitting (at a later stage)
 getCmm code
-  = do  { state1 <- getState
-        ; ((), state2) <- withState code (state1 { cgs_tops  = nilOL })
-        ; setState $ state2 { cgs_tops = cgs_tops state1 }
-        ; return (fromOL (cgs_tops state2)) }
+  = do  { state1 <- get
+        ; ((), state2) <- withState code (state1 { cgs_tops = nilOL })
+        ; fromOL (cgs_tops state2) <$ put state2 { cgs_tops = cgs_tops state1 } }
 
 
 mkCmmIfThenElse :: CmmExpr -> CmmAGraph -> CmmAGraph -> FCode CmmAGraph

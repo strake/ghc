@@ -50,6 +50,7 @@ import Control.Monad.Catch as MC
 import Data.List ( (\\) )
 import Data.Maybe
 import Data.IORef
+import Lens.Micro (over)
 
 -------------------------------------
 -- | The :print & friends commands
@@ -66,8 +67,7 @@ pprintClosureCommand bindThings force str = do
   (subst, terms) <- mapAccumLM go emptyTCvSubst ids
 
   -- Apply the substitutions obtained after recovering the types
-  modifySession $ \hsc_env ->
-    hsc_env{hsc_IC = substInteractiveContext (hsc_IC hsc_env) subst}
+  modifySession $ over hsc_ICL $ flip substInteractiveContext subst
 
   -- Finally, print the Terms
   unqual  <- GHC.getPrintUnqual

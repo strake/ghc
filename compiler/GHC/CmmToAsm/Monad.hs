@@ -63,11 +63,12 @@ import GHC.Types.Unique         ( Unique )
 import GHC.Driver.Session
 import GHC.Unit.Module
 
-import Control.Monad    ( ap )
-
 import GHC.Utils.Outputable (SDoc, ppr)
 import GHC.Utils.Panic      (pprPanic)
 import GHC.CmmToAsm.CFG
+
+import Control.Monad.Trans.State (State, StateT (..))
+import Data.Functor.Identity (Identity (..))
 
 data NcgImpl statics instr jumpDest = NcgImpl {
     ncgConfig                 :: !NCGConfig,
@@ -119,6 +120,7 @@ type DwarfFiles = UniqFM FastString (FastString, Int)
 
 newtype NatM result = NatM (NatM_State -> (result, NatM_State))
     deriving (Functor)
+    deriving (Applicative, Monad) via State NatM_State
 
 unNat :: NatM a -> NatM_State -> (a, NatM_State)
 unNat (NatM a) = a
@@ -188,13 +190,6 @@ initNat :: NatM_State -> NatM a -> (a, NatM_State)
 initNat init_st m
         = case unNat m init_st of { (r,st) -> (r,st) }
 
-instance Applicative NatM where
-      pure = returnNat
-      (<*>) = ap
-
-instance Monad NatM where
-  (>>=) = thenNat
-
 instance MonadUnique NatM where
   getUniqueSupplyM = NatM $ \st ->
       case splitUniqSupply (natm_us st) of
@@ -203,15 +198,6 @@ instance MonadUnique NatM where
   getUniqueM = NatM $ \st ->
       case takeUniqFromSupply (natm_us st) of
           (uniq, us') -> (uniq, st {natm_us = us'})
-
-thenNat :: NatM a -> (a -> NatM b) -> NatM b
-thenNat expr cont
-        = NatM $ \st -> case unNat expr st of
-                        (result, st') -> unNat (cont result) st'
-
-returnNat :: a -> NatM a
-returnNat result
-        = NatM $ \st ->  (result, st)
 
 mapAccumLNat :: (acc -> x -> NatM (acc, y))
                 -> acc
