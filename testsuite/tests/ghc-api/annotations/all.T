@@ -2,14 +2,14 @@ test('annotations', [extra_files(['AnnotationLet.hs']),
                      normalise_slashes,
                      ignore_stderr], makefile_test, ['annotations'])
 test('parseTree',   [extra_files(['AnnotationTuple.hs']),
-                     normalise_slashes,
+                     normalise_fun(shell_cmd(['ssam', 's%,\\n? +%,\\n%g'])),
                      ignore_stderr], makefile_test, ['parseTree'])
 test('comments',    [extra_files(['CommentsTest.hs']),
                      ignore_stderr], makefile_test, ['comments'])
 test('exampleTest', [extra_files(['AnnotationTuple.hs']),
                      ignore_stderr], makefile_test, ['exampleTest'])
 test('listcomps',   [extra_files(['ListComprehensions.hs']),
-                     normalise_slashes,
+                     normalise_fun(shell_cmd(['ssam', 's%,\\n? +%,\\n%g'])),
                      ignore_stderr], makefile_test, ['listcomps'])
 test('T10255',      [extra_files(['Test10255.hs']),
                      ignore_stderr], makefile_test, ['T10255'])
@@ -40,6 +40,7 @@ test('T10396',      [extra_files(['Test10396.hs']),
 test('T10399',      [extra_files(['Test10399.hs']),
                      ignore_stderr], makefile_test, ['T10399'])
 test('T10313',      [extra_files(['Test10313.hs', 'stringSource.hs']),
+                     normalise_fun(shell_cmd(['ssam', 's%,\\n? +%,\\n%g'])),
                      ignore_stderr], makefile_test, ['T10313'])
 test('T11018',      [extra_files(['Test11018.hs']),
                      ignore_stderr], makefile_test, ['T11018'])
