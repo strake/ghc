@@ -2599,3 +2599,6 @@ def modify_lines(s: str, f: Callable[[str], str]) -> str:
         # Prevent '\ No newline at end of file' warnings when diffing.
         s += '\n'
     return s
+
+def shell_cmd(args):
+    return lambda x: subprocess.run(args, stdout = subprocess.PIPE, input = x.encode('utf-8')).stdout.decode('utf-8')
