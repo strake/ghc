@@ -27,16 +27,16 @@ import GHC.Data.FastString
 go, go2, x, d, n, y, z, scrutf, scruta :: Id
 [go, go2, x,d, n, y, z, scrutf, scruta, f] = mkTestIds
     (words "go go2 x d n y z scrutf scruta f")
-    [ mkVisFunTys [intTy, intTy] intTy
-    , mkVisFunTys [intTy, intTy] intTy
-    , intTy
-    , mkVisFunTys [intTy] intTy
-    , mkVisFunTys [intTy] intTy
-    , intTy
-    , intTy
+    [ mkVisFunTys [integerTy, integerTy] integerTy
+    , mkVisFunTys [integerTy, integerTy] integerTy
+    , integerTy
+    , mkVisFunTys [integerTy] integerTy
+    , mkVisFunTys [integerTy] integerTy
+    , integerTy
+    , integerTy
     , mkVisFunTys [boolTy] boolTy
     , boolTy
-    , mkVisFunTys [intTy, intTy] intTy -- protoypical external function
+    , mkVisFunTys [integerTy, integerTy] integerTy -- protoypical external function
     ]
 
 exprs :: [(String, CoreExpr)]
@@ -71,7 +71,7 @@ exprs =
         (mkLetNonRec d (mkACase (Var go `mkVarApps` [x])
                           (mkLams [y] $ Var y)
                   ) $ mkLams [z] $ Var d `mkVarApps` [x]) $
-        Case (go `mkLApps` [0, 0]) z intTy
+        Case (go `mkLApps` [0, 0]) z integerTy
             [(DEFAULT, [], Var f `mkVarApps` [z,z])]
   , ("go2 (in function call)",) $
      mkRFun go [x]
