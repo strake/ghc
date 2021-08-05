@@ -783,7 +783,7 @@ pipeLoop phase input_fn = do
    _
      -> do liftIO $ debugTraceMsg dflags 4
                                   (text "Running phase" <+> ppr phase)
-           (next_phase, output_fn) <- runHookedPhase phase input_fn dflags
+           (next_phase, output_fn) <- runHookedPhase phase input_fn
            case phase of
                HscOut {} -> do
                    -- We don't pass Opt_BuildDynamicToo to the backend
@@ -801,10 +801,11 @@ pipeLoop phase input_fn = do
                    ifGeneratingDynamicToo dflags dynToo noDynToo
                _ -> pipeLoop next_phase output_fn
 
-runHookedPhase :: PhasePlus -> FilePath -> DynFlags
+runHookedPhase :: PhasePlus -> FilePath
                -> CompPipeline (PhasePlus, FilePath)
-runHookedPhase pp input dflags =
-  lookupHook runPhaseHook runPhase dflags pp input dflags
+runHookedPhase pp input = do
+  dflags <- getDynFlags
+  lookupHook runPhaseHook runPhase dflags pp input
 
 -- -----------------------------------------------------------------------------
 -- In each phase, we need to know into what filename to generate the
@@ -948,7 +949,6 @@ llvmOptions dflags =
 --
 runPhase :: PhasePlus   -- ^ Run this phase
          -> FilePath    -- ^ name of the input file
-         -> DynFlags    -- ^ for convenience, we pass the current dflags in
          -> CompPipeline (PhasePlus,           -- next phase to run
                           FilePath)            -- output filename
 
@@ -960,8 +960,8 @@ runPhase :: PhasePlus   -- ^ Run this phase
 -------------------------------------------------------------------------------
 -- Unlit phase
 
-runPhase (RealPhase (Unlit sf)) input_fn dflags
-  = do
+runPhase (RealPhase (Unlit sf)) input_fn
+  = do dflags <- getDynFlags
        output_fn <- phaseOutputFilename (Cpp sf)
 
        let flags = [ -- The -h option passes the file name for unlit to
@@ -994,8 +994,8 @@ runPhase (RealPhase (Unlit sf)) input_fn dflags
 -- Cpp phase : (a) gets OPTIONS out of file
 --             (b) runs cpp if necessary
 
-runPhase (RealPhase (Cpp sf)) input_fn dflags0
-  = do
+runPhase (RealPhase (Cpp sf)) input_fn
+  = do dflags0 <- getDynFlags
        src_opts <- liftIO $ getOptionsFromFile dflags0 input_fn
        (dflags1, unhandled_flags, warns)
            <- liftIO $ parseDynamicFilePragma dflags0 src_opts
@@ -1031,8 +1031,8 @@ runPhase (RealPhase (Cpp sf)) input_fn dflags0
 -------------------------------------------------------------------------------
 -- HsPp phase
 
-runPhase (RealPhase (HsPp sf)) input_fn dflags
-  = do
+runPhase (RealPhase (HsPp sf)) input_fn
+  = do dflags <- getDynFlags
        if not (gopt Opt_Pp dflags) then
            -- no need to preprocess, just pass input file along
            -- to the next phase of the pipeline.
@@ -1063,9 +1063,9 @@ runPhase (RealPhase (HsPp sf)) input_fn dflags
 
 -- Compilation of a single module, in "legacy" mode (_not_ under
 -- the direction of the compilation manager).
-runPhase (RealPhase (Hsc src_flavour)) input_fn dflags0
- = do   -- normal Hsc mode, not mkdependHS
-
+runPhase (RealPhase (Hsc src_flavour)) input_fn
+ = do   dflags0 <- getDynFlags
+        -- normal Hsc mode, not mkdependHS
         PipeEnv{ stop_phase=stop,
                  src_basename=basename,
                  src_suffix=suff } <- getPipeEnv
@@ -1166,9 +1166,11 @@ runPhase (RealPhase (Hsc src_flavour)) input_fn dflags0
         return (HscOut src_flavour mod_name result,
                 panic "HscOut doesn't have an input filename")
 
-runPhase (HscOut src_flavour mod_name result) _ dflags = do
+runPhase (HscOut src_flavour mod_name result) _ = do
         location <- getLocation src_flavour mod_name
         setModLocation location
+
+        dflags <- getDynFlags
 
         let o_file = ml_obj_file location -- The real object file
             next_phase = hscPostBackendPhase src_flavour (backend dflags)
@@ -1228,14 +1230,16 @@ runPhase (HscOut src_flavour mod_name result) _ dflags = do
 -----------------------------------------------------------------------------
 -- Cmm phase
 
-runPhase (RealPhase CmmCpp) input_fn dflags
-  = do output_fn <- phaseOutputFilename Cmm
+runPhase (RealPhase CmmCpp) input_fn
+  = do dflags <- getDynFlags
+       output_fn <- phaseOutputFilename Cmm
        liftIO $ doCpp dflags False{-not raw-}
                       input_fn output_fn
        return (RealPhase Cmm, output_fn)
 
-runPhase (RealPhase Cmm) input_fn dflags
-  = do let next_phase = hscPostBackendPhase HsSrcFile (backend dflags)
+runPhase (RealPhase Cmm) input_fn
+  = do dflags <- getDynFlags
+       let next_phase = hscPostBackendPhase HsSrcFile (backend dflags)
        output_fn <- phaseOutputFilename next_phase
        PipeState{hsc_env} <- getPipeState
        liftIO $ hscCompileCmmFile hsc_env input_fn output_fn
@@ -1244,9 +1248,9 @@ runPhase (RealPhase Cmm) input_fn dflags
 -----------------------------------------------------------------------------
 -- Cc phase
 
-runPhase (RealPhase cc_phase) input_fn dflags
+runPhase (RealPhase cc_phase) input_fn
    | any (cc_phase `eqPhase`) [Cc, Ccxx, HCc, Cobjc, Cobjcxx]
-   = do
+   = do dflags <- getDynFlags
         let platform = targetPlatform dflags
             hcc = cc_phase `eqPhase` HCc
 
@@ -1376,8 +1380,8 @@ runPhase (RealPhase cc_phase) input_fn dflags
 -- As, SpitAs phase : Assembler
 
 -- This is for calling the assembler on a regular assembly file
-runPhase (RealPhase (As with_cpp)) input_fn dflags
-  = do
+runPhase (RealPhase (As with_cpp)) input_fn
+  = do  dflags <- getDynFlags
         -- LLVM from version 3.0 onwards doesn't support the OS X system
         -- assembler, so we use clang as the assembler instead. (#5636)
         let as_prog | backend dflags == LLVM &&
@@ -1445,21 +1449,9 @@ runPhase (RealPhase (As with_cpp)) input_fn dflags
 
 -----------------------------------------------------------------------------
 -- LlvmOpt phase
-runPhase (RealPhase LlvmOpt) input_fn dflags
-  = do
-    output_fn <- phaseOutputFilename LlvmLlc
-
-    liftIO $ GHC.SysTools.runLlvmOpt dflags
-               (   optFlag
-                ++ defaultOptions ++
-                [ GHC.SysTools.FileOption "" input_fn
-                , GHC.SysTools.Option "-o"
-                , GHC.SysTools.FileOption "" output_fn]
-                )
-
-    return (RealPhase LlvmLlc, output_fn)
-  where
-        -- we always (unless -optlo specified) run Opt since we rely on it to
+runPhase (RealPhase LlvmOpt) input_fn = do
+    dflags <- getDynFlags
+    let -- we always (unless -optlo specified) run Opt since we rely on it to
         -- fix up some pretty big deficiencies in the code we generate
         optIdx = max 0 $ min 2 $ optLevel dflags  -- ensure we're in [0,2]
         llvmOpts = case lookup optIdx $ llvmPasses $ llvmConfig dflags of
@@ -1479,11 +1471,74 @@ runPhase (RealPhase LlvmOpt) input_fn dflags
         defaultOptions = map GHC.SysTools.Option . concat . fmap words . fst
                        $ unzip (llvmOptions dflags)
 
+    output_fn <- phaseOutputFilename LlvmLlc
+
+    liftIO $ GHC.SysTools.runLlvmOpt dflags
+               (   optFlag
+                ++ defaultOptions ++
+                [ GHC.SysTools.FileOption "" input_fn
+                , GHC.SysTools.Option "-o"
+                , GHC.SysTools.FileOption "" output_fn]
+                )
+
+    return (RealPhase LlvmLlc, output_fn)
+
 -----------------------------------------------------------------------------
 -- LlvmLlc phase
 
-runPhase (RealPhase LlvmLlc) input_fn dflags
-  = do
+runPhase (RealPhase LlvmLlc) input_fn = do
+    dflags <- getDynFlags
+    let -- Note [Clamping of llc optimizations]
+        --
+        -- See #13724
+        --
+        -- we clamp the llc optimization between [1,2]. This is because passing -O0
+        -- to llc 3.9 or llc 4.0, the naive register allocator can fail with
+        --
+        --   Error while trying to spill R1 from class GPR: Cannot scavenge register
+        --   without an emergency spill slot!
+        --
+        -- Observed at least with target 'arm-unknown-linux-gnueabihf'.
+        --
+        --
+        -- With LLVM4, llc -O3 crashes when ghc-stage1 tries to compile
+        --   rts/HeapStackCheck.cmm
+        --
+        -- llc -O3 '-mtriple=arm-unknown-linux-gnueabihf' -enable-tbaa /var/folders/fv/xqjrpfj516n5xq_m_ljpsjx00000gn/T/ghc33674_0/ghc_6.bc -o /var/folders/fv/xqjrpfj516n5xq_m_ljpsjx00000gn/T/ghc33674_0/ghc_7.lm_s
+        -- 0  llc                      0x0000000102ae63e8 llvm::sys::PrintStackTrace(llvm::raw_ostream&) + 40
+        -- 1  llc                      0x0000000102ae69a6 SignalHandler(int) + 358
+        -- 2  libsystem_platform.dylib 0x00007fffc23f4b3a _sigtramp + 26
+        -- 3  libsystem_c.dylib        0x00007fffc226498b __vfprintf + 17876
+        -- 4  llc                      0x00000001029d5123 llvm::SelectionDAGISel::LowerArguments(llvm::Function const&) + 5699
+        -- 5  llc                      0x0000000102a21a35 llvm::SelectionDAGISel::SelectAllBasicBlocks(llvm::Function const&) + 3381
+        -- 6  llc                      0x0000000102a202b1 llvm::SelectionDAGISel::runOnMachineFunction(llvm::MachineFunction&) + 1457
+        -- 7  llc                      0x0000000101bdc474 (anonymous namespace)::ARMDAGToDAGISel::runOnMachineFunction(llvm::MachineFunction&) + 20
+        -- 8  llc                      0x00000001025573a6 llvm::MachineFunctionPass::runOnFunction(llvm::Function&) + 134
+        -- 9  llc                      0x000000010274fb12 llvm::FPPassManager::runOnFunction(llvm::Function&) + 498
+        -- 10 llc                      0x000000010274fd23 llvm::FPPassManager::runOnModule(llvm::Module&) + 67
+        -- 11 llc                      0x00000001027501b8 llvm::legacy::PassManagerImpl::run(llvm::Module&) + 920
+        -- 12 llc                      0x000000010195f075 compileModule(char**, llvm::LLVMContext&) + 12133
+        -- 13 llc                      0x000000010195bf0b main + 491
+        -- 14 libdyld.dylib            0x00007fffc21e5235 start + 1
+        -- Stack dump:
+        -- 0.  Program arguments: llc -O3 -mtriple=arm-unknown-linux-gnueabihf -enable-tbaa /var/folders/fv/xqjrpfj516n5xq_m_ljpsjx00000gn/T/ghc33674_0/ghc_6.bc -o /var/folders/fv/xqjrpfj516n5xq_m_ljpsjx00000gn/T/ghc33674_0/ghc_7.lm_s
+        -- 1.  Running pass 'Function Pass Manager' on module '/var/folders/fv/xqjrpfj516n5xq_m_ljpsjx00000gn/T/ghc33674_0/ghc_6.bc'.
+        -- 2.  Running pass 'ARM Instruction Selection' on function '@"stg_gc_f1$def"'
+        --
+        -- Observed at least with -mtriple=arm-unknown-linux-gnueabihf -enable-tbaa
+        --
+        llvmOpts = case optLevel dflags of
+          0 -> "-O1" -- required to get the non-naive reg allocator. Passing -regalloc=greedy is not sufficient.
+          1 -> "-O1"
+          _ -> "-O2"
+
+        optFlag = if null (getOpts dflags opt_lc)
+                  then map GHC.SysTools.Option $ words llvmOpts
+                  else []
+
+        defaultOptions = map GHC.SysTools.Option . concatMap words . snd
+                       $ unzip (llvmOptions dflags)
+
     next_phase <- if -- hidden debugging flag '-dno-llvm-mangler' to skip mangling
                      | gopt Opt_NoLlvmMangler dflags -> return (As False)
                      | otherwise -> return LlvmMangle
@@ -1500,73 +1555,23 @@ runPhase (RealPhase LlvmLlc) input_fn dflags
                 )
 
     return (RealPhase next_phase, output_fn)
-  where
-    -- Note [Clamping of llc optimizations]
-    --
-    -- See #13724
-    --
-    -- we clamp the llc optimization between [1,2]. This is because passing -O0
-    -- to llc 3.9 or llc 4.0, the naive register allocator can fail with
-    --
-    --   Error while trying to spill R1 from class GPR: Cannot scavenge register
-    --   without an emergency spill slot!
-    --
-    -- Observed at least with target 'arm-unknown-linux-gnueabihf'.
-    --
-    --
-    -- With LLVM4, llc -O3 crashes when ghc-stage1 tries to compile
-    --   rts/HeapStackCheck.cmm
-    --
-    -- llc -O3 '-mtriple=arm-unknown-linux-gnueabihf' -enable-tbaa /var/folders/fv/xqjrpfj516n5xq_m_ljpsjx00000gn/T/ghc33674_0/ghc_6.bc -o /var/folders/fv/xqjrpfj516n5xq_m_ljpsjx00000gn/T/ghc33674_0/ghc_7.lm_s
-    -- 0  llc                      0x0000000102ae63e8 llvm::sys::PrintStackTrace(llvm::raw_ostream&) + 40
-    -- 1  llc                      0x0000000102ae69a6 SignalHandler(int) + 358
-    -- 2  libsystem_platform.dylib 0x00007fffc23f4b3a _sigtramp + 26
-    -- 3  libsystem_c.dylib        0x00007fffc226498b __vfprintf + 17876
-    -- 4  llc                      0x00000001029d5123 llvm::SelectionDAGISel::LowerArguments(llvm::Function const&) + 5699
-    -- 5  llc                      0x0000000102a21a35 llvm::SelectionDAGISel::SelectAllBasicBlocks(llvm::Function const&) + 3381
-    -- 6  llc                      0x0000000102a202b1 llvm::SelectionDAGISel::runOnMachineFunction(llvm::MachineFunction&) + 1457
-    -- 7  llc                      0x0000000101bdc474 (anonymous namespace)::ARMDAGToDAGISel::runOnMachineFunction(llvm::MachineFunction&) + 20
-    -- 8  llc                      0x00000001025573a6 llvm::MachineFunctionPass::runOnFunction(llvm::Function&) + 134
-    -- 9  llc                      0x000000010274fb12 llvm::FPPassManager::runOnFunction(llvm::Function&) + 498
-    -- 10 llc                      0x000000010274fd23 llvm::FPPassManager::runOnModule(llvm::Module&) + 67
-    -- 11 llc                      0x00000001027501b8 llvm::legacy::PassManagerImpl::run(llvm::Module&) + 920
-    -- 12 llc                      0x000000010195f075 compileModule(char**, llvm::LLVMContext&) + 12133
-    -- 13 llc                      0x000000010195bf0b main + 491
-    -- 14 libdyld.dylib            0x00007fffc21e5235 start + 1
-    -- Stack dump:
-    -- 0.  Program arguments: llc -O3 -mtriple=arm-unknown-linux-gnueabihf -enable-tbaa /var/folders/fv/xqjrpfj516n5xq_m_ljpsjx00000gn/T/ghc33674_0/ghc_6.bc -o /var/folders/fv/xqjrpfj516n5xq_m_ljpsjx00000gn/T/ghc33674_0/ghc_7.lm_s
-    -- 1.  Running pass 'Function Pass Manager' on module '/var/folders/fv/xqjrpfj516n5xq_m_ljpsjx00000gn/T/ghc33674_0/ghc_6.bc'.
-    -- 2.  Running pass 'ARM Instruction Selection' on function '@"stg_gc_f1$def"'
-    --
-    -- Observed at least with -mtriple=arm-unknown-linux-gnueabihf -enable-tbaa
-    --
-    llvmOpts = case optLevel dflags of
-      0 -> "-O1" -- required to get the non-naive reg allocator. Passing -regalloc=greedy is not sufficient.
-      1 -> "-O1"
-      _ -> "-O2"
-
-    optFlag = if null (getOpts dflags opt_lc)
-              then map GHC.SysTools.Option $ words llvmOpts
-              else []
-
-    defaultOptions = map GHC.SysTools.Option . concatMap words . snd
-                   $ unzip (llvmOptions dflags)
 
 
 -----------------------------------------------------------------------------
 -- LlvmMangle phase
 
-runPhase (RealPhase LlvmMangle) input_fn dflags
+runPhase (RealPhase LlvmMangle) input_fn
   = do
       let next_phase = As False
       output_fn <- phaseOutputFilename next_phase
+      dflags <- getDynFlags
       liftIO $ llvmFixupAsm dflags input_fn output_fn
       return (RealPhase next_phase, output_fn)
 
 -----------------------------------------------------------------------------
 -- merge in stub objects
 
-runPhase (RealPhase MergeForeign) input_fn dflags
+runPhase (RealPhase MergeForeign) input_fn
  = do
      PipeState{foreign_os} <- getPipeState
      output_fn <- phaseOutputFilename StopLn
@@ -1574,11 +1579,12 @@ runPhase (RealPhase MergeForeign) input_fn dflags
      if null foreign_os
        then panic "runPhase(MergeForeign): no foreign objects"
        else do
+         dflags <- getDynFlags
          liftIO $ joinObjectFiles dflags (input_fn : foreign_os) output_fn
          return (RealPhase StopLn, output_fn)
 
 -- warning suppression
-runPhase (RealPhase other) _input_fn _dflags =
+runPhase (RealPhase other) _input_fn =
    panic ("runPhase: don't know how to run phase " ++ show other)
 
 maybeMergeForeign :: CompPipeline Phase
