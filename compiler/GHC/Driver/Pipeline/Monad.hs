@@ -6,7 +6,8 @@ module GHC.Driver.Pipeline.Monad (
     CompPipeline(..), evalP
   , PhasePlus(..)
   , PipeEnv(..), PipeState(..), PipelineOutput(..)
-  , getPipeEnv, getPipeState, setDynFlags, setModLocation, setForeignOs, setIface
+  , getPipeEnv, getPipeState, getPipeSession
+  , setDynFlags, setModLocation, setForeignOs, setIface
   , pipeStateDynFlags, pipeStateModIface, setPlugins
   ) where
 
@@ -111,8 +112,11 @@ getPipeEnv = P $ \env state -> return (state, env)
 getPipeState :: CompPipeline PipeState
 getPipeState = P $ \_env state -> return (state, state)
 
+getPipeSession :: CompPipeline HscEnv
+getPipeSession = P $ \_env state -> pure (state, hsc_env state)
+
 instance HasDynFlags CompPipeline where
-    getDynFlags = P $ \_env state -> return (state, hsc_dflags (hsc_env state))
+    getDynFlags = hsc_dflags <$> getPipeSession
 
 setDynFlags :: DynFlags -> CompPipeline ()
 setDynFlags dflags = P $ \_env state ->
