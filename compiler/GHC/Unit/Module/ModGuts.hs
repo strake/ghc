@@ -34,6 +34,8 @@ import GHC.Types.SafeHaskell
 import GHC.Types.SourceFile ( HscSource(..) )
 import GHC.Types.SrcLoc
 
+import Data.Set (Set)
+
 
 -- | A ModGuts is carried through the compiler, accumulating stuff as it goes
 -- There is only one ModGuts at any time, the one for the module
@@ -129,7 +131,7 @@ data CgGuts
 
         cg_foreign   :: !ForeignStubs,   -- ^ Foreign export stubs
         cg_foreign_files :: ![(ForeignSrcLang, FilePath)],
-        cg_dep_pkgs  :: ![UnitId], -- ^ Dependent packages, used to
+        cg_dep_pkgs  :: !(Set UnitId),      -- ^ Dependent packages, used to
                                             -- generate #includes for C code gen
         cg_hpc_info  :: !HpcInfo,           -- ^ Program coverage tick box information
         cg_modBreaks :: !(Maybe ModBreaks), -- ^ Module breakpoints

@@ -105,8 +105,9 @@ import GHC.Data.Maybe
 import GHC.Data.FastString
 
 import Control.Monad
+import Data.Foldable ( toList )
 import Data.IORef
-import Data.Map ( toList )
+import qualified Data.Map as Map
 import System.FilePath
 import System.Directory
 
@@ -1256,21 +1257,19 @@ pprDeps Deps
   , dep_finsts = finsts
   , dep_plgins = plugins
   }
-  = vcat [text "direct module dependencies:" <+> fsep (map ppr_mod dmods),
-          text "boot module dependencies:" <+> fsep (map ppr bmods),
-          text "direct package dependencies:" <+> fsep (map ppr_pkg pkgs),
-          case tps of
-            [] -> empty
-            _ -> text "trusted package dependencies:" <+> fsep (map ppr_pkg tps),
-          text "orphans:" <+> fsep (map ppr orphs),
-          text "plugins:" <+> fsep (map ppr plugins),
-          text "family instance modules:" <+> fsep (map ppr finsts)
+  = vcat [text "direct module dependencies:" <+> fsepMap ppr_mod dmods,
+          text "boot module dependencies:" <+> fsepMap ppr bmods,
+          text "direct package dependencies:" <+> fsepMap ppr pkgs,
+          bool (text "trusted package dependencies:" <+> fsepMap ppr tps) empty (null tps),
+          text "orphans:" <+> fsepMap ppr orphs,
+          text "plugins:" <+> fsepMap ppr plugins,
+          text "family instance modules:" <+> fsepMap ppr finsts
         ]
   where
     ppr_mod (GWIB { gwib_mod = mod_name, gwib_isBoot = boot }) = ppr mod_name <+> ppr_boot boot
-    ppr_pkg pkg  = ppr pkg
     ppr_boot IsBoot  = text "[boot]"
     ppr_boot NotBoot = Outputable.empty
+    fsepMap f = fsep . fmap f . toList
 
 pprFixities :: [(OccName, Fixity)] -> SDoc
 pprFixities []    = Outputable.empty
@@ -1299,7 +1298,7 @@ pprIfaceAnnotation (IfaceAnnotation { ifAnnotatedTarget = target, ifAnnotatedVal
   = ppr target <+> text "annotated by" <+> ppr serialized
 
 pprExtensibleFields :: ExtensibleFields -> SDoc
-pprExtensibleFields (ExtensibleFields fs) = vcat . map pprField $ toList fs
+pprExtensibleFields (ExtensibleFields fs) = vcat . map pprField $ Map.toList fs
   where
     pprField (name, (BinData size _data)) = text name <+> text "-" <+> ppr size <+> text "bytes"
 

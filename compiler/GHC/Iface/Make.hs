@@ -184,14 +184,17 @@ mkIfaceTc hsc_env safe_mode mod_details
                       tcg_warns = warns,
                       tcg_hpc = other_hpc_info,
                       tcg_th_splice_used = tc_splice_used,
-                      tcg_dependent_files = dependent_files
+                      tcg_dependent_files = dependent_files,
+                      tcg_th_used = th_used_var
                     }
   = do
           let used_names = mkUsedNames tc_result
           let pluginModules = map lpModule (hsc_plugins hsc_env)
-          deps <- mkDependencies
-                    (homeUnitId (hsc_dflags hsc_env))
-                    (map mi_module pluginModules) tc_result
+          th_used <- readIORef th_used_var
+          let deps = mkDependencies (homeUnitId (hsc_dflags hsc_env))
+                                    (tcg_mod tc_result) th_used
+                                    (tcg_imports tc_result)
+                                    (map mi_module pluginModules)
           let hpc_info = emptyHpcInfo other_hpc_info
           used_th <- readIORef tc_splice_used
           dep_files <- (readIORef dependent_files)

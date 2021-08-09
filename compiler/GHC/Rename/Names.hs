@@ -467,7 +467,7 @@ calculateAvails dflags iface mod_safe' want_boot imported_by =
              | otherwise  = dep_finsts deps
 
       -- Trusted packages are a lot like orphans.
-      trusted_pkgs | mod_safe' = S.fromList (dep_trusted_pkgs deps)
+      trusted_pkgs | mod_safe' = dep_trusted_pkgs deps
                    | otherwise = S.empty
 
 
@@ -481,7 +481,7 @@ calculateAvails dflags iface mod_safe' want_boot imported_by =
 
       dependent_pkgs = S.fromList [ipkg | pkg /= homeUnit dflags]
 
-      direct_mods = mkModDeps [GWIB (moduleName imp_mod) want_boot | pkg == homeUnit dflags]
+      direct_mods = (mkModDeps . S.fromList) [GWIB (moduleName imp_mod) want_boot | pkg == homeUnit dflags]
 
       dep_boot_mods_map = mkModDeps (dep_boot_mods deps)
 

@@ -142,7 +142,6 @@ import GHC.Builtin.Names ( isUnboundName )
 import Control.Monad.Trans.Reader (ReaderT (..))
 import Data.Set      ( Set )
 import qualified Data.Set as S
-import Data.List ( sort )
 import Data.Map ( Map )
 import Data.Dynamic  ( Dynamic )
 import Data.Typeable ( TypeRep )
@@ -1412,9 +1411,9 @@ data ImportAvails
           -- including us for imported modules)
       }
 
-mkModDeps :: [ModuleNameWithIsBoot]
+mkModDeps :: Set ModuleNameWithIsBoot
           -> ModuleNameEnv ModuleNameWithIsBoot
-mkModDeps deps = foldl' add emptyUFM deps
+mkModDeps deps = S.foldl' add emptyUFM deps
   where
     add env elt = addToUFM env (gwib_mod elt) elt
 
@@ -1434,8 +1433,8 @@ plusModDeps = plusUFM_C plus_mod_dep
 
 modDepsElts
   :: ModuleNameEnv ModuleNameWithIsBoot
-  -> [ModuleNameWithIsBoot]
-modDepsElts = sort . nonDetEltsUFM
+  -> Set ModuleNameWithIsBoot
+modDepsElts = S.fromList . nonDetEltsUFM
   -- It's OK to use nonDetEltsUFM here because sorting by module names
   -- restores determinism
 

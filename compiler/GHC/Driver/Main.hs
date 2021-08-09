@@ -1224,7 +1224,7 @@ hscCheckSafe' m l = do
                     -- check package is trusted
                     safeP = packageTrusted dflags trust trust_own_pkg m
                     -- pkg trust reqs
-                    pkgRs = S.fromList (dep_trusted_pkgs $ mi_deps iface')
+                    pkgRs = dep_trusted_pkgs $ mi_deps iface'
                     -- warn if Safe module imports Safe-Inferred module.
                     warns = if wopt Opt_WarnInferredSafeImports dflags
                                 && safeLanguageOn dflags
@@ -1592,9 +1592,7 @@ hscCompileCmmFile hsc_env filename output_filename = runHsc hsc_env $ do
             FormatCMM (pdoc platform cmmgroup)
         rawCmms <-
             maybe cmmToRawCmm (`flip` Nothing) (cmmToRawCmmHook hooks) dflags (Stream.yield cmmgroup)
-        _ <- codeOutput dflags cmm_mod output_filename no_loc NoStubs [] []
-             rawCmms
-        return ()
+        () <$ codeOutput dflags cmm_mod output_filename no_loc NoStubs [] S.empty rawCmms
   where
     no_loc = ModLocation{ ml_hs_file  = Just filename,
                           ml_hi_file  = panic "hscCompileCmmFile: no hi file",

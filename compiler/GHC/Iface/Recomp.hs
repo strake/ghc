@@ -62,6 +62,7 @@ import GHC.Unit.Module.Deps
 import Control.Monad
 import Data.List (sortBy, sort)
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 
 {-
   -----------------------------------------------
@@ -253,7 +254,7 @@ checkVersions hsc_env mod_summary iface
        -- case we'll compile the module from scratch anyhow).
 
        when (isOneShot (ghcMode (hsc_dflags hsc_env))) $ do {
-          ; updateEps_ $ \eps  -> eps { eps_is_boot = mkModDeps $ (dep_boot_mods (mi_deps iface)) }
+          ; updateEps_ $ \eps  -> eps { eps_is_boot = mkModDeps $ dep_boot_mods (mi_deps iface) }
        }
        ; recomp <- checkList [checkModUsage this_pkg u | u <- mi_usages iface]
        ; return (recomp, Just iface)
@@ -429,9 +430,9 @@ checkDependencies :: HscEnv -> ModSummary -> ModIface -> IfG RecompileRequired
 checkDependencies hsc_env summary iface
  = checkList (map dep_missing (ms_imps summary ++ ms_srcimps summary))
  where
-   prev_dep_mods = dep_direct_mods (mi_deps iface)
-   prev_dep_plgn = dep_plgins (mi_deps iface)
-   prev_dep_pkgs = dep_direct_pkgs (mi_deps iface)
+   prev_dep_mods = Set.toAscList $ dep_direct_mods (mi_deps iface)
+   prev_dep_plgn = Set.toAscList $ dep_plgins (mi_deps iface)
+   prev_dep_pkgs = Set.toAscList $ dep_direct_pkgs (mi_deps iface)
 
    this_pkg = homeUnit (hsc_dflags hsc_env)
 
@@ -1010,15 +1011,11 @@ getOrphanHashes hsc_env mods = do
 
 
 sortDependencies :: Dependencies -> Dependencies
-sortDependencies d
- = Deps { dep_direct_mods = sortBy (compare `on` (moduleNameFS . gwib_mod)) (dep_direct_mods d),
-          dep_direct_pkgs   = sort (dep_direct_pkgs d),
-          dep_sig_mods      = sort (dep_sig_mods d),
-          dep_trusted_pkgs  = sort (dep_trusted_pkgs d),
-          dep_boot_mods     = sort (dep_boot_mods d),
-          dep_orphs  = sortBy stableModuleCmp (dep_orphs d),
-          dep_finsts = sortBy stableModuleCmp (dep_finsts d),
-          dep_plgins = sortBy (compare `on` moduleNameFS) (dep_plgins d) }
+sortDependencies d = d
+  { dep_sig_mods    = sort (dep_sig_mods d)
+  , dep_orphs  = sortBy stableModuleCmp (dep_orphs d)
+  , dep_finsts = sortBy stableModuleCmp (dep_finsts d)
+  }
 
 {-
 ************************************************************************

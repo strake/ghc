@@ -128,7 +128,8 @@ deSugar hsc_env
                             tcg_insts        = insts,
                             tcg_fam_insts    = fam_insts,
                             tcg_hpc          = other_hpc_info,
-                            tcg_complete_matches = complete_matches
+                            tcg_complete_matches = complete_matches,
+                            tcg_th_used      = th_used_var
                             })
 
   = do { let dflags = hsc_dflags hsc_env
@@ -191,8 +192,11 @@ deSugar hsc_env
 
         ; let used_names = mkUsedNames tcg_env
               pluginModules = map lpModule (hsc_plugins hsc_env)
-        ; deps <- mkDependencies (homeUnitId (hsc_dflags hsc_env))
-                                 (map mi_module pluginModules) tcg_env
+        ; th_used <- readIORef th_used_var
+        ; let deps = mkDependencies (homeUnitId (hsc_dflags hsc_env))
+                                    (tcg_mod tcg_env) th_used
+                                    (tcg_imports tcg_env)
+                                    (map mi_module pluginModules)
 
         ; used_th <- readIORef tc_splice_used
         ; dep_files <- readIORef dependent_files

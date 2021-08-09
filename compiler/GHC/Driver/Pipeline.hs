@@ -101,6 +101,7 @@ import System.FilePath
 import System.IO
 import Control.Monad
 import qualified Control.Monad.Catch as MC (handle)
+import Data.Foldable    ( toList )
 import Data.List        ( isInfixOf, intercalate )
 import Data.Maybe       ( isJust, isNothing )
 import Data.Version
@@ -460,7 +461,7 @@ link' dflags batch_attempt_linking hpt
             home_mod_infos = eltsHpt hpt
 
             -- the packages we depend on
-            pkg_deps  = concatMap (dep_direct_pkgs . mi_deps . hm_iface) home_mod_infos
+            pkg_deps  = toList $ foldMap (dep_direct_pkgs . mi_deps . hm_iface) home_mod_infos
 
             -- the linkables to link
             linkables = map (expectJust "link".hm_linkable) home_mod_infos

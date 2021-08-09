@@ -42,8 +42,8 @@ import GHC.Data.Maybe
 import qualified GHC.Data.ShortText as ST
 
 import Control.Monad (filterM)
+import Data.Foldable (toList)
 import Data.List (sort, sortBy)
-import Data.IORef
 import Data.Map (Map)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -74,18 +74,12 @@ its dep_orphs. This was the cause of #14128.
 -- a dependencies information for the module being compiled.
 --
 -- The first argument is additional dependencies from plugins
-mkDependencies :: UnitId -> [Module] -> TcGblEnv -> IO Dependencies
-mkDependencies iuid pluginModules
-          (TcGblEnv{ tcg_mod = mod,
-                    tcg_imports = imports,
-                    tcg_th_used = th_var
-                  })
- = do
+mkDependencies :: UnitId -> Module -> Bool {- ^ TH used? -} -> ImportAvails -> [Module] -> Dependencies
+mkDependencies iuid mod th_used imports ms =
       -- Template Haskell used?
-      let (dep_plgins, ms) = unzip [ (moduleName mn, mn) | mn <- pluginModules ]
+      let dep_plgins = moduleName <$> ms
           plugin_dep_pkgs = filter (/= iuid) (map (toUnitId . moduleUnit) ms)
-      th_used <- readIORef th_var
-      let direct_mods = modDepsElts (delFromUFM (imp_direct_dep_mods imports) (moduleName mod))
+          direct_mods = modDepsElts (delFromUFM (imp_direct_dep_mods imports) (moduleName mod))
                 -- M.hi-boot can be in the imp_dep_mods, but we must remove
                 -- it before recording the modules on which this one depends!
                 -- (We want to retain M.hi-boot in imp_dep_mods so that
@@ -105,7 +99,6 @@ mkDependencies iuid pluginModules
 
           -- Set the packages required to be Safe according to Safe Haskell.
           -- See Note [Tracking Trust Transitively] in GHC.Rename.Names
-          sorted_direct_pkgs = sort (Set.toList direct_pkgs)
           trust_pkgs  = imp_trust_pkgs imports
           -- If there's a non-boot import, then it shadows the boot import
           -- coming from the dependencies
@@ -113,14 +106,15 @@ mkDependencies iuid pluginModules
 
           sig_mods = filter (/= (moduleName mod)) $ imp_sig_mods imports
 
-      return Deps { dep_direct_mods = direct_mods,
-                    dep_direct_pkgs = sorted_direct_pkgs,
-                    dep_sig_mods = sort sig_mods,
-                    dep_trusted_pkgs = sort (Set.toList trust_pkgs),
-                    dep_boot_mods  = sort source_mods,
-                    dep_orphs  = dep_orphs,
-                    dep_plgins = dep_plgins,
-                    dep_finsts = sortBy stableModuleCmp (imp_finsts imports) }
+      in Deps
+         { dep_direct_mods = direct_mods
+         , dep_direct_pkgs = direct_pkgs
+         , dep_sig_mods = sort sig_mods
+         , dep_trusted_pkgs = trust_pkgs
+         , dep_boot_mods  = source_mods
+         , dep_orphs  = dep_orphs
+         , dep_plgins = Set.fromList dep_plgins
+         , dep_finsts = sortBy stableModuleCmp (imp_finsts imports) }
                     -- sort to get into canonical order
                     -- NB. remember to use lexicographic ordering
 
@@ -239,8 +233,7 @@ mkPluginUsage hsc_env pluginModule
     pkgs     = pkgState dflags
     pNm      = moduleName $ mi_module pluginModule
     pPkg     = moduleUnit $ mi_module pluginModule
-    deps     = map gwib_mod $
-      dep_direct_mods $ mi_deps pluginModule
+    deps     = fmap gwib_mod $ toList $ dep_direct_mods $ mi_deps pluginModule
 
     -- Lookup object file for a plugin dependency,
     -- from the same package as the plugin.

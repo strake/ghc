@@ -16,6 +16,9 @@ import GHC.Unit.Module
 import GHC.Utils.Fingerprint
 import GHC.Utils.Binary
 
+import Data.Set (Set)
+import qualified Data.Set as Set
+
 -- | Dependency information about ALL modules and packages below this one
 -- in the import hierarchy. This is the serialisable version of `ImportAvails`.
 --
@@ -25,14 +28,14 @@ import GHC.Utils.Binary
 --
 -- See Note [Transitive Information in Dependencies]
 data Dependencies = Deps
-   { dep_direct_mods :: [ModuleNameWithIsBoot]
+   { dep_direct_mods :: Set ModuleNameWithIsBoot
       -- ^ All home-package modules which are directly imported by this one.
 
-   , dep_direct_pkgs :: [UnitId]
+   , dep_direct_pkgs :: Set UnitId
       -- ^ All packages directly imported by this module
       -- I.e. packages to which this module's direct imports belong.
       --
-   , dep_plgins :: [ModuleName]
+   , dep_plgins :: Set ModuleName
       -- ^ All the plugins used while compiling this module.
 
 
@@ -41,12 +44,12 @@ data Dependencies = Deps
     -- ^ Transitive closure of hsig files in the home package
 
 
-   , dep_trusted_pkgs :: [UnitId]
+   , dep_trusted_pkgs :: Set UnitId
       -- Packages which we are required to trust
       -- when the module is imported as a safe import
       -- (Safe Haskell). See Note [Tracking Trust Transitively] in GHC.Rename.Names
 
-   , dep_boot_mods :: [ModuleNameWithIsBoot]
+   , dep_boot_mods :: Set ModuleNameWithIsBoot
       -- ^ All modules which have boot files below this one, and whether we
       -- should use the boot file or not.
       -- This information is only used to populate the eps_is_boot field.
@@ -101,7 +104,16 @@ instance Binary Dependencies where
                                dep_finsts = fis, dep_plgins = pl })
 
 noDependencies :: Dependencies
-noDependencies = Deps [] [] [] [] [] [] [] []
+noDependencies = Deps
+  { dep_direct_mods  = Set.empty
+  , dep_direct_pkgs  = Set.empty
+  , dep_sig_mods     = []
+  , dep_boot_mods    = Set.empty
+  , dep_trusted_pkgs = Set.empty
+  , dep_orphs        = []
+  , dep_plgins       = Set.empty
+  , dep_finsts       = []
+  }
 
 -- | Records modules for which changes may force recompilation of this module
 -- See wiki: https://gitlab.haskell.org/ghc/ghc/wikis/commentary/compiler/recompilation-avoidance

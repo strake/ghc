@@ -49,6 +49,8 @@ import GHC.Types.CostCentre
 import GHC.Types.ForeignStubs
 import GHC.Types.Unique.Supply ( mkSplitUniqSupply )
 
+import Data.Set (Set)
+import qualified Data.Set as Set
 import System.Directory
 import System.FilePath
 import System.IO
@@ -68,7 +70,7 @@ codeOutput :: DynFlags
            -> ForeignStubs
            -> [(ForeignSrcLang, FilePath)]
            -- ^ additional files to be compiled with the C compiler
-           -> [UnitId]
+           -> Set UnitId -- ^ Dependencies
            -> Stream IO RawCmmGroup a                       -- Compiled C--
            -> IO (FilePath,
                   (Bool{-stub_h_exists-}, Maybe FilePath{-stub_c_exists-}),
@@ -127,11 +129,9 @@ doOutput filenm io_action = bracket (openFile filenm WriteMode) hClose io_action
 outputC :: DynFlags
         -> FilePath
         -> Stream IO RawCmmGroup a
-        -> [UnitId]
+        -> Set UnitId
         -> IO a
-
-outputC dflags filenm cmm_stream packages
-  = do
+outputC dflags filenm cmm_stream unit_deps = do
        withTiming dflags (text "C codegen") (\a -> seq a () {- FIXME -}) $ do
 
          -- figure out which header files to #include in the generated .hc file:
@@ -149,7 +149,7 @@ outputC dflags filenm cmm_stream packages
                  '<':_      -> "#include "++h_file
                  _          -> "#include \""++h_file++"\""
 
-         let pkg_names = map unitIdString packages
+         let pkg_names = unitIdString <$> Set.toAscList unit_deps
 
          doOutput filenm $ \ h -> do
             hPutStr h ("/* GHC_PACKAGES " ++ unwords pkg_names ++ "\n*/\n")
