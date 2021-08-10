@@ -254,8 +254,8 @@ data InteractiveContext
              -- load them everytime we switch to the interctive context.
     }
 
-ic_fix_envL LENS_FIELD(ic_fix_env)
-ic_monadL LENS_FIELD(ic_monad)
+LENS_FIELD(ic_fix_envL, ic_fix_env)
+LENS_FIELD(ic_monadL, ic_monad)
 
 data InteractiveImport
   = IIDecl (ImportDecl GhcPs)

@@ -76,10 +76,10 @@ data PipeState = PipeState {
          -- phase runs.
   }
 
-hsc_envL LENS_FIELD(hsc_env)
-maybe_locL LENS_FIELD(maybe_loc)
-foreign_osL LENS_FIELD(foreign_os)
-ifaceL LENS_FIELD(iface)
+LENS_FIELD(hsc_envL, hsc_env)
+LENS_FIELD(maybe_locL, maybe_loc)
+LENS_FIELD(foreign_osL, foreign_os)
+LENS_FIELD(ifaceL, iface)
 
 pipeStateDynFlags :: PipeState -> DynFlags
 pipeStateDynFlags = hsc_dflags . hsc_env

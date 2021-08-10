@@ -192,19 +192,19 @@ data HscEnv
                 -- 'addPluginModuleName' instead.
  }
 
-hsc_dflagsL LENS_FIELD(hsc_dflags)
-hsc_targetsL LENS_FIELD(hsc_targets)
-hsc_mod_graphL LENS_FIELD(hsc_mod_graph)
-hsc_ICL LENS_FIELD(hsc_IC)
-hsc_HPTL LENS_FIELD(hsc_HPT)
-hsc_EPSL LENS_FIELD(hsc_EPS)
-hsc_NCL LENS_FIELD(hsc_NC)
-hsc_FCL LENS_FIELD(hsc_FC)
-hsc_type_env_varL LENS_FIELD(hsc_type_env_var)
-hsc_interpL LENS_FIELD(hsc_interp)
-hsc_loaderL LENS_FIELD(hsc_loader)
-hsc_pluginsL LENS_FIELD(hsc_plugins)
-hsc_static_pluginsL LENS_FIELD(hsc_static_plugins)
+LENS_FIELD(hsc_dflagsL, hsc_dflags)
+LENS_FIELD(hsc_targetsL, hsc_targets)
+LENS_FIELD(hsc_mod_graphL, hsc_mod_graph)
+LENS_FIELD(hsc_ICL, hsc_IC)
+LENS_FIELD(hsc_HPTL, hsc_HPT)
+LENS_FIELD(hsc_EPSL, hsc_EPS)
+LENS_FIELD(hsc_NCL, hsc_NC)
+LENS_FIELD(hsc_FCL, hsc_FC)
+LENS_FIELD(hsc_type_env_varL, hsc_type_env_var)
+LENS_FIELD(hsc_interpL, hsc_interp)
+LENS_FIELD(hsc_loaderL, hsc_loader)
+LENS_FIELD(hsc_pluginsL, hsc_plugins)
+LENS_FIELD(hsc_static_pluginsL, hsc_static_plugins)
 
 {-
 
