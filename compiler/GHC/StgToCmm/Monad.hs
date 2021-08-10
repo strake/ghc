@@ -163,13 +163,13 @@ data CgInfoDownwards        -- information only passed *downwards* by the monad
         cgd_tick_scope:: CmmTickScope       -- Tick scope for new blocks & ticks
   }
 
-cgd_dflagsL LENS_FIELD(cgd_dflags)
-cgd_modL LENS_FIELD(cgd_mod)
-cgd_updfr_offL LENS_FIELD(cgd_updfr_off)
-cgd_tickyL LENS_FIELD(cgd_ticky)
-cgd_sequelL LENS_FIELD(cgd_sequel)
-cgd_self_loopL LENS_FIELD(cgd_self_loop)
-cgd_tick_scopeL LENS_FIELD(cgd_tick_scope)
+LENS_FIELD(cgd_dflagsL, cgd_dflags)
+LENS_FIELD(cgd_modL, cgd_mod)
+LENS_FIELD(cgd_updfr_offL, cgd_updfr_off)
+LENS_FIELD(cgd_tickyL, cgd_ticky)
+LENS_FIELD(cgd_sequelL, cgd_sequel)
+LENS_FIELD(cgd_self_loopL, cgd_self_loop)
+LENS_FIELD(cgd_tick_scopeL, cgd_tick_scope)
 
 type CgBindings = IdEnv CgIdInfo
 
@@ -319,8 +319,8 @@ data HeapUsage   -- See Note [Virtual and real heap pointers]
                                          --   Used in instruction addressing modes
     }
 
-virtHpL LENS_FIELD(virtHp)
-realHpL LENS_FIELD(realHp)
+LENS_FIELD(virtHpL, virtHp)
+LENS_FIELD(realHpL, realHp)
 
 type VirtualHpOffset = WordOff
 
@@ -364,11 +364,11 @@ initCgState uniqs
               , cgs_hp_usg = initHpUsage
               , cgs_uniqs  = uniqs }
 
-cgs_stmtsL LENS_FIELD(cgs_stmts)
-cgs_topsL LENS_FIELD(cgs_tops)
-cgs_bindsL LENS_FIELD(cgs_binds)
-cgs_hp_usgL LENS_FIELD(cgs_hp_usg)
-cgs_uniqsL LENS_FIELD(cgs_uniqs)
+LENS_FIELD(cgs_stmtsL, cgs_stmts)
+LENS_FIELD(cgs_topsL, cgs_tops)
+LENS_FIELD(cgs_bindsL, cgs_binds)
+LENS_FIELD(cgs_hp_usgL, cgs_hp_usg)
+LENS_FIELD(cgs_uniqsL, cgs_uniqs)
 
 stateIncUsage :: CgState -> CgState -> CgState
 -- stateIncUsage@ e1 e2 incorporates in e1

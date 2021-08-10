@@ -1724,8 +1724,8 @@ data FlattenEnv
                , fe_in_scope :: InScopeSet }
                  -- See Note [Flattening]
 
-fe_type_mapL LENS_FIELD(fe_type_map)
-fe_in_scopeL LENS_FIELD(fe_in_scope)
+LENS_FIELD(fe_type_mapL, fe_type_map)
+LENS_FIELD(fe_in_scopeL, fe_in_scope)
 
 emptyFlattenEnv :: InScopeSet -> FlattenEnv
 emptyFlattenEnv in_scope

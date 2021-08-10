@@ -1980,14 +1980,14 @@ data BcM_State
           -- See Note [generating code for top-level string literal bindings].
         }
 
-bcm_hsc_envL LENS_FIELD(bcm_hsc_env)
-uniqSupplyL LENS_FIELD(uniqSupply)
-thisModuleL LENS_FIELD(thisModule)
-nextlabelL LENS_FIELD(nextlabel)
-ffisL LENS_FIELD(ffis)
-modBreaksL LENS_FIELD(modBreaks)
-breakInfoL LENS_FIELD(breakInfo)
-topStringsL LENS_FIELD(topStrings)
+LENS_FIELD(bcm_hsc_envL, bcm_hsc_env)
+LENS_FIELD(uniqSupplyL, uniqSupply)
+LENS_FIELD(thisModuleL, thisModule)
+LENS_FIELD(nextlabelL, nextlabel)
+LENS_FIELD(ffisL, ffis)
+LENS_FIELD(modBreaksL, modBreaks)
+LENS_FIELD(breakInfoL, breakInfo)
+LENS_FIELD(topStringsL, topStrings)
 
 newtype BcM r = BcM (BcM_State -> IO (r, BcM_State))
   deriving (Functor)
