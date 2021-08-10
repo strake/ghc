@@ -356,7 +356,7 @@ alexGetByte (loc,s)
   | atEnd s   = Nothing
   | otherwise = b `seq` loc' `seq` s' `seq` Just (b, (loc', s'))
   where c    = currentChar s
-        b    = fromIntegral $ ord $ c
+        b    = fromIntegral $ ord $ c :: Word8
         loc' = advancePsLoc loc c
         s'   = stepOn s
 

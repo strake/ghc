@@ -279,7 +279,7 @@ makeImmediate rep signed x = fmap ImmInt (toI16 rep signed)
         narrow W8  True  = fromIntegral (fromIntegral x :: Int8)
         narrow _   _     = panic "PPC.Regs.narrow: no match"
 
-        narrowed = narrow rep signed
+        narrowed = narrow rep signed :: Int
 
         toI16 W32 True
             | narrowed >= -32768 && narrowed < 32768 = Just narrowed
