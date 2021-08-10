@@ -92,12 +92,12 @@ data LoaderState = LoaderState
         -- libraries so we can link them (see #10322)
     }
 
-closure_envL LENS_FIELD(closure_env)
-itbl_envL LENS_FIELD(itbl_env)
-bcos_loadedL LENS_FIELD(bcos_loaded)
-objs_loadedL LENS_FIELD(objs_loaded)
-pkgs_loadedL LENS_FIELD(pkgs_loaded)
-temp_sosL LENS_FIELD(temp_sos)
+LENS_FIELD(closure_envL, closure_env)
+LENS_FIELD(itbl_envL, itbl_env)
+LENS_FIELD(bcos_loadedL, bcos_loaded)
+LENS_FIELD(objs_loadedL, objs_loaded)
+LENS_FIELD(pkgs_loadedL, pkgs_loaded)
+LENS_FIELD(temp_sosL, temp_sos)
 
 uninitializedLoader :: IO Loader
 uninitializedLoader = Loader <$> newMVar Nothing
