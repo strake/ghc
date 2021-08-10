@@ -537,7 +537,7 @@ schemeE d s p (AnnLet binds (_,body)) = do
      platform <- targetPlatform <$> getDynFlags
      let (xs,rhss) = case binds of AnnNonRec x rhs  -> ([x],[rhs])
                                    AnnRec xs_n_rhss -> unzip xs_n_rhss
-         n_binds = genericLength xs
+         n_binds = genericLength xs :: WordOff
 
          fvss  = map (fvsToEnv p' . fst) rhss
 

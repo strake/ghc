@@ -98,7 +98,7 @@ hGetStringBuffer fname = do
    h <- openBinaryFile fname ReadMode
    size_i <- hFileSize h
    offset_i <- skipBOM h size_i 0  -- offset is 0 initially
-   let size = fromIntegral $ size_i - offset_i
+   let size = fromIntegral $ size_i - offset_i :: Int
    buf <- mallocForeignPtrArray (size+3)
    withForeignPtr buf $ \ptr -> do
      r <- if size == 0 then return 0 else hGetBuf h ptr size
