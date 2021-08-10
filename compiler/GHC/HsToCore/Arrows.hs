@@ -1254,7 +1254,6 @@ collectl (L _ pat) bndrs
                                     ++ foldr collectl bndrs (hsConPatArgs ps)
     go (LitPat _ _)               = bndrs
     go (NPat {})                  = bndrs
-    go (NPlusKPat _ (L _ n) _ _ _ _) = n : bndrs
 
     go (SigPat _ pat _)           = collectl pat bndrs
     go (XPat (CoPat _ pat _))     = collectl (noLoc pat) bndrs

@@ -59,7 +59,7 @@ module GHC.Hs.Utils(
   mkHsIntegral, mkHsFractional, mkHsIsString, mkHsString, mkHsStringPrimLit,
 
   -- * Patterns
-  mkNPat, mkNPlusKPat, nlVarPat, nlLitPat, nlConVarPat, nlConVarPatName, nlConPat,
+  mkNPat, nlVarPat, nlLitPat, nlConVarPat, nlConVarPatName, nlConPat,
   nlConPatName, nlInfixConPat, nlNullaryConPat, nlWildConPat, nlWildPat,
   nlWildPatName, nlTuplePat, mkParPat, nlParPat,
   mkBigLHsVarTup, mkBigLHsTup, mkBigLHsVarPatTup, mkBigLHsPatTup,
@@ -259,7 +259,6 @@ mkHsComp       :: HsStmtContext GhcRn -> [ExprLStmt GhcPs] -> LHsExpr GhcPs
 
 mkNPat      :: Located (HsOverLit GhcPs) -> Maybe (SyntaxExpr GhcPs)
             -> Pat GhcPs
-mkNPlusKPat :: Located RdrName -> Located (HsOverLit GhcPs) -> Pat GhcPs
 
 -- NB: The following functions all use noSyntaxExpr: the generated expressions
 --     will not work with rebindable syntax if used after the renamer
@@ -300,8 +299,6 @@ mkHsCmdIf :: LHsExpr GhcPs -> LHsCmd GhcPs -> LHsCmd GhcPs -> HsCmd GhcPs
 mkHsCmdIf c a b = HsCmdIf noExtField noSyntaxExpr c a b
 
 mkNPat lit neg     = NPat noExtField lit neg noSyntaxExpr
-mkNPlusKPat id lit
-  = NPlusKPat noExtField id lit (unLoc lit) noSyntaxExpr noSyntaxExpr
 
 mkTransformStmt    :: [ExprLStmt GhcPs] -> LHsExpr GhcPs
                    -> StmtLR GhcPs GhcPs (LHsExpr GhcPs)
@@ -1166,7 +1163,6 @@ collect_pat pat bndrs = case pat of
   -- See Note [Dictionary binders in ConPatOut]
   (LitPat _ _)            -> bndrs
   (NPat {})               -> bndrs
-  (NPlusKPat _ n _ _ _ _) -> unLoc n : bndrs
   (SigPat _ pat _)        -> collect_lpat pat bndrs
   (SplicePat _ (HsSpliced _ _ (HsSplicedPat pat)))
                           -> collect_pat pat bndrs

@@ -1,5 +1,4 @@
 {-# LANGUAGE RebindableSyntax #-}
-{-# LANGUAGE NPlusKPatterns #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -94,16 +93,6 @@ module Main where
                 negate a = a; -- don't actually negate
                 };
 
-        class HasMinus a where
-                {
-                (-) :: a;
-                };
-
-        instance (b ~ (a -> a -> a)) => HasMinus b where
-                {
-                (-) x y = y; -- changed function
-                };
-
         test_do :: forall a b. IO a -> IO (Maybe b) -> IO b;
         test_do f g = do
                 {
@@ -124,7 +113,6 @@ module Main where
         test_fromInteger_pattern :: Integer -> String;
         test_fromInteger_pattern a@1 = "1=" ++ (Prelude.show a);
         test_fromInteger_pattern a@(-2) = "(-2)=" ++ (Prelude.show a);
-        test_fromInteger_pattern (a + 7) = "(a + 7)=" ++ Prelude.show a;
 
         test_fromRational_pattern :: Rational -> String;
         test_fromRational_pattern a@0.5 = "0.5=" ++ (Prelude.show a);

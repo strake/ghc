@@ -270,7 +270,6 @@ synifyTyCon _prr coax tc
   -- (closed) newtype and data
   let
   alg_nd = if isNewTyCon tc then NewType else DataType
-  alg_ctx = synifyCtx (tyConStupidTheta tc)
   name = case coax of
     Just a -> synifyName a -- Data families are named according to their
                            -- CoAxioms, not their TyCons
@@ -300,7 +299,7 @@ synifyTyCon _prr coax tc
   alg_deriv = noLoc []
   defn = HsDataDefn { dd_ext     = noExtField
                     , dd_ND      = alg_nd
-                    , dd_ctxt    = alg_ctx
+                    , dd_ctxt    = noLoc []
                     , dd_cType   = Nothing
                     , dd_kindSig = kindSig
                     , dd_cons    = cons

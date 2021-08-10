@@ -50,7 +50,6 @@ Language extensions can be controlled (i.e. allowed or not) in two ways:
      * :extension:`StarIsType`
      * :extension:`CUSKs`
      * :extension:`MonomorphismRestriction`
-     * :extension:`NPlusKPatterns`
      * :extension:`DatatypeContexts`
      * :extension:`TraditionalRecordSyntax`
      * :extension:`NondecreasingIndentation`

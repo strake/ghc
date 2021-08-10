@@ -2651,9 +2651,7 @@ infixexp :: { ECP }
                                  runECP_PV $1 >>= \ $1 ->
                                  runECP_PV $3 >>= \ $3 ->
                                  rejectPragmaPV $1 >>
-                                 amms (mkHsOpAppPV (comb2 $1 $>) $1 $2 $3)
-                                     [mj AnnVal $2] }
-                 -- AnnVal annotation for NPlusKPat, which discards the operator
+                                 mkHsOpAppPV (comb2 $1 $>) $1 $2 $3 }
 
 exp10p :: { ECP }
   : exp10            { $1 }

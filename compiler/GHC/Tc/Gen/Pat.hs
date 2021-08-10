@@ -18,7 +18,6 @@ module GHC.Tc.Gen.Pat
    , LetBndrSpec(..)
    , tcCheckPat, tcCheckPat_O, tcInferPat
    , tcPats
-   , addDataConStupidTheta
    , badFieldCon
    , polyPatSig
    )
@@ -51,7 +50,6 @@ import GHC.Core.TyCon
 import GHC.Core.DataCon
 import GHC.Core.PatSyn
 import GHC.Core.ConLike
-import GHC.Builtin.Names
 import GHC.Types.Basic hiding (SuccessFlag(..))
 import GHC.Driver.Session
 import GHC.Types.SrcLoc
@@ -532,7 +530,7 @@ tc_pat pat_ty penv ps_pat thing_inside = case ps_pat of
                  , res) }
 
 ------------------------
--- Overloaded patterns: n, and n+k
+-- Overloaded patterns: n
 
 -- In the case of a negative literal (the more complicated case),
 -- we get
@@ -568,79 +566,6 @@ tc_pat pat_ty penv ps_pat thing_inside = case ps_pat of
         ; res <- thing_inside
         ; pat_ty <- readExpType pat_ty
         ; return (NPat pat_ty (L l lit') mb_neg' eq', res) }
-
-{-
-Note [NPlusK patterns]
-~~~~~~~~~~~~~~~~~~~~~~
-From
-
-  case v of x + 5 -> blah
-
-we get
-
-  if v >= 5 then (\x -> blah) (v - 5) else ...
-
-There are two bits of rebindable syntax:
-  (>=) :: pat_ty -> lit1_ty -> Bool
-  (-)  :: pat_ty -> lit2_ty -> var_ty
-
-lit1_ty and lit2_ty could conceivably be different.
-var_ty is the type inferred for x, the variable in the pattern.
-
-If the pushed-down pattern type isn't a tau-type, the two pat_ty's above
-could conceivably be different specializations. But this is very much
-like the situation in Note [Case branches must be taus] in GHC.Tc.Gen.Match.
-So we tauify the pat_ty before proceeding.
-
-Note that we need to type-check the literal twice, because it is used
-twice, and may be used at different types. The second HsOverLit stored in the
-AST is used for the subtraction operation.
--}
-
--- See Note [NPlusK patterns]
-  NPlusKPat _ (L nm_loc name)
-               (L loc lit) _ ge minus -> do
-        { pat_ty <- expTypeToType pat_ty
-        ; let orig = LiteralOrigin lit
-        ; (lit1', ge')
-            <- tcSyntaxOp orig ge [synKnownType pat_ty, SynRho]
-                                  (mkCheckExpType boolTy) $
-               \ [lit1_ty] ->
-               newOverloadedLit lit (mkCheckExpType lit1_ty)
-        ; ((lit2', minus_wrap, bndr_id), minus')
-            <- tcSyntaxOpGen orig minus [synKnownType pat_ty, SynRho] SynAny $
-               \ [lit2_ty, var_ty] ->
-               do { lit2' <- newOverloadedLit lit (mkCheckExpType lit2_ty)
-                  ; (wrap, bndr_id) <- setSrcSpan nm_loc $
-                                     tcPatBndr penv name (mkCheckExpType var_ty)
-                           -- co :: var_ty ~ idType bndr_id
-
-                           -- minus_wrap is applicable to minus'
-                  ; return (lit2', wrap, bndr_id) }
-
-        -- The Report says that n+k patterns must be in Integral
-        -- but it's silly to insist on this in the RebindableSyntax case
-        ; unlessM (xoptM LangExt.RebindableSyntax) $
-          do { icls <- tcLookupClass integralClassName
-             ; instStupidTheta orig [mkClassPred icls [pat_ty]] }
-
-        ; res <- tcExtendIdEnv1 name bndr_id thing_inside
-
-        ; let minus'' = case minus' of
-                          NoSyntaxExprTc -> pprPanic "tc_pat NoSyntaxExprTc" (ppr minus')
-                                   -- this should be statically avoidable
-                                   -- Case (3) from Note [NoSyntaxExpr] in "GHC.Hs.Expr"
-                          SyntaxExprTc { syn_expr = minus'_expr
-                                       , syn_arg_wraps = minus'_arg_wraps
-                                       , syn_res_wrap = minus'_res_wrap }
-                            -> SyntaxExprTc { syn_expr = minus'_expr
-                                            , syn_arg_wraps = minus'_arg_wraps
-                                            , syn_res_wrap = minus_wrap <.> minus'_res_wrap }
-                             -- Oy. This should really be a record update, but
-                             -- we get warnings if we try. #17783
-              pat' = NPlusKPat pat_ty (L nm_loc bndr_id) (L loc lit1') lit2'
-                               ge' minus''
-        ; return (pat', res) }
 
 -- HsSpliced is an annotation produced by 'GHC.Rename.Splice.rnSplicePat'.
 -- Here we get rid of it and add the finalizers to the global environment.
@@ -832,9 +757,6 @@ tcDataConPat penv (L con_span con_name) data_con pat_ty
           -- and building a wrapper
         ; (wrap, ctxt_res_tys) <- matchExpectedConTy penv tycon pat_ty
         ; pat_ty <- readExpType pat_ty
-
-          -- Add the stupid theta
-        ; setSrcSpan con_span $ addDataConStupidTheta data_con ctxt_res_tys
 
         ; let all_arg_tys = eqSpecPreds eq_spec ++ theta ++ arg_tys
         ; checkExistentials ex_tvs all_arg_tys penv
@@ -1129,23 +1051,6 @@ tcConArgs con_like arg_tys penv con_args thing_inside = case con_args of
 
 tcConArg :: Checker (LPat GhcRn, TcSigmaType) (LPat GhcTc)
 tcConArg penv (arg_pat, arg_ty) = tc_lpat (mkCheckExpType arg_ty) penv arg_pat
-
-addDataConStupidTheta :: DataCon -> [TcType] -> TcM ()
--- Instantiate the "stupid theta" of the data con, and throw
--- the constraints into the constraint set
-addDataConStupidTheta data_con inst_tys
-  | null stupid_theta = return ()
-  | otherwise         = instStupidTheta origin inst_theta
-  where
-    origin = OccurrenceOf (dataConName data_con)
-        -- The origin should always report "occurrence of C"
-        -- even when C occurs in a pattern
-    stupid_theta = dataConStupidTheta data_con
-    univ_tvs     = dataConUnivTyVars data_con
-    tenv = zipTvSubst univ_tvs (takeList univ_tvs inst_tys)
-         -- NB: inst_tys can be longer than the univ tyvars
-         --     because the constructor might have existentials
-    inst_theta = substTheta tenv stupid_theta
 
 {-
 Note [Arrows and patterns]

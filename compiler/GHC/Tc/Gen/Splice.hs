@@ -1728,8 +1728,7 @@ reifyTyCon tc
        }
 
   | otherwise
-  = do  { cxt <- reifyCxt (tyConStupidTheta tc)
-        ; let tvs      = tyConTyVars tc
+  = do  { let tvs      = tyConTyVars tc
               dataCons = tyConDataCons tc
               isGadt   = isGadtSyntaxTyCon tc
         ; cons <- mapM (reifyDataCon isGadt (mkTyVarTys tvs)) dataCons
@@ -1737,9 +1736,9 @@ reifyTyCon tc
         ; let name = reifyName tc
               deriv = []        -- Don't know about deriving
               decl | isNewTyCon tc =
-                       TH.NewtypeD cxt name r_tvs Nothing (head cons) deriv
+                       TH.NewtypeD [] name r_tvs Nothing (head cons) deriv
                    | otherwise     =
-                       TH.DataD    cxt name r_tvs Nothing       cons  deriv
+                       TH.DataD    [] name r_tvs Nothing       cons  deriv
         ; return (TH.TyConI decl) }
 
 reifyDataCon :: Bool -> [Type] -> DataCon -> TcM TH.Con

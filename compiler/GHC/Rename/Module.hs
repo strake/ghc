@@ -1711,7 +1711,6 @@ rnDataDefn doc (HsDataDefn { dd_ND = new_or_data, dd_cType = cType
         ; (m_sig', sig_fvs) <- case m_sig of
              Just sig -> first Just <$> rnLHsKind doc sig
              Nothing  -> return (Nothing, emptyFVs)
-        ; (context', fvs1) <- rnContext doc context
         ; (derivs',  fvs3) <- rn_derivs derivs
 
         -- For the constructor declarations, drop the LocalRdrEnv
@@ -1724,11 +1723,10 @@ rnDataDefn doc (HsDataDefn { dd_ND = new_or_data, dd_cType = cType
            -- No need to check for duplicate constructor decls
            -- since that is done by GHC.Rename.Names.extendGlobalRdrEnvRn
 
-        ; let all_fvs = fvs1 `plusFV` fvs3 `plusFV`
-                        con_fvs `plusFV` sig_fvs
+        ; let all_fvs = fvs3 `plusFV` con_fvs `plusFV` sig_fvs
         ; return ( HsDataDefn { dd_ext = noExtField
                               , dd_ND = new_or_data, dd_cType = cType
-                              , dd_ctxt = context', dd_kindSig = m_sig'
+                              , dd_ctxt = noLoc [], dd_kindSig = m_sig'
                               , dd_cons = condecls'
                               , dd_derivs = derivs' }
                  , all_fvs )

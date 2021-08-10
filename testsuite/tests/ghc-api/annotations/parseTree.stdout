@@ -8,7 +8,8 @@
  (AnnotationTuple.hs:16:20-22, [p], Solo 6.5),
  (AnnotationTuple.hs:16:24, [m], ()),
  (AnnotationTuple.hs:16:25, [m], ()),
- (AnnotationTuple.hs:16:26, [m], ()), (<no location info>, [m], ())]
+ (AnnotationTuple.hs:16:26, [m], ()),
+ (<no location info>, [m], ())]
 [
 (AK AnnotationTuple.hs:1:1 AnnCloseC = [AnnotationTuple.hs:27:1])
 
@@ -50,15 +51,11 @@
 
 (AK AnnotationTuple.hs:10:9-13 AnnFunId = [AnnotationTuple.hs:10:9])
 
-(AK AnnotationTuple.hs:11:10-14 AnnVal = [AnnotationTuple.hs:11:12])
-
 (AK AnnotationTuple.hs:14:1-72 AnnEqual = [AnnotationTuple.hs:14:5])
 
 (AK AnnotationTuple.hs:14:1-72 AnnFunId = [AnnotationTuple.hs:14:1-3])
 
 (AK AnnotationTuple.hs:14:1-72 AnnSemi = [AnnotationTuple.hs:15:1])
-
-(AK AnnotationTuple.hs:14:7-72 AnnVal = [AnnotationTuple.hs:14:13])
 
 (AK AnnotationTuple.hs:14:19-53 AnnCloseP = [AnnotationTuple.hs:14:53])
 
