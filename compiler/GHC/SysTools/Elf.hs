@@ -224,7 +224,7 @@ readElfSectionTable dflags hdr bs = action `catchIO` \_ -> do
       let
         offSize0 = fromIntegral $ sectionTableOffset secTable + 8
                                   + 3 * fromIntegral (wordSize hdr)
-        offLink0 = fromIntegral $ offSize0 + fromIntegral (wordSize hdr)
+        offLink0 = offSize0 + fromIntegral (wordSize hdr)
 
       entryCount'     <- if sectionEntryCount secTable /= 0
                           then return (sectionEntryCount secTable)
