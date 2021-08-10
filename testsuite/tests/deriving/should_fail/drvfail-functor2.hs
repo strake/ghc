@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveFunctor, DatatypeContexts #-}
+{-# LANGUAGE DeriveFunctor #-}
 module ShouldFail where
 
 -- Derive Functor on a type that uses 'a' in the wrong places
@@ -12,11 +12,6 @@ newtype OnSecondArg a = OnSecondArg (Either a a)
 -- Derive Functor on a type with no arguments
 
 newtype NoArguments = NoArguments Int
-   deriving (Functor)
-
--- Derive Functor on a type with extra stupid-constraints on 'a'
-
-data Eq a => StupidConstraint a = StupidType a
    deriving (Functor)
 
 -- A missing Functor instance

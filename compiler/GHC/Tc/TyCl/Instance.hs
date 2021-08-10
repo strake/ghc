@@ -674,9 +674,9 @@ tcDataFamInstDecl mb_clsinfo tv_skol_env
        ; gadt_syntax <- dataDeclChecks fam_name new_or_data hs_ctxt hs_cons
           -- Do /not/ check that the number of patterns = tyConArity fam_tc
           -- See [Arity of data families] in GHC.Core.FamInstEnv
-       ; (qtvs, pats, res_kind, stupid_theta)
+       ; (qtvs, pats, res_kind)
              <- tcDataFamInstHeader mb_clsinfo fam_tc imp_vars mb_bndrs
-                                    fixity hs_ctxt hs_pats m_ksig hs_cons
+                                    fixity hs_pats m_ksig hs_cons
                                     new_or_data
 
        -- Eta-reduce the axiom if possible
@@ -744,7 +744,7 @@ tcDataFamInstDecl mb_clsinfo tv_skol_env
                     rep_tc   = mkAlgTyCon rep_tc_name
                                           ty_binders final_res_kind
                                           (map (const Nominal) ty_binders)
-                                          (fmap unLoc cType) stupid_theta
+                                          (fmap unLoc cType)
                                           tc_rhs parent
                                           gadt_syntax
                  -- We always assume that indexed types are recursive.  Why?
@@ -840,23 +840,20 @@ TyVarEnv will simply be empty, and there is nothing to worry about.
 -----------------------
 tcDataFamInstHeader
     :: AssocInstInfo -> TyCon -> [Name] -> Maybe [LHsTyVarBndr () GhcRn]
-    -> LexicalFixity -> LHsContext GhcRn
-    -> HsTyPats GhcRn -> Maybe (LHsKind GhcRn) -> [LConDecl GhcRn]
-    -> NewOrData
-    -> TcM ([TyVar], [Type], Kind, ThetaType)
+    -> LexicalFixity -> HsTyPats GhcRn -> Maybe (LHsKind GhcRn) -> [LConDecl GhcRn]
+    -> NewOrData -> TcM ([TyVar], [Type], Kind)
 -- The "header" of a data family instance is the part other than
 -- the data constructors themselves
 --    e.g.  data instance D [a] :: * -> * where ...
 -- Here the "header" is the bit before the "where"
 tcDataFamInstHeader mb_clsinfo fam_tc imp_vars mb_bndrs fixity
-                    hs_ctxt hs_pats m_ksig hs_cons new_or_data
-  = do { (imp_tvs, (exp_tvs, (stupid_theta, lhs_ty, lhs_applied_kind)))
+                    hs_pats m_ksig hs_cons new_or_data
+  = do { (imp_tvs, (exp_tvs, (lhs_ty, lhs_applied_kind)))
             <- pushTcLevelM_                                $
                solveEqualities                              $
                bindImplicitTKBndrs_Q_Skol imp_vars          $
                bindExplicitTKBndrs_Q_Skol AnyKind exp_bndrs $
-               do { stupid_theta <- tcHsContext hs_ctxt
-                  ; (lhs_ty, lhs_kind) <- tcFamTyPats fam_tc hs_pats
+               do { (lhs_ty, lhs_kind) <- tcFamTyPats fam_tc hs_pats
 
                   -- Ensure that the instance is consistent
                   -- with its parent class
@@ -876,8 +873,7 @@ tcDataFamInstHeader mb_clsinfo fam_tc imp_vars mb_bndrs fixity
                         hs_lhs         = nlHsTyConApp fixity (getName fam_tc) hs_pats
                   ; _ <- unifyKind (Just (unLoc hs_lhs)) lhs_applied_kind res_kind
 
-                  ; return ( stupid_theta
-                           , lhs_applied_ty
+                  ; return ( lhs_applied_ty
                            , lhs_applied_kind ) }
 
        -- See GHC.Tc.TyCl Note [Generalising in tcFamTyPatsGuts]
@@ -893,7 +889,6 @@ tcDataFamInstHeader mb_clsinfo fam_tc imp_vars mb_bndrs fixity
        -- Zonk the patterns etc into the Type world
        ; (ze, qtvs)       <- zonkTyBndrs qtvs
        ; lhs_ty           <- zonkTcTypeToTypeX ze lhs_ty
-       ; stupid_theta     <- zonkTcTypesToTypesX ze stupid_theta
        ; lhs_applied_kind <- zonkTcTypeToTypeX ze lhs_applied_kind
 
        -- Check that type patterns match the class instance head
@@ -902,7 +897,7 @@ tcDataFamInstHeader mb_clsinfo fam_tc imp_vars mb_bndrs fixity
        ; pats <- case splitTyConApp_maybe lhs_ty of
            Just (_, pats) -> pure pats
            Nothing -> pprPanic "tcDataFamInstHeader" (ppr lhs_ty)
-       ; return (qtvs, pats, lhs_applied_kind, stupid_theta) }
+       ; return (qtvs, pats, lhs_applied_kind) }
   where
     fam_name  = tyConName fam_tc
     data_ctxt = DataKindCtxt fam_name

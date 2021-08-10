@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -fno-warn-redundant-constraints -fno-warn-missing-methods #-}
-{-# LANGUAGE DeriveDataTypeable, ExistentialQuantification, RankNTypes, MultiParamTypeClasses, FunctionalDependencies, FlexibleInstances, FlexibleContexts, PatternGuards, DatatypeContexts #-}
+{-# LANGUAGE DeriveDataTypeable, ExistentialQuantification, RankNTypes, MultiParamTypeClasses, FunctionalDependencies, FlexibleInstances, FlexibleContexts, PatternGuards #-}
 
 module T4355 where
 
@@ -18,7 +18,7 @@ class HList c a where
 
 class Typeable a => Message a
 
-data (LayoutClass l a) => EL l a = forall l'. (LayoutClass l' a) => EL (l' a) (l' a -> l a)
+data EL l a = forall l'. (LayoutClass l' a) => EL (l' a) (l' a -> l a)
 
 unEL :: (LayoutClass l a) => EL l a -> (forall l'. (LayoutClass l' a) => l' a -> b) -> b
 unEL (EL x _) k = k x

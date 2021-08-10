@@ -525,7 +525,6 @@ vdqAllowed (SpecInstCtxt {}) = False
 vdqAllowed (GenSigCtxt {}) = False
 vdqAllowed (ClassSCCtxt {}) = False
 vdqAllowed (SigmaCtxt {}) = False
-vdqAllowed (DataTyCtxt {}) = False
 vdqAllowed (DerivClauseCtxt {}) = False
 
 {-
@@ -1232,7 +1231,7 @@ check_class_pred env dflags ctxt pred cls tys
 
   | otherwise     -- Includes Coercible
   = do { check_arity
-       ; checkSimplifiableClassConstraint env dflags ctxt cls tys
+       ; checkSimplifiableClassConstraint env dflags cls tys
        ; checkTcM arg_tys_ok (predTyVarErr env pred) }
   where
     check_arity = checkTc (tys `lengthIs` classArity cls)
@@ -1248,17 +1247,13 @@ check_class_pred env dflags ctxt pred cls tys
                                 -- in checkInstTermination
         _               -> checkValidClsArgs flexible_contexts cls tys
 
-checkSimplifiableClassConstraint :: TidyEnv -> DynFlags -> UserTypeCtxt
-                                 -> Class -> [TcType] -> TcM ()
+checkSimplifiableClassConstraint :: TidyEnv -> DynFlags -> Class -> [TcType] -> TcM ()
 -- See Note [Simplifiable given constraints]
-checkSimplifiableClassConstraint env dflags ctxt cls tys
+checkSimplifiableClassConstraint env dflags cls tys
   | not (wopt Opt_WarnSimplifiableClassConstraints dflags)
   = return ()
   | xopt LangExt.MonoLocalBinds dflags
   = return ()
-
-  | DataTyCtxt {} <- ctxt   -- Don't do this check for the "stupid theta"
-  = return ()               -- of a data type declaration
 
   | cls `hasKey` coercibleTyConKey
   = return ()   -- Oddly, we treat (Coercible t1 t2) as unconditionally OK
@@ -1333,7 +1328,6 @@ okIPCtxt (ForSigCtxt {})        = True  -- ??
 okIPCtxt ThBrackCtxt            = True
 okIPCtxt (GhciCtxt {})          = True
 okIPCtxt SigmaCtxt              = True
-okIPCtxt (DataTyCtxt {})        = True
 okIPCtxt (PatSynCtxt {})        = True
 okIPCtxt (TySynCtxt {})         = True   -- e.g.   type Blah = ?x::Int
                                          -- #11466

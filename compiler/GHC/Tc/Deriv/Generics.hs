@@ -109,27 +109,25 @@ following constraints are satisfied.
       constructor or it is equivalent to the head of a data family instance (up to
       alpha-renaming).
 
-  (b) D cannot have a "stupid context".
-
-  (c) The right-hand side of D cannot include existential types, universally
+  (b) The right-hand side of D cannot include existential types, universally
       quantified types, or "exotic" unlifted types. An exotic unlifted type
       is one which is not listed in the definition of allowedUnliftedTy
       (i.e., one for which we have no representation type).
       See Note [Generics and unlifted types]
 
-  (d) T :: *.
+  (c) T :: *.
 
 (Generic1 T) and (Rep1 T) are derivable for some type expression T if the
 following constraints are satisfied.
 
-  (a),(b),(c) As above.
+  (a),(b) As above.
 
-  (d) T must expect arguments, and its last parameter must have kind *.
+  (c) T must expect arguments, and its last parameter must have kind *.
 
       We use `a' to denote the parameter of D that corresponds to the last
       parameter of T.
 
-  (e) For any type-level application (Tfun Targ) in the right-hand side of D
+  (d) For any type-level application (Tfun Targ) in the right-hand side of D
       where the head of Tfun is not a tuple constructor:
 
       (b1) `a' must not occur in Tfun.
@@ -147,20 +145,10 @@ canDoGenerics :: TyCon -> Validity
 -- It returns IsValid if deriving is possible. It returns (NotValid reason)
 -- if not.
 canDoGenerics tc
-  = mergeErrors (
-          -- Check (b) from Note [Requirements for deriving Generic and Rep].
-              (if (not (null (tyConStupidTheta tc)))
-                then (NotValid (tc_name <+> text "must not have a datatype context"))
-                else IsValid)
+  = mergeErrors
           -- See comment below
-            : (map bad_con (tyConDataCons tc)))
+            (map bad_con (tyConDataCons tc))
   where
-    -- The tc can be a representation tycon. When we want to display it to the
-    -- user (in an error message) we should print its parent
-    tc_name = ppr $ case tyConFamInst_maybe tc of
-        Just (ptc, _) -> ptc
-        _             -> tc
-
         -- Check (c) from Note [Requirements for deriving Generic and Rep].
         --
         -- If any of the constructors has an exotic unlifted type as argument,

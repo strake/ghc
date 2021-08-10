@@ -107,8 +107,7 @@ buildDataCon :: FamInstEnvs
            -> [TyCoVar]                -- Existentials
            -> [InvisTVBinder]          -- User-written 'TyVarBinder's
            -> [EqSpec]                 -- Equality spec
-           -> KnotTied ThetaType       -- Does not include the "stupid theta"
-                                       -- or the GADT equalities
+           -> KnotTied ThetaType       -- Does not include the GADT equalities
            -> [KnotTied Type]          -- Arguments
            -> KnotTied Type            -- Result types
            -> KnotTied TyCon           -- Rep tycon
@@ -131,39 +130,19 @@ buildDataCon fam_envs src_name declared_infix prom_info src_bangs impl_bangs
         ; traceIf (text "buildDataCon 1" <+> ppr src_name)
         ; us <- newUniqueSupply
         ; dflags <- getDynFlags
-        ; let stupid_ctxt = mkDataConStupidTheta rep_tycon arg_tys univ_tvs
-              tag = lookupNameEnv_NF tag_map src_name
+        ; let tag = lookupNameEnv_NF tag_map src_name
               -- See Note [Constructor tag allocation], fixes #14657
               data_con = mkDataCon src_name declared_infix prom_info
                                    src_bangs field_lbls
                                    univ_tvs ex_tvs user_tvbs eq_spec ctxt
                                    arg_tys res_ty NoRRI rep_tycon tag
-                                   stupid_ctxt dc_wrk dc_rep
+                                   dc_wrk dc_rep
               dc_wrk = mkDataConWorkId work_name data_con
               dc_rep = initUs_ us (mkDataConRep dflags fam_envs wrap_name
                                                 impl_bangs data_con)
 
         ; traceIf (text "buildDataCon 2" <+> ppr src_name)
         ; return data_con }
-
-
--- The stupid context for a data constructor should be limited to
--- the type variables mentioned in the arg_tys
--- ToDo: Or functionally dependent on?
---       This whole stupid theta thing is, well, stupid.
-mkDataConStupidTheta :: TyCon -> [Type] -> [TyVar] -> [PredType]
-mkDataConStupidTheta tycon arg_tys univ_tvs
-  | null stupid_theta = []      -- The common case
-  | otherwise         = filter in_arg_tys stupid_theta
-  where
-    tc_subst     = zipTvSubst (tyConTyVars tycon)
-                              (mkTyVarTys univ_tvs)
-    stupid_theta = substTheta tc_subst (tyConStupidTheta tycon)
-        -- Start by instantiating the master copy of the
-        -- stupid theta, taken from the TyCon
-
-    arg_tyvars      = tyCoVarsOfTypes arg_tys
-    in_arg_tys pred = tyCoVarsOfType pred `intersectsVarSet` arg_tyvars
 
 
 ------------------------------------------------------

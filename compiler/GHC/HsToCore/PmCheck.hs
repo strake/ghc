@@ -449,15 +449,6 @@ translatePat fam_insts x pat = case pat of
         wrap_rhs_y <- dsHsWrapper wrapper
         pure (PmLet y (wrap_rhs_y (Var x)) : grds)
 
-  -- (n + k)  ===>   let b = x >= k, True <- b, let n = x-k
-  NPlusKPat _pat_ty (L _ n) k1 k2 ge minus -> do
-    b <- mkPmId boolTy
-    let grd_b = vanillaConGrd b trueDataCon []
-    [ke1, ke2] <- traverse dsOverLit [unLoc k1, k2]
-    rhs_b <- dsSyntaxExpr ge    [Var x, ke1]
-    rhs_n <- dsSyntaxExpr minus [Var x, ke2]
-    pure [PmLet b rhs_b, grd_b, PmLet n rhs_n]
-
   -- (fun -> pat)   ===>   let y = fun x, pat <- y where y is a match var of pat
   ViewPat _arg_ty lexpr pat -> do
     (y, grds) <- translateLPatV fam_insts pat

@@ -1,5 +1,4 @@
 {-# LANGUAGE DataKinds
-           , DatatypeContexts
            , FlexibleInstances
            , GADTs
            , MultiParamTypeClasses
@@ -21,7 +20,7 @@ data instance V x Int y [z] = MkVInt { baz :: (x, y, z, Bool) }
 data W a where
   MkW :: { woo :: a } -> W [a]
 
-data Eq a => X a = MkX { xoo :: a }
+data X a = MkX { xoo :: a }
 data Y a = Eq a => MkY { yoo :: a }
 
 t = MkT 42 True

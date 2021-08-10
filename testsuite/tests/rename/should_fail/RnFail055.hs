@@ -1,4 +1,4 @@
-{-# LANGUAGE MultiParamTypeClasses,RankNTypes,ExistentialQuantification,DatatypeContexts #-}
+{-# LANGUAGE MultiParamTypeClasses,RankNTypes,ExistentialQuantification #-}
 module RnFail055 where
 
 import RnFail055_aux
@@ -19,24 +19,21 @@ type S3 a = [a]
 -- datatype with different fields
 data T1 a b = T1 [b] [a]
 
--- datatype with different stupid theta
-data (Eq b) => T2 a b = T2 a
-
 -- different constructor name
-data T3' = T3
-data T3 = T3'
+data T2' = T2
+data T2 = T2'
 
 -- check alpha equivalence
-data T4 a = T4 (forall b. a -> b)
+data T3 a = T3 (forall b. a -> b)
 
 -- different field labels
-data T5 a = T5 { field5 :: a }
+data T4 a = T4 { field5 :: a }
 
 -- different strict marks
-data T6 = T6 Int
+data T5 = T5 Int
 
 -- different existential quantification
-data T7 a = forall a . T7 a
+data T6 a = forall a . T6 a
 
 -- extra method in the hs-boot
 class C1 a b where {}

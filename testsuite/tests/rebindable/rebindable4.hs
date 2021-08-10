@@ -1,4 +1,4 @@
-{-# LANGUAGE RebindableSyntax, NPlusKPatterns #-}
+{-# LANGUAGE RebindableSyntax #-}
 {-# OPTIONS -Wno-error=missing-monadfail-instances #-}
 
 module Main where
@@ -46,10 +46,6 @@ module Main where
         negate :: a -> a;
         negate a = a; -- don't actually negate
 
-        (-) :: a -> a -> a;
-        (-) x y = y; -- changed function
-
-
         test_do f g = do
                 {
                 f;                              -- >>
@@ -65,7 +61,7 @@ module Main where
 
         test_fromInteger_pattern a@1 = "1=" ++ (Prelude.show a);
         test_fromInteger_pattern a@(-2) = "(-2)=" ++ (Prelude.show a);
-        test_fromInteger_pattern (a + 7) = "(a + 7)=" ++ Prelude.show a;
+        test_fromInteger_pattern a = "_=" ++ (Prelude.show a);
 
         test_fromRational_pattern a@0.5 = "0.5=" ++ (Prelude.show a);
         test_fromRational_pattern a@(-0.7) = "(-0.7)=" ++ (Prelude.show a);

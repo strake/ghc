@@ -1999,7 +1999,6 @@ repP (SigPat _ p t) = do { p' <- repLP p
                          ; t' <- repLTy (hsPatSigType t)
                          ; repPsig p' t' }
 repP (SplicePat _ splice) = repSplice splice
-repP other = notHandled "Exotic pattern" (ppr other)
 
 ----------------------------------------------------------
 -- Declaration ordering helpers

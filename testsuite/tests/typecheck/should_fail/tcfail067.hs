@@ -1,9 +1,8 @@
-{-# LANGUAGE DatatypeContexts #-}
 module ShouldFail where
 
 infixr 1 `rangeOf`
 
-data Ord a => SubRange a = SubRange (a, a) a
+data SubRange a = SubRange (a, a) a
 
 type IntSubRange = SubRange Int 
 

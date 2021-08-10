@@ -264,15 +264,6 @@ inferConstraintsStock (DerivInstTys { dit_cls_tys     = cls_tys
              = rep_tc_args ++ map mkTyVarTy
                                   (drop (length rep_tc_args) rep_tc_tvs)
 
-               -- Stupid constraints
-           stupid_constraints
-             = [ mkThetaOrigin deriv_origin TypeLevel [] [] [] $
-                 substTheta tc_subst (tyConStupidTheta rep_tc) ]
-           tc_subst = -- See the comment with all_rep_tc_args for an
-                      -- explanation of this assertion
-                      assert (equalLength rep_tc_tvs all_rep_tc_args) $
-                      zipTvSubst rep_tc_tvs all_rep_tc_args
-
            -- Extra Data constraints
            -- The Data class (only) requires that for
            --    instance (...) => Data (T t1 t2)
@@ -329,9 +320,7 @@ inferConstraintsStock (DerivInstTys { dit_cls_tys     = cls_tys
                           [ ppr main_cls <+> ppr inst_tys'
                           , ppr arg_constraints
                           ]
-                   ; return ( stupid_constraints ++ extra_constraints
-                                                 ++ arg_constraints
-                            , tvs', inst_tys') }
+                   ; pure (extra_constraints ++ arg_constraints, tvs', inst_tys') }
 
 -- | Like 'inferConstraints', but used only in the case of @DeriveAnyClass@,
 -- which gathers its constraints based on the type signatures of the class's

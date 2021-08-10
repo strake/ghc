@@ -14,7 +14,7 @@ Pattern-matching literal patterns
 module GHC.HsToCore.Match.Literal
    ( dsLit, dsOverLit, hsLitKey
    , tidyLitPat, tidyNPat
-   , matchLiterals, matchNPlusKPats, matchNPats
+   , matchLiterals, matchNPats
    , warnAboutIdentities
    , warnAboutOverflowedOverLit, warnAboutOverflowedLit
    , warnAboutEmptyEnumerations
@@ -539,42 +539,3 @@ matchNPats (var :| vars) ty (eqn1 :| eqns)    -- All for the same literal
         ; pred_expr <- dsSyntaxExpr eq_chk [Var var, neg_lit]
         ; match_result <- match vars ty (shiftEqns (eqn1:eqns))
         ; return (mkGuardedMatchResult pred_expr match_result) }
-
-{-
-************************************************************************
-*                                                                      *
-                Pattern matching on n+k patterns
-*                                                                      *
-************************************************************************
-
-For an n+k pattern, we use the various magic expressions we've been given.
-We generate:
-\begin{verbatim}
-    if ge var lit then
-        let n = sub var lit
-        in  <expr-for-a-successful-match>
-    else
-        <try-next-pattern-or-whatever>
-\end{verbatim}
--}
-
-matchNPlusKPats :: NonEmpty Id -> Type -> NonEmpty EquationInfo -> DsM (MatchResult CoreExpr)
--- All NPlusKPats, for the *same* literal k
-matchNPlusKPats (var :| vars) ty (eqn1 :| eqns)
-  = do  { let NPlusKPat _ (L _ n1) (L _ lit1) lit2 ge minus
-                = firstPat eqn1
-        ; lit1_expr   <- dsOverLit lit1
-        ; lit2_expr   <- dsOverLit lit2
-        ; pred_expr   <- dsSyntaxExpr ge    [Var var, lit1_expr]
-        ; minusk_expr <- dsSyntaxExpr minus [Var var, lit2_expr]
-        ; let (wraps, eqns') = mapAndUnzip (shift n1) (eqn1:eqns)
-        ; match_result <- match vars ty eqns'
-        ; return  (mkGuardedMatchResult pred_expr               $
-                   mkCoLetMatchResult (NonRec n1 minusk_expr)   $
-                   fmap (foldr1 (.) wraps)                      $
-                   match_result) }
-  where
-    shift n1 eqn@(EqnInfo { eqn_pats = NPlusKPat _ (L _ n) _ _ _ _ : pats })
-        = (wrapBind n n1, eqn { eqn_pats = pats })
-        -- The wrapBind is a no-op for the first equation
-    shift _ e = pprPanic "matchNPlusKPats/shift" (ppr e)
