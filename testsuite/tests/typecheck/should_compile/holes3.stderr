@@ -83,7 +83,6 @@ holes3.hs:11:15: error:
         (++) :: forall a. [a] -> [a] -> [a]
         filter :: forall a. (a -> Bool) -> [a] -> [a]
         fromInteger :: forall a. Num a => Integer -> a
-        (-) :: forall a. Num a => a -> a -> a
         fromRational :: forall a. Fractional a => Rational -> a
         negate :: forall a. Num a => a -> a
         fromIntegral :: forall a b. (Integral a, Num b) => a -> b
@@ -158,6 +157,7 @@ holes3.hs:11:15: error:
         significand :: forall a. RealFloat a => a -> a
         (*) :: forall a. Num a => a -> a -> a
         (+) :: forall a. Num a => a -> a -> a
+        (-) :: forall a. Num a => a -> a -> a
         abs :: forall a. Num a => a -> a
         signum :: forall a. Num a => a -> a
         (/) :: forall a. Fractional a => a -> a -> a

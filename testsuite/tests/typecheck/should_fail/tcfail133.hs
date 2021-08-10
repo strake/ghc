@@ -1,5 +1,5 @@
 {-# LANGUAGE UndecidableInstances, FlexibleInstances, TypeOperators,
-             MultiParamTypeClasses, FunctionalDependencies, DatatypeContexts #-}
+             MultiParamTypeClasses, FunctionalDependencies #-}
 
 -- This one crashed GHC 6.3 due to an error in GHC.Tc.Solver.add_ors
 
@@ -8,7 +8,7 @@ module Foo where
 data Zero   = Zero deriving Show
 data One    = One deriving Show
 infixl 9 :@
-data (Number a, Digit b) => a :@ b = a :@ b deriving Show
+data a :@ b = a :@ b deriving Show
 
 class Digit a
 instance Digit Zero

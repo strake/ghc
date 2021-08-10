@@ -13,7 +13,7 @@
 module GHC.Tc.Utils.Instantiate (
        deeplySkolemise,
        topInstantiate, topInstantiateInferred, deeplyInstantiate,
-       instCall, instDFunType, instStupidTheta, instTyVarsWith,
+       instCall, instDFunType, instTyVarsWith,
        newWanted, newWanteds,
 
        tcInstInvisibleTyBinders, tcInstInvisibleTyBinder,
@@ -415,14 +415,6 @@ instDFunType dfun_id dfun_inst_tys
            ; (subst'', tys) <- go subst' tvs mb_tys
            ; return (subst'', mkTyVarTy tv' : tys) }
     go _ _ _ = pprPanic "instDFunTypes" (ppr dfun_id $$ ppr dfun_inst_tys)
-
-----------------
-instStupidTheta :: CtOrigin -> TcThetaType -> TcM ()
--- Similar to instCall, but only emit the constraints in the LIE
--- Used exclusively for the 'stupid theta' of a data constructor
-instStupidTheta orig theta
-  = do  { _co <- instCallConstraints orig theta -- Discard the coercion
-        ; return () }
 
 
 {- *********************************************************************

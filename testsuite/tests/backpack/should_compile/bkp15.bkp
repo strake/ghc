@@ -1,11 +1,11 @@
-{-# LANGUAGE RankNTypes, DatatypeContexts, CApiFFI, GADTs, TypeFamilies, DefaultSignatures, MultiParamTypeClasses, FunctionalDependencies, PatternSynonyms #-}
+{-# LANGUAGE RankNTypes, CApiFFI, GADTs, TypeFamilies, DefaultSignatures, MultiParamTypeClasses, FunctionalDependencies, PatternSynonyms #-}
 
 -- Reflexivity test, bang on the units with as much
 -- stuff as we can.
 unit p where
     signature H where
         x :: (forall a. a -> a) -> (Int, Bool)
-        data Eq a => T a = T (a -> a) | S (S a)
+        data T a = T (a -> a) | S (S a)
         data S a = R (T a)
         data {-# CTYPE "Foo" #-} Foo where
             Foo :: Foo
@@ -26,7 +26,7 @@ unit p where
 unit q where
     signature H where
         x :: (forall a. a -> a) -> (Int, Bool)
-        data Eq a => T a = T (a -> a) | S (S a)
+        data T a = T (a -> a) | S (S a)
         data S a = R (T a)
         data {-# CTYPE "Foo" #-} Foo where
             Foo :: Foo
@@ -61,7 +61,7 @@ unit h-impl where
     module H where
         x :: (forall a. a -> a) -> (Int, Bool)
         x f = (f 2, f True)
-        data Eq a => T a = T (a -> a) | S (S a)
+        data T a = T (a -> a) | S (S a)
         data S a = R (T a)
         data {-# CTYPE "Foo" #-} Foo where
             Foo :: Foo

@@ -65,7 +65,6 @@ data Extension
    | ViewPatterns
    | GADTs
    | GADTSyntax
-   | NPlusKPatterns
    | DoAndIfThenElse
    | BlockArguments
    | RebindableSyntax

@@ -1,4 +1,4 @@
-{-# LANGUAGE RankNTypes, DatatypeContexts, CApiFFI, GADTs, TypeFamilies, DefaultSignatures, MultiParamTypeClasses, FunctionalDependencies, PatternSynonyms #-}
+{-# LANGUAGE RankNTypes, CApiFFI, GADTs, TypeFamilies, DefaultSignatures, MultiParamTypeClasses, FunctionalDependencies, PatternSynonyms #-}
 
 -- Reflexivity test, bang on the units with as much
 -- stuff as we can.

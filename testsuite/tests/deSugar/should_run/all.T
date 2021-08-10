@@ -6,7 +6,6 @@
 test('dsrun001', normal, compile_and_run, [''])
 test('dsrun002', normal, compile_and_run, [''])
 test('dsrun003', normal, compile_and_run, [''])
-test('dsrun004', normal, compile_and_run, [''])
 test('dsrun005', exit_code(1), compile_and_run, [''])
 test('dsrun006', normal, compile_and_run, [''])
 test('dsrun007', exit_code(1), compile_and_run, [''])

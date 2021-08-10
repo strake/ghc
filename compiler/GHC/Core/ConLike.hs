@@ -14,7 +14,6 @@ module GHC.Core.ConLike (
         , conLikeUserTyVarBinders
         , conLikeExTyCoVars
         , conLikeName
-        , conLikeStupidTheta
         , conLikeWrapId_maybe
         , conLikeImplBangs
         , conLikeFullSig
@@ -131,14 +130,6 @@ conLikeExTyCoVars (PatSynCon psyn1)   = patSynExTyVars psyn1
 conLikeName :: ConLike -> Name
 conLikeName (RealDataCon data_con) = dataConName data_con
 conLikeName (PatSynCon pat_syn)    = patSynName pat_syn
-
--- | The \"stupid theta\" of the 'ConLike', such as @data Eq a@ in:
---
--- > data Eq a => T a = ...
--- It is empty for `PatSynCon` as they do not allow such contexts.
-conLikeStupidTheta :: ConLike -> ThetaType
-conLikeStupidTheta (RealDataCon data_con) = dataConStupidTheta data_con
-conLikeStupidTheta (PatSynCon {})         = []
 
 -- | Returns the `Id` of the wrapper. This is also known as the builder in
 -- some contexts. The value is Nothing only in the case of unidirectional

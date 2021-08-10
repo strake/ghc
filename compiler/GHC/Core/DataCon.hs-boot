@@ -22,7 +22,6 @@ dataConUserTyVarBinders :: DataCon -> [InvisTVBinder]
 dataConSourceArity  :: DataCon -> Arity
 dataConFieldLabels :: DataCon -> [FieldLabel]
 dataConInstOrigArgTys  :: DataCon -> [Type] -> [Type]
-dataConStupidTheta :: DataCon -> ThetaType
 dataConFullSig :: DataCon
                -> ([TyVar], [TyCoVar], [EqSpec], ThetaType, [Type], Type)
 isUnboxedSumCon :: DataCon -> Bool

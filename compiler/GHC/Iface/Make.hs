@@ -511,7 +511,6 @@ tyConToIfaceDecl env tycon
                   ifResKind = if_res_kind,
                   ifCType   = tyConCType tycon,
                   ifRoles   = tyConRoles tycon,
-                  ifCtxt    = tidyToIfaceContext tc_env1 (tyConStupidTheta tycon),
                   ifCons    = ifaceConDecls (algTyConRhs tycon),
                   ifGadtSyntax = isGadtSyntaxTyCon tycon,
                   ifParent  = parent })
@@ -526,7 +525,6 @@ tyConToIfaceDecl env tycon
                   ifResKind    = if_res_kind,
                   ifCType      = Nothing,
                   ifRoles      = tyConRoles tycon,
-                  ifCtxt       = [],
                   ifCons       = IfDataTyCon [],
                   ifGadtSyntax = False,
                   ifParent     = IfNoParent })

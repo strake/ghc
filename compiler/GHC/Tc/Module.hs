@@ -1139,12 +1139,9 @@ checkBootTyCon is_boot tc1 tc2
     check (injInfo1 == injInfo2) (text "Injectivities do not match")
 
   | isAlgTyCon tc1 && isAlgTyCon tc2
-  , Just env <- eqVarBndrs emptyRnEnv2 (tyConTyVars tc1) (tyConTyVars tc2)
+  , Just _ <- eqVarBndrs emptyRnEnv2 (tyConTyVars tc1) (tyConTyVars tc2)
   = assert (tc1 == tc2) $
     checkRoles roles1 roles2 `andThenCheck`
-    check (eqListBy (eqTypeX env)
-                     (tyConStupidTheta tc1) (tyConStupidTheta tc2))
-          (text "The datatype contexts do not match") `andThenCheck`
     eqAlgRhs tc1 (algTyConRhs tc1) (algTyConRhs tc2)
 
   | otherwise = Just empty   -- two very different types -- should be obvious

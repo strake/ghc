@@ -2655,7 +2655,6 @@ tcDataDefn err_ctxt roles_info tc_name
        -- unlike the finalized 'tycon' defined above which is an 'AlgTyCon'
        --
        -- The TyCon tyvars must scope over
-       --    - the stupid theta (dd_ctxt)
        --    - for H98 constructors only, the ConDecl
        -- But it does no harm to bring them into scope
        -- over GADT ConDecls as well; and it's awkward not to
@@ -2668,8 +2667,6 @@ tcDataDefn err_ctxt roles_info tc_name
        ; unless (mk_permissive_kind hsc_src cons) $
          checkDataKindSig (DataDeclSort new_or_data) final_res_kind
 
-       ; stupid_tc_theta <- pushTcLevelM_ $ solveEqualities $ tcHsContext ctxt
-       ; stupid_theta    <- zonkTcTypesToTypes stupid_tc_theta
        ; kind_signatures <- xoptM LangExt.KindSignatures
 
              -- Check that we don't use kind signatures without Glasgow extensions
@@ -2694,7 +2691,7 @@ tcDataDefn err_ctxt roles_info tc_name
                                   final_res_kind
                                   roles
                                   (fmap unLoc cType)
-                                  stupid_theta tc_rhs
+                                  tc_rhs
                                   (VanillaAlgTyCon tc_rep_nm)
                                   gadt_syntax) }
        ; let deriv_info = DerivInfo { di_rep_tc = tycon
@@ -3061,14 +3058,11 @@ that 'a' must have that kind, and to bring 'k' into scope.
 dataDeclChecks :: Name -> NewOrData
                -> LHsContext GhcRn -> [LConDecl GhcRn]
                -> TcM Bool
-dataDeclChecks tc_name new_or_data (L _ stupid_theta) cons
+dataDeclChecks tc_name new_or_data _ cons
   = do {   -- Check that we don't use GADT syntax in H98 world
          gadtSyntax_ok <- xoptM LangExt.GADTSyntax
        ; let gadt_syntax = consUseGadtSyntax cons
        ; checkTc (gadtSyntax_ok || not gadt_syntax) (badGadtDecl tc_name)
-
-           -- Check that the stupid theta is empty for a GADT-style declaration
-       ; checkTc (null stupid_theta || not gadt_syntax) (badStupidTheta tc_name)
 
          -- Check that a newtype has exactly one constructor
          -- Do this before checking for empty data decls, so that
@@ -3838,11 +3832,7 @@ checkValidTyCon tc
                ; BuiltInSynFamTyCon _         -> return () }
 
              | otherwise -> do
-               { -- Check the context on the data decl
-                 traceTc "cvtc1" (ppr tc)
-               ; checkValidTheta (DataTyCtxt name) (tyConStupidTheta tc)
-
-               ; traceTc "cvtc2" (ppr tc)
+               { traceTc "cvtc1" (ppr tc)
 
                ; dflags          <- getDynFlags
                ; existential_ok  <- xoptM LangExt.ExistentialQuantification
@@ -4750,10 +4740,6 @@ badExistential con
                 text "has existential type variables, a context, or a specialised result type")
        2 (vcat [ ppr con <+> dcolon <+> ppr (dataConUserType con)
                , parens $ text "Enable ExistentialQuantification or GADTs to allow this" ])
-
-badStupidTheta :: Name -> SDoc
-badStupidTheta tc_name
-  = text "A data type declared in GADT style cannot have a context:" <+> quotes (ppr tc_name)
 
 newtypeConError :: Name -> Int -> SDoc
 newtypeConError tycon n

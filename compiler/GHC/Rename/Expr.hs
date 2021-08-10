@@ -1851,7 +1851,6 @@ isStrictPattern lpat =
     ConPat{}        -> True
     LitPat{}        -> True
     NPat{}          -> True
-    NPlusKPat{}     -> True
     SplicePat{}     -> True
     XPat{}          -> panic "isStrictPattern: XPat"
 

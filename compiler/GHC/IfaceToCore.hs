@@ -669,19 +669,17 @@ tc_iface_decl _ _ (IfaceData {ifName = tc_name,
                           ifBinders = binders,
                           ifResKind = res_kind,
                           ifRoles = roles,
-                          ifCtxt = ctxt, ifGadtSyntax = gadt_syn,
+                          ifGadtSyntax = gadt_syn,
                           ifCons = rdr_cons,
                           ifParent = mb_parent })
   = bindIfaceTyConBinders_AT binders $ \ binders' -> do
     { res_kind' <- tcIfaceType res_kind
 
     ; tycon <- fixM $ \ tycon -> do
-            { stupid_theta <- tcIfaceCtxt ctxt
-            ; parent' <- tc_parent tc_name mb_parent
+            { parent' <- tc_parent tc_name mb_parent
             ; cons <- tcIfaceDataCons tc_name tycon binders' rdr_cons
             ; return (mkAlgTyCon tc_name binders' res_kind'
-                                 roles cType stupid_theta
-                                 cons parent' gadt_syn) }
+                                 roles cType cons parent' gadt_syn) }
     ; traceIf (text "tcIfaceDecl4" <+> ppr tycon)
     ; return (ATyCon tycon) }
   where
