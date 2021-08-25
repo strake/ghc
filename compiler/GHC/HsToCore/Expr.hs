@@ -683,8 +683,16 @@ dsExpr expr@(RecordUpd { rupd_expr = record_expr, rupd_flds = fields
       = do { let (univ_tvs, ex_tvs, eq_spec,
                   prov_theta, _req_theta, arg_tys, _) = conLikeFullSig con
                  user_tvs  = binderVars $ conLikeUserTyVarBinders con
-                 in_subst  = zipTvSubst univ_tvs in_inst_tys
-                 out_subst = zipTvSubst univ_tvs out_inst_tys
+
+                 in_subst :: TCvSubst
+                 in_subst  = extendTCvInScopeList (zipTvSubst univ_tvs in_inst_tys) ex_tvs
+                   -- The in_subst clones the universally quantified type
+                   -- variables. It will be used to substitute into types that
+                   -- contain existentials, however, so make sure to extend the
+                   -- in-scope set with ex_tvs (#20278).
+
+                 out_tv_env :: TvSubstEnv
+                 out_tv_env = zipTyEnv univ_tvs out_inst_tys
 
                 -- I'm not bothering to clone the ex_tvs
            ; eqs_vars   <- mapM newPredVarDs (substTheta in_subst (eqSpecPreds eq_spec))
@@ -700,7 +708,7 @@ dsExpr expr@(RecordUpd { rupd_expr = record_expr, rupd_flds = fields
                         -- Reconstruct with the WrapId so that unpacking happens
                  wrap = mkWpEvVarApps theta_vars                                <.>
                         dict_req_wrap                                           <.>
-                        mkWpTyApps    [ lookupTyVar out_subst tv
+                        mkWpTyApps    [ lookupVarEnv out_tv_env tv
                                           `orElse` mkTyVarTy tv
                                       | tv <- user_tvs
                                       , not (tv `elemVarEnv` wrap_subst) ]
