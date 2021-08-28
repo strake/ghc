@@ -765,7 +765,7 @@ spec_import dflags this_mod top_env callers
        ; (rules2, spec_binds2) <- spec_imports dflags this_mod top_env
                                                (fn:callers)
                                                (extendRuleBaseList rb rules1)
-                                               (dict_binds `unionBags` dict_binds1)
+                                               (dict_binds <|> dict_binds1)
                                                new_calls
 
        ; let final_binds = wrapDictBinds dict_binds1 $
@@ -2395,7 +2395,7 @@ instance Outputable UsageDetails where
                  text "calls" <+> equals <+> ppr calls]))
 
 emptyUDs :: UsageDetails
-emptyUDs = MkUD { ud_binds = emptyBag, ud_calls = mapEmpty }
+emptyUDs = MkUD { ud_binds = empty, ud_calls = mapEmpty }
 
 ------------------------------------------------------------
 type CallDetails  = DIdEnv CallInfoSet
@@ -2444,7 +2444,7 @@ unionCalls c1 c2 = plusDVarEnv_C unionCallInfoSet c1 c2
 
 unionCallInfoSet :: CallInfoSet -> CallInfoSet -> CallInfoSet
 unionCallInfoSet (CIS f calls1) (CIS _ calls2) =
-  CIS f (calls1 `unionBags` calls2)
+  CIS f (calls1 <|> calls2)
 
 callDetailsFVs :: CallDetails -> VarSet
 callDetailsFVs calls =
@@ -2463,9 +2463,9 @@ getTheta = fmap tyBinderType . filter isInvisibleBinder . filter (not . isNamedB
 ------------------------------------------------------------
 singleCall :: Id -> [SpecArg] -> UsageDetails
 singleCall id args
-  = MkUD {ud_binds = emptyBag,
+  = MkUD {ud_binds = empty,
           ud_calls = mapSingleton id $ CIS id $
-                     unitBag (CI { ci_key  = args -- used to be tys
+                     pure (CI { ci_key  = args -- used to be tys
                                  , ci_fvs  = call_fvs }) }
   where
     call_fvs = foldr (unionVarSet . specArgFreeVars) emptyVarSet args
@@ -2618,7 +2618,7 @@ interestingDict _ _                       = True
 plusUDs :: UsageDetails -> UsageDetails -> UsageDetails
 plusUDs (MkUD {ud_binds = db1, ud_calls = calls1})
         (MkUD {ud_binds = db2, ud_calls = calls2})
-  = MkUD { ud_binds = db1    `unionBags`   db2
+  = MkUD { ud_binds = db1    <|>   db2
          , ud_calls = calls1 `unionCalls`  calls2 }
 
 -----------------------------
@@ -2674,13 +2674,13 @@ recWithDumpedDicts pairs dbs
 snocDictBinds :: UsageDetails -> [DictBind] -> UsageDetails
 -- Add ud_binds to the tail end of the bindings in uds
 snocDictBinds uds dbs
-  = uds { ud_binds = ud_binds uds `unionBags` listToBag dbs }
+  = uds { ud_binds = ud_binds uds <|> listToBag dbs }
 
 consDictBind :: DictBind -> UsageDetails -> UsageDetails
 consDictBind bind uds = uds { ud_binds = bind `consBag` ud_binds uds }
 
 addDictBinds :: [DictBind] -> UsageDetails -> UsageDetails
-addDictBinds binds uds = uds { ud_binds = listToBag binds `unionBags` ud_binds uds }
+addDictBinds binds uds = uds { ud_binds = listToBag binds <|> ud_binds uds }
 
 snocDictBind :: UsageDetails -> DictBind -> UsageDetails
 snocDictBind uds bind = uds { ud_binds = ud_binds uds `snocBag` bind }
@@ -2701,7 +2701,7 @@ wrapDictBindsE dbs expr
 dumpUDs :: [CoreBndr] -> UsageDetails -> (UsageDetails, Bag DictBind)
 -- Used at a lambda or case binder; just dump anything mentioning the binder
 dumpUDs bndrs uds@(MkUD { ud_binds = orig_dbs, ud_calls = orig_calls })
-  | null bndrs = (uds, emptyBag)  -- Common in case alternatives
+  | null bndrs = (uds, empty)  -- Common in case alternatives
   | otherwise  = -- pprTrace "dumpUDs" (ppr bndrs $$ ppr free_uds $$ ppr dump_dbs) $
                  (free_uds, dump_dbs)
   where
@@ -2773,7 +2773,7 @@ splitDictBinds :: Bag DictBind -> IdSet -> (Bag DictBind, Bag DictBind, IdSet)
 --   * free_dbs does not depend on bndrs
 --   * dump_set = bndrs `union` bndrs(dump_dbs)
 splitDictBinds dbs bndr_set
-   = foldl' split_db (emptyBag, emptyBag, bndr_set) dbs
+   = foldl' split_db (empty, empty, bndr_set) dbs
                 -- Important that it's foldl' not foldr;
                 -- we're accumulating the set of dumped ids in dump_set
    where

@@ -579,7 +579,7 @@ dsExpr (RecordCon { rcon_flds = rbinds
                    (rhs:rhss) -> assert (null rhss )
                                  dsLExprNoLP rhs
                    []         -> mkErrorAppDs rEC_CON_ERROR_ID arg_ty (ppr (flLabel fl))
-             unlabelled_bottom arg_ty = mkErrorAppDs rEC_CON_ERROR_ID arg_ty Outputable.empty
+             unlabelled_bottom arg_ty = mkErrorAppDs rEC_CON_ERROR_ID arg_ty mempty
 
              labels = conLikeFieldLabels con_like
 

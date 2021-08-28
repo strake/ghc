@@ -2408,11 +2408,11 @@ data LintLocInfo
 initL :: DynFlags -> LintFlags -> [Var]
        -> LintM a -> WarnsAndErrs    -- Warnings and errors
 initL dflags flags vars m
-  = case unLintM m env (emptyBag, emptyBag) of
+  = case unLintM m env (empty, empty) of
       (Just _, errs) -> errs
       (Nothing, errs@(_, e)) | not (isEmptyBag e) -> errs
                              | otherwise -> pprPanic ("Bug in Lint: a failure occurred " ++
-                                                      "without reporting an error message") empty
+                                                      "without reporting an error message") mempty
   where
     (tcvs, ids) = partition isTyCoVar vars
     env = LE { le_flags = flags
@@ -2637,7 +2637,7 @@ dumpLoc (IdTy b)
 dumpLoc (ImportedUnfolding locn)
   = (locn, text "In an imported unfolding")
 dumpLoc TopLevelBindings
-  = (noSrcLoc, Outputable.empty)
+  = (noSrcLoc, mempty)
 dumpLoc (InType ty)
   = (noSrcLoc, text "In the type" <+> quotes (ppr ty))
 dumpLoc (InCo co)

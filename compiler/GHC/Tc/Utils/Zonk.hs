@@ -1372,7 +1372,7 @@ zonkEvTypeable env (EvTypeableTrFun t1 t2) = EvTypeableTrFun <$> zonkEvTerm env 
 zonkEvTypeable env (EvTypeableTyLit t1) = EvTypeableTyLit <$> zonkEvTerm env t1
 
 zonkTcEvBinds_s :: [TcEvBinds] -> StateT ZonkEnv TcM [TcEvBinds]
-zonkTcEvBinds_s bs = pure . EvBinds . unionManyBags <$> traverse zonk_tc_ev_binds bs
+zonkTcEvBinds_s bs = pure . EvBinds . asum <$> traverse zonk_tc_ev_binds bs
 
 zonkTcEvBinds :: TcEvBinds -> StateT ZonkEnv TcM TcEvBinds
 zonkTcEvBinds = fmap EvBinds . zonk_tc_ev_binds
@@ -1385,7 +1385,7 @@ zonkEvBindsVar :: EvBindsVar -> StateT ZonkEnv TcM (Bag EvBind)
 zonkEvBindsVar EvBindsVar { ebv_binds = ref }
   = do { bs <- readMutVar ref
        ; zonkEvBinds (evBindMapBinds bs) }
-zonkEvBindsVar CoEvBindsVar {} = pure emptyBag
+zonkEvBindsVar CoEvBindsVar {} = pure empty
 
 zonkEvBinds :: Bag EvBind -> StateT ZonkEnv TcM (Bag EvBind)
 zonkEvBinds binds

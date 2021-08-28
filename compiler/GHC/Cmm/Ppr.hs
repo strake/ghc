@@ -124,11 +124,11 @@ pprBlock platform block
                        , ($$) . (nest 4) . pdoc platform
                        )
                        block
-                       empty
+                       mempty
 
 pprGraph :: Platform -> Graph CmmNode e x -> SDoc
 pprGraph platform = \case
-   GNil                  -> empty
+   GNil                  -> mempty
    GUnit block           -> pdoc platform block
    GMany entry body exit ->
          text "{"
@@ -136,8 +136,7 @@ pprGraph platform = \case
       $$ text "}"
       where pprMaybeO :: OutputableP Platform (Block CmmNode e x)
                       => MaybeO ex (Block CmmNode e x) -> SDoc
-            pprMaybeO NothingO = empty
-            pprMaybeO (JustO block) = pdoc platform block
+            pprMaybeO = foldMap (pdoc platform)
 
 pprCmmGraph :: Platform -> CmmGraph -> SDoc
 pprCmmGraph platform g
@@ -164,7 +163,7 @@ pprForeignConvention (ForeignConvention c args res ret) =
           doubleQuotes (ppr c) <+> text "arg hints: " <+> ppr args <+> text " result hints: " <+> ppr res <+> ppr ret
 
 pprReturnInfo :: CmmReturnInfo -> SDoc
-pprReturnInfo CmmMayReturn = empty
+pprReturnInfo CmmMayReturn = mempty
 pprReturnInfo CmmNeverReturns = text "never returns"
 
 pprForeignTarget :: Platform -> ForeignTarget -> SDoc
@@ -232,7 +231,7 @@ pprNode platform node = pp_node <+> pp_debug
           hsep [ text "if"
                , parens (pdoc platform expr)
                , case l of
-                   Nothing -> empty
+                   Nothing -> mempty
                    Just b -> parens (text "likely:" <+> ppr b)
                , text "goto"
                , ppr t <> semi
@@ -261,7 +260,7 @@ pprNode platform node = pp_node <+> pp_debug
                             [ text "default:"
                             , braces (text "goto" <+> ppr l <> semi)
                             ]
-                | otherwise = empty
+                | otherwise = mempty
 
             range = brackets $ hsep [integer lo, text "..", integer hi]
               where (lo,hi) = switchTargetsRange ids
@@ -279,7 +278,7 @@ pprNode platform node = pp_node <+> pp_debug
 
                 returns
                   | Just r <- k = text "returns to" <+> ppr r <> comma
-                  | otherwise   = empty
+                  | otherwise   = mempty
 
       CmmForeignCall {tgt=t, res=rs, args=as, succ=s, ret_args=a, ret_off=u, intrbl=i} ->
           hcat $ if i then [text "interruptible", space] else [] ++
@@ -294,11 +293,10 @@ pprNode platform node = pp_node <+> pp_debug
 
     pp_debug :: SDoc
     pp_debug =
-      if not debugIsOn then empty
-      else case node of
-             CmmEntry {}             -> empty -- Looks terrible with text "  // CmmEntry"
-             CmmComment {}           -> empty -- Looks also terrible with text "  // CmmComment"
-             CmmTick {}              -> empty
+      mwhen debugIsOn case node of
+             CmmEntry {}             -> mempty -- Looks terrible with text "  // CmmEntry"
+             CmmComment {}           -> mempty -- Looks also terrible with text "  // CmmComment"
+             CmmTick {}              -> mempty
              CmmUnwind {}            -> text "  // CmmUnwind"
              CmmAssign {}            -> text "  // CmmAssign"
              CmmStore {}             -> text "  // CmmStore"

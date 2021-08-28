@@ -2559,9 +2559,7 @@ instance Outputable TyCon where
     where
       pp_tc = getPprStyle $ \sty ->
               getPprDebug $ \debug ->
-               if ((debug || dumpStyle sty) && isTcTyCon tc)
-                  then text "[tc]"
-                  else empty
+              mwhen ((debug || dumpStyle sty) && isTcTyCon tc) $ text "[tc]"
 
 -- | Paints a picture of what a 'TyCon' represents, in broad strokes.
 -- This is used towards more informative error messages.
@@ -2657,7 +2655,7 @@ pprPromotionQuote :: TyCon -> SDoc
 pprPromotionQuote tc
   = case tc of
       PromotedDataCon {} -> char '\'' -- Always quote promoted DataCons in types
-      _                  -> empty
+      _                  -> mempty
 
 instance NamedThing TyCon where
     getName = tyConName

@@ -585,7 +585,7 @@ pprExternal debug sty uniq mod occ is_wired is_builtin
         -- ToDo: maybe we could print all wired-in things unqualified
         --       in code style, to reduce symbol table bloat?
   | debug         = pp_mod <> ppr_occ_name occ
-                     <> braces (hsep [if is_wired then text "(w)" else empty,
+                     <> braces (hsep [mwhen is_wired (text "(w)"),
                                       pprNameSpaceBrief (occNameSpace occ),
                                       pprUnique uniq])
   | BuiltInSyntax <- is_builtin = ppr_occ_name occ  -- Never qualify builtin syntax
@@ -630,7 +630,7 @@ pprModulePrefix sty mod occ = ppUnlessOption sdocSuppressModulePrefixes $
       NameNotInScope1  -> ppr mod <> dot           -- Not in scope
       NameNotInScope2  -> ppr (moduleUnit mod) <> colon     -- Module not in
                           <> ppr (moduleName mod) <> dot          -- scope either
-      NameUnqual       -> empty                   -- In scope unqualified
+      NameUnqual       -> mempty                   -- In scope unqualified
 
 pprUnique :: Unique -> SDoc
 -- Print a unique unless we are suppressing them

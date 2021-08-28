@@ -178,9 +178,7 @@ instance Outputable SimplSR where
   ppr (DoneId v)    = text "DoneId" <+> ppr v
   ppr (DoneEx e mj) = text "DoneEx" <> pp_mj <+> ppr e
     where
-      pp_mj = case mj of
-                Nothing -> empty
-                Just n  -> parens (int n)
+      pp_mj = foldMap (parens . int) mj
 
   ppr (ContEx _tv _cv _id e) = vcat [text "ContEx" <+> ppr e {-,
                                 ppr (filter_env tv), ppr (filter_env id) -}]

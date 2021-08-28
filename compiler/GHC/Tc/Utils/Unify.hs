@@ -1076,7 +1076,7 @@ tcSkolemise :: UserTypeCtxt -> TcSigmaType
 tcSkolemise ctxt expected_ty thing_inside
    -- We expect expected_ty to be a forall-type
    -- If not, the call is a no-op
-  = do  { traceTc "tcSkolemise" Outputable.empty
+  = do  { traceTc "tcSkolemise" mempty
         ; (wrap, tv_prs, given, rho') <- deeplySkolemise expected_ty
 
         ; lvl <- getTcLevel
@@ -1223,7 +1223,7 @@ buildImplicationFor tclvl skol_info skol_tvs given wanted
              -- don't generate an implication at all.
              -- Reason for the (null given): we don't want to lose
              -- the "inaccessible alternative" error check
-  = return (emptyBag, emptyTcEvBinds)
+  = return (empty, emptyTcEvBinds)
 
   | otherwise
   = assertPpr (all (isSkolemTyVar <||> isTyVarTyVar) skol_tvs) (ppr skol_tvs) $
@@ -1240,7 +1240,7 @@ buildImplicationFor tclvl skol_info skol_tvs given wanted
                               , ic_binds  = ev_binds_var
                               , ic_info   = skol_info }
 
-       ; return (unitBag implic', TcEvBinds ev_binds_var) }
+       ; return (pure implic', TcEvBinds ev_binds_var) }
 
 {- Note [When to build an implication]
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1348,7 +1348,7 @@ uType t_or_k origin orig_ty1 orig_ty2
               , pprCtOrigin origin]
        ; co <- go orig_ty1 orig_ty2
        ; co <$ if isReflCo co
-            then traceTc "u_tys yields no coercion" Outputable.empty
+            then traceTc "u_tys yields no coercion" mempty
             else traceTc "u_tys yields coercion:" (ppr co) }
   where
     go :: TcType -> TcType -> TcM CoercionN

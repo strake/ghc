@@ -53,7 +53,7 @@ import GHC.Parser.Header
 
 import GHC.IfaceToCore     ( typecheckIface )
 
-import GHC.Data.Bag        ( unitBag, listToBag, unionManyBags, isEmptyBag )
+import GHC.Data.Bag        ( listToBag, isEmptyBag )
 import GHC.Data.Graph.Directed
 import GHC.Data.FastString
 import qualified GHC.Data.FiniteMap as Map ( insertListWith )
@@ -206,7 +206,7 @@ depanalPartial excluded_mods allow_dup_roots = do
     let
            (errs, mod_summaries) = partitionEithers mod_summariesE
            mod_graph = mkModuleGraph mod_summaries
-    return (unionManyBags errs, mod_graph)
+    return (asum errs, mod_graph)
 
 -- Note [Missing home modules]
 -- ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -2146,7 +2146,7 @@ downsweep hsc_env old_summaries excl_mods allow_dup_roots
                 if exists || isJust maybe_buf
                     then summariseFile hsc_env old_summaries file mb_phase
                                        obj_allowed maybe_buf
-                    else return $ Left $ unitBag $ mkPlainErrMsg dflags noSrcSpan $
+                    else return $ Left $ pure $ mkPlainErrMsg dflags noSrcSpan $
                            text "can't find file:" <+> text file
         getRootSummary (Target (TargetModule modl) obj_allowed maybe_buf)
            = do maybe_summary <- summariseModule hsc_env old_summary_map NotBoot
@@ -2563,7 +2563,7 @@ summariseModule hsc_env old_summary_map is_boot (L loc wanted_mod)
               | otherwise = HsSrcFile
 
         when (pi_mod_name /= wanted_mod) $
-                throwE $ unitBag $ mkPlainErrMsg pi_local_dflags pi_mod_name_loc $
+                throwE $ pure $ mkPlainErrMsg pi_local_dflags pi_mod_name_loc $
                               text "File name does not match module name:"
                               $$ text "Saw:" <+> quotes (ppr pi_mod_name)
                               $$ text "Expected:" <+> quotes (ppr wanted_mod)
@@ -2575,7 +2575,7 @@ summariseModule hsc_env old_summary_map is_boot (L loc wanted_mod)
                         | (k,v) <- ((pi_mod_name, mkHoleModule pi_mod_name)
                                 : homeUnitInstantiations dflags)
                         ])
-            in throwE $ unitBag $ mkPlainErrMsg pi_local_dflags pi_mod_name_loc $
+            in throwE $ pure $ mkPlainErrMsg pi_local_dflags pi_mod_name_loc $
                 text "Unexpected signature:" <+> quotes (ppr pi_mod_name)
                 $$ if gopt Opt_BuildingCabalPackage dflags
                     then parens (text "Try adding" <+> quotes (ppr pi_mod_name)
@@ -2728,11 +2728,11 @@ noModError dflags loc wanted_mod err
 
 noHsFileErr :: DynFlags -> SrcSpan -> String -> ErrorMessages
 noHsFileErr dflags loc path
-  = unitBag $ mkPlainErrMsg dflags loc $ text "Can't find" <+> text path
+  = pure $ mkPlainErrMsg dflags loc $ text "Can't find" <+> text path
 
 moduleNotFoundErr :: DynFlags -> ModuleName -> ErrorMessages
 moduleNotFoundErr dflags mod
-  = unitBag $ mkPlainErrMsg dflags noSrcSpan $
+  = pure $ mkPlainErrMsg dflags noSrcSpan $
         text "module" <+> quotes (ppr mod) <+> text "cannot be found locally"
 
 multiRootsErr :: DynFlags -> [ModSummary] -> IO ()

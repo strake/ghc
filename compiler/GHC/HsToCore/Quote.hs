@@ -67,7 +67,6 @@ import GHC.Utils.Panic.Plain
 import GHC.Utils.Misc
 import GHC.Utils.Monad
 
-import GHC.Data.Bag
 import GHC.Data.FastString
 import GHC.Data.Maybe
 
@@ -326,7 +325,7 @@ repTopDs group@(HsGroup { hs_valds   = valds
       }
   where
     no_splice (L loc _)
-      = notHandledL loc "Splices within declaration brackets" empty
+      = notHandledL loc "Splices within declaration brackets" mempty
     no_default_decl (L loc decl)
       = notHandledL loc "Default declarations" (ppr decl)
     no_warn :: LWarnDecl GhcRn -> MetaM a
@@ -334,7 +333,7 @@ repTopDs group@(HsGroup { hs_valds   = valds
       = notHandledL loc "WARNING and DEPRECATION pragmas" $
                     text "Pragma for declaration of" <+> ppr thing
     no_doc (L loc _)
-      = notHandledL loc "Haddock documentation" empty
+      = notHandledL loc "Haddock documentation" mempty
 
 hsScopedTvBinders :: HsValBinds GhcRn -> [Name]
 -- See Note [Scoped type variables in quotes]
@@ -995,8 +994,8 @@ rep_sig (L loc (InlineSig _ nm ispec))= rep_inline nm ispec loc
 rep_sig (L loc (SpecSig _ nm tys ispec))
   = concatMapM (\t -> rep_specialise nm t ispec loc) tys
 rep_sig (L loc (SpecInstSig _ _ ty))  = rep_specialiseInst ty loc
-rep_sig (L _   (MinimalSig {}))       = notHandled "MINIMAL pragmas" empty
-rep_sig (L _   (SCCFunSig {}))        = notHandled "SCC pragmas" empty
+rep_sig (L _   (MinimalSig {}))       = notHandled "MINIMAL pragmas" mempty
+rep_sig (L _   (SCCFunSig {}))        = notHandled "SCC pragmas" mempty
 rep_sig (L loc (CompleteMatchSig _ _st cls mty))
   = rep_complete_sig cls mty loc
 
@@ -1111,7 +1110,7 @@ repInline :: InlineSpec -> MetaM (Core TH.Inline)
 repInline NoInline     = dataCon noInlineDataConName
 repInline Inline       = dataCon inlineDataConName
 repInline Inlinable    = dataCon inlinableDataConName
-repInline NoUserInline = notHandled "NOUSERINLINE" empty
+repInline NoUserInline = notHandled "NOUSERINLINE" mempty
 
 repRuleMatch :: RuleMatchInfo -> MetaM (Core TH.RuleMatch)
 repRuleMatch ConLike = dataCon conLikeDataConName
@@ -1769,7 +1768,7 @@ rep_implicit_param_name (HsIPName name) = coreStringLit (unpackFS name)
 rep_val_binds :: HsValBinds GhcRn -> MetaM [(SrcSpan, Core (M TH.Dec))]
 -- Assumes: all the binders of the binding are already in the meta-env
 rep_val_binds (XValBindsLR (NValBinds binds sigs))
- = do { core1 <- rep_binds (unionManyBags (map snd binds))
+ = do { core1 <- rep_binds (altMap snd binds)
       ; core2 <- rep_sigs sigs
       ; return (core1 ++ core2) }
 rep_val_binds (ValBinds _ _ _)

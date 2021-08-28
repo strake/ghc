@@ -274,7 +274,7 @@ pprFlavourCore f     = pprIdxCore $ flavourIndex f
 
 -- ^ Print a flavour's index in Core
 pprIdxCore :: Int -> SDoc
-pprIdxCore 0 = empty
+pprIdxCore 0 = mempty
 pprIdxCore idx = whenPprDebug $ ppr idx
 
 -- Printing as a C label
@@ -295,7 +295,7 @@ ppFlavourLblComponent (HpcCC i) = text "HPC" <> ppIdxLblComponent i
 ppIdxLblComponent :: CostCentreIndex -> SDoc
 ppIdxLblComponent n =
   case unCostCentreIndex n of
-    0 -> empty
+    0 -> mempty
     n -> ppr n
 
 -- This is the name to go in the user-displayed string,

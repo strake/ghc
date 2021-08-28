@@ -51,7 +51,7 @@ import GHC.Utils.Panic
 import GHC.Utils.Panic.Plain
 import GHC.Utils.FV
 
-import GHC.Data.Bag( Bag, unionBags, unitBag )
+import GHC.Data.Bag( Bag )
 import GHC.Data.Maybe
 
 import GHC.Iface.Load
@@ -570,7 +570,7 @@ tcTopNormaliseNewTypeTF_maybe faminsts rdr_env ty
   where
     plus :: (Bag GlobalRdrElt, TcCoercion) -> (Bag GlobalRdrElt, TcCoercion)
          -> (Bag GlobalRdrElt, TcCoercion)
-    plus (gres1, co1) (gres2, co2) = ( gres1 `unionBags` gres2
+    plus (gres1, co1) (gres2, co2) = ( gres1 <|> gres2
                                      , co1 `mkTransCo` co2 )
 
     stepper :: NormaliseStepper (Bag GlobalRdrElt, TcCoercion)
@@ -590,7 +590,7 @@ tcTopNormaliseNewTypeTF_maybe faminsts rdr_env ty
       , Just gre <- lookupGRE_Name rdr_env (dataConName con)
            -- This is where we check that the
            -- data constructor is in scope
-      = mapStepResult (\co -> (unitBag gre, co)) $
+      = mapStepResult (\co -> (pure gre, co)) $
         unwrapNewTypeStepper rec_nts tc tys
 
       | otherwise
@@ -1008,7 +1008,7 @@ reportUnusedInjectiveVarsErr fam_tc tvs has_kinds undec_inst tyfamEqn
            | otherwise = text "Type"
 
       extra | undec_inst = text "Using UndecidableInstances might help"
-            | otherwise  = empty
+            | otherwise  = mempty
 
 -- | Report error message for equation that has a type family call at the top
 -- level of RHS

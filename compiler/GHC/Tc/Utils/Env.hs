@@ -104,7 +104,6 @@ import GHC.Utils.Lens.Monad
 import GHC.Utils.Misc ( HasDebugCallStack )
 
 import GHC.Data.FastString
-import GHC.Data.Bag
 import GHC.Data.List.SetOps
 import GHC.Data.Maybe( MaybeErr(..), orElse )
 
@@ -192,7 +191,7 @@ addTypecheckedBinds tcg_env binds
   | isHsBootOrSig (tcg_src tcg_env) = tcg_env
     -- Do not add the code for record-selector bindings
     -- when compiling hs-boot files
-  | otherwise = over tcg_bindsL (foldr unionBags `flip` binds) tcg_env
+  | otherwise = over tcg_bindsL (foldr (<|>) `flip` binds) tcg_env
 
 {-
 ************************************************************************

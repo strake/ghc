@@ -622,7 +622,7 @@ instance (OutputableBndrId pl, OutputableBndrId pr)
         => Outputable (HsLocalBindsLR (GhcPass pl) (GhcPass pr)) where
   ppr (HsValBinds _ bs)   = ppr bs
   ppr (HsIPBinds _ bs)    = ppr bs
-  ppr (EmptyLocalBinds _) = empty
+  ppr (EmptyLocalBinds _) = mempty
 
 instance (OutputableBndrId pl, OutputableBndrId pr)
         => Outputable (HsValBindsLR (GhcPass pl) (GhcPass pr)) where
@@ -633,7 +633,7 @@ instance (OutputableBndrId pl, OutputableBndrId pr)
     = getPprDebug $ \case
         -- Print with sccs showing
         True  -> vcat (map ppr sigs) $$ vcat (map ppr_scc sccs)
-        False -> pprDeclList (pprLHsBindsForUser (unionManyBags (map snd sccs)) sigs)
+        False -> pprDeclList (pprLHsBindsForUser (altMap snd sccs) sigs)
    where
      ppr_scc (rec_flag, binds) = pp_rec rec_flag <+> pprLHsBinds binds
      pp_rec Recursive    = text "rec"
@@ -642,7 +642,7 @@ instance (OutputableBndrId pl, OutputableBndrId pr)
 pprLHsBinds :: (OutputableBndrId idL, OutputableBndrId idR)
             => LHsBindsLR (GhcPass idL) (GhcPass idR) -> SDoc
 pprLHsBinds binds
-  | isEmptyLHsBinds binds = empty
+  | isEmptyLHsBinds binds = mempty
   | otherwise = pprDeclList (map ppr (toList binds))
 
 pprLHsBindsForUser :: (OutputableBndrId idL,
@@ -689,11 +689,11 @@ isEmptyValBinds (ValBinds _ ds sigs)  = isEmptyLHsBinds ds && null sigs
 isEmptyValBinds (XValBindsLR (NValBinds ds sigs)) = null ds && null sigs
 
 emptyValBindsIn, emptyValBindsOut :: HsValBindsLR (GhcPass a) (GhcPass b)
-emptyValBindsIn  = ValBinds noExtField emptyBag []
+emptyValBindsIn  = ValBinds noExtField empty []
 emptyValBindsOut = XValBindsLR (NValBinds [] [])
 
 emptyLHsBinds :: LHsBindsLR idL idR
-emptyLHsBinds = emptyBag
+emptyLHsBinds = empty
 
 isEmptyLHsBinds :: LHsBindsLR idL idR -> Bool
 isEmptyLHsBinds = isEmptyBag
@@ -702,7 +702,7 @@ isEmptyLHsBinds = isEmptyBag
 plusHsValBinds :: HsValBinds (GhcPass a) -> HsValBinds (GhcPass a)
                -> HsValBinds(GhcPass a)
 plusHsValBinds (ValBinds _ ds1 sigs1) (ValBinds _ ds2 sigs2)
-  = ValBinds noExtField (ds1 `unionBags` ds2) (sigs1 ++ sigs2)
+  = ValBinds noExtField (ds1 <|> ds2) (sigs1 ++ sigs2)
 plusHsValBinds (XValBindsLR (NValBinds ds1 sigs1))
                (XValBindsLR (NValBinds ds2 sigs2))
   = XValBindsLR (NValBinds (ds1 ++ ds2) (sigs1 ++ sigs2))
@@ -725,8 +725,7 @@ ppr_monobind (FunBind { fun_id = fun,
                         fun_matches = matches,
                         fun_tick = ticks,
                         fun_ext = wrap })
-  = pprTicks empty (if null ticks then empty
-                    else text "-- ticks = " <> ppr ticks)
+  = pprTicks mempty (munless (null ticks) $ text "-- ticks = " <> ppr ticks)
     $$  whenPprDebug (pprBndr LetBind (unLoc fun))
     $$  pprFunBind  matches
     $$  whenPprDebug (pprIfTc @idR $ ppr wrap)
@@ -1134,7 +1133,7 @@ hsSigDoc (SpecSig _ _ _ inl)
                                 = ppr inl <+> text "pragma"
 hsSigDoc (InlineSig _ _ prag)   = ppr (inlinePragmaSpec prag) <+> text "pragma"
 hsSigDoc (SpecInstSig _ src _)
-                                = pprWithSourceText src empty <+> text "instance pragma"
+                                = pprWithSourceText src mempty <+> text "instance pragma"
 hsSigDoc (FixSig {})            = text "fixity declaration"
 hsSigDoc (MinimalSig {})        = text "MINIMAL pragma"
 hsSigDoc (SCCFunSig {})         = text "SCC pragma"
@@ -1174,13 +1173,13 @@ ppr_sig (MinimalSig _ src bf)
 ppr_sig (PatSynSig _ names sig_ty)
   = text "pattern" <+> pprVarSig (map unLoc names) (ppr sig_ty)
 ppr_sig (SCCFunSig _ src fn mlabel)
-  = pragSrcBrackets src "{-# SCC" (ppr fn <+> maybe empty ppr mlabel )
+  = pragSrcBrackets src "{-# SCC" (ppr fn <+> foldMap ppr mlabel )
 ppr_sig (CompleteMatchSig _ src cs mty)
   = pragSrcBrackets src "{-# COMPLETE"
       ((hsep (punctuate comma (map ppr (unLoc cs))))
         <+> opt_sig)
   where
-    opt_sig = maybe empty ((\t -> dcolon <+> ppr t) . unLoc) mty
+    opt_sig = foldMap ((\t -> dcolon <+> ppr t) . unLoc) mty
 
 instance OutputableBndrId p
        => Outputable (FixitySig (GhcPass p)) where
@@ -1205,7 +1204,7 @@ pprVarSig vars pp_ty = sep [pprvars <+> dcolon, nest 2 pp_ty]
 pprSpec :: (OutputableBndr id) => id -> SDoc -> InlinePragma -> SDoc
 pprSpec var pp_ty inl = pp_inl <+> pprVarSig [var] pp_ty
   where
-    pp_inl | isDefaultInlinePragma inl = empty
+    pp_inl | isDefaultInlinePragma inl = mempty
            | otherwise = pprInline inl
 
 pprTcSpecPrags :: TcSpecPrags -> SDoc

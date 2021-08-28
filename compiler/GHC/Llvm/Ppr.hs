@@ -72,11 +72,11 @@ ppLlvmGlobal :: LlvmOpts -> LMGlobal -> SDoc
 ppLlvmGlobal opts (LMGlobal var@(LMGlobalVar _ _ link x a c) dat) =
     let sect = case x of
             Just x' -> text ", section" <+> doubleQuotes (ftext x')
-            Nothing -> empty
+            Nothing -> mempty
 
         align = case a of
             Just a' -> text ", align" <+> int a'
-            Nothing -> empty
+            Nothing -> mempty
 
         rhs = case dat of
             Just stat -> pprSpecialStatic opts stat
@@ -130,10 +130,10 @@ ppLlvmFunction opts fun =
     let attrDoc = ppSpaceJoin (funcAttrs fun)
         secDoc = case funcSect fun of
                       Just s' -> text "section" <+> (doubleQuotes $ ftext s')
-                      Nothing -> empty
+                      Nothing -> mempty
         prefixDoc = case funcPrefix fun of
                         Just v  -> text "prefix" <+> ppStatic opts v
-                        Nothing -> empty
+                        Nothing -> mempty
     in text "define" <+> ppLlvmFunctionHeader (funcDecl fun) (funcArgs fun)
         <+> attrDoc <+> secDoc <+> prefixDoc
         $+$ lbrace
@@ -151,7 +151,7 @@ ppLlvmFunctionHeader (LlvmFunctionDecl n l c r varg p a) args
                       _otherwise          -> sLit ""
         align = case a of
                      Just a' -> text " align " <> ppr a'
-                     Nothing -> empty
+                     Nothing -> mempty
         args' = map (\((ty,p),n) -> ppr ty <+> ppSpaceJoin p <+> char '%'
                                     <> ftext n)
                     (zip p args)
@@ -173,7 +173,7 @@ ppLlvmFunctionDecl (LlvmFunctionDecl n l c r varg p a)
                       _otherwise          -> sLit ""
         align = case a of
                      Just a' -> text " align" <+> ppr a'
-                     Nothing -> empty
+                     Nothing -> mempty
         args = hcat $ intersperse (comma <> space) $
                   map (\(t,a) -> ppr t <+> ppSpaceJoin a) p
     in text "declare" <+> ppr l <+> ppr c <+> ppr r <+> char '@' <>
@@ -193,7 +193,7 @@ ppLlvmBlock opts (LlvmBlock blockId stmts) =
       (block, rest)       = break isLabel stmts
       ppRest = case rest of
         MkLabel id:xs -> ppLlvmBlock opts (LlvmBlock id xs)
-        _             -> empty
+        _             -> mempty
   in ppLlvmBlockLabel blockId
            $+$ (vcat $ map (ppLlvmStatement opts) block)
            $+$ newLine
@@ -220,7 +220,7 @@ ppLlvmStatement opts stmt =
         Return      result        -> ind $ ppReturn opts result
         Expr        expr          -> ind $ ppLlvmExpression opts expr
         Unreachable               -> ind $ text "unreachable"
-        Nop                       -> empty
+        Nop                       -> mempty
         MetaStmt    meta s        -> ppMetaStatement opts meta s
 
 
@@ -278,12 +278,12 @@ ppCall opts ct fptr args attrs = case fptr of
 
     where
         ppCall' (LlvmFunctionDecl _ _ cc ret argTy params _) =
-            let tc = if ct == TailCall then text "tail " else empty
+            let tc = mwhen (ct == TailCall) $ text "tail "
                 ppValues = hsep $ punctuate comma $ map ppCallMetaExpr args
                 ppArgTy  = (ppCommaJoin $ map (ppr . fst) params) <>
                            (case argTy of
                                VarArgs   -> text ", ..."
-                               FixedArgs -> empty)
+                               FixedArgs -> mempty)
                 fnty = space <> lparen <> ppArgTy <> rparen
                 attrDoc = ppSpaceJoin attrs
             in  tc <> text "call" <+> ppr cc <+> ppr ret
@@ -321,8 +321,7 @@ ppAssignment opts var expr = ppName opts var <+> equals <+> expr
 
 ppFence :: Bool -> LlvmSyncOrdering -> SDoc
 ppFence st ord =
-  let singleThread = case st of True  -> text "singlethread"
-                                False -> empty
+  let singleThread = mwhen st (text "singlethread")
   in text "fence" <+> singleThread <+> ppSyncOrdering ord
 
 ppSyncOrdering :: LlvmSyncOrdering -> SDoc
@@ -370,14 +369,14 @@ ppLoad opts var = text "load" <+> ppr derefType <> comma <+> ppVar opts var <> a
   where
     derefType = pLower $ getVarType var
     align | isVector . pLower . getVarType $ var = text ", align 1"
-          | otherwise = empty
+          | otherwise = mempty
 
 ppALoad :: LlvmOpts -> LlvmSyncOrdering -> SingleThreaded -> LlvmVar -> SDoc
 ppALoad opts ord st var =
   let alignment = (llvmWidthInBits (llvmOptsPlatform opts) $ getVarType var) `quot` 8
       align     = text ", align" <+> ppr alignment
       sThreaded | st        = text " singlethread"
-                | otherwise = empty
+                | otherwise = mempty
       derefType = pLower $ getVarType var
   in text "load atomic" <+> ppr derefType <> comma <+> ppVar opts var <> sThreaded
             <+> ppSyncOrdering ord <> align
@@ -415,7 +414,7 @@ ppAlloca opts tp amount =
 ppGetElementPtr :: LlvmOpts -> Bool -> LlvmVar -> [LlvmVar] -> SDoc
 ppGetElementPtr opts inb ptr idx =
   let indexes = comma <+> ppCommaJoin (map (ppVar opts) idx)
-      inbound = if inb then text "inbounds" else empty
+      inbound = inb `mwhen` text "inbounds"
       derefType = pLower $ getVarType ptr
   in text "getelementptr" <+> inbound <+> ppr derefType <> comma <+> ppVar opts ptr
                             <> indexes
@@ -455,8 +454,8 @@ ppAsm opts asm constraints rty vars sideeffect alignstack =
       cons  = doubleQuotes $ ftext constraints
       rty'  = ppr rty
       vars' = lparen <+> ppCommaJoin (map (ppVar opts) vars) <+> rparen
-      side  = if sideeffect then text "sideeffect" else empty
-      align = if alignstack then text "alignstack" else empty
+      side  = sideeffect `mwhen` text "sideeffect"
+      align = alignstack `mwhen` text "alignstack"
   in text "call" <+> rty' <+> text "asm" <+> side <+> align <+> asm' <> comma
         <+> cons <> vars'
 
@@ -595,7 +594,7 @@ pprStaticArith opts s1 s2 int_op float_op op_name =
 
 -- | Blank line.
 newLine :: SDoc
-newLine = empty
+newLine = mempty
 
 -- | Exclamation point.
 exclamation :: SDoc

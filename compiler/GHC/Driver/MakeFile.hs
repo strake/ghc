@@ -410,16 +410,16 @@ pprCycle summaries = pp_group (CyclicSCC summaries)
             GHC.topSortModuleGraph True (mkModuleGraph all_others) Nothing
 
     pp_ms summary = text mod_str <> text (take (20 - length mod_str) (repeat ' '))
-                       <+> (pp_imps empty (map snd (ms_imps summary)) $$
+                       <+> (pp_imps mempty (map snd (ms_imps summary)) $$
                             pp_imps (text "{-# SOURCE #-}") (map snd (ms_srcimps summary)))
         where
           mod_str = moduleNameString (moduleName (ms_mod summary))
 
     pp_imps :: SDoc -> [Located ModuleName] -> SDoc
-    pp_imps _    [] = empty
+    pp_imps _    [] = mempty
     pp_imps what lms
         = case [m | L _ m <- lms, m `elem` cycle_mods] of
-            [] -> empty
+            [] -> mempty
             ms -> what <+> text "imports" <+>
                                 pprWithCommas ppr ms
 

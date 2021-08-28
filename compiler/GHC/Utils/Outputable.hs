@@ -22,7 +22,7 @@ module GHC.Utils.Outputable (
         interppSP, interpp'SP,
         pprQuotedList, pprWithCommas, quotedListWithOr, quotedListWithNor,
         pprWithBars,
-        empty, isEmpty, nest,
+        isEmpty, nest,
         char,
         text, ftext, ptext, ztext,
         int, intWithCommas, integer, word, float, double, rational, doublePrec,
@@ -510,7 +510,7 @@ ifPprDebug yes no = getPprDebug $ bool no yes
 
 -- | Says what to do with -dppr-debug; without, return empty
 whenPprDebug :: SDoc -> SDoc        -- Empty for non-debug style
-whenPprDebug d = ifPprDebug d empty
+whenPprDebug d = ifPprDebug d mempty
 
 -- | The analog of 'Pretty.printDoc_' for 'SDoc', which tries to make sure the
 --   terminal doesn't get screwed up by the ANSI color codes if an exception
@@ -520,7 +520,7 @@ printSDoc ctx mode handle doc =
   Pretty.printDoc_ mode cols handle (runSDoc doc ctx)
     `finally`
       Pretty.printDoc_ mode cols handle
-        (runSDoc (coloured Col.colReset empty) ctx)
+        (runSDoc (coloured Col.colReset mempty) ctx)
   where
     cols = sdocLineLength ctx
 
@@ -560,7 +560,6 @@ isEmpty ctx sdoc = Pretty.isEmpty $ runSDoc sdoc (ctx {sdocPprDebug = True})
 docToSDoc :: Doc -> SDoc
 docToSDoc d = SDoc (\_ -> d)
 
-empty    :: SDoc
 char     :: Char       -> SDoc
 text     :: String     -> SDoc
 ftext    :: FastString -> SDoc
@@ -573,7 +572,6 @@ float    :: Float      -> SDoc
 double   :: Double     -> SDoc
 rational :: Rational   -> SDoc
 
-empty       = docToSDoc $ Pretty.empty
 char c      = docToSDoc $ Pretty.char c
 
 text s      = docToSDoc $ Pretty.text s
@@ -1213,7 +1211,7 @@ intWithCommas n
   | otherwise = intWithCommas q <> comma <> zeroes <> int (fromIntegral r)
   where
     (q,r) = n `quotRem` 1000
-    zeroes | r >= 100  = empty
+    zeroes | r >= 100  = mempty
            | r >= 10   = char '0'
            | otherwise = text "00"
 
@@ -1268,10 +1266,10 @@ speakNOf n d = speakN n <+> d <> char 's'               -- E.g. "three arguments
 -- | Determines the pluralisation suffix appropriate for the length of a list:
 --
 -- > plural [] = char 's'
--- > plural ["Hello"] = empty
+-- > plural ["Hello"] = mempty
 -- > plural ["Hello", "World"] = char 's'
 plural :: [a] -> SDoc
-plural [_] = empty  -- a bit frightening, but there you are
+plural [_] = mempty  -- a bit frightening, but there you are
 plural _   = char 's'
 
 -- | Determines the form of to be appropriate for the length of a list:

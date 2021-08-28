@@ -1141,7 +1141,7 @@ addConCt delta@MkDelta{ delta_tm_st = TmSt env reps } x alt tvs args = do
       when (length args /= length other_args) $
         lift $ tracePm "error" (ppr x <+> ppr alt <+> ppr args <+> ppr other_args)
       let tm_cts = zipWithEqual "addConCt" PmVarCt args other_args
-      MaybeT $ addPmCts delta (listToBag ty_cts `unionBags` listToBag tm_cts)
+      MaybeT $ addPmCts delta (listToBag ty_cts <|> listToBag tm_cts)
     Nothing -> do
       let pos' = (alt, tvs, args):pos
       pure delta{ delta_tm_st = TmSt (setEntrySDIE env x (VI ty pos' neg cache)) reps}
@@ -1236,7 +1236,7 @@ inhabitationCandidates MkDelta{ delta_ty_st = ty_st } ty = do
              inner <- mkPmId core_ty -- it would be wrong to unify inner
              alts <- mapM (mkInhabitationCandidate inner) (tyConDataCons tc)
              (outer, new_cts) <- build_newtypes inner dcs
-             let wrap_dcs alt = alt{ ic_cs = listToBag new_cts `unionBags` ic_cs alt}
+             let wrap_dcs alt = alt{ ic_cs = listToBag new_cts <|> ic_cs alt}
              return $ Right (tc, outer, map wrap_dcs alts)
       -- For other types conservatively assume that they are inhabited.
       _other -> return (Left src_ty)
@@ -1600,7 +1600,7 @@ provideEvidence = go
         Nothing -> pure [delta] -- No idea how to refine this one, so just finish off with a wildcard
         Just arg_tys -> do
           (tvs, arg_vars, new_ty_cs, strict_arg_tys) <- mkOneConFull arg_tys cl
-          let new_tm_cs = unitBag (TmConCt x (PmAltConLike cl) tvs arg_vars)
+          let new_tm_cs = pure (TmConCt x (PmAltConLike cl) tvs arg_vars)
           -- Now check satifiability
           mb_delta <- pmIsSatisfiable delta new_ty_cs new_tm_cs strict_arg_tys
           tracePm "instantiate_cons" (vcat [ ppr x
@@ -1608,7 +1608,7 @@ provideEvidence = go
                                            , ppr ty
                                            , ppr cl
                                            , ppr arg_tys
-                                           , ppr new_tm_cs
+                                           , ppr (new_tm_cs :: [_])
                                            , ppr new_ty_cs
                                            , ppr strict_arg_tys
                                            , ppr delta

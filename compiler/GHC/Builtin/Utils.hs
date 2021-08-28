@@ -77,7 +77,6 @@ import GHC.Utils.Panic
 import GHC.Hs.Doc
 import GHC.Unit.Module.ModIface (IfaceExport)
 
-import Control.Applicative ((<|>))
 import Data.List        ( intercalate , find )
 import Data.Array
 import Data.Maybe ( isJust )
@@ -221,7 +220,7 @@ lookupKnownNameInfo :: Name -> SDoc
 lookupKnownNameInfo name = case lookupNameEnv knownNamesInfo name of
     -- If we do find a doc, we add comment delimiters to make the output
     -- of ':info' valid Haskell.
-    Nothing  -> empty
+    Nothing  -> mempty
     Just doc -> vcat [text "{-", doc, text "-}"]
 
 -- A map from Uniques to SDocs, used in GHCi's ':info' command. (#12390)

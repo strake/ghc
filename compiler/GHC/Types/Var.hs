@@ -336,7 +336,7 @@ instance Outputable Var where
                      | debug
                      -> brackets (ppr_id_scope s <> pprIdDetails d)
 
-                  _  -> empty
+                  _  -> mempty
             in if
                |  debug && (not supp_var_kinds)
                  -> parens (ppr (varName var) <+> ppr_var <+>

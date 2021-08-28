@@ -473,7 +473,7 @@ askNoErrsDs thing_inside
 
       -- Propagate errors
       ; msgs@(warns, errs) <- readMutVar errs_var
-      ; updMutVar (ds_msgs env) (\ (w,e) -> (w `unionBags` warns, e `unionBags` errs))
+      ; updMutVar (ds_msgs env) (\ (w,e) -> (w <|> warns, e <|> errs))
 
       -- And return
       ; case mb_res of

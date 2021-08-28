@@ -29,7 +29,7 @@ pprLlvmData :: LlvmOpts -> LlvmData -> SDoc
 pprLlvmData opts (globals, types) =
     let ppLlvmTys (LMAlias    a) = ppLlvmAlias a
         ppLlvmTys (LMFunction f) = ppLlvmFunctionDecl f
-        ppLlvmTys _other         = empty
+        ppLlvmTys _other         = mempty
 
         types'   = vcat $ map ppLlvmTys types
         globals' = ppLlvmGlobals opts globals

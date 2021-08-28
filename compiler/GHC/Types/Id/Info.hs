@@ -207,7 +207,7 @@ instance Outputable IdDetails where
     ppr = pprIdDetails
 
 pprIdDetails :: IdDetails -> SDoc
-pprIdDetails VanillaId = empty
+pprIdDetails VanillaId = mempty
 pprIdDetails other     = brackets (pp other)
  where
    pp VanillaId               = panic "pprIdDetails"
@@ -466,7 +466,7 @@ unknownArity :: Arity
 unknownArity = 0
 
 ppArityInfo :: Int -> SDoc
-ppArityInfo 0 = empty
+ppArityInfo 0 = mempty
 ppArityInfo n = hsep [text "Arity", int n]
 
 {-
@@ -598,7 +598,7 @@ instance Outputable CafInfo where
 
 ppCafInfo :: CafInfo -> SDoc
 ppCafInfo NoCafRefs = text "NoCafRefs"
-ppCafInfo MayHaveCafRefs = empty
+ppCafInfo MayHaveCafRefs = mempty
 
 {-
 ************************************************************************

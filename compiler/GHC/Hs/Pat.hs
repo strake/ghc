@@ -866,7 +866,7 @@ parenthesizePat p lpat@(L loc pat)
 
 -- May need to add more cases
 collectEvVarsPats :: [Pat GhcTc] -> Bag EvVar
-collectEvVarsPats = unionManyBags . map collectEvVarsPat
+collectEvVarsPats = altMap collectEvVarsPat
 
 collectEvVarsLPat :: LPat GhcTc -> Bag EvVar
 collectEvVarsLPat = collectEvVarsPat . unLoc
@@ -878,8 +878,8 @@ collectEvVarsPat pat =
     AsPat _ _ p      -> collectEvVarsLPat p
     ParPat  _ p      -> collectEvVarsLPat p
     BangPat _ p      -> collectEvVarsLPat p
-    ListPat _ ps     -> unionManyBags $ map collectEvVarsLPat ps
-    TuplePat _ ps _  -> unionManyBags $ map collectEvVarsLPat ps
+    ListPat _ ps     -> altMap collectEvVarsLPat ps
+    TuplePat _ ps _  -> altMap collectEvVarsLPat ps
     SumPat _ p _ _   -> collectEvVarsLPat p
     ConPat
       { pat_args  = args
@@ -887,10 +887,10 @@ collectEvVarsPat pat =
         { cpt_dicts = dicts
         }
       }
-                     -> unionBags (listToBag dicts)
-                                   $ unionManyBags
+                     -> (listToBag dicts <|>)
+                                   $ asum
                                    $ map collectEvVarsLPat
                                    $ hsConPatArgs args
     SigPat  _ p _    -> collectEvVarsLPat p
     XPat (CoPat _ p _) -> collectEvVarsPat  p
-    _other_pat       -> emptyBag
+    _other_pat       -> empty

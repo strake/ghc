@@ -345,7 +345,7 @@ bestOneShot NoOneShotInfo os         = os
 bestOneShot OneShotLam    _          = OneShotLam
 
 pprOneShotInfo :: OneShotInfo -> SDoc
-pprOneShotInfo NoOneShotInfo = empty
+pprOneShotInfo NoOneShotInfo = mempty
 pprOneShotInfo OneShotLam    = text "OneShot"
 
 instance Outputable OneShotInfo where
@@ -670,7 +670,7 @@ instance Outputable OverlapFlag where
    ppr flag = ppr (overlapMode flag) <+> pprSafeOverlap (isSafeOverlap flag)
 
 instance Outputable OverlapMode where
-   ppr (NoOverlap    _) = empty
+   ppr (NoOverlap    _) = mempty
    ppr (Overlappable _) = text "[overlappable]"
    ppr (Overlapping  _) = text "[overlapping]"
    ppr (Overlaps     _) = text "[overlap ok]"
@@ -702,8 +702,7 @@ instance Binary OverlapFlag where
         return OverlapFlag { overlapMode = h, isSafeOverlap = b }
 
 pprSafeOverlap :: Bool -> SDoc
-pprSafeOverlap True  = text "[safe]"
-pprSafeOverlap False = empty
+pprSafeOverlap = mwhen `flip` text "[safe]"
 
 {-
 ************************************************************************
@@ -1029,7 +1028,7 @@ isAlwaysTailCalled occ
 
 instance Outputable TailCallInfo where
   ppr (AlwaysTailCalled ar) = sep [ text "Tail", int ar ]
-  ppr _                     = empty
+  ppr _                     = mempty
 
 -----------------
 strongLoopBreaker, weakLoopBreaker :: OccInfo
@@ -1066,21 +1065,21 @@ instance Outputable OccInfo where
         = text "LoopBreaker" <> pp_ro <> pprShortTailCallInfo tails
         where
           pp_ro | rule_only = char '!'
-                | otherwise = empty
+                | otherwise = mempty
   ppr (OneOcc inside_lam one_branch int_cxt tail_info)
         = text "Once" <> pp_lam inside_lam <> pp_br one_branch <> pp_args int_cxt <> pp_tail
         where
           pp_lam IsInsideLam     = char 'L'
-          pp_lam NotInsideLam    = empty
+          pp_lam NotInsideLam    = mempty
           pp_br MultipleBranches = char '*'
-          pp_br InOneBranch      = empty
+          pp_br InOneBranch      = mempty
           pp_args IsInteresting  = char '!'
-          pp_args NotInteresting = empty
+          pp_args NotInteresting = mempty
           pp_tail                = pprShortTailCallInfo tail_info
 
 pprShortTailCallInfo :: TailCallInfo -> SDoc
 pprShortTailCallInfo (AlwaysTailCalled ar) = char 'T' <> brackets (int ar)
-pprShortTailCallInfo NoTailCallInfo        = empty
+pprShortTailCallInfo NoTailCallInfo        = mempty
 
 {-
 Note [TailCallInfo]
@@ -1477,7 +1476,7 @@ setInlinePragmaRuleMatchInfo :: InlinePragma -> RuleMatchInfo -> InlinePragma
 setInlinePragmaRuleMatchInfo prag info = prag { inl_rule = info }
 
 instance Outputable Activation where
-   ppr AlwaysActive       = empty
+   ppr AlwaysActive       = mempty
    ppr NeverActive        = brackets (text "~")
    ppr (ActiveBefore _ n) = brackets (char '~' <> int n)
    ppr (ActiveAfter  _ n) = brackets (int n)
@@ -1577,15 +1576,15 @@ pprInline' emptyInline (InlinePragma { inl_inline = inline, inl_act = activation
                                     , inl_rule = info, inl_sat = mb_arity })
     = pp_inl inline <> pp_act inline activation <+> pp_sat <+> pp_info
     where
-      pp_inl x = if emptyInline then empty else ppr x
+      pp_inl = munless emptyInline . ppr
 
-      pp_act Inline   AlwaysActive = empty
-      pp_act NoInline NeverActive  = empty
+      pp_act Inline   AlwaysActive = mempty
+      pp_act NoInline NeverActive  = mempty
       pp_act _        act          = ppr act
 
       pp_sat | Just ar <- mb_arity = parens (text "sat-args=" <> int ar)
-             | otherwise           = empty
-      pp_info | isFunLike info = empty
+             | otherwise           = mempty
+      pp_info | isFunLike info = mempty
               | otherwise      = ppr info
 
 

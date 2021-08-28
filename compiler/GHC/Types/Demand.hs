@@ -919,7 +919,7 @@ bothDivergence _        _        = ExnOrDiv
 instance Outputable Divergence where
   ppr Diverges = char 'b' -- for (b)ottom
   ppr ExnOrDiv = char 'x' -- for e(x)ception
-  ppr Dunno    = empty
+  ppr Dunno    = mempty
 
 {- Note [Precise vs imprecise exceptions]
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1188,8 +1188,7 @@ bothDmdType (DmdType fv1 ds1 r1) (fv2, t2)
 instance Outputable DmdType where
   ppr (DmdType fv ds res)
     = hsep [hcat (map ppr ds) <> ppr res,
-            if null fv_elts then empty
-            else braces (fsep (map pp_elt fv_elts))]
+            munless (null fv_elts) $ braces (fsep (map pp_elt fv_elts))]
     where
       pp_elt (uniq, dmd) = ppr uniq <> text "->" <> ppr dmd
       fv_elts = nonDetUFMToList fv

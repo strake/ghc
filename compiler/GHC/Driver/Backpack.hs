@@ -524,9 +524,9 @@ mkBackpackMsg = do
                 msg <> showModMsg dflags (recompileRequired recomp) mod_summary
                     <> reason
       in case recomp of
-            MustCompile -> showMsg (text "Compiling ") empty
+            MustCompile -> showMsg (text "Compiling ") mempty
             UpToDate
-                | verbosity (hsc_dflags hsc_env) >= 2 -> showMsg (text "Skipping  ") empty
+                | verbosity (hsc_dflags hsc_env) >= 2 -> showMsg (text "Skipping  ") mempty
                 | otherwise -> return ()
             RecompBecause reason -> showMsg (text "Compiling ") (text " [" <> text reason <> text "]")
 

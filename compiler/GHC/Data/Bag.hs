@@ -11,12 +11,8 @@ Bag: an unordered collection with duplicates
 module GHC.Data.Bag (
         Bag, -- abstract type
 
-        emptyBag, unitBag, unionBags, unionManyBags,
-        concatBag, foldBag,
-        isEmptyBag, isSingletonBag, consBag, snocBag,
-        listToBag,
-        concatMapBag, concatMapBagPair,
-        flatMapBagM, flatMapBagPairM,
+        foldBag, isEmptyBag, isSingletonBag, consBag, snocBag,
+        listToBag, concatMapBagPair, flatMapBagM, flatMapBagPairM,
     ) where
 
 import GHC.Prelude
@@ -39,27 +35,35 @@ data Bag a
   | ListBag (NonEmpty a)    -- INVARIANT: the list is non-empty
   deriving (Foldable, Functor, Traversable)
 
-emptyBag :: Bag a
-emptyBag = EmptyBag
+instance Applicative Bag where
+    pure = UnitBag
+    EmptyBag <*> _ = EmptyBag
+    _ <*> EmptyBag = EmptyBag
+    UnitBag a <*> bs = a <$> bs
+    as <*> UnitBag b = ($ b) <$> as
+    TwoBags as1 as2 <*> bs = TwoBags (as1 <*> bs) (as2 <*> bs)
+    as <*> TwoBags bs1 bs2 = TwoBags (as <*> bs1) (as <*> bs2)
+    ListBag as <*> ListBag bs = ListBag (as <*> bs)
 
-unitBag :: a -> Bag a
-unitBag  = UnitBag
+instance Alternative Bag where
+    empty = EmptyBag
+    EmptyBag <|> bs = bs
+    as <|> EmptyBag = as
+    as <|> bs = TwoBags as bs
 
-unionManyBags :: [Bag a] -> Bag a
-unionManyBags xs = foldr unionBags EmptyBag xs
+instance Monad Bag where
+    EmptyBag >>= _ = EmptyBag
+    UnitBag a >>= f = f a
+    TwoBags as bs >>= f = (as >>= f) <|> (bs >>= f)
+    ListBag as >>= f = foldr ((<|>) . f) empty as
 
 -- This one is a bit stricter! The bag will get completely evaluated.
-
-unionBags :: Bag a -> Bag a -> Bag a
-unionBags EmptyBag b = b
-unionBags b EmptyBag = b
-unionBags b1 b2      = TwoBags b1 b2
 
 consBag :: a -> Bag a -> Bag a
 snocBag :: Bag a -> a -> Bag a
 
-consBag elt bag = unitBag elt `unionBags` bag
-snocBag bag elt = bag `unionBags` unitBag elt
+consBag elt bag = pure elt <|> bag
+snocBag bag elt = bag <|> pure elt
 
 isEmptyBag :: Bag a -> Bool
 isEmptyBag EmptyBag = True
@@ -74,25 +78,25 @@ isSingletonBag (ListBag (_:|xs))  = null xs
 instance Filtrable Bag where
     filter _    EmptyBag = EmptyBag
     filter pred b@(UnitBag val) = bool EmptyBag b $ pred val
-    filter pred (TwoBags b1 b2) = sat1 `unionBags` sat2
+    filter pred (TwoBags b1 b2) = sat1 <|> sat2
         where sat1 = filter pred b1
               sat2 = filter pred b2
     filter pred (ListBag vs)    = listToBag (filter pred (toList vs))
 
-    catMaybes = foldr (maybe id consBag) emptyBag
+    catMaybes = foldr (maybe id consBag) empty
 
     mapMaybe f = \ case
         EmptyBag        -> EmptyBag
         UnitBag x       -> case f x of
             Nothing -> EmptyBag
             Just y  -> UnitBag y
-        TwoBags b1 b2   -> unionBags (mapMaybe f b1) (mapMaybe f b2)
+        TwoBags b1 b2   -> mapMaybe f b1 <|> mapMaybe f b2
         ListBag xs      -> listToBag (mapMaybe f (toList xs))
 
     filterA pred = \ case
         EmptyBag -> pure EmptyBag
         b@(UnitBag val) -> bool EmptyBag b <$> pred val
-        TwoBags b1 b2 -> unionBags <$> filterA pred b1 <*> filterA pred b2
+        TwoBags b1 b2 -> (<|>) <$> filterA pred b1 <*> filterA pred b2
         ListBag vs -> listToBag <$> filterA pred (toList vs)
 
     partition pred = \ case
@@ -100,7 +104,7 @@ instance Filtrable Bag where
         b@(UnitBag val)
           | pred val -> (b, EmptyBag)
           | otherwise -> (EmptyBag, b)
-        TwoBags b1 b2 -> (unionBags pass1 pass2, unionBags fail1 fail2)
+        TwoBags b1 b2 -> (pass1 <|> pass2, fail1 <|> fail2)
           where
             (pass1, fail1) = partition pred b1
             (pass2, fail2) = partition pred b2
@@ -112,15 +116,12 @@ instance Filtrable Bag where
         UnitBag val -> case pred val of
             Left a  -> (UnitBag a, EmptyBag)
             Right b -> (EmptyBag, UnitBag b)
-        TwoBags b1 b2 -> (unionBags pass1 pass2, unionBags fail1 fail2)
+        TwoBags b1 b2 -> (pass1 <|> pass2, fail1 <|> fail2)
           where
             (pass1, fail1) = mapEither pred b1
             (pass2, fail2) = mapEither pred b2
         ListBag vs -> (listToBag passes, listToBag fails)
           where (passes, fails) = mapEither pred (toList vs)
-
-concatBag :: Bag (Bag a) -> Bag a
-concatBag = foldr unionBags emptyBag
 
 
 foldBag :: (r -> r -> r) -- Replace TwoBags with this; should be associative
@@ -142,44 +143,37 @@ foldBag t u e (UnitBag x)     = u x `t` e
 foldBag t u e (TwoBags b1 b2) = foldBag t u (foldBag t u e b2) b1
 foldBag t u e (ListBag xs)    = foldr (t.u) e xs
 
--- XXX: Why not Monad?
-concatMapBag :: (a -> Bag b) -> Bag a -> Bag b
-concatMapBag _ EmptyBag        = EmptyBag
-concatMapBag f (UnitBag x)     = f x
-concatMapBag f (TwoBags b1 b2) = unionBags (concatMapBag f b1) (concatMapBag f b2)
-concatMapBag f (ListBag xs)    = foldr (unionBags . f) emptyBag xs
-
 concatMapBagPair :: (a -> (Bag b, Bag c)) -> Bag a -> (Bag b, Bag c)
 concatMapBagPair _ EmptyBag        = (EmptyBag, EmptyBag)
 concatMapBagPair f (UnitBag x)     = f x
-concatMapBagPair f (TwoBags b1 b2) = (unionBags r1 r2, unionBags s1 s2)
+concatMapBagPair f (TwoBags b1 b2) = (r1 <|> r2, s1 <|> s2)
   where
     (r1, s1) = concatMapBagPair f b1
     (r2, s2) = concatMapBagPair f b2
-concatMapBagPair f (ListBag xs)    = foldr go (emptyBag, emptyBag) xs
+concatMapBagPair f (ListBag xs)    = foldr go (empty, empty) xs
   where
-    go a (s1, s2) = (unionBags r1 s1, unionBags r2 s2)
+    go a (s1, s2) = (r1 <|> s1, r2 <|> s2)
       where
         (r1, r2) = f a
 
 flatMapBagM :: Monad m => (a -> m (Bag b)) -> Bag a -> m (Bag b)
 flatMapBagM _ EmptyBag        = pure EmptyBag
 flatMapBagM f (UnitBag x)     = f x
-flatMapBagM f (TwoBags b1 b2) = unionBags <$> flatMapBagM f b1 <*> flatMapBagM f b2
+flatMapBagM f (TwoBags b1 b2) = (<|>) <$> flatMapBagM f b1 <*> flatMapBagM f b2
 flatMapBagM f (ListBag    xs) = foldrM k EmptyBag xs
   where
-    k x b2 = [ unionBags b1 b2 | b1 <- f x ]
+    k x b2 = [ b1 <|> b2 | b1 <- f x ]
 
 flatMapBagPairM :: Monad m => (a -> m (Bag b, Bag c)) -> Bag a -> m (Bag b, Bag c)
 flatMapBagPairM _ EmptyBag        = pure (EmptyBag, EmptyBag)
 flatMapBagPairM f (UnitBag x)     = f x
 flatMapBagPairM f (TwoBags b1 b2) =
-  [ (r1 `unionBags` r2, s1 `unionBags` s2)
+  [ (r1 <|> r2, s1 <|> s2)
   | (r1,s1) <- flatMapBagPairM f b1
   , (r2,s2) <- flatMapBagPairM f b2 ]
 flatMapBagPairM f (ListBag    xs) = foldrM k (EmptyBag, EmptyBag) xs
   where
-    k x (r2,s2) = [ (r1 `unionBags` r2, s1 `unionBags` s2) | (r1,s1) <- f x ]
+    k x (r2,s2) = [ (r1 <|> r2, s1 <|> s2) | (r1,s1) <- f x ]
 
 listToBag :: [a] -> Bag a
 listToBag [] = EmptyBag

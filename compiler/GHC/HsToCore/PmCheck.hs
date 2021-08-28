@@ -211,7 +211,7 @@ addPmCtsDeltas deltas cts = liftDeltasM (\d -> addPmCts d cts) deltas
 
 -- | 'addPmCtsDeltas' a single 'PmCt'.
 addPmCtDeltas :: Deltas -> PmCt -> DsM Deltas
-addPmCtDeltas deltas ct = addPmCtsDeltas deltas (unitBag ct)
+addPmCtDeltas deltas ct = addPmCtsDeltas deltas (pure ct)
 
 -- | Test if any of the 'Delta's is inhabited. Currently this is pure, because
 -- we preserve the invariant that there are no uninhabited 'Delta's. But that
@@ -240,7 +240,7 @@ instance Outputable CheckResult where
         [ field "clauses" c <> comma
         , field "uncov" unc])
     where
-      ppr_precision Precise     = empty
+      ppr_precision Precise     = mempty
       ppr_precision Approximate = text "(Approximate)"
       field name value = text name <+> equals <+> ppr value
 
@@ -935,7 +935,7 @@ checkGrdTree' (Rhs sdoc) deltas = do
         | otherwise  = InaccessibleRhs sdoc
   pure CheckResult
     { cr_clauses = clauses
-    , cr_uncov   = MkDeltas emptyBag
+    , cr_uncov   = MkDeltas empty
     , cr_approx  = Precise }
 -- let x = e: Refine with x ~ e
 checkGrdTree' (Guard (PmLet x e) tree) deltas = do
@@ -1051,7 +1051,7 @@ addScrutTmCs :: Maybe (LHsExpr GhcTc) -> [Id] -> DsM a -> DsM a
 addScrutTmCs Nothing    _   k = k
 addScrutTmCs (Just scr) [x] k = do
   scr_e <- dsLExpr scr
-  locallyExtendPmDelta (\deltas -> addPmCtsDeltas deltas (unitBag (PmCoreCt x scr_e))) k
+  locallyExtendPmDelta (\deltas -> addPmCtsDeltas deltas (pure (PmCoreCt x scr_e))) k
 addScrutTmCs _   _   _ = panic "addScrutTmCs: HsCase with more than one case binder"
 
 {-
@@ -1235,7 +1235,7 @@ code that we don't want to warn about.
 dots :: Int -> [a] -> SDoc
 dots maxPatterns qs
     | qs `lengthExceeds` maxPatterns = text "..."
-    | otherwise                      = empty
+    | otherwise                      = mempty
 
 -- | All warning flags that need to run the pattern match checker.
 allPmCheckWarnings :: [WarningFlag]

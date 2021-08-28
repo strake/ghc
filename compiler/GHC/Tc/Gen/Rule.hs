@@ -36,7 +36,6 @@ import GHC.Types.SrcLoc
 import GHC.Utils.Outputable
 import GHC.Utils.Panic
 import GHC.Data.FastString
-import GHC.Data.Bag
 
 import Data.Foldable (toList)
 
@@ -173,7 +172,7 @@ tcRule (HsRule { rd_ext  = ext
        ; (rhs_implic, rhs_binds) <- buildImplicationFor tc_lvl skol_info qtkvs
                                          lhs_evs rhs_wanted
 
-       ; emitImplications (lhs_implic `unionBags` rhs_implic)
+       ; emitImplications (lhs_implic <|> rhs_implic)
        ; return $ HsRule { rd_ext = ext
                          , rd_name = rname
                          , rd_act = act
@@ -470,7 +469,7 @@ getRuleQuantCts wc
      where
         (simple_yes, simple_no) = partition (rule_quant_ct skol_tvs) simples
         (implic_yes, implics_no) = mapAccumL (float_implic skol_tvs)
-                                                emptyBag implics
+                                                empty implics
 
     float_implic :: TcTyCoVarSet -> Cts -> Implication -> (Cts, Implication)
     float_implic skol_tvs yes1 imp

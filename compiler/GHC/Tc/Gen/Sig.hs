@@ -434,7 +434,7 @@ tcPatSynSig name sig_ty
        -- arguments become the types of binders. We thus cannot allow
        -- levity polymorphism here
        ; let (arg_tys, _) = tcSplitFunTys body_ty'
-       ; mapM_ (checkForLevPoly empty) arg_tys
+       ; traverse_ (checkForLevPoly mempty) arg_tys
 
        ; traceTc "tcTySig }" $
          vcat [ text "implicit_tvs" <+> ppr_tvs implicit_tvs'

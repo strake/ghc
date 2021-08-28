@@ -879,10 +879,10 @@ Note that
 -}
 
 singleCt :: Ct -> Cts
-singleCt = unitBag
+singleCt = pure
 
 andCts :: Cts -> Cts -> Cts
-andCts = unionBags
+andCts = (<|>)
 
 listToCts :: [Ct] -> Cts
 listToCts = listToBag
@@ -895,13 +895,13 @@ snocCts = snocBag
 
 extendCtsList :: Cts -> [Ct] -> Cts
 extendCtsList cts xs | null xs   = cts
-                     | otherwise = cts `unionBags` listToBag xs
+                     | otherwise = cts <|> listToBag xs
 
 andManyCts :: [Cts] -> Cts
-andManyCts = unionManyBags
+andManyCts = asum
 
 emptyCts :: Cts
-emptyCts = emptyBag
+emptyCts = empty
 
 isEmptyCts :: Cts -> Bool
 isEmptyCts = isEmptyBag
@@ -929,9 +929,9 @@ data WantedConstraints
     }
 
 emptyWC :: WantedConstraints
-emptyWC = WC { wc_simple = emptyBag
-             , wc_impl   = emptyBag
-             , wc_holes  = emptyBag }
+emptyWC = WC { wc_simple = empty
+             , wc_impl   = empty
+             , wc_holes  = empty }
 
 mkSimpleWC :: [CtEvidence] -> WantedConstraints
 mkSimpleWC cts
@@ -955,24 +955,24 @@ isSolvedWC WC {wc_simple = wc_simple, wc_impl = wc_impl, wc_holes = holes} =
 andWC :: WantedConstraints -> WantedConstraints -> WantedConstraints
 andWC (WC { wc_simple = f1, wc_impl = i1, wc_holes = h1 })
       (WC { wc_simple = f2, wc_impl = i2, wc_holes = h2 })
-  = WC { wc_simple = f1 `unionBags` f2
-       , wc_impl   = i1 `unionBags` i2
-       , wc_holes  = h1 `unionBags` h2 }
+  = WC { wc_simple = f1 <|> f2
+       , wc_impl   = i1 <|> i2
+       , wc_holes  = h1 <|> h2 }
 
 unionsWC :: [WantedConstraints] -> WantedConstraints
 unionsWC = foldr andWC emptyWC
 
 addSimples :: WantedConstraints -> Bag Ct -> WantedConstraints
 addSimples wc cts
-  = wc { wc_simple = wc_simple wc `unionBags` cts }
+  = wc { wc_simple = wc_simple wc <|> cts }
     -- Consider: Put the new constraints at the front, so they get solved first
 
 addImplics :: WantedConstraints -> Bag Implication -> WantedConstraints
-addImplics wc implic = wc { wc_impl = wc_impl wc `unionBags` implic }
+addImplics wc implic = wc { wc_impl = wc_impl wc <|> implic }
 
 addInsols :: WantedConstraints -> Bag Ct -> WantedConstraints
 addInsols wc cts
-  = wc { wc_simple = wc_simple wc `unionBags` cts }
+  = wc { wc_simple = wc_simple wc <|> cts }
 
 addHole :: WantedConstraints -> Hole -> WantedConstraints
 addHole wc hole
@@ -1048,9 +1048,9 @@ instance Outputable WantedConstraints where
 
 ppr_bag :: Outputable a => SDoc -> Bag a -> SDoc
 ppr_bag doc bag
- | isEmptyBag bag = empty
+ | isEmptyBag bag = mempty
  | otherwise      = hang (doc <+> equals)
-                       2 (foldr (($$) . ppr) empty bag)
+                       2 (foldr (($$) . ppr) mempty bag)
 
 {- Note [Given insolubles]
 ~~~~~~~~~~~~~~~~~~~~~~~~~~

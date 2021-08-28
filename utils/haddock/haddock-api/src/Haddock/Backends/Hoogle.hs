@@ -414,4 +414,4 @@ escape = concatMap f
 
 -- | Just like 'vcat' but uses '($+$)' instead of '($$)'.
 vcat' :: [SDoc] -> SDoc
-vcat' = foldr ($+$) empty
+vcat' = foldr ($+$) mempty

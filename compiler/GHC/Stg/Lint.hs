@@ -42,7 +42,7 @@ import GHC.Prelude
 import GHC.Stg.Syntax
 
 import GHC.Driver.Session
-import GHC.Data.Bag         ( Bag, emptyBag, isEmptyBag, snocBag )
+import GHC.Data.Bag         ( Bag, isEmptyBag, snocBag )
 import GHC.Types.Basic      ( TopLevelFlag(..), isTopLevel )
 import GHC.Types.CostCentre ( isCurrentCCS )
 import GHC.Types.Id         ( Id, idType, isJoinId, idName )
@@ -57,7 +57,6 @@ import GHC.Types.SrcLoc
 import GHC.Utils.Outputable
 import GHC.Unit.Module            ( Module )
 import qualified GHC.Utils.Error as Err
-import Control.Applicative ((<|>))
 import Control.Monad
 import Data.Foldable (toList)
 
@@ -280,7 +279,7 @@ pp_binders bs
 
 initL :: Module -> Bool -> StgPprOpts -> IdSet -> LintM a -> Maybe MsgDoc
 initL this_mod unarised opts locals (LintM m) = do
-  let (_, errs) = m this_mod (LintFlags unarised) opts [] locals emptyBag
+  let (_, errs) = m this_mod (LintFlags unarised) opts [] locals empty
   if isEmptyBag errs then
       Nothing
   else

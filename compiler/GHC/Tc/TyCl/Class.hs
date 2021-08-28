@@ -61,7 +61,6 @@ import GHC.Types.SrcLoc
 import GHC.Core.TyCon
 import GHC.Data.Maybe
 import GHC.Types.Basic
-import GHC.Data.Bag
 import GHC.Data.FastString
 import GHC.Data.BooleanFormula
 
@@ -210,7 +209,7 @@ tcClassDecl2 (L _ (ClassDecl {tcdLName = class_name, tcdSigs = sigs,
         ; dm_binds <- tcExtendTyVarEnv clas_tyvars $
                       mapM tc_item op_items
 
-        ; return (unionManyBags dm_binds) }
+        ; return (asum dm_binds) }
 
 tcClassDecl2 d = pprPanic "tcClassDecl2" (ppr d)
 
@@ -227,7 +226,7 @@ tcDefMeth _ _ _ _ _ prag_fn (sel_id, Nothing)
   = do { -- No default method
          mapM_ (addLocM (badDmPrag sel_id))
                (lookupPragEnv prag_fn (idName sel_id))
-       ; return emptyBag }
+       ; return empty }
 
 tcDefMeth clas tyvars this_dict binds_in hs_sig_fn prag_fn
           (sel_id, Just (dm_name, dm_spec))
@@ -306,7 +305,7 @@ tcDefMeth clas tyvars this_dict binds_in hs_sig_fn prag_fn
                                   , abs_binds    = tc_bind
                                   , abs_sig      = True }
 
-       ; return (unitBag (L bind_loc full_bind)) }
+       ; return (pure (L bind_loc full_bind)) }
 
   | otherwise = pprPanic "tcDefMeth" (ppr sel_id)
   where

@@ -478,7 +478,7 @@ pprPatSynType (MkPatSyn { psUnivTyVars = univ_tvs,  psReqTheta  = req_theta
                         , psArgs       = orig_args, psResultTy = orig_res_ty })
   = sep [ pprForAll $ tyVarSpecToBinders univ_tvs
         , pprThetaArrowTy req_theta
-        , mwhen insert_empty_ctxt $ parens empty <+> darrow
+        , mwhen insert_empty_ctxt $ parens mempty <+> darrow
         , pprType sigma_ty ]
   where
     sigma_ty = mkInvisForAllTys ex_tvs $

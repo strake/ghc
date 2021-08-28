@@ -133,7 +133,7 @@ seqCprSig :: CprSig -> ()
 seqCprSig sig = sig `seq` ()
 
 instance Outputable CprResult where
-  ppr NoCPR        = empty
+  ppr NoCPR        = mempty
   ppr (ConCPR n)   = char 'm' <> int n
   ppr BotCPR       = char 'b'
 

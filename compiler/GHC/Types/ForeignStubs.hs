@@ -6,6 +6,7 @@ module GHC.Types.ForeignStubs
 where
 
 import GHC.Utils.Outputable
+import Data.Monoid (mempty)
 
 -- | Foreign export stubs
 data ForeignStubs
@@ -21,5 +22,5 @@ data ForeignStubs
       --     "foreign exported" functions
 
 appendStubC :: ForeignStubs -> SDoc -> ForeignStubs
-appendStubC NoStubs            c_code = ForeignStubs empty c_code
+appendStubC NoStubs            c_code = ForeignStubs mempty c_code
 appendStubC (ForeignStubs h c) c_code = ForeignStubs h (c $$ c_code)

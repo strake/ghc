@@ -800,7 +800,7 @@ dcErrMsg ty_con what_is thing parents =
                 $$ text (capitalise what_is)
                 <> text "s can only be exported with their parent type constructor."
                 $$ (case parents of
-                      [] -> empty
+                      [] -> mempty
                       [_] -> text "Parent:"
                       _  -> text "Parents:") <+> fsep (punctuate comma parents)
 

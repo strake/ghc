@@ -81,7 +81,7 @@ pprTop :: Platform -> RawCmmDecl -> SDoc
 pprTop platform = \case
   (CmmProc infos clbl _in_live_regs graph) ->
     (case mapLookup (g_entry graph) infos of
-       Nothing -> empty
+       Nothing -> mempty
        Just (CmmStaticsRaw info_clbl info_dat) ->
            pprDataExterns platform info_dat $$
            pprWordArray platform info_is_in_rodata info_clbl info_dat) $$
@@ -183,12 +183,10 @@ pprAlignment words =
 -- has to be static, if it isn't globally visible
 --
 pprLocalness :: CLabel -> SDoc
-pprLocalness lbl | not $ externallyVisibleCLabel lbl = text "static "
-                 | otherwise = empty
+pprLocalness lbl = externallyVisibleCLabel lbl `munless` text "static "
 
 pprConstness :: Bool -> SDoc
-pprConstness is_ro | is_ro = text "const "
-                   | otherwise = empty
+pprConstness is_ro = is_ro `mwhen` text "const "
 
 -- --------------------------------------------------------------------------
 -- Statements.
@@ -197,15 +195,15 @@ pprConstness is_ro | is_ro = text "const "
 pprStmt :: Platform -> CmmNode e x -> SDoc
 pprStmt platform stmt =
     case stmt of
-    CmmEntry{}   -> empty
-    CmmComment _ -> empty -- (hang (text "/*") 3 (ftext s)) $$ ptext (sLit "*/")
+    CmmEntry{}   -> mempty
+    CmmComment _ -> mempty -- (hang (text "/*") 3 (ftext s)) $$ ptext (sLit "*/")
                           -- XXX if the string contains "*/", we need to fix it
                           -- XXX we probably want to emit these comments when
                           -- some debugging option is on.  They can get quite
                           -- large.
 
-    CmmTick _ -> empty
-    CmmUnwind{} -> empty
+    CmmTick _ -> mempty
+    CmmUnwind{} -> mempty
 
     CmmAssign dest src -> pprAssign platform dest src
 
@@ -243,8 +241,8 @@ pprStmt platform stmt =
                     pprCall platform cast_fn cconv hresults hargs <> semi
                         -- for a dynamic call, no declaration is necessary.
 
-    CmmUnsafeForeignCall (PrimTarget MO_Touch) _results _args -> empty
-    CmmUnsafeForeignCall (PrimTarget (MO_Prefetch_Data _)) _results _args -> empty
+    CmmUnsafeForeignCall (PrimTarget MO_Touch) _results _args -> mempty
+    CmmUnsafeForeignCall (PrimTarget (MO_Prefetch_Data _)) _results _args -> mempty
 
     CmmUnsafeForeignCall target@(PrimTarget op) results args ->
         fn_call
@@ -338,7 +336,7 @@ pprSwitch platform e ids
     caseify (_     , _    ) = panic "pprSwitch: switch with no cases!"
 
     def | Just l <- mbdef = text "default: goto" <+> pprBlockId l <> semi
-        | otherwise       = empty
+        | otherwise       = mempty
 
 -- ---------------------------------------------------------------------
 -- Expressions.
@@ -627,16 +625,16 @@ pprMachOp_for_C platform mop = case mop of
 -- context elsewhere
 
 -- noop casts
-        MO_UU_Conv from to | from == to -> empty
+        MO_UU_Conv from to | from == to -> mempty
         MO_UU_Conv _from to -> parens (machRep_U_CType platform to)
 
-        MO_SS_Conv from to | from == to -> empty
+        MO_SS_Conv from to | from == to -> mempty
         MO_SS_Conv _from to -> parens (machRep_S_CType platform to)
 
-        MO_XX_Conv from to | from == to -> empty
+        MO_XX_Conv from to | from == to -> mempty
         MO_XX_Conv _from to -> parens (machRep_U_CType platform to)
 
-        MO_FF_Conv from to | from == to -> empty
+        MO_FF_Conv from to | from == to -> mempty
         MO_FF_Conv _from to -> parens (machRep_F_CType to)
 
         MO_SF_Conv _from to -> parens (machRep_F_CType to)
@@ -1001,7 +999,7 @@ pprCall platform ppr_fn cconv results args
 
      pprUnHint AddrHint   rep = parens (machRepCType platform rep)
      pprUnHint SignedHint rep = parens (machRepCType platform rep)
-     pprUnHint _          _   = empty
+     pprUnHint _          _   = mempty
 
 -- Currently we only have these two calling conventions, but this might
 -- change in the future...
@@ -1034,7 +1032,7 @@ pprTempDecl platform l@(LocalReg _ rep)
 pprExternDecl :: Platform -> CLabel -> SDoc
 pprExternDecl platform lbl
   -- do not print anything for "known external" things
-  | not (needsCDecl lbl) = empty
+  | not (needsCDecl lbl) = mempty
   | Just sz <- foreignLabelStdcallInfo lbl = stdcall_decl sz
   | otherwise =
         hcat [ visibility, label_type lbl , lparen, pprCLabel platform CStyle lbl, text ");"
@@ -1356,7 +1354,7 @@ pprHexVal platform w rep
               _   -> panic ("pprHexVal/truncInt: C backend can't encode "
                             ++ show rep ++ " literals")
 
-      go 0 = empty
+      go 0 = mempty
       go w' = go q <> dig
            where
              (q,r) = w' `quotRem` 16

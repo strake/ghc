@@ -840,7 +840,7 @@ solveForAll ev tvs theta pred pend_sc
                 do { wanted_ev <- newWantedEvVarNC loc $
                                   substTy subst pred
                    ; return ( ctEvEvId wanted_ev
-                            , unitBag (mkNonCanonical wanted_ev)) }
+                            , pure (mkNonCanonical wanted_ev)) }
 
       ; ev_binds <- emitImplicationTcS lvl skol_info skol_tvs
                                        given_ev_vars wanteds
@@ -1096,7 +1096,7 @@ can_eq_nc_forall ev eq_rel s1 s2
                          -- free vars of kind_co are not; hence "...AndInScope"
                    ; (co, wanteds2) <- go skol_tvs subst' bndrs2
                    ; return ( mkTcForAllCo skol_tv kind_co co
-                            , wanteds1 `unionBags` wanteds2 ) }
+                            , wanteds1 <|> wanteds2 ) }
 
             -- Done: unify phi1 ~ phi2
             go [] subst bndrs2
@@ -1125,10 +1125,10 @@ can_eq_nc_forall ev eq_rel s1 s2
     -- than putting it in the work list
     unify loc role ty1 ty2
       | ty1 `tcEqType` ty2
-      = return (mkTcReflCo role ty1, emptyBag)
+      = return (mkTcReflCo role ty1, empty)
       | otherwise
       = do { (wanted, co) <- newWantedEq loc role ty1 ty2
-           ; return (co, unitBag (mkNonCanonical wanted)) }
+           ; return (co, pure (mkNonCanonical wanted)) }
 
 ---------------------------------
 -- | Compare types for equality, while zonking as necessary. Gives up

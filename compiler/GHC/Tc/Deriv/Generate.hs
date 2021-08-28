@@ -193,10 +193,10 @@ gen_Eq_binds loc tycon = do
          untag_Expr dflags tycon [(a_RDR,ah_RDR), (b_RDR,bh_RDR)]
                     (genPrimOpApp (nlHsVar ah_RDR) eqInt_RDR (nlHsVar bh_RDR)))]
 
-    aux_binds | no_tag_match_cons = emptyBag
-              | otherwise         = unitBag $ DerivAuxBind $ DerivCon2Tag tycon
+    aux_binds | no_tag_match_cons = empty
+              | otherwise         = pure $ DerivAuxBind $ DerivCon2Tag tycon
 
-    method_binds dflags = unitBag (eq_bind dflags)
+    method_binds dflags = pure (eq_bind dflags)
     eq_bind dflags = mkFunBindEC 2 loc eq_RDR (const true_Expr)
                                  (map pats_etc pat_match_cons
                                    ++ fall_through_eqn dflags)
@@ -345,13 +345,13 @@ gen_Ord_binds :: SrcSpan -> TyCon -> TcM (LHsBinds GhcPs, BagDerivStuff)
 gen_Ord_binds loc tycon = do
     dflags <- getDynFlags
     return $ if null tycon_data_cons -- No data-cons => invoke bale-out case
-      then ( unitBag $ mkFunBindEC 2 loc compare_RDR (const eqTag_Expr) []
-           , emptyBag)
-      else ( unitBag (mkOrdOp dflags OrdCompare) `unionBags` other_ops dflags
+      then ( pure $ mkFunBindEC 2 loc compare_RDR (const eqTag_Expr) []
+           , empty)
+      else ( pure (mkOrdOp dflags OrdCompare) <|> other_ops dflags
            , aux_binds)
   where
-    aux_binds | single_con_type = emptyBag
-              | otherwise       = unitBag $ DerivAuxBind $ DerivCon2Tag tycon
+    aux_binds | single_con_type = empty
+              | otherwise       = pure $ DerivAuxBind $ DerivCon2Tag tycon
 
         -- Note [Game plan for deriving Ord]
     other_ops dflags
@@ -359,7 +359,7 @@ gen_Ord_binds loc tycon = do
         || null non_nullary_cons        -- Or it's an enumeration
       = listToBag [mkOrdOp dflags OrdLT, lE, gT, gE]
       | otherwise
-      = emptyBag
+      = empty
 
     negate_expr = nlHsApp (nlHsVar not_RDR)
     lE = mkSimpleGeneratedFunBind loc le_RDR [a_Pat, b_Pat] $
@@ -673,10 +673,10 @@ gen_Enum_binds loc tycon = do
 gen_Bounded_binds :: SrcSpan -> TyCon -> (LHsBinds GhcPs, BagDerivStuff)
 gen_Bounded_binds loc tycon
   | isEnumerationTyCon tycon
-  = (listToBag [ min_bound_enum, max_bound_enum ], emptyBag)
+  = (listToBag [ min_bound_enum, max_bound_enum ], empty)
   | otherwise
   = assert (isSingleton data_cons)
-    (listToBag [ min_bound_1con, max_bound_1con ], emptyBag)
+    (listToBag [ min_bound_1con, max_bound_1con ], empty)
   where
     data_cons = tyConDataCons tycon
 
@@ -764,7 +764,7 @@ gen_Ix_binds loc tycon = do
     return $ if isEnumerationTyCon tycon
       then (enum_ixes dflags, listToBag $ map DerivAuxBind
                    [DerivCon2Tag tycon, DerivTag2Con tycon, DerivMaxTag tycon])
-      else (single_con_ixes, unitBag (DerivAuxBind (DerivCon2Tag tycon)))
+      else (single_con_ixes, pure (DerivAuxBind (DerivCon2Tag tycon)))
   where
     --------------------------------------------------------------
     enum_ixes dflags = listToBag
@@ -959,7 +959,7 @@ gen_Read_binds :: (Name -> Fixity) -> SrcSpan -> TyCon
                -> (LHsBinds GhcPs, BagDerivStuff)
 
 gen_Read_binds get_fixity loc tycon
-  = (listToBag [read_prec, default_readlist, default_readlistprec], emptyBag)
+  = (listToBag [read_prec, default_readlist, default_readlistprec], empty)
   where
     -----------------------------------------------------------------------
     default_readlist
@@ -1143,7 +1143,7 @@ gen_Show_binds :: (Name -> Fixity) -> SrcSpan -> TyCon
                -> (LHsBinds GhcPs, BagDerivStuff)
 
 gen_Show_binds get_fixity loc tycon
-  = (unitBag shows_prec, emptyBag)
+  = (pure shows_prec, empty)
   where
     data_cons = tyConDataCons tycon
     shows_prec = mkFunBindEC 2 loc showsPrec_RDR id (map pats_etc data_cons)
@@ -1335,7 +1335,7 @@ gen_data :: DynFlags -> RdrName -> [RdrName]
              BagDerivStuff)       -- Auxiliary bindings
 gen_data dflags data_type_name constr_names loc rep_tc
   = (listToBag [gfoldl_bind, gunfold_bind, toCon_bind, dataTypeOf_bind]
-     `unionBags` gcast_binds,
+     <|> gcast_binds,
                 -- Auxiliary definitions: the data type and constructors
      listToBag ( genDataTyCon
                : zipWith genDataDataCon data_cons constr_names ) )
@@ -1443,9 +1443,9 @@ gen_data dflags data_type_name constr_names loc rep_tc
                     Nothing          -> tyConKind rep_tc
     gcast_binds | tycon_kind `tcEqKind` kind1 = mk_gcast dataCast1_RDR gcast1_RDR
                 | tycon_kind `tcEqKind` kind2 = mk_gcast dataCast2_RDR gcast2_RDR
-                | otherwise                 = emptyBag
+                | otherwise                 = empty
     mk_gcast dataCast_RDR gcast_RDR
-      = unitBag (mkSimpleGeneratedFunBind loc dataCast_RDR [nlVarPat f_RDR]
+      = pure (mkSimpleGeneratedFunBind loc dataCast_RDR [nlVarPat f_RDR]
                                  (nlHsVar gcast_RDR `nlHsApp` nlHsVar f_RDR))
 
 
@@ -1575,7 +1575,7 @@ Example:
 
 
 gen_Lift_binds :: SrcSpan -> TyCon -> (LHsBinds GhcPs, BagDerivStuff)
-gen_Lift_binds loc tycon = (listToBag [lift_bind, liftTyped_bind], emptyBag)
+gen_Lift_binds loc tycon = (listToBag [lift_bind, liftTyped_bind], empty)
   where
     lift_bind      = mkFunBindEC 1 loc lift_RDR (nlHsApp pure_Expr)
                                  (map (pats_etc mk_exp) data_cons)
@@ -2014,12 +2014,12 @@ genAuxBinds dflags loc b = genAuxBinds' b2 where
   splitDerivAuxBind (DerivAuxBind x) = Left x
   splitDerivAuxBind  x               = Right x
 
-  rm_dups = foldr dup_check emptyBag
+  rm_dups = foldr dup_check empty
   dup_check a b | any (== a) b = b | otherwise = consBag a b
 
   genAuxBinds' :: BagDerivStuff -> SeparateBagsDerivStuff
   genAuxBinds' = foldr f ( genAuxBindSpec dflags loc <$> rm_dups b1
-                            , emptyBag )
+                            , empty )
   f :: DerivStuff -> SeparateBagsDerivStuff -> SeparateBagsDerivStuff
   f (DerivAuxBind _) = panic "genAuxBinds'" -- We have removed these before
   f (DerivHsBind  b) = add1 b

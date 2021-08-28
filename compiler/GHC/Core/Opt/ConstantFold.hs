@@ -61,8 +61,6 @@ import GHC.Utils.Panic
 import GHC.Core.Coercion   (mkUnbranchedAxInstCo,mkSymCo,Role(..))
 import GHC.Utils.Panic.Plain
 
-import Control.Applicative ( Alternative(..) )
-
 import Control.Monad
 import Data.Bits as Bits
 import qualified Data.ByteString as BS

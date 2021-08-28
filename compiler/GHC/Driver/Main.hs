@@ -258,10 +258,10 @@ getWarnings :: Hsc WarningMessages
 getWarnings = Hsc $ \_ w -> return (w, w)
 
 clearWarnings :: Hsc ()
-clearWarnings = Hsc $ \_ _ -> return ((), emptyBag)
+clearWarnings = Hsc $ \_ _ -> return ((), empty)
 
 logWarnings :: WarningMessages -> Hsc ()
-logWarnings w = Hsc $ \_ w0 -> return ((), w0 `unionBags` w)
+logWarnings w = Hsc $ \_ w0 -> return ((), w0 <|> w)
 
 getHscEnv :: Hsc HscEnv
 getHscEnv = Hsc $ \e w -> return (e, w)
@@ -288,7 +288,7 @@ handleWarningsThrowErrors (warns, errs) = do
     dflags <- getDynFlags
     (wWarns, wErrs) <- warningsToMessages dflags <$> getWarnings
     liftIO $ printBagOfErrors dflags wWarns
-    throwErrors (unionBags errs wErrs)
+    throwErrors (errs <|> wErrs)
 
 -- | Deal with errors and warnings returned by a compilation step
 --
@@ -545,7 +545,7 @@ tcRnModule' sum save_rn_syntax mod = do
     -- -Wmissing-safe-haskell-mode
     when (not (safeHaskellModeEnabled dflags)
           && wopt Opt_WarnMissingSafeHaskellMode dflags) $
-        logWarnings $ unitBag $
+        logWarnings $ pure $
         makeIntoWarning (Reason Opt_WarnMissingSafeHaskellMode) $
         mkPlainWarnMsg dflags (getLoc (hpm_module mod)) $
         warnMissingSafeHaskellMode
@@ -574,13 +574,13 @@ tcRnModule' sum save_rn_syntax mod = do
             case wopt Opt_WarnSafe dflags of
               True
                 | safeHaskell dflags == Sf_Safe -> return ()
-                | otherwise -> (logWarnings $ unitBag $
+                | otherwise -> (logWarnings $ pure $
                        makeIntoWarning (Reason Opt_WarnSafe) $
                        mkPlainWarnMsg dflags (warnSafeOnLoc dflags) $
                        errSafe tcg_res')
               False | safeHaskell dflags == Sf_Trustworthy &&
                       wopt Opt_WarnTrustworthySafe dflags ->
-                      (logWarnings $ unitBag $
+                      (logWarnings $ pure $
                        makeIntoWarning (Reason Opt_WarnTrustworthySafe) $
                        mkPlainWarnMsg dflags (trustworthyOnLoc dflags) $
                        errTwthySafe tcg_res')
@@ -976,9 +976,9 @@ oneShotMsg hsc_env recomp =
 batchMsg :: Messager
 batchMsg hsc_env mod_index recomp mod_summary =
     case recomp of
-        MustCompile -> showMsg (text "Compiling ") empty
+        MustCompile -> showMsg (text "Compiling ") mempty
         UpToDate
-            | verbosity (hsc_dflags hsc_env) >= 2 -> showMsg (text "Skipping  ") empty
+            | verbosity (hsc_dflags hsc_env) >= 2 -> showMsg (text "Skipping  ") mempty
             | otherwise -> return ()
         RecompBecause reason -> showMsg (text "Compiling ") (text " [" <> text reason <> text "]")
     where
@@ -1105,7 +1105,7 @@ checkSafeImports tcg_env
         -- Check non-safe imports are correct if inferring safety
         -- See the Note [Safe Haskell Inference]
         (infErrs, infPkgs) <- case (safeInferOn dflags) of
-          False -> return (emptyBag, S.empty)
+          False -> return (empty, S.empty)
           True -> do infPkgs <- S.fromList <$> mapMaybeA checkSafe regImps
                      infErrs <- getWarnings
                      clearWarnings
@@ -1227,24 +1227,21 @@ hscCheckSafe' m l = do
                     -- pkg trust reqs
                     pkgRs = dep_trusted_pkgs $ mi_deps iface'
                     -- warn if Safe module imports Safe-Inferred module.
-                    warns = if wopt Opt_WarnInferredSafeImports dflags
+                    warns = guard (wopt Opt_WarnInferredSafeImports dflags
                                 && safeLanguageOn dflags
-                                && trust == Sf_SafeInferred
-                                then inferredImportWarn
-                                else emptyBag
+                                && trust == Sf_SafeInferred) *> inferredImportWarn
                     -- General errors we throw but Safe errors we log
                     errs = case (safeM, safeP) of
-                        (True, True ) -> emptyBag
+                        (True, True ) -> empty
                         (True, False) -> pkgTrustErr
                         (False, _   ) -> modTrustErr
-                in do
+                in (trust == Sf_Trustworthy, pkgRs) <$ do
                     logWarnings warns
                     logWarnings errs
-                    return (trust == Sf_Trustworthy, pkgRs)
 
                 where
                     state = pkgState dflags
-                    inferredImportWarn = unitBag
+                    inferredImportWarn = pure
                         $ makeIntoWarning (Reason Opt_WarnInferredSafeImports)
                         $ mkWarnMsg dflags l (pkgQual state)
                         $ sep
@@ -1252,14 +1249,14 @@ hscCheckSafe' m l = do
                                 <> ppr (moduleName m)
                                 <> text " from explicitly Safe module"
                             ]
-                    pkgTrustErr = unitBag $ mkErrMsg dflags l (pkgQual state) $
+                    pkgTrustErr = pure $ mkErrMsg dflags l (pkgQual state) $
                         sep [ ppr (moduleName m)
                                 <> text ": Can't be safely imported!"
                             , text "The package ("
                                 <> (pprWithUnitState state $ ppr (moduleUnit m))
                                 <> text ") the module resides in isn't trusted."
                             ]
-                    modTrustErr = unitBag $ mkErrMsg dflags l (pkgQual state) $
+                    modTrustErr = pure $ mkErrMsg dflags l (pkgQual state) $
                         sep [ ppr (moduleName m)
                                 <> text ": Can't be safely imported!"
                             , text "The module itself isn't safe." ]
@@ -1330,7 +1327,7 @@ markUnsafeInfer tcg_env whyUnsafe = do
     dflags <- getDynFlags
 
     when (wopt Opt_WarnUnsafe dflags)
-         (logWarnings $ unitBag $ makeIntoWarning (Reason Opt_WarnUnsafe) $
+         (logWarnings $ pure $ makeIntoWarning (Reason Opt_WarnUnsafe) $
              mkPlainWarnMsg dflags (warnUnsafeOnLoc dflags) (whyUnsafe' dflags))
 
     liftIO $ writeIORef (tcg_safeInfer tcg_env) (False, whyUnsafe)
@@ -1498,7 +1495,7 @@ hscGenHardCode hsc_env cgguts location output_filename = do
             platform = targetPlatform dflags
             prof_init
                | sccProfilingEnabled dflags = profilingInitCode platform this_mod cost_centre_info
-               | otherwise = empty
+               | otherwise = mempty
             foreign_stubs = foreign_stubs0 `appendStubC` prof_init
 
         ------------------  Code generation ------------------

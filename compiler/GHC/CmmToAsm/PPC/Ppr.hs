@@ -65,34 +65,30 @@ pprNatCmmDecl config proc@(CmmProc top_info lbl _ (ListGraph blocks)) =
             _ -> pprLabel platform lbl) $$ -- blocks guaranteed not null,
                                            -- so label needed
          vcat (map (pprBasicBlock config top_info) blocks) $$
-         (if ncgDebugLevel config > 0
-          then pdoc platform (mkAsmTempEndLabel lbl) <> char ':' else empty) $$
+         (mwhen (ncgDebugLevel config > 0) $
+          pdoc platform (mkAsmTempEndLabel lbl) <> char ':') $$
          pprSizeDecl platform lbl
 
     Just (CmmStaticsRaw info_lbl _) ->
       pprSectionAlign config (Section Text info_lbl) $$
-      (if platformHasSubsectionsViaSymbols platform
-          then pdoc platform (mkDeadStripPreventer info_lbl) <> char ':'
-          else empty) $$
+      (mwhen (platformHasSubsectionsViaSymbols platform) $
+       pdoc platform (mkDeadStripPreventer info_lbl) <> char ':') $$
       vcat (map (pprBasicBlock config top_info) blocks) $$
       -- above: Even the first block gets a label, because with branch-chain
       -- elimination, it might be the target of a goto.
-      (if platformHasSubsectionsViaSymbols platform
-       then
+      (mwhen (platformHasSubsectionsViaSymbols platform) $
        -- See Note [Subsections Via Symbols] in X86/Ppr.hs
                 text "\t.long "
             <+> pdoc platform info_lbl
             <+> char '-'
-            <+> pdoc platform (mkDeadStripPreventer info_lbl)
-       else empty) $$
+            <+> pdoc platform (mkDeadStripPreventer info_lbl)) $$
       pprSizeDecl platform info_lbl
 
 -- | Output the ELF .size directive.
 pprSizeDecl :: Platform -> CLabel -> SDoc
 pprSizeDecl platform lbl
- = if osElfTarget (platformOS platform)
-   then text "\t.size" <+> prettyLbl <> text ", .-" <> codeLbl
-   else empty
+ = mwhen (osElfTarget (platformOS platform)) $
+   text "\t.size" <+> prettyLbl <> text ", .-" <> codeLbl
   where
     prettyLbl = pdoc platform lbl
     codeLbl
@@ -132,15 +128,13 @@ pprBasicBlock config info_env (BasicBlock blockid instrs)
   = maybe_infotable $$
     pprLabel platform asmLbl $$
     vcat (map (pprInstr platform) instrs) $$
-    (if  ncgDebugLevel config > 0
-      then pdoc platform (mkAsmTempEndLabel asmLbl) <> char ':'
-      else empty
-    )
+    (mwhen (ncgDebugLevel config > 0) $
+     pdoc platform (mkAsmTempEndLabel asmLbl) <> char ':')
   where
     asmLbl = blockLbl blockid
     platform = ncgPlatform config
     maybe_infotable = case mapLookup blockid info_env of
-       Nothing   -> empty
+       Nothing   -> mempty
        Just (CmmStaticsRaw info_lbl info) ->
            pprAlignForSection platform Text $$
            vcat (map (pprData platform) info) $$
@@ -170,15 +164,13 @@ pprData platform d = case d of
 
 pprGloblDecl :: Platform -> CLabel -> SDoc
 pprGloblDecl platform lbl
-  | not (externallyVisibleCLabel lbl) = empty
+  | not (externallyVisibleCLabel lbl) = mempty
   | otherwise = text ".globl " <> pdoc platform lbl
 
 pprTypeAndSizeDecl :: Platform -> CLabel -> SDoc
 pprTypeAndSizeDecl platform lbl
-  = if platformOS platform == OSLinux && externallyVisibleCLabel lbl
-    then text ".type " <>
-         pdoc platform lbl <> text ", @object"
-    else empty
+  = mwhen (platformOS platform == OSLinux && externallyVisibleCLabel lbl) $
+    text ".type " <> pdoc platform lbl <> text ", @object"
 
 pprLabel :: Platform -> CLabel -> SDoc
 pprLabel platform lbl =
@@ -333,7 +325,7 @@ pprInstr :: Platform -> Instr -> SDoc
 pprInstr platform instr = case instr of
 
    COMMENT _
-      -> empty -- nuke 'em
+      -> mempty -- nuke 'em
 
    -- COMMENT s
    --    -> if platformOS platform == OSLinux
@@ -382,7 +374,7 @@ pprInstr platform instr = case instr of
                FF32 -> sLit "fs"
                FF64 -> sLit "fd"
                ),
-           case addr of AddrRegImm _ _ -> empty
+           case addr of AddrRegImm _ _ -> mempty
                         AddrRegReg _ _ -> char 'x',
            char '\t',
            pprReg reg,
@@ -424,7 +416,7 @@ pprInstr platform instr = case instr of
                FF32 -> sLit "fs"
                FF64 -> sLit "fd"
                ),
-           case addr of AddrRegImm _ _ -> empty
+           case addr of AddrRegImm _ _ -> mempty
                         AddrRegReg _ _ -> char 'x',
            char '\t',
            pprReg reg,
@@ -437,7 +429,7 @@ pprInstr platform instr = case instr of
            char '\t',
            text "st",
            pprFormat fmt,
-           case addr of AddrRegImm _ _ -> empty
+           case addr of AddrRegImm _ _ -> mempty
                         AddrRegReg _ _ -> char 'x',
            char '\t',
            pprReg reg,
@@ -459,7 +451,7 @@ pprInstr platform instr = case instr of
            text "st",
            pprFormat fmt,
            char 'u',
-           case addr of AddrRegImm _ _ -> empty
+           case addr of AddrRegImm _ _ -> mempty
                         AddrRegReg _ _ -> char 'x',
            char '\t',
            pprReg reg,
@@ -501,7 +493,7 @@ pprInstr platform instr = case instr of
            ]
 
    MR reg1 reg2
-    | reg1 == reg2 -> empty
+    | reg1 == reg2 -> mempty
     | otherwise    -> hcat [
         char '\t',
         case targetClassOfReg platform reg1 of
@@ -527,7 +519,7 @@ pprInstr platform instr = case instr of
                    text "cmp",
                    pprFormat fmt,
                    case ri of
-                       RIReg _ -> empty
+                       RIReg _ -> mempty
                        RIImm _ -> char 'i'
                ]
 
@@ -545,7 +537,7 @@ pprInstr platform instr = case instr of
                       text "cmpl",
                       pprFormat fmt,
                       case ri of
-                          RIReg _ -> empty
+                          RIReg _ -> mempty
                           RIImm _ -> char 'i'
                   ]
 
@@ -560,7 +552,7 @@ pprInstr platform instr = case instr of
            ]
          where lbl = mkLocalBlockLabel (getUnique blockid)
                pprPrediction p = case p of
-                 Nothing    -> empty
+                 Nothing    -> mempty
                  Just True  -> char '+'
                  Just False -> char '-'
 
@@ -579,7 +571,7 @@ pprInstr platform instr = case instr of
           ]
           where lbl = mkLocalBlockLabel (getUnique blockid)
                 neg_prediction = case prediction of
-                  Nothing    -> empty
+                  Nothing    -> mempty
                   Just True  -> char '-'
                   Just False -> char '+'
 
@@ -674,7 +666,7 @@ pprInstr platform instr = case instr of
            char '\t',
            text "subf",
            case ri of
-               RIReg _ -> empty
+               RIReg _ -> mempty
                RIImm _ -> char 'i',
            text "c\t",
            pprReg reg1,
@@ -1010,7 +1002,7 @@ pprLogic platform op reg1 reg2 ri = hcat [
         char '\t',
         ptext op,
         case ri of
-            RIReg _ -> empty
+            RIReg _ -> mempty
             RIImm _ -> char 'i',
         char '\t',
         pprReg reg1,
@@ -1048,7 +1040,7 @@ pprDiv fmt sgn reg1 reg2 reg3 = hcat [
           II32 -> char 'w'
           II64 -> char 'd'
           _    -> panic "PPC: illegal format",
-        if sgn then empty else char 'u',
+        sgn `munless` char 'u',
         char '\t',
         pprReg reg1,
         text ", ",
@@ -1088,7 +1080,7 @@ pprRI platform (RIImm r) = pprImm platform r
 
 
 pprFFormat :: Format -> SDoc
-pprFFormat FF64     = empty
+pprFFormat FF64     = mempty
 pprFFormat FF32     = char 's'
 pprFFormat _        = panic "PPC.Ppr.pprFFormat: no match"
 

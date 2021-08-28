@@ -43,7 +43,6 @@ import GHC.Types.Unique.Set
 import GHC.Exts( oneShot )
 
 import Control.Monad
-import Control.Applicative hiding ( empty )
 import qualified Control.Applicative
 
 {-

@@ -250,7 +250,7 @@ uName flexi subst n1 n2
     extra | isHoleName n1 || isHoleName n2
           = text "Neither name variable originates from the current signature."
           | otherwise
-          = empty
+          = mempty
 
 -- | Unify a name @h@ which 'isHoleName' with another name, given an existing
 -- substitution @subst@, with only name holes from @flexi@ unifiable (all

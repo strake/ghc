@@ -66,7 +66,6 @@ import GHC.Types.SrcLoc
 import GHC.Utils.Outputable as Outputable
 import GHC.Utils.Panic
 import GHC.Types.Unique  ( mkAlphaTyVarUnique )
-import GHC.Data.Bag      ( emptyBag )
 import qualified GHC.LanguageExtensions as LangExt
 
 import Control.Monad
@@ -881,7 +880,7 @@ forAllTyErr env rank ty
     suggestion = case rank of
                    LimitedRank {} -> text "Perhaps you intended to use RankNTypes"
                    MonoType d     -> d
-                   _              -> Outputable.empty -- Polytype is always illegal
+                   _              -> mempty -- Polytype is always illegal
 
 -- | Reject type variables that would escape their escape through a kind.
 -- See @Note [Type variables escaping through kinds]@.
@@ -1538,7 +1537,7 @@ check_special_inst_head dflags is_boot is_sig ctxt clas cls_args
   | clas_nm `elem` genericClassNames
   , hand_written_bindings
   =  do { failIfTc (safeLanguageOn dflags) gen_inst_err
-        ; when (safeInferOn dflags) (recordUnsafeInfer emptyBag) }
+        ; when (safeInferOn dflags) (recordUnsafeInfer empty) }
 
   | clas_nm == hasFieldClassName
   = checkHasFieldInst clas cls_args
@@ -1860,7 +1859,7 @@ checkValidInstance ctxt hs_type ty
             IsValid      -> return ()   -- Check succeeded
             NotValid msg -> addErrTc (instTypeErr clas inst_tys msg)
 
-        ; traceTc "End checkValidInstance }" empty
+        ; traceTc "End checkValidInstance }" mempty
 
         ; return () }
   where
@@ -2790,7 +2789,7 @@ checkTyConTelescope tc
 
     extra
       | null inferred_tvs && null specified_tvs
-      = empty
+      = mempty
       | null inferred_tvs
       = hang (text "NB: Specified variables")
            2 (sep [pp_spec, text "always come first"])

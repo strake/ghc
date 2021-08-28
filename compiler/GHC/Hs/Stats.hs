@@ -64,7 +64,7 @@ ppSourceStats short (L _ (HsModule _ exports imports ldecls _ _))
   where
     decls = map unLoc ldecls
 
-    pp_val (_, 0) = empty
+    pp_val (_, 0) = mempty
     pp_val (str, n)
       | not short   = hcat [text str, int n]
       | otherwise   = hcat [text (trim str), equals, int n, semi]

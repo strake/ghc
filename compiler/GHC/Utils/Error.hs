@@ -88,7 +88,6 @@ import qualified Data.Set as Set
 import Data.IORef
 import Data.Time
 import Debug.Trace
-import Control.Applicative ((<|>))
 import Control.Monad
 import Control.Monad.IO.Class
 import Control.Monad.Catch as MC (handle)
@@ -152,7 +151,7 @@ mkPlainWarnMsg dflags locn        msg       = mk_err_msg dflags SevWarning locn 
 
 ----------------
 emptyMessages :: Messages
-emptyMessages = (emptyBag, emptyBag)
+emptyMessages = (empty, empty)
 
 isEmptyMessages :: Messages -> Bool
 isEmptyMessages (warns, errs) = isEmptyBag warns && isEmptyBag errs
@@ -310,9 +309,8 @@ dumpSDocWithStyle sty dflags dumpOpt hdr doc =
         doc' <- if null hdr
                 then return doc
                 else do t <- getCurrentTime
-                        let timeStamp = if (gopt Opt_SuppressTimestamps dflags)
-                                          then empty
-                                          else text (show t)
+                        let timeStamp = munless (gopt Opt_SuppressTimestamps dflags) $
+                                text (show t)
                         let d = timeStamp
                                 $$ blankLine
                                 $$ doc

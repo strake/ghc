@@ -386,7 +386,7 @@ instance Outputable PmLit where
             , (charPrimTy, primCharSuffix)
             , (floatPrimTy, primFloatSuffix)
             , (doublePrimTy, primDoubleSuffix) ]
-      suffix = fromMaybe empty (snd <$> find (eqType ty . fst) tbl)
+      suffix = snd `foldMap` find (eqType ty . fst) tbl
 
 instance Outputable PmAltCon where
   ppr (PmAltConLike cl) = ppr cl
@@ -577,13 +577,13 @@ instance Outputable Delta where
 newtype Deltas = MkDeltas (Bag Delta)
 
 initDeltas :: Deltas
-initDeltas = MkDeltas (unitBag initDelta)
+initDeltas = MkDeltas (pure initDelta)
 
 instance Outputable Deltas where
   ppr (MkDeltas deltas) = ppr deltas
 
 instance Semigroup Deltas where
-  MkDeltas l <> MkDeltas r = MkDeltas (l `unionBags` r)
+  MkDeltas l <> MkDeltas r = MkDeltas (l <|> r)
 
 liftDeltasM :: Monad m => (Delta -> m (Maybe Delta)) -> Deltas -> m Deltas
 liftDeltasM f (MkDeltas ds) = MkDeltas . catMaybes <$> traverse f ds

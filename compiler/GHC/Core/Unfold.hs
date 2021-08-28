@@ -59,7 +59,7 @@ import GHC.Utils.Error
 
 import qualified Data.ByteString as BS
 import Data.List hiding (filter)
-
+import Util ((<|))
 
 -- | Unfolding options
 data UnfoldingOpts = UnfoldingOpts
@@ -438,8 +438,7 @@ sizeExpr opts bOMB_OUT_SIZE top_args expr
                           -- Size of all alternatives
                       (SizeIs max _        _)
                           -- Size of biggest alternative
-                  = SizeIs tot (unitBag (v, 20 + tot - max)
-                      `unionBags` tot_disc) tot_scrut
+                  = SizeIs tot ((v, 20 + tot - max) <| tot_disc) tot_scrut
                           -- If the variable is known, we produce a
                           -- discount that will take us back to 'max',
                           -- the size of the largest alternative The
@@ -563,7 +562,7 @@ sizeExpr opts bOMB_OUT_SIZE top_args expr
     addAltSize _                 TooBig = TooBig
     addAltSize (SizeIs n1 xs d1) (SizeIs n2 ys d2)
         = mkSizeIs bOMB_OUT_SIZE (n1 + n2)
-                                 (xs `unionBags` ys)
+                                 (xs <|> ys)
                                  (d1 + d2) -- Note [addAltSize result discounts]
 
         -- This variant ignores the result discount from its LEFT argument
@@ -572,7 +571,7 @@ sizeExpr opts bOMB_OUT_SIZE top_args expr
     addSizeNSD _                 TooBig = TooBig
     addSizeNSD (SizeIs n1 xs _) (SizeIs n2 ys d2)
         = mkSizeIs bOMB_OUT_SIZE (n1 + n2)
-                                 (xs `unionBags` ys)
+                                 (xs <|> ys)
                                  d2  -- Ignore d1
 
     isRealWorldId id = idType id `eqType` realWorldStatePrimTy
@@ -608,8 +607,8 @@ classOpSize opts top_args (arg1 : other_args)
     -- The actual discount is rather arbitrarily chosen
     arg_discount = case arg1 of
                      Var dict | dict `elem` top_args
-                              -> unitBag (dict, unfoldingDictDiscount opts)
-                     _other   -> emptyBag
+                              -> pure (dict, unfoldingDictDiscount opts)
+                     _other   -> empty
 
 -- | The size of a function call
 callSize
@@ -650,8 +649,8 @@ funSize opts top_args fun n_val_args voids
         --                  DISCOUNTS
         --  See Note [Function and non-function discounts]
     arg_discount | some_val_args && fun `elem` top_args
-                 = unitBag (fun, unfoldingFunAppDiscount opts)
-                 | otherwise = emptyBag
+                 = pure (fun, unfoldingFunAppDiscount opts)
+                 | otherwise = empty
         -- If the function is an argument and is applied
         -- to some values, give it an arg-discount
 
@@ -662,13 +661,13 @@ funSize opts top_args fun n_val_args voids
 
 conSize :: DataCon -> Int -> ExprSize
 conSize dc n_val_args
-  | n_val_args == 0 = SizeIs 0 emptyBag 10    -- Like variables
+  | n_val_args == 0 = SizeIs 0 empty 10    -- Like variables
 
 -- See Note [Unboxed tuple size and result discount]
-  | isUnboxedTupleCon dc = SizeIs 0 emptyBag 10
+  | isUnboxedTupleCon dc = SizeIs 0 empty 10
 
 -- See Note [Constructor size and result discount]
-  | otherwise = SizeIs 10 emptyBag 10
+  | otherwise = SizeIs 10 empty 10
 
 {- Note [Constructor size and result discount]
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -773,7 +772,7 @@ primOpSize op n_val_args
 
 
 buildSize :: ExprSize
-buildSize = SizeIs 0 emptyBag 40
+buildSize = SizeIs 0 empty 40
         -- We really want to inline applications of build
         -- build t (\cn -> e) should cost only the cost of e (because build will be inlined later)
         -- Indeed, we should add a result_discount because build is
@@ -782,7 +781,7 @@ buildSize = SizeIs 0 emptyBag 40
         -- The "4" is rather arbitrary.
 
 augmentSize :: ExprSize
-augmentSize = SizeIs 0 emptyBag 40
+augmentSize = SizeIs 0 empty 40
         -- Ditto (augment t (\cn -> e) ys) should cost only the cost of
         -- e plus ys. The -2 accounts for the \cn
 
@@ -893,8 +892,8 @@ maxSize s1@(SizeIs n1 _ _) s2@(SizeIs n2 _ _) | n1 > n2   = s1
 sizeZero :: ExprSize
 sizeN :: Int -> ExprSize
 
-sizeZero = SizeIs 0 emptyBag 0
-sizeN n  = SizeIs n emptyBag 0
+sizeZero = SizeIs 0 empty 0
+sizeN n  = SizeIs n empty 0
 
 {-
 ************************************************************************
@@ -1116,9 +1115,9 @@ tryUnfolding dflags id lone_variable
      UnfWhen { ug_arity = uf_arity, ug_unsat_ok = unsat_ok, ug_boring_ok = boring_ok }
         | enough_args && (boring_ok || some_benefit || unfoldingVeryAggressive uf_opts)
                 -- See Note [INLINE for small functions (3)]
-        -> traceInline dflags id str (mk_doc some_benefit empty True) (Just unf_template)
+        -> traceInline dflags id str (mk_doc some_benefit mempty True) (Just unf_template)
         | otherwise
-        -> traceInline dflags id str (mk_doc some_benefit empty False) Nothing
+        -> traceInline dflags id str (mk_doc some_benefit mempty False) Nothing
         where
           some_benefit = calc_some_benefit uf_arity
           enough_args = (n_val_args >= uf_arity) || (unsat_ok && n_val_args > 0)

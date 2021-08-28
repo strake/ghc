@@ -66,7 +66,7 @@ data ErrDoc = ErrDoc {
 
 unionMessages :: Messages -> Messages -> Messages
 unionMessages (warns1, errs1) (warns2, errs2) =
-  (warns1 `unionBags` warns2, errs1 `unionBags` errs2)
+  (warns1 <|> warns2, errs1 <|> errs2)
 
 errDoc :: [MsgDoc] -> [MsgDoc] -> [MsgDoc] -> ErrDoc
 errDoc = ErrDoc
@@ -148,16 +148,16 @@ mkLocMessageAnn ann severity locn msg
         SevWarning -> text "warning:"
         SevError   -> text "error:"
         SevFatal   -> text "fatal:"
-        _          -> empty
+        _          -> mempty
 
 getSeverityColour :: Severity -> Col.Scheme -> Col.PprColour
 getSeverityColour SevWarning = Col.sWarning
 getSeverityColour SevError   = Col.sError
 getSeverityColour SevFatal   = Col.sFatal
-getSeverityColour _          = const mempty
+getSeverityColour _          = mempty
 
 getCaretDiagnostic :: Severity -> SrcSpan -> IO MsgDoc
-getCaretDiagnostic _ (UnhelpfulSpan _) = pure empty
+getCaretDiagnostic _ (UnhelpfulSpan _) = pure mempty
 getCaretDiagnostic severity (RealSrcSpan span _) = do
   caretDiagnostic <$> getSrcLine (srcSpanFile span) row
 
@@ -189,7 +189,7 @@ getCaretDiagnostic severity (RealSrcSpan span _) = do
     rowStr = show row
     multiline = row /= srcSpanEndLine span
 
-    caretDiagnostic Nothing = empty
+    caretDiagnostic Nothing = mempty
     caretDiagnostic (Just srcLineWithNewline) =
       sdocOption sdocColScheme$ \col_scheme ->
       let sevColour = getSeverityColour severity col_scheme

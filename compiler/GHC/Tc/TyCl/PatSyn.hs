@@ -56,7 +56,6 @@ import GHC.Types.Id.Make
 import GHC.Tc.TyCl.Utils
 import GHC.Core.ConLike
 import GHC.Types.FieldLabel
-import GHC.Data.Bag
 import GHC.Utils.Misc
 import GHC.Utils.Error
 import GHC.Data.Collections
@@ -91,7 +90,7 @@ recoverPSB (PSB { psb_id = L _ name
       ; let placeholder = AConLike $ PatSynCon $
                           mk_placeholder matcher_name
       ; gbl_env <- tcExtendGlobalEnv [placeholder] getGblEnv
-      ; return (emptyBag, gbl_env) }
+      ; return (empty, gbl_env) }
   where
     (_arg_names, _rec_fields, is_infix) = collectPatSynArgInfo details
     mk_placeholder matcher_name
@@ -664,7 +663,7 @@ tc_patsyn_finish lname dir is_infix lpat'
        ; tcg_env <- tcExtendGlobalEnv [tything] $
                     tcRecSelBinds rn_rec_sel_binds
 
-       ; traceTc "tc_patsyn_finish }" empty
+       ; traceTc "tc_patsyn_finish }" mempty
        ; return (matcher_bind, tcg_env) }
 
 {-
@@ -751,7 +750,7 @@ tcPatSynMatcher (L loc name) lpat
                            , fun_matches = mg
                            , fun_ext = idHsWrapper
                            , fun_tick = [] }
-             matcher_bind = unitBag (noLoc bind)
+             matcher_bind = pure (noLoc bind)
 
        ; traceTc "tcPatSynMatcher" (ppr name $$ ppr (idType matcher_id))
        ; traceTc "tcPatSynMatcher" (ppr matcher_bind)
@@ -814,7 +813,7 @@ tcPatSynBuilderBind (PSB { psb_id = L loc name
                          , psb_dir = dir
                          , psb_args = details })
   | isUnidirectional dir
-  = return emptyBag
+  = return empty
 
   | Left why <- mb_match_group       -- Can't invert the pattern
   = setSrcSpan (getLoc lpat) $ failWithTc $
@@ -826,7 +825,7 @@ tcPatSynBuilderBind (PSB { psb_id = L loc name
   | Right match_group <- mb_match_group  -- Bidirectional
   = do { patsyn <- tcLookupPatSyn name
        ; case patSynBuilder patsyn of {
-           Nothing -> return emptyBag ;
+           Nothing -> return empty ;
              -- This case happens if we found a type error in the
              -- pattern synonym, recovered, and put a placeholder
              -- with patSynBuilder=Nothing in the environment

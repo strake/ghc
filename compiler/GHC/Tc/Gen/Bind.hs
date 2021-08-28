@@ -406,7 +406,7 @@ tcValBinds top_lvl binds sigs thing_inside
             ; return (binds' ++ extra_binds', thing) }}
   where
     patsyns = getPatSynBinds binds
-    prag_fn = mkPragEnv sigs (foldr (unionBags . snd) emptyBag binds)
+    prag_fn = mkPragEnv sigs (altMap snd binds)
 
 ------------------------
 tcBindGroups :: TopLevelFlag -> TcSigFun -> TcPragEnv
@@ -488,12 +488,12 @@ tc_group top_lvl sig_fn prag_fn (Recursive, binds) closed thing_inside
     sccs = stronglyConnCompFromEdgedVerticesUniq (mkEdges sig_fn binds)
 
     go :: [SCC (LHsBind GhcRn)] -> TcM (LHsBinds GhcTc, thing)
-    go (scc:sccs) = [ (unionBags binds1 binds2, thing)
+    go (scc:sccs) = [ (binds1 <|> binds2, thing)
                     | (binds1, ids1) <- tc_scc scc
                     , (binds2, thing) <- tcExtendLetEnv top_lvl sig_fn
                                                             closed ids1 $
                                              go sccs ]
-    go []         = (,) emptyBag <$> thing_inside
+    go []         = (,) empty <$> thing_inside
 
     tc_scc (AcyclicSCC bind) = tc_sub_group NonRecursive [bind]
     tc_scc (CyclicSCC binds) = tc_sub_group Recursive    binds
@@ -584,7 +584,7 @@ tcPolyBinds sig_fn prag_fn rec_group rec_tc closed bind_list
     recoverM (recoveryCode binder_names sig_fn) $ do
         -- Set up main recover; take advantage of any type sigs
 
-    { traceTc "------------------------------------------------" Outputable.empty
+    { traceTc "------------------------------------------------" mempty
     ; traceTc "Bindings for {" (ppr binder_names)
     ; dflags   <- getDynFlags
     ; let plan = decideGeneralisationPlan dflags bind_list closed sig_fn
@@ -614,7 +614,7 @@ recoveryCode :: [Name] -> TcSigFun -> TcM (LHsBinds GhcTc, [Id])
 recoveryCode binder_names sig_fn
   = do  { traceTc "tcBindsWithSigs: error recovery" (ppr binder_names)
         ; let poly_ids = map mk_dummy binder_names
-        ; return (emptyBag, poly_ids) }
+        ; return (empty, poly_ids) }
   where
     mk_dummy name
       | Just sig <- sig_fn name
@@ -719,10 +719,10 @@ tcPolyCheck prag_fn
                                  , abs_ev_vars  = ev_vars
                                  , abs_ev_binds = [ev_binds]
                                  , abs_exports  = [export]
-                                 , abs_binds    = unitBag (L loc bind')
+                                 , abs_binds    = pure (L loc bind')
                                  , abs_sig      = True }
 
-       ; return (unitBag abs_bind, [poly_id]) }
+       ; return (pure abs_bind, [poly_id]) }
 
 tcPolyCheck _prag_fn sig bind
   = pprPanic "tcPolyCheck" (ppr sig $$ ppr bind)
@@ -804,7 +804,7 @@ tcPolyInfer rec_tc prag_fn tc_sig_fn mono bind_list
                                  , abs_sig = False }
 
        ; traceTc "Binding:" (ppr (poly_ids `zip` map idType poly_ids))
-       ; return (unitBag abs_bind, poly_ids) }
+       ; return (pure abs_bind, poly_ids) }
          -- poly_ids are guaranteed zonked by mkExport
 
 --------------
@@ -1044,7 +1044,7 @@ mk_impedance_match_msg (MBI { mbi_poly_name = name, mbi_sig = mb_sig })
     what = case mb_sig of
              Nothing                     -> text "inferred"
              Just sig | isPartialSig sig -> text "(partial)"
-                      | otherwise        -> empty
+                      | otherwise        -> mempty
 
 
 mk_inf_msg :: Name -> TcType -> StateT TidyEnv TcM SDoc
@@ -1266,7 +1266,7 @@ tcMonoBinds is_rec sig_fn no_gen
                tcMatchesFun (L nm_loc name) matches exp_ty
 
         ; mono_id <- newLetBndr no_gen name rhs_ty
-        ; return (unitBag $ L b_loc $
+        ; return (pure $ L b_loc $
                      FunBind { fun_id = L nm_loc mono_id,
                                fun_matches = matches',
                                fun_ext = co_fn, fun_tick = [] },

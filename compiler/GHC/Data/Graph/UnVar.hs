@@ -87,7 +87,7 @@ data Gen = CBPG UnVarSet UnVarSet -- complete bipartite
 newtype UnVarGraph = UnVarGraph (Bag Gen)
 
 emptyUnVarGraph :: UnVarGraph
-emptyUnVarGraph = UnVarGraph emptyBag
+emptyUnVarGraph = UnVarGraph empty
 
 unionUnVarGraph :: UnVarGraph -> UnVarGraph -> UnVarGraph
 {-
@@ -103,17 +103,17 @@ unionUnVarGraph (UnVarGraph [CBPG s1 s2]) (UnVarGraph [CG s3, CG s4])
 -}
 unionUnVarGraph (UnVarGraph g1) (UnVarGraph g2)
     = -- pprTrace "unionUnVarGraph" (ppr (length g1, length g2)) $
-      UnVarGraph (g1 `unionBags` g2)
+      UnVarGraph (g1 <|> g2)
 
 unionUnVarGraphs :: [UnVarGraph] -> UnVarGraph
 unionUnVarGraphs = foldl' unionUnVarGraph emptyUnVarGraph
 
 -- completeBipartiteGraph A B = { {a,b} | a ∈ A, b ∈ B }
 completeBipartiteGraph :: UnVarSet -> UnVarSet -> UnVarGraph
-completeBipartiteGraph s1 s2 = prune $ UnVarGraph $ unitBag $ CBPG s1 s2
+completeBipartiteGraph s1 s2 = prune $ UnVarGraph $ pure $ CBPG s1 s2
 
 completeGraph :: UnVarSet -> UnVarGraph
-completeGraph s = prune $ UnVarGraph $ unitBag $ CG s
+completeGraph s = prune $ UnVarGraph $ pure $ CG s
 
 neighbors :: UnVarGraph -> Var -> UnVarSet
 neighbors (UnVarGraph g) v = unionUnVarSets $ concatMap go g

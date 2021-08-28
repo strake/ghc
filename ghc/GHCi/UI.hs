@@ -87,13 +87,12 @@ import GHC.Utils.Panic hiding ( showException, try )
 import GHC.Utils.Panic.Plain
 import GHC.Utils.Misc
 import qualified GHC.LanguageExtensions as LangExt
-import GHC.Data.Bag (unitBag)
 import qualified GHC.Data.Strict as Strict
 
 -- Haskell Libraries
 import System.Console.Haskeline as Haskeline
 
-import Control.Applicative hiding (empty)
+import Control.Applicative
 import Control.DeepSeq (deepseq)
 import Control.Monad as Monad
 import Control.Monad.Catch as MC
@@ -843,7 +842,7 @@ getInfoForPrompt = do
 
   context_bit <-
         case resumes of
-            [] -> return empty
+            [] -> return mempty
             r:_ -> do
                 let ix = GHC.resumeHistoryIx r
                 if ix == 0
@@ -856,7 +855,7 @@ getInfoForPrompt = do
 
   let
         dots | _:rs <- resumes, not (null rs) = text "... "
-             | otherwise = empty
+             | otherwise = mempty
 
         rev_imports = reverse imports -- rightmost are the most recent
 
@@ -958,7 +957,7 @@ generatePromptFunctionFromString promptS modules_names line =
         processString (x:xs) =
             liftM (char x <>) (processString xs)
         processString "" =
-            return empty
+            return mempty
 
 mkPrompt :: GHCi String
 mkPrompt = do
@@ -1267,7 +1266,7 @@ runStmt input step = do
     mk_stmt :: SrcSpan -> HsBind GhcPs -> GhciLStmt GhcPs
     mk_stmt loc bind =
       let l = L loc
-      in l (LetStmt noExtField (l (HsValBinds noExtField (ValBinds noExtField (unitBag (l bind)) []))))
+      in l (LetStmt noExtField (l (HsValBinds noExtField (ValBinds noExtField (pure (l bind)) []))))
 
 -- | Clean up the GHCi environment after a statement has run
 afterRunStmt :: GhciMonad m
@@ -1526,7 +1525,7 @@ pprInfo (thing, fixity, cls_insts, fam_insts, docs)
   $$ vcat (map pprFamInst fam_insts)
   where
     show_fixity
-        | fixity == GHC.defaultFixity = empty
+        | fixity == GHC.defaultFixity = mempty
         | otherwise                   = ppr fixity <+> pprInfixName (GHC.getName thing)
 
 -----------------------------------------------------------------------------
@@ -1776,7 +1775,7 @@ checkModule m = do
                 in
                         (text "global names: " <+> ppr glob) $$
                         (text "local  names: " <+> ppr loc)
-             _ -> empty
+             _ -> mempty
           return True
   afterLoad (successIf ok) False
 
@@ -2809,7 +2808,7 @@ showDynFlags show_all dflags = do
          nest 2 (vcat (map (setting "-W" "-Wno-" wopt) DynFlags.wWarningFlags))
   where
         setting prefix noPrefix test flag
-          | quiet     = empty
+          | quiet     = mempty
           | is_on     = text prefix <> text name
           | otherwise = text noPrefix <> text name
           where name = flagSpecName flag
@@ -3165,7 +3164,7 @@ showBindings = do
         $$ show_fixity
       where
         show_fixity
-            | fixity == GHC.defaultFixity  = empty
+            | fixity == GHC.defaultFixity  = mempty
             | otherwise                    = ppr fixity <+> ppr (GHC.getName thing)
 
 
@@ -3213,7 +3212,7 @@ pprStopped :: GHC.Resume -> SDoc
 pprStopped res =
   ptext (sLit "Stopped in")
     <+> ((case mb_mod_name of
-           Nothing -> empty
+           Nothing -> mempty
            Just mod_name -> text (moduleNameString mod_name) <> char '.')
          <> text (GHC.resumeDecl res))
     <> char ',' <+> ppr (GHC.resumeSpan res)
@@ -3261,7 +3260,7 @@ showLanguages' show_all dflags =
      ]
   where
    setting test flag
-          | quiet     = empty
+          | quiet     = mempty
           | is_on     = text "-X" <> text name
           | otherwise = text "-XNo" <> text name
           where name = flagSpecName flag
@@ -4027,7 +4026,7 @@ listCmd "" = do
                  (r:_) ->
                      do let traceIt = case GHC.resumeHistory r of
                                       [] -> text "rerunning with :trace,"
-                                      _ -> empty
+                                      _ -> mempty
                             doWhat = traceIt <+> text ":back then :list"
                         printForUser (text "Unable to list source for" <+>
                                       ppr pan

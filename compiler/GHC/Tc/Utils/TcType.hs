@@ -2353,7 +2353,7 @@ boxedMarshalableTyCon tc
                          ]
   = IsValid
 
-  | otherwise = NotValid empty
+  | otherwise = NotValid mempty
 
 legalFIPrimArgTyCon :: DynFlags -> TyCon -> Validity
 -- Check args of 'foreign import prim', only allow simple unlifted types.

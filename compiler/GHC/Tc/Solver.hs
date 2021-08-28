@@ -129,11 +129,11 @@ simplifyTop wanteds
   = do { traceTc "simplifyTop {" $ text "wanted = " <+> ppr wanteds
        ; ((final_wc, unsafe_ol), binds1) <- runTcS $
             (,) <$> simpl_top wanteds <*> getSafeOverlapFailures
-       ; traceTc "End simplifyTop }" empty
+       ; traceTc "End simplifyTop }" mempty
 
        ; binds2 <- reportUnsolved final_wc
 
-       ; traceTc "reportUnsolved (unsafe overlapping) {" empty
+       ; traceTc "reportUnsolved (unsafe overlapping) {" mempty
        ; unless (isEmptyCts unsafe_ol) $ do {
            -- grab current error messages and clear, warnAllUnsolved will
            -- update error messages which we'll grab and then restore saved
@@ -148,8 +148,8 @@ simplifyTop wanteds
            ; writeMutVar errs_var saved_msg
            ; recordUnsafeInfer whyUnsafe
            }
-       ; (evBindMapBinds binds1 `unionBags` binds2) <$
-         traceTc "reportUnsolved (unsafe overlapping) }" empty }
+       ; (evBindMapBinds binds1 <|> binds2) <$
+         traceTc "reportUnsolved (unsafe overlapping) }" mempty }
 
 
 -- | Type-check a thing that emits only equality constraints, solving any
@@ -208,7 +208,7 @@ solveEqualities thing_inside
           -- NB: Use simpl_top here so that we potentially default RuntimeRep
           -- vars to LiftedRep. This is needed to avoid #14991.
 
-       ; traceTc "End solveEqualities }" empty
+       ; traceTc "End solveEqualities }" mempty
        ; result <$ reportAllUnsolved final_wc }
 
 -- | Simplify top-level constraints, but without reporting any unsolved
@@ -562,28 +562,28 @@ simplifyAmbiguityCheck ty wanteds
        ; (final_wc, _) <- runTcS $ solveWantedsAndDrop wanteds
              -- NB: no defaulting!  See Note [No defaulting in the ambiguity check]
 
-       ; traceTc "End simplifyAmbiguityCheck }" empty
+       ; traceTc "End simplifyAmbiguityCheck }" mempty
 
        -- Normally report all errors; but with -XAllowAmbiguousTypes
        -- report only insoluble ones, since they represent genuinely
        -- inaccessible code
        ; allow_ambiguous <- xoptM LangExt.AllowAmbiguousTypes
-       ; traceTc "reportUnsolved(ambig) {" empty
+       ; traceTc "reportUnsolved(ambig) {" mempty
        ; unless (allow_ambiguous && not (insolubleWC final_wc))
                 (() <$ reportUnsolved final_wc)
-       ; traceTc "reportUnsolved(ambig) }" empty }
+       ; traceTc "reportUnsolved(ambig) }" mempty }
 
 ------------------
 simplifyInteractive :: WantedConstraints -> TcM (Bag EvBind)
 simplifyInteractive wanteds
-  = traceTc "simplifyInteractive" empty >>
+  = traceTc "simplifyInteractive" mempty >>
     simplifyTop wanteds
 
 ------------------
 simplifyDefault :: ThetaType    -- Wanted; has no type variables in it
                 -> TcM ()       -- Succeeds if the constraint is soluble
 simplifyDefault theta
-  = do { traceTc "simplifyDefault" empty
+  = do { traceTc "simplifyDefault" mempty
        ; wanteds  <- newWanteds DefaultOrigin theta
        ; unsolved <- runTcSDeriveds (solveWantedsAndDrop (mkSimpleWC wanteds))
        ; reportAllUnsolved unsolved }
@@ -841,9 +841,9 @@ mkResidualConstraints rhs_tclvl ev_binds_var
 
         ; let inner_wanted = wanteds { wc_simple = inner_simple }
         ; implics <- if isEmptyWC inner_wanted
-                     then return emptyBag
+                     then return empty
                      else do implic1 <- newImplication
-                             return $ unitBag $
+                             return $ pure $
                                       implic1  { ic_tclvl  = rhs_tclvl
                                                , ic_skols  = qtvs
                                                , ic_telescope = Nothing
@@ -1486,7 +1486,7 @@ solveWanteds wc@(WC { wc_simple = simples, wc_impl = implics, wc_holes = holes }
                 -- See Note [Rewrite insolubles] in GHC.Tc.Solver.Monad
 
        ; (floated_eqs, implics2) <- solveNestedImplications $
-                                    implics `unionBags` wc_impl wc1
+                                    implics <|> wc_impl wc1
 
        ; dflags   <- getDynFlags
        ; solved_wc <- simpl_loop 0 (solverIterations dflags) floated_eqs
@@ -1521,7 +1521,7 @@ simpl_loop n limit floated_eqs wc@(WC { wc_simple = simples })
                   ]))
 
   | not (isEmptyBag floated_eqs)
-  = simplify_again n limit True (wc { wc_simple = floated_eqs `unionBags` simples })
+  = simplify_again n limit True (wc { wc_simple = floated_eqs <|> simples })
             -- Put floated_eqs first so they get solved first
             -- NB: the floated_eqs may include /derived/ equalities
             -- arising from fundeps inside an implication
@@ -1538,7 +1538,7 @@ simpl_loop n limit floated_eqs wc@(WC { wc_simple = simples })
        ; new_wanted <- makeSuperClasses pending_wanted
        ; solveSimpleGivens new_given -- Add the new Givens to the inert set
        ; simplify_again n limit (null pending_given)
-         wc { wc_simple = simples1 `unionBags` listToBag new_wanted } } }
+         wc { wc_simple = simples1 <|> listToBag new_wanted } } }
 
   | otherwise
   = return wc
@@ -1570,11 +1570,11 @@ simplify_again n limit no_new_given_scs
             isEmptyBag new_implics
 
            then -- Do not even try to solve the implications
-                simpl_loop (n+1) limit emptyBag (wc1 { wc_impl = implics })
+                simpl_loop (n+1) limit empty (wc1 { wc_impl = implics })
 
            else -- Try to solve the implications
                 do { (floated_eqs2, implics2) <- solveNestedImplications $
-                                                 implics `unionBags` new_implics
+                                                 implics <|> new_implics
                    ; simpl_loop (n+1) limit floated_eqs2 (wc1 { wc_impl = implics2 })
     } }
 
@@ -1584,11 +1584,11 @@ solveNestedImplications :: Bag Implication
 -- to be converted to givens before we go inside a nested implication.
 solveNestedImplications implics
   | isEmptyBag implics
-  = return (emptyBag, emptyBag)
+  = return (empty, empty)
   | otherwise
-  = do { traceTcS "solveNestedImplications starting {" empty
+  = do { traceTcS "solveNestedImplications starting {" mempty
        ; (floated_eqs_s, unsolved_implics) <- mapAndUnzipM solveImplication implics
-       ; let floated_eqs = concatBag floated_eqs_s
+       ; let floated_eqs = join floated_eqs_s
 
        -- ... and we are back in the original TcS inerts
        -- Notice that the original includes the _insoluble_simples so it was safe to ignore
@@ -2091,8 +2091,7 @@ approximateWC float_past_equalities wc
   where
     float_wc :: TcTyCoVarSet -> WantedConstraints -> Cts
     float_wc trapping_tvs (WC { wc_simple = simples, wc_impl = implics })
-      = filter (is_floatable trapping_tvs) simples `unionBags`
-        do_bag (float_implic trapping_tvs) implics
+      = filter (is_floatable trapping_tvs) simples <|> (float_implic trapping_tvs =<< implics)
       where
 
     float_implic :: TcTyCoVarSet -> Implication -> Cts
@@ -2103,9 +2102,6 @@ approximateWC float_past_equalities wc
       = emptyCts    -- See (1) under Note [ApproximateWC]
       where
         new_trapping_tvs = trapping_tvs `extendVarSetList` ic_skols imp
-
-    do_bag :: (a -> Bag c) -> Bag a -> Bag c
-    do_bag f = foldr (unionBags.f) emptyBag
 
     is_floatable skol_tvs ct
        | isGivenCt ct     = False
@@ -2329,7 +2325,7 @@ floatEqualities :: [TcTyVar] -> [EvId] -> EvBindsVar -> Bool
 floatEqualities skols given_ids ev_binds_var no_given_eqs
                 wanteds@(WC { wc_simple = simples })
   | not no_given_eqs  -- There are some given equalities, so don't float
-  = return (emptyBag, wanteds)   -- Note [Float Equalities out of Implications]
+  = return (empty, wanteds)   -- Note [Float Equalities out of Implications]
 
   | otherwise
   = do { -- First zonk: the inert set (from whence they came) is fully

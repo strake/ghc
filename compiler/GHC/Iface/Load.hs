@@ -174,7 +174,7 @@ importDecl name
         { eps <- getEps
         ; case lookupTypeEnv (eps_PTE eps) name of
             Just thing -> return $ Succeeded thing
-            Nothing    -> let doc = whenPprDebug (found_things_msg eps $$ empty)
+            Nothing    -> let doc = whenPprDebug (found_things_msg eps $$ mempty)
                                     $$ not_found_msg
                           in return $ Failed doc
     }}}
@@ -920,9 +920,7 @@ findAndReadIface :: SDoc
         -- sometimes it's ok to fail... see notes with loadInterface
 findAndReadIface doc_str mod wanted_mod_with_insts hi_boot_file
   = do traceIf (sep [hsep [text "Reading",
-                           if hi_boot_file == IsBoot
-                             then text "[boot]"
-                             else Outputable.empty,
+                           mwhen (hi_boot_file == IsBoot) (text "[boot]"),
                            text "interface for",
                            ppr mod <> semi],
                      nest 4 (text "reason:" <+> doc_str)])
@@ -1156,9 +1154,9 @@ pprModIface :: ModIface -> SDoc
 pprModIface iface@ModIface{ mi_final_exts = exts }
  = vcat [ text "interface"
                 <+> ppr (mi_module iface) <+> pp_hsc_src (mi_hsc_src iface)
-                <+> (if mi_orphan exts then text "[orphan module]" else Outputable.empty)
-                <+> (if mi_finsts exts then text "[family instance module]" else Outputable.empty)
-                <+> (if mi_hpc iface then text "[hpc]" else Outputable.empty)
+                <+> (mi_orphan exts `mwhen` text "[orphan module]")
+                <+> (mi_finsts exts `mwhen` text "[family instance module]")
+                <+> (mi_hpc iface `mwhen` text "[hpc]")
                 <+> integer hiVersion
         , nest 2 (text "interface hash:" <+> ppr (mi_iface_hash exts))
         , nest 2 (text "ABI hash:" <+> ppr (mi_mod_hash exts))
@@ -1193,7 +1191,7 @@ pprModIface iface@ModIface{ mi_final_exts = exts }
   where
     pp_hsc_src HsBootFile = text "[boot]"
     pp_hsc_src HsigFile = text "[hsig]"
-    pp_hsc_src HsSrcFile = Outputable.empty
+    pp_hsc_src HsSrcFile = mempty
 
 {-
 When printing export lists, we print like this:
@@ -1204,13 +1202,13 @@ When printing export lists, we print like this:
 
 pprExport :: IfaceExport -> SDoc
 pprExport (Avail n)         = ppr n
-pprExport (AvailTC _ [] []) = Outputable.empty
+pprExport (AvailTC _ [] []) = mempty
 pprExport (AvailTC n ns0 fs)
   = case ns0 of
       (n':ns) | n==n' -> ppr n <> pp_export ns fs
       _               -> ppr n <> vbar <> pp_export ns0 fs
   where
-    pp_export []    [] = Outputable.empty
+    pp_export []    [] = mempty
     pp_export names fs = braces (hsep (map ppr names ++ map (ppr . flLabel) fs))
 
 pprUsage :: Usage -> SDoc
@@ -1219,7 +1217,7 @@ pprUsage usage@UsagePackageModule{}
 pprUsage usage@UsageHomeModule{}
   = pprUsageImport usage usg_mod_name $$
     nest 2 (
-        maybe Outputable.empty (\v -> text "exports: " <> ppr v) (usg_exports usage) $$
+        foldMap (\v -> text "exports: " <> ppr v) (usg_exports usage) $$
         vcat [ ppr n <+> ppr v | (n,v) <- usg_entities usage ]
         )
 pprUsage usage@UsageFile{}
@@ -1251,7 +1249,7 @@ pprDeps Deps
   = vcat [text "direct module dependencies:" <+> fsepMap ppr_mod dmods,
           text "boot module dependencies:" <+> fsepMap ppr bmods,
           text "direct package dependencies:" <+> fsepMap ppr pkgs,
-          bool (text "trusted package dependencies:" <+> fsepMap ppr tps) empty (null tps),
+          munless (null tps) (text "trusted package dependencies:" <+> fsepMap ppr tps),
           text "orphans:" <+> fsepMap ppr orphs,
           text "plugins:" <+> fsepMap ppr plugins,
           text "family instance modules:" <+> fsepMap ppr finsts
@@ -1259,11 +1257,11 @@ pprDeps Deps
   where
     ppr_mod (GWIB { gwib_mod = mod_name, gwib_isBoot = boot }) = ppr mod_name <+> ppr_boot boot
     ppr_boot IsBoot  = text "[boot]"
-    ppr_boot NotBoot = Outputable.empty
+    ppr_boot NotBoot = mempty
     fsepMap f = fsep . fmap f . toList
 
 pprFixities :: [(OccName, Fixity)] -> SDoc
-pprFixities []    = Outputable.empty
+pprFixities []    = mempty
 pprFixities fixes = text "fixities" <+> pprWithCommas pprFix fixes
                   where
                     pprFix (occ,fix) = ppr fix <+> ppr occ
@@ -1278,7 +1276,7 @@ instance Outputable Warnings where
     ppr = pprWarns
 
 pprWarns :: Warnings -> SDoc
-pprWarns NoWarnings         = Outputable.empty
+pprWarns NoWarnings         = mempty
 pprWarns (WarnAll txt)  = text "Warn all" <+> ppr txt
 pprWarns (WarnSome prs) = text "Warnings"
                         <+> vcat (map pprWarning prs)
@@ -1334,5 +1332,5 @@ homeModError mod location
   = text "attempting to use module " <> quotes (ppr mod)
     <> (case ml_hs_file location of
            Just file -> space <> parens (text file)
-           Nothing   -> Outputable.empty)
+           Nothing   -> mempty)
     <+> text "which is not loaded"

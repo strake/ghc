@@ -136,7 +136,6 @@ import GHC.Platform
 
 import Data.Maybe
 import Control.Monad
-import Control.Applicative
 
 -- -----------------------------------------------------------------------------
 -- Top level of the register allocator

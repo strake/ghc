@@ -235,9 +235,7 @@ prettyLocations  locs =
 
 instance Outputable BreakLocation where
    ppr loc = (ppr $ breakModule loc) <+> ppr (breakLoc loc) <+> pprEnaDisa <+>
-                if null (onBreakCmd loc)
-                   then empty
-                   else doubleQuotes (text (onBreakCmd loc))
+                munless (null (onBreakCmd loc)) (doubleQuotes (text (onBreakCmd loc)))
       where pprEnaDisa = case breakEnabled loc of
                 True  -> text "enabled"
                 False -> text "disabled"
@@ -444,9 +442,8 @@ printStats :: DynFlags -> ActionStats -> IO ()
 printStats dflags ActionStats{actionAllocs = mallocs, actionElapsedTime = secs}
    = do let secs_str = showFFloat (Just 2) secs
         putStrLn (Ppr.showSDoc dflags (
-                 parens (text (secs_str "") <+> text "secs" <> comma <+>
-                         case mallocs of
-                           Nothing -> empty
+                 parens (text (secs_str "") <+> text "secs" <> comma <+> case mallocs of
+                           Nothing -> mempty
                            Just allocs ->
                              text (separateThousands allocs) <+> text "bytes")))
   where

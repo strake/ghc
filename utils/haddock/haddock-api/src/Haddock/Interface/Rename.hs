@@ -19,7 +19,6 @@ import Data.Traversable (mapM)
 import Haddock.GhcUtils
 import Haddock.Types
 
-import GHC.Data.Bag (emptyBag)
 import GHC hiding (NoLink)
 import GHC.Types.Name
 import GHC.Types.Name.Reader (RdrName(Exact))
@@ -400,7 +399,7 @@ renameTyClD d = case d of
     -- we don't need the default methods or the already collected doc entities
     return (ClassDecl { tcdCtxt = lcontext', tcdLName = lname', tcdTyVars = ltyvars'
                       , tcdFixity = fixity
-                      , tcdFDs = lfundeps', tcdSigs = lsigs', tcdMeths= emptyBag
+                      , tcdFDs = lfundeps', tcdSigs = lsigs', tcdMeths = empty
                       , tcdATs = ats', tcdATDefs = at_defs', tcdDocs = [], tcdCExt = noExtField })
 
   where
@@ -577,7 +576,7 @@ renameClsInstD (ClsInstDecl { cid_overlap_mode = omode
   lATs'  <- mapM (mapM renameTyFamInstD) lATs
   lADTs' <- mapM (mapM renameDataFamInstD) lADTs
   return (ClsInstDecl { cid_ext = noExtField, cid_overlap_mode = omode
-                      , cid_poly_ty = ltype', cid_binds = emptyBag
+                      , cid_poly_ty = ltype', cid_binds = empty
                       , cid_sigs = []
                       , cid_tyfam_insts = lATs', cid_datafam_insts = lADTs' })
 

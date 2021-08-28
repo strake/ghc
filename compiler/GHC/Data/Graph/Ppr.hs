@@ -93,9 +93,8 @@ dotNode colorMap triv node
                 $ map (\n -> text "+" <> ppr n)
                 $ nodePreference node
 
-        expref  = if and [isEmptyUniqSet (nodeExclusions node), null (nodePreference node)]
-                        then empty
-                        else text "\\n" <> (excludes <+> preferences)
+        expref  = (munless . and) [isEmptyUniqSet (nodeExclusions node), null (nodePreference node)] $
+            text "\\n" <> (excludes <+> preferences)
 
         -- if the node has been colored then show that,
         --      otherwise indicate whether it looks trivially colorable.

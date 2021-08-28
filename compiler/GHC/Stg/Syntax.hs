@@ -443,7 +443,7 @@ data NoExtFieldSilent = NoExtFieldSilent
   deriving (Data, Eq, Ord)
 
 instance Outputable NoExtFieldSilent where
-  ppr _ = empty
+  ppr _ = mempty
 
 -- | Used when constructing a term with an unused extension point that should
 -- not appear in pretty-printed output at all.
@@ -804,7 +804,7 @@ instance Outputable AltType where
 pprStgRhs :: OutputablePass pass => StgPprOpts -> GenStgRhs pass -> SDoc
 pprStgRhs opts rhs = case rhs of
    StgRhsClosure ext cc upd_flag args body
-      -> hang (hsep [ if stgSccEnabled opts then ppr cc else empty
+      -> hang (hsep [ stgSccEnabled opts `mwhen` ppr cc
                     , ppUnlessOption sdocSuppressStgExts (ppr ext)
                     , char '\\' <> ppr upd_flag, brackets (interppSP args)
                     ])

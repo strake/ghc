@@ -29,8 +29,7 @@ regCoalesce
 
 regCoalesce code
  = do
-        let joins       = foldl' unionBags emptyBag
-                        $ map slurpJoinMovs code
+        let joins       = asum $ map slurpJoinMovs code
 
         let alloc       = foldl' buildAlloc emptyUFM joins
 
@@ -69,7 +68,7 @@ slurpJoinMovs
         -> Bag (Reg, Reg)
 
 slurpJoinMovs live
-        = slurpCmm emptyBag live
+        = slurpCmm empty live
  where
         slurpCmm   rs  CmmData{}
          = rs

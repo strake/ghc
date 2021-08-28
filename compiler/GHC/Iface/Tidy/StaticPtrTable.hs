@@ -264,7 +264,7 @@ sptCreateStaticBinds hsc_env this_mod binds
 -- @fps@ is a list associating each binding corresponding to a static entry with
 -- its fingerprint.
 sptModuleInitCode :: Platform -> Module -> [SptEntry] -> SDoc
-sptModuleInitCode _        _        [] = Outputable.empty
+sptModuleInitCode _        _        [] = mempty
 sptModuleInitCode platform this_mod entries = vcat
     [ text "static void hs_spt_init_" <> ppr this_mod
            <> text "(void) __attribute__((constructor));"

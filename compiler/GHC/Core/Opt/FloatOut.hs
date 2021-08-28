@@ -183,7 +183,7 @@ floatOutwards float_sws dflags us pgm
                         int ntlets, text " Lets floated elsewhere; from ",
                         int lams,   text " Lambda groups"]);
 
-        return (toList (unionManyBags binds_s'))
+        return (toList (asum binds_s'))
     }
 
 floatTopBind :: LevelledBind -> (FloatStats, Bag CoreBind)
@@ -193,7 +193,7 @@ floatTopBind bind
     in case bind' of
       -- bind' can't have unlifted values or join points, so can only be one
       -- value bind, rec or non-rec (see comment on floatBind)
-      [Rec prs]    -> (fs, unitBag (Rec (addTopFloatPairs float_bag prs)))
+      [Rec prs]    -> (fs, pure (Rec (addTopFloatPairs float_bag prs)))
       [NonRec b e] -> (fs, float_bag `snocBag` NonRec b e)
       _            -> pprPanic "floatTopBind" (ppr bind') }
 
@@ -636,41 +636,41 @@ addTopFloatPairs float_bag prs
     add (Rec prs1)   prs2 = prs1 ++ prs2
 
 flattenMajor :: MajorEnv -> Bag FloatBind
-flattenMajor = M.foldr (unionBags . flattenMinor) emptyBag
+flattenMajor = altMap flattenMinor
 
 flattenMinor :: MinorEnv -> Bag FloatBind
-flattenMinor = M.foldr unionBags emptyBag
+flattenMinor = asum
 
 emptyFloats :: FloatBinds
-emptyFloats = FB emptyBag emptyBag M.empty
+emptyFloats = FB empty empty M.empty
 
 unitCaseFloat :: Level -> CoreExpr -> Id -> AltCon -> [Var] -> FloatBinds
 unitCaseFloat (Level major minor t) e b con bs
   | t == JoinCeilLvl
-  = FB emptyBag floats M.empty
+  = FB empty floats M.empty
   | otherwise
-  = FB emptyBag emptyBag (M.singleton major (M.singleton minor floats))
+  = FB empty empty (M.singleton major (M.singleton minor floats))
   where
-    floats = unitBag (FloatCase e b con bs)
+    floats = pure (FloatCase e b con bs)
 
 unitLetFloat :: Level -> FloatLet -> FloatBinds
 unitLetFloat lvl@(Level major minor t) b
-  | isTopLvl lvl     = FB (unitBag b) emptyBag M.empty
-  | t == JoinCeilLvl = FB emptyBag floats M.empty
-  | otherwise        = FB emptyBag emptyBag (M.singleton major
+  | isTopLvl lvl     = FB (pure b) empty M.empty
+  | t == JoinCeilLvl = FB empty floats M.empty
+  | otherwise        = FB empty empty (M.singleton major
                                               (M.singleton minor floats))
   where
-    floats = unitBag (FloatLet b)
+    floats = pure (FloatLet b)
 
 plusFloats :: FloatBinds -> FloatBinds -> FloatBinds
 plusFloats (FB t1 c1 l1) (FB t2 c2 l2)
-  = FB (t1 `unionBags` t2) (c1 `unionBags` c2) (l1 `plusMajor` l2)
+  = FB (t1 <|> t2) (c1 <|> c2) (l1 `plusMajor` l2)
 
 plusMajor :: MajorEnv -> MajorEnv -> MajorEnv
 plusMajor = M.unionWith plusMinor
 
 plusMinor :: MinorEnv -> MinorEnv -> MinorEnv
-plusMinor = M.unionWith unionBags
+plusMinor = M.unionWith (<|>)
 
 install :: Bag FloatBind -> CoreExpr -> CoreExpr
 install defn_groups expr
@@ -696,34 +696,34 @@ partitionByLevel
 -- which is as it should be
 
 partitionByMajorLevel (Level major _) (FB tops defns)
-  = (FB tops outer, heres `unionBags` flattenMajor inner)
+  = (FB tops outer, heres <|> flattenMajor inner)
   where
     (outer, mb_heres, inner) = M.splitLookup major defns
     heres = case mb_heres of
-               Nothing -> emptyBag
+               Nothing -> empty
                Just h  -> flattenMinor h
 -}
 
 partitionByLevel (Level major minor typ) (FB tops ceils defns)
   = (FB tops ceils' (outer_maj `plusMajor` M.singleton major outer_min),
-     here_min `unionBags` here_ceil
-              `unionBags` flattenMinor inner_min
-              `unionBags` flattenMajor inner_maj)
+     here_min <|> here_ceil
+              <|> flattenMinor inner_min
+              <|> flattenMajor inner_maj)
 
   where
     (outer_maj, mb_here_maj, inner_maj) = M.splitLookup major defns
     (outer_min, mb_here_min, inner_min) = case mb_here_maj of
                                             Nothing -> (M.empty, Nothing, M.empty)
                                             Just min_defns -> M.splitLookup minor min_defns
-    here_min = mb_here_min `orElse` emptyBag
-    (here_ceil, ceils') | typ == JoinCeilLvl = (ceils, emptyBag)
-                        | otherwise          = (emptyBag, ceils)
+    here_min = mb_here_min `orElse` empty
+    (here_ceil, ceils') | typ == JoinCeilLvl = (ceils, empty)
+                        | otherwise          = (empty, ceils)
 
 -- Like partitionByLevel, but instead split out the bindings that are marked
 -- to float to the nearest join ceiling (see Note [Join points])
 partitionAtJoinCeiling :: FloatBinds -> (FloatBinds, Bag FloatBind)
 partitionAtJoinCeiling (FB tops ceils defs)
-  = (FB tops emptyBag defs, ceils)
+  = (FB tops empty defs, ceils)
 
 -- Perform some action at a join ceiling, i.e., don't let join points float out
 -- (see Note [Join points])

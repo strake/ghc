@@ -165,7 +165,7 @@ genMachOp platform mop args
         _     -> pprTrace "GHC.Cmm.Ppr.Expr.genMachOp: machop with strange number of args"
                           (pprMachOp mop <+>
                             parens (hcat $ punctuate comma (map (pprExpr platform) args)))
-                          empty
+                          mempty
 
    | isJust (infixMachOp1 mop)
    || isJust (infixMachOp7 mop)
@@ -217,7 +217,7 @@ pprLit1 platform lit                  = pprLit platform lit
 
 ppr_offset :: Int -> SDoc
 ppr_offset i
-    | i==0      = empty
+    | i==0      = mempty
     | i>=0      = char '+' <> int i
     | otherwise = char '-' <> int (-i)
 
@@ -245,10 +245,10 @@ pprLocalReg (LocalReg uniq rep) =
      pprUnique unique = sdocOption sdocSuppressUniques $ \case
        True  -> text "_locVar_"
        False -> ppr unique
-     ptr = empty
+     ptr = mempty
          --if isGcPtrType rep
          --      then doubleQuotes (text "ptr")
-         --      else empty
+         --      else mempty
 
 -- Stack areas
 pprArea :: Area -> SDoc

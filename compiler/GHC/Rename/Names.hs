@@ -1526,13 +1526,13 @@ warnUnusedImport flag fld_env (L loc decl, used, unused)
                 , nest 2 (text "except perhaps to import instances from"
                                    <+> quotes pp_mod)
                 , text "To import instances alone, use:"
-                                   <+> text "import" <+> pp_mod <> parens Outputable.empty ]
+                                   <+> text "import" <+> pp_mod <> parens mempty ]
     msg2 = sep [ pp_herald <+> quotes sort_unused
                , text "from module" <+> quotes pp_mod <+> is_redundant]
     pp_herald  = text "The" <+> pp_qual <+> text "import of"
     pp_qual
       | isImportDeclQualified (ideclQualified decl)= text "qualified"
-      | otherwise                                  = Outputable.empty
+      | otherwise                                  = mempty
     pp_mod       = ppr (unLoc (ideclName decl))
     is_redundant = text "is redundant"
 
@@ -1714,7 +1714,7 @@ pprImpDeclSpec :: ModIface -> ImpDeclSpec -> SDoc
 pprImpDeclSpec iface decl_spec =
   quotes (ppr (is_mod decl_spec)) <+> case mi_boot iface of
     IsBoot -> text "(hi-boot interface)"
-    NotBoot -> Outputable.empty
+    NotBoot -> mempty
 
 badImportItemErrStd :: ModIface -> ImpDeclSpec -> IE GhcPs -> SDoc
 badImportItemErrStd iface decl_spec ie

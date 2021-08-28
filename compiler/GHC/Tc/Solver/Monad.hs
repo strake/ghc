@@ -299,7 +299,7 @@ appendWorkList
    = WL { wl_eqs     = eqs1     ++ eqs2
         , wl_funeqs  = funeqs1  ++ funeqs2
         , wl_rest    = rest1    ++ rest2
-        , wl_implics = implics1 `unionBags`   implics2 }
+        , wl_implics = implics1 <|>   implics2 }
 
 workListSize :: WorkList -> Int
 workListSize (WL { wl_eqs = eqs, wl_funeqs = funeqs, wl_rest = rest })
@@ -362,7 +362,7 @@ isEmptyWorkList (WL { wl_eqs = eqs, wl_funeqs = funeqs
 
 emptyWorkList :: WorkList
 emptyWorkList = WL { wl_eqs  = [], wl_rest = []
-                   , wl_funeqs = [], wl_implics = emptyBag }
+                   , wl_funeqs = [], wl_implics = empty }
 
 selectWorkItem :: WorkList -> Maybe (Ct, WorkList)
 -- See Note [Prioritise equalities]
@@ -1636,7 +1636,7 @@ addInertCan ct
        ; ics <- maybeKickOut ics ct
        ; setInertCans (add_item ics ct)
 
-       ; traceTcS "addInertCan }" $ empty }
+       ; traceTcS "addInertCan }" mempty }
 
 maybeKickOut :: InertCans -> Ct -> TcS InertCans
 -- For a CTyEqCan, kick out any inert that can be rewritten by the CTyEqCan
@@ -2094,7 +2094,7 @@ getUnsolvedInerts
             unsolved_fun_eqs = foldr add_if_wanted emptyCts (Compose fun_eqs)
             unsolved_irreds  = filter is_unsolved irreds
             unsolved_dicts   = foldr add_if_unsolved emptyCts (Compose idicts)
-            unsolved_others  = unsolved_irreds `unionBags` unsolved_dicts
+            unsolved_others  = unsolved_irreds <|> unsolved_dicts
 
       ; implics <- getWorkListImplics
 
@@ -2193,7 +2193,7 @@ matchableGivens loc_w pred_w (IS { inert_cans = inert_cans })
     all_relevant_givens
       | Just (clas, _) <- getClassPredTys_maybe pred_w
       = findDictsByClass (inert_dicts inert_cans) clas
-        `unionBags` inert_irreds inert_cans
+        <|> inert_irreds inert_cans
       | otherwise
       = inert_irreds inert_cans
 
@@ -2442,7 +2442,7 @@ insertTcApp m cls tys ct = mapAlter alter_tm cls m
     alter_tm = Just . mapInsert tys ct . fromMaybe mapEmpty
 
 toBag :: Foldable f => f a -> Bag a
-toBag = foldr consBag emptyBag
+toBag = foldr consBag empty
 
 
 {- *********************************************************************
@@ -2514,8 +2514,8 @@ findDict m loc cls tys
 
 findDictsByClass :: DictMap a -> Class -> Bag a
 findDictsByClass m cls
-  | Just tm <- lookupUDFM_Directly m (getUnique cls) = foldr consBag emptyBag tm
-  | otherwise                  = emptyBag
+  | Just tm <- lookupUDFM_Directly m (getUnique cls) = foldr consBag empty tm
+  | otherwise                  = empty
 
 delDict :: DictMap a -> Class -> [Type] -> DictMap a
 delDict m cls = delTcApp m (getUnique cls)
@@ -2534,7 +2534,7 @@ filterDicts :: (Ct -> Bool) -> DictMap Ct -> DictMap Ct
 filterDicts f = getCompose . filter f . Compose
 
 partitionDicts :: (Ct -> Bool) -> DictMap Ct -> (Bag Ct, DictMap Ct)
-partitionDicts f = foldr k (emptyBag, emptyDicts) . Compose
+partitionDicts f = foldr k (empty, emptyDicts) . Compose
   where
     k ct (yeses, noes) | f ct      = (ct `consBag` yeses, noes)
                        | otherwise = (yeses,              add ct noes)
@@ -3286,7 +3286,7 @@ dischargeFunEq (CtDerived { ctev_loc = loc }) fmv _co xi
               -- FunEqs are always at Nominal role
 
 pprKicked :: Int -> SDoc
-pprKicked 0 = empty
+pprKicked 0 = mempty
 pprKicked n = parens (int n <+> text "kicked out")
 
 {- *********************************************************************

@@ -83,6 +83,7 @@ import Control.Monad
 import Control.Monad.Trans.State (StateT (..))
 import Data.Foldable (toList)
 import Data.Tuple
+import Util ((<|))
 import GHC.Data.Maybe
 
 {-
@@ -411,7 +412,7 @@ tcInstDeclsDeriv deriv_infos derivds
   = do th_stage <- getStage -- See Note [Deriving inside TH brackets]
        if isBrackStage th_stage
        then do { gbl_env <- getGblEnv
-               ; return (gbl_env, toList emptyBag, emptyValBindsOut) }
+               ; return (gbl_env, [], emptyValBindsOut) }
        else do { (tcg_env, info_bag, valbinds) <- tcDeriving deriv_infos derivds
                ; return (tcg_env, toList info_bag, valbinds) }
 
@@ -1038,7 +1039,7 @@ tcInstDecls2 tycl_decls inst_decls
   = do  { -- (a) Default methods from class decls
           let class_decls = filter (isClassDecl . unLoc) tycl_decls
         ; dm_binds_s <- mapM tcClassDecl2 class_decls
-        ; let dm_binds = unionManyBags dm_binds_s
+        ; let dm_binds = asum dm_binds_s
 
           -- (b) instance declarations
         ; let dm_ids = collectHsBindsBinders dm_binds
@@ -1049,7 +1050,7 @@ tcInstDecls2 tycl_decls inst_decls
                           mapM tcInstDecl2 inst_decls
 
           -- Done
-        ; return (dm_binds `unionBags` unionManyBags inst_binds_s) }
+        ; return (dm_binds <|> asum inst_binds_s) }
 
 {- Note [Default methods in the type environment]
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1106,8 +1107,8 @@ tcInstDecl2 (InstInfo { iSpec = ispec, iBinds = ibinds })
                                      op_items ibinds
 
                    ; return ( sc_ids     ++          meth_ids
-                            , sc_binds   `unionBags` meth_binds
-                            , sc_implics `unionBags` meth_implics ) }
+                            , sc_binds   <|> meth_binds
+                            , sc_implics <|> meth_implics ) }
 
        ; imp <- newImplication
        ; emitImplication $
@@ -1166,10 +1167,10 @@ tcInstDecl2 (InstInfo { iSpec = ispec, iBinds = ibinds })
                                   , abs_ev_vars = dfun_ev_vars
                                   , abs_exports = [export]
                                   , abs_ev_binds = []
-                                  , abs_binds = unitBag dict_bind
+                                  , abs_binds = pure dict_bind
                                   , abs_sig = True }
 
-       ; return (unitBag (L loc main_bind) `unionBags` sc_meth_binds)
+       ; return (L loc main_bind <| sc_meth_binds)
        }
  where
    dfun_id = instanceDFunId ispec
@@ -1318,7 +1319,7 @@ tcSuperClasses dfun_id cls tyvars dfun_evs inst_tys dfun_ev_binds sc_theta
                                  , abs_ev_vars  = dfun_evs
                                  , abs_exports  = [export]
                                  , abs_ev_binds = [dfun_ev_binds, local_ev_binds]
-                                 , abs_binds    = emptyBag
+                                 , abs_binds    = empty
                                  , abs_sig      = False }
            ; return (sc_top_id, L loc bind, sc_implic) }
 
@@ -1799,7 +1800,7 @@ tcMethodBodyHelp hs_sig_fn sel_id local_meth_id meth_bind
                           , abe_wrap  = hs_wrap
                           , abe_prags = noSpecPrags }
 
-       ; return (unitBag $ L (getLoc meth_bind) $
+       ; return (pure $ L (getLoc meth_bind) $
                  AbsBinds { abs_ext = noExtField, abs_tvs = [], abs_ev_vars = []
                           , abs_exports = [export]
                           , abs_binds = tc_bind, abs_ev_binds = []

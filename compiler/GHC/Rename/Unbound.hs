@@ -65,7 +65,7 @@ reportUnboundName :: RdrName -> RnM Name
 reportUnboundName = unboundName WL_Any
 
 unboundName :: WhereLooking -> RdrName -> RnM Name
-unboundName wl rdr = unboundNameX wl rdr Outputable.empty
+unboundName wl rdr = unboundNameX wl rdr mempty
 
 unboundNameX :: WhereLooking -> RdrName -> SDoc -> RnM Name
 unboundNameX where_look rdr_name extra
@@ -122,7 +122,7 @@ similarNameSuggestions :: WhereLooking -> DynFlags
 similarNameSuggestions where_look dflags global_env
                         local_env tried_rdr_name
   = case suggest of
-      []  -> Outputable.empty
+      []  -> mempty
       [p] -> perhaps <+> pp_item p
       ps  -> sep [ perhaps <+> text "one of these:"
                  , nest 2 (pprWithCommas pp_item ps) ]
@@ -146,7 +146,7 @@ similarNameSuggestions where_look dflags global_env
 
     pp_ns :: RdrName -> SDoc
     pp_ns rdr | ns /= tried_ns = pprNameSpace ns
-              | otherwise      = Outputable.empty
+              | otherwise      = mempty
       where ns = rdrNameSpace rdr
 
     tried_occ     = rdrNameOcc tried_rdr_name
@@ -227,8 +227,8 @@ importSuggestions :: WhereLooking
                   -> HomePackageTable -> Module
                   -> ImportAvails -> RdrName -> SDoc
 importSuggestions where_look global_env hpt currMod imports rdr_name
-  | WL_LocalOnly <- where_look                 = Outputable.empty
-  | not (isQual rdr_name || isUnqual rdr_name) = Outputable.empty
+  | WL_LocalOnly <- where_look                 = mempty
+  | not (isQual rdr_name || isUnqual rdr_name) = mempty
   | null interesting_imports
   , Just name <- mod_name
   , show_not_imported_line name
@@ -298,7 +298,7 @@ importSuggestions where_look global_env hpt currMod imports rdr_name
         | (mod,imv) <- helpful_imports_hiding
         ])
   | otherwise
-  = Outputable.empty
+  = mempty
  where
   is_qualified = isQual rdr_name
   (mod_name, occ_name) = case rdr_name of
@@ -359,7 +359,7 @@ extensionSuggestions rdrName
   | rdrName == mkUnqual varName (fsLit "mdo") ||
     rdrName == mkUnqual varName (fsLit "rec")
       = text "Perhaps you meant to use RecursiveDo"
-  | otherwise = Outputable.empty
+  | otherwise = mempty
 
 qualsInScope :: GlobalRdrElt -> [(ModuleName, HowInScope)]
 -- Ones for which the qualified version is in scope

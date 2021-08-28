@@ -354,7 +354,7 @@ instance Outputable LlvmFunctionDecl where
   ppr (LlvmFunctionDecl n l c r varg p a)
     = let align = case a of
                        Just a' -> text " align " <> ppr a'
-                       Nothing -> empty
+                       Nothing -> mempty
       in ppr l <+> ppr c <+> ppr r <+> char '@' <> ftext n <>
              lparen <> ppParams varg p <> rparen <> align
 
@@ -618,7 +618,7 @@ instance Outputable LlvmLinkageType where
   -- ExternallyVisible does not have a textual representation, it is
   -- the linkage type a function resolves to if no other is specified
   -- in Llvm.
-  ppr ExternallyVisible = empty
+  ppr ExternallyVisible = mempty
   ppr External          = text "external"
   ppr Private           = text "private"
 

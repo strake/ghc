@@ -1580,8 +1580,7 @@ quantifyTyVars dvs@(DV{ dv_kvs = dep_tkvs, dv_tvs = nondep_tkvs })
        -- short-circuit common case
   | null dep_tkvs
   , null nondep_tkvs
-  = do { traceTc "quantifyTyVars has nothing to quantify" empty
-       ; return [] }
+  = [] <$ traceTc "quantifyTyVars has nothing to quantify" mempty
 
   | otherwise
   = do { traceTc "quantifyTyVars 1" (ppr dvs)

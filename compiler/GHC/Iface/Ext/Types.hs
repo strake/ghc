@@ -33,7 +33,6 @@ import qualified Data.Set as S
 import Data.ByteString            ( ByteString )
 import Data.Data                  ( Typeable, Data )
 import Data.Word                  ( Word8 )
-import Control.Applicative        ( (<|>) )
 import Data.Coerce                ( coerce )
 import Data.Foldable ( toList )
 

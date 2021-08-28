@@ -213,7 +213,7 @@ pprGNUSectionHeader config sep t suffix =
     splitSections = ncgSplitSections config
     subsection
       | splitSections = sep <> pdoc platform suffix
-      | otherwise     = empty
+      | otherwise     = mempty
     header = case t of
       Text -> sLit ".text"
       Data -> sLit ".data"
@@ -238,9 +238,9 @@ pprGNUSectionHeader config sep t suffix =
     flags = case t of
       CString
         | OSMinGW32 <- platformOS platform
-                    -> empty
+                    -> mempty
         | otherwise -> text ",\"aMS\"," <> sectionType platform "progbits" <> text ",1"
-      _ -> empty
+      _ -> mempty
 
 -- XCOFF doesn't support relocating label-differences, so we place all
 -- RO sections into .text[PR] sections

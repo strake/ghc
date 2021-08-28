@@ -83,11 +83,11 @@ instance OutputableP env CLabel => OutputableP env DebugBlock where
                 | otherwise
                 -> text "blk") <+>
             ppr (dblLabel blk) <+> parens (pdoc env (dblCLabel blk)) <+>
-            (maybe empty ppr (dblSourceTick blk)) <+>
+            (foldMap ppr (dblSourceTick blk)) <+>
             (maybe (text "removed") ((text "pos " <>) . ppr)
                    (dblPosition blk)) <+>
             (pdoc env (dblUnwind blk)) $+$
-            (if null (dblBlocks blk) then empty else nest 4 (pdoc env (dblBlocks blk)))
+            (munless (null (dblBlocks blk)) $ nest 4 (pdoc env (dblBlocks blk)))
 
 -- | Intermediate data structure holding debug-relevant context information
 -- about a block.

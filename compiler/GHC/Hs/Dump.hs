@@ -72,7 +72,7 @@ showAstData b a0 = blankLine $$ showAstData' a0
             bytestring :: B.ByteString -> SDoc
             bytestring = text . normalize_newlines . show
 
-            list []    = brackets empty
+            list []    = brackets mempty
             list [x]   = brackets (showAstData' x)
             list (x1 : x2 : xs) =  (text "[" <> showAstData' x1)
                                 $$ go x2 xs

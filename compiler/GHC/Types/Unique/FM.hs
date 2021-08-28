@@ -479,5 +479,5 @@ pprUFMWithKeys ufm pp = pp (nonDetUFMToList ufm)
 -- in the same way that plural from Outputable does for lists.
 pluralUFM :: UniqFM key a -> SDoc
 pluralUFM ufm
-  | sizeUFM ufm == 1 = empty
+  | sizeUFM ufm == 1 = mempty
   | otherwise = char 's'

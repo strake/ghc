@@ -125,7 +125,7 @@ import GHC.Types.TyThing( TyThing (..) )
 import GHC.Types.SrcLoc
 import GHC.Types.Unique ( hasKey )
 import GHC.Data.OrdList ( OrdList )
-import GHC.Data.Bag     ( emptyBag, consBag )
+import GHC.Data.Bag     ( consBag )
 import GHC.Utils.Outputable as Outputable
 import GHC.Data.FastString
 import GHC.Data.Maybe
@@ -138,7 +138,7 @@ import GHC.Utils.Panic
 import GHC.Utils.Panic.Plain
 
 import Control.Monad
-import Text.ParserCombinators.ReadP as ReadP
+import Text.ParserCombinators.ReadP as ReadP hiding ( many )
 import Data.Char
 import qualified Data.Monoid as Monoid
 import Data.Data       ( dataTypeOf, fromConstr, dataTypeConstrs )
@@ -329,8 +329,8 @@ mkFamDecl loc info lhs ksig injAnn
                                            , fdInjectivityAnn = injAnn }))) }
   where
     equals_or_where = case info of
-                        DataFamily          -> empty
-                        OpenTypeFamily      -> empty
+                        DataFamily          -> mempty
+                        OpenTypeFamily      -> mempty
                         ClosedTypeFamily {} -> whereDots
 
 mkSpliceDecl :: LHsExpr GhcPs -> HsDecl GhcPs
@@ -378,7 +378,7 @@ mkRoleAnnotDecl loc tycon roles
               (text "Illegal role name" <+> quotes (ppr role) $$
                suggestions nearby)
 
-    suggestions []   = empty
+    suggestions []   = mempty
     suggestions [r]  = text "Perhaps you meant" <+> quotes (ppr r)
       -- will this last case ever happen??
     suggestions list = hang (text "Perhaps you meant one of these:")
@@ -443,7 +443,7 @@ cvBindsAndSigs :: OrdList (LHsDecl GhcPs)
 -- associated type declarations. They might also contain Haddock comments.
 cvBindsAndSigs = go . toList
   where
-    go []              = return (emptyBag, [], [], [], [], [])
+    go []              = return (empty, [], [], [], [], [])
     go ((L l (ValD _ b)) : ds)
       = do { (bs, ss, ts, tfis, dfis, docs) <- go ds'
            ; return (b' `consBag` bs, ss, ts, tfis, dfis, docs) }
@@ -1215,8 +1215,8 @@ checkFunBind strictness ann lhs_loc fun is_infix pats (L rhs_span grhss)
     param_hint
       | Infix <- is_infix
       = text "In a function binding for the" <+> quotes (ppr fun) <+> text "operator." $$
-        if opIsAt (unLoc fun) then perhaps_as_pat else empty
-      | otherwise = empty
+        mwhen (opIsAt (unLoc fun)) perhaps_as_pat
+      | otherwise = mempty
 
 perhaps_as_pat :: SDoc
 perhaps_as_pat = text "Perhaps you meant an as-pattern, which must not be surrounded by whitespace"
@@ -1293,8 +1293,7 @@ checkDoAndIfThenElse guardExpr semiThen thenExpr semiElse elseExpr
                           $$ nest 4 expr
                           $$ text "Perhaps you meant to use DoAndIfThenElse?")
  | otherwise            = return ()
-    where pprOptSemi True  = semi
-          pprOptSemi False = empty
+    where pprOptSemi = mwhen `flip` semi
           expr = hsep
             [ text "if", ppr guardExpr <> pprOptSemi semiThen
             , text "then", ppr thenExpr <> pprOptSemi semiElse
@@ -1998,7 +1997,7 @@ instance DisambECP (HsExpr GhcPs) where
     checkRecordSyntax (L l r)
   mkHsNegAppPV l a = return $ L l (NegApp noExtField a noSyntaxExpr)
   mkHsSectionR_PV l op e = return $ L l (SectionR noExtField op e)
-  mkHsViewPatPV l a b = patSynErr "View pattern" l (ppr a <+> text "->" <+> ppr b) empty
+  mkHsViewPatPV l a b = patSynErr "View pattern" l (ppr a <+> text "->" <+> ppr b) mempty
   mkHsAsPatPV l v e =
     patSynErr "@-pattern" l (pprPrefixOcc (unLoc v) <> text "@" <> ppr e) $
     text "Type application syntax requires a space before '@'"
@@ -2790,11 +2789,10 @@ mkModuleImpExp (L l specname) subs =
         then addFatalError l
               (text "Expecting a type constructor but found a variable,"
                <+> quotes (ppr name) <> text "."
-              $$ if isSymOcc $ rdrNameOcc name
-                   then text "If" <+> quotes (ppr name)
+              $$ mwhen (isSymOcc $ rdrNameOcc name)
+                   (text "If" <+> quotes (ppr name)
                         <+> text "is a type constructor"
-           <+> text "then enable ExplicitNamespaces and use the 'type' keyword."
-                   else empty)
+           <+> text "then enable ExplicitNamespaces and use the 'type' keyword."))
         else return $ ieNameFromSpec specname
 
     ieNameVal (ImpExpQcName ln)  = unLoc ln
@@ -2932,7 +2930,7 @@ instance Monad PV where
       PV_Failed acc' -> PV_Failed acc'
 
 runPV :: PV a -> P a
-runPV = runPV_msg empty
+runPV = runPV_msg mempty
 
 runPV_msg :: SDoc -> PV a -> P a
 runPV_msg msg m =
@@ -3079,7 +3077,7 @@ pprSumOrTuple boxity = \case
       parOpen <+> ppr_bars (alt - 1) <+> ppr e <+> ppr_bars (arity - alt)
               <+> parClose
     Tuple xs ->
-      parOpen <> (fcat . punctuate comma $ map (maybe empty ppr . unLoc) xs)
+      parOpen <> (fcat . punctuate comma $ map (foldMap ppr . unLoc) xs)
               <> parClose
   where
     ppr_bars n = hsep (replicate n (Outputable.char '|'))

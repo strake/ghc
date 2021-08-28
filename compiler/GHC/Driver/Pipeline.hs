@@ -73,7 +73,6 @@ import GHC.CmmToLlvm         ( llvmFixupAsm, llvmVersionList )
 import qualified GHC.LanguageExtensions as LangExt
 import GHC.Settings
 
-import GHC.Data.Bag            ( unitBag )
 import GHC.Data.FastString     ( mkFastString )
 import GHC.Data.StringBuffer   ( hGetStringBuffer, hPutStringBuffer )
 import GHC.Data.Maybe          ( expectJust )
@@ -140,7 +139,7 @@ preprocess hsc_env input_fn mb_input_buf mb_phase =
   return (dflags, fp)
   where
     srcspan = srcLocSpan $ mkSrcLoc (mkFastString input_fn) 1 1
-    handler (ProgramError msg) = return $ Left $ unitBag $
+    handler (ProgramError msg) = return $ Left $ pure $
         mkPlainErrMsg (hsc_dflags hsc_env) srcspan $ text msg
     handler ex = throwGhcExceptionIO ex
 

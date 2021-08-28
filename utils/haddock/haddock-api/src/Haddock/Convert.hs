@@ -19,7 +19,6 @@ module Haddock.Convert (
   PrintRuntimeReps(..),
 ) where
 
-import GHC.Data.Bag ( emptyBag )
 import GHC.Types.Basic ( TupleSort(..), PromotionFlag(..), DefMethSpec(..) )
 import GHC.Types.SourceText (SourceText(..))
 import GHC.Types.Fixity (LexicalFixity(..))
@@ -54,6 +53,7 @@ import Haddock.Types
 import Haddock.Interface.Specialize
 import Haddock.GhcUtils                      ( orderedFVs, defaultRuntimeRepVars )
 
+import Control.Applicative
 import Data.Maybe                            ( catMaybes, maybeToList )
 
 
@@ -133,7 +133,7 @@ tyThingToLHsDecl prr t = case t of
                       [ noLoc tcdSig
                       | clsOp <- classOpItems cl
                       , tcdSig <- synifyTcIdSig vs clsOp ]
-         , tcdMeths = emptyBag --ignore default method definitions, they don't affect signature
+         , tcdMeths = empty -- ignore default method definitions, they don't affect signature
          -- class associated-types are a subset of TyCon:
          , tcdATs = atFamDecls
          , tcdATDefs = catMaybes atDefFamDecls

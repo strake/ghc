@@ -1035,7 +1035,7 @@ oneSRT dflags staticFuns lbls caf_lbls isCAF cafs static_data = do
     srtTraceM "oneSRT" (text "filtered:"      <+> pdoc platform filtered $$
                         text "allBelow_funs:" <+> pdoc platform allBelow_funs)
     case toList filtered of
-      [] -> pprPanic "oneSRT" empty -- unreachable
+      [] -> pprPanic "oneSRT" mempty -- unreachable
 
       -- [Inline] - when we have only one entry there is no need to
       -- build an SRT object at all, instead we put the singleton SRT

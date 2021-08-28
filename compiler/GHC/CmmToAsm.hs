@@ -748,9 +748,7 @@ makeImportsDoc dflags imports
             -- On recent versions of Darwin, the linker supports
             -- dead-stripping of code and data on a per-symbol basis.
             -- There's a hack to make this work in PprMach.pprNatCmmDecl.
-            (if platformHasSubsectionsViaSymbols platform
-             then text ".subsections_via_symbols"
-             else Outputable.empty)
+            mwhen (platformHasSubsectionsViaSymbols platform) (text ".subsections_via_symbols")
             $$
                 -- On recent GNU ELF systems one can mark an object file
                 -- as not requiring an executable stack. If all objects
@@ -758,16 +756,14 @@ makeImportsDoc dflags imports
                 -- will not use an executable stack, which is good for
                 -- security. GHC generated code does not need an executable
                 -- stack so add the note in:
-            (if platformHasGnuNonexecStack platform
-             then text ".section .note.GNU-stack,\"\"," <> sectionType platform "progbits"
-             else Outputable.empty)
+            (mwhen (platformHasGnuNonexecStack platform) $
+             text ".section .note.GNU-stack,\"\"," <> sectionType platform "progbits")
             $$
                 -- And just because every other compiler does, let's stick in
                 -- an identifier directive: .ident "GHC x.y.z"
-            (if platformHasIdentDirective platform
-             then let compilerIdent = text "GHC" <+> text cProjectVersion
-                   in text ".ident" <+> doubleQuotes compilerIdent
-             else Outputable.empty)
+            (mwhen (platformHasIdentDirective platform) $
+             let compilerIdent = text "GHC" <+> text cProjectVersion
+              in text ".ident" <+> doubleQuotes compilerIdent)
 
  where
         config   = initConfig dflags
@@ -790,7 +786,7 @@ makeImportsDoc dflags imports
                         map doPpr $
                         imps
                 | otherwise
-                = Outputable.empty
+                = mempty
 
         doPpr lbl = (lbl, renderWithStyle
                               (initSDocContext dflags astyle)

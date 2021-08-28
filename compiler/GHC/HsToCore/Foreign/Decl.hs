@@ -173,7 +173,7 @@ dsCImport id co (CLabel cid) _ _ _ = do
         rhs = foRhs (Lit (LitLabel cid Nothing fod))
         rhs' = Cast rhs co
     in
-    return ([(id, rhs')], empty, empty)
+    return ([(id, rhs')], mempty, mempty)
 
 dsCImport id co (CFunction target) cconv@PrimCallConv safety _
   = dsPrimCall id co (CCall (CCallSpec target cconv safety))
@@ -257,7 +257,7 @@ dsFCall fn_id co fcall mDeclHeader = do
                                     | (_, n) <- zip arg_tys [1..] ]
                   return (fcall', c)
               _ ->
-                  return (fcall, empty)
+                  return (fcall, mempty)
     let
         -- Build the worker
         worker_ty     = mkForAllTys tv_bndrs (mkVisFunTys (map idType work_arg_ids) ccall_result_ty)
@@ -277,7 +277,7 @@ dsFCall fn_id co fcall mDeclHeader = do
                                                 simpl_opts
                                                 wrap_rhs'
 
-    return ([(work_id, work_rhs), (fn_id_w_inl, wrap_rhs')], empty, cDoc)
+    return ([(work_id, work_rhs), (fn_id_w_inl, wrap_rhs')], mempty, cDoc)
 
 {-
 ************************************************************************
@@ -310,7 +310,7 @@ dsPrimCall fn_id co fcall = do
         call_app = mkFCall dflags ccall_uniq fcall (map Var args) io_res_ty
         rhs      = mkLams tvs (mkLams args call_app)
         rhs'     = Cast rhs co
-    return ([(fn_id, rhs')], empty, empty)
+    return ([(fn_id, rhs')], mempty, mempty)
 
 {-
 ************************************************************************
@@ -632,17 +632,16 @@ mkFExportCBits dflags c_nm maybe_target arg_htys res_hty is_IO_res_ty cc
 
   -- various other bits for inside the fn
   declareResult = text "HaskellObj ret;"
-  declareCResult | res_hty_is_unit = empty
+  declareCResult | res_hty_is_unit = mempty
                  | otherwise       = cResType <+> text "cret;"
 
-  assignCResult | res_hty_is_unit = empty
-                | otherwise       =
-                        text "cret=" <> unpackHObj res_hty <> parens (text "ret") <> semi
+  assignCResult | res_hty_is_unit = mempty
+                | otherwise = text "cret=" <> unpackHObj res_hty <> parens (text "ret") <> semi
 
   -- an extern decl for the fn being called
   extern_decl
      = case maybe_target of
-          Nothing -> empty
+          Nothing -> mempty
           Just hs_fn -> text "extern StgClosure " <> ppr hs_fn <> text "_closure" <> semi
 
 

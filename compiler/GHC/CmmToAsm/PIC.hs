@@ -498,7 +498,7 @@ gotLabel
 -- However, for PIC on x86, we need a small helper function.
 pprGotDeclaration :: NCGConfig -> SDoc
 pprGotDeclaration config = case (arch,os) of
-   (_, OSDarwin) -> empty
+   (_, OSDarwin) -> mempty
 
    -- Emit XCOFF TOC section
    (_, OSAIX)
@@ -527,7 +527,7 @@ pprGotDeclaration config = case (arch,os) of
         | osElfTarget os
         , arch /= ArchPPC_64 ELF_V1 && arch /= ArchPPC_64 ELF_V2
         , not (ncgPIC config)
-        -> empty
+        -> mempty
 
         | osElfTarget os
         , arch /= ArchPPC_64 ELF_V1 && arch /= ArchPPC_64 ELF_V2
@@ -551,7 +551,7 @@ pprGotDeclaration config = case (arch,os) of
 
 pprImportedSymbol :: NCGConfig -> CLabel -> SDoc
 pprImportedSymbol config importedLbl = case (arch,os) of
-   (_, OSDarwin) -> empty
+   (_, OSDarwin) -> mempty
 
 
    -- XCOFF / AIX
@@ -570,7 +570,7 @@ pprImportedSymbol config importedLbl = case (arch,os) of
               -> vcat [
                    text "LC.." <> ppr_lbl lbl <> char ':',
                    text "\t.long" <+> ppr_lbl lbl ]
-            _ -> empty
+            _ -> mempty
 
    -- ELF / Linux
    --
@@ -608,7 +608,7 @@ pprImportedSymbol config importedLbl = case (arch,os) of
               -> vcat [
                    text ".LC_" <> ppr_lbl lbl <> char ':',
                    text "\t.quad" <+> ppr_lbl lbl ]
-            _ -> empty
+            _ -> mempty
 
    _ | osElfTarget os
      -> case dynamicLinkerLabelInfo importedLbl of
@@ -624,7 +624,7 @@ pprImportedSymbol config importedLbl = case (arch,os) of
                       ptext symbolSize <+> ppr_lbl lbl ]
 
             -- PLT code stubs are generated automatically by the dynamic linker.
-            _ -> empty
+            _ -> mempty
 
    _ -> panic "PIC.pprImportedSymbol: no match"
  where

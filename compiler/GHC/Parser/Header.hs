@@ -48,7 +48,7 @@ import GHC.Utils.Exception as Exception
 
 import GHC.Data.StringBuffer
 import GHC.Data.Maybe
-import GHC.Data.Bag         ( emptyBag, listToBag, unitBag )
+import GHC.Data.Bag         ( listToBag )
 import GHC.Data.FastString
 import qualified GHC.LanguageExtensions as LangExt
 
@@ -84,7 +84,7 @@ getImports dflags buf filename source_filename = do
       let _ms@(_warns, errs) = getMessages pst dflags
       -- don't log warnings: they'll be reported when we parse the file
       -- for real.  See #2500.
-          ms = (emptyBag, errs)
+          ms = (empty, errs)
       -- logWarnings warns
       if errorsFound dflags ms
         then throwIO $ mkSrcErr errs
@@ -336,7 +336,7 @@ unsupportedExtnError :: DynFlags -> SrcSpan -> String -> a
 unsupportedExtnError dflags loc unsup =
     throwErr dflags loc $
         text "Unsupported extension: " <> text unsup $$
-        if null suggestions then Outputable.empty else text "Perhaps you meant" <+> quotedListWithOr (map text suggestions)
+        munless (null suggestions) (text "Perhaps you meant" <+> quotedListWithOr (map text suggestions))
   where
      supported = supportedLanguagesAndExtensions $ platformArchOS $ targetPlatform dflags
      suggestions = fuzzyMatch unsup supported
@@ -344,7 +344,7 @@ unsupportedExtnError dflags loc unsup =
 
 optionsErrorMsgs :: DynFlags -> [String] -> [Located String] -> FilePath -> Messages
 optionsErrorMsgs dflags unhandled_flags flags_lines _filename
-  = (emptyBag, listToBag (map mkMsg unhandled_flags_lines))
+  = (empty, listToBag (map mkMsg unhandled_flags_lines))
   where unhandled_flags_lines :: [Located String]
         unhandled_flags_lines = [ L l f
                                 | f <- unhandled_flags
@@ -364,4 +364,4 @@ optionsParseError str dflags loc =
 
 throwErr :: DynFlags -> SrcSpan -> SDoc -> a                -- #15053
 throwErr dflags loc doc =
-  throw $ mkSrcErr $ unitBag $ mkPlainErrMsg dflags loc doc
+  throw $ mkSrcErr $ pure $ mkPlainErrMsg dflags loc doc

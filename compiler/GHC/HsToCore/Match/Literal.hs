@@ -243,7 +243,7 @@ warnAboutOverflowedLiterals dflags lit
             , i > 0
             , not (xopt LangExt.NegativeLiterals dflags)
             = text "If you are trying to write a large negative literal, use NegativeLiterals"
-            | otherwise = Outputable.empty
+            | otherwise = mempty
 
 {-
 Note [Suggest NegativeLiterals]

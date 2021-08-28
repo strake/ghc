@@ -856,7 +856,7 @@ tcPatSynPat penv (L con_span _) pat_syn pat_ty arg_pats thing_inside
         ; req_wrap <- instCall PatOrigin (mkTyVarTys univ_tvs') req_theta'
         ; traceTc "instCall" (ppr req_wrap)
 
-        ; traceTc "checkConstraints {" Outputable.empty
+        ; traceTc "checkConstraints {" mempty
         ; (ev_binds, (arg_pats', res))
              <- checkConstraints skol_info ex_tvs' prov_dicts' $
                 tcConArgs (PatSynCon pat_syn) arg_tys' penv arg_pats thing_inside

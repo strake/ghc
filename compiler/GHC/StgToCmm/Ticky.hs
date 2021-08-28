@@ -237,7 +237,7 @@ emitTickyCounter cloType name args
                             -- NB the default "top" ticky ctr does not
                             -- have a Haskell name
                           Just pname -> text "in" <+> ppr (nameUnique pname)
-                          _ -> empty
+                          _ -> mempty
                 in if isInternalName name
                    then n <+> parens (ppr mod_name) <+> ext <+> p
                    else n <+> ext <+> p

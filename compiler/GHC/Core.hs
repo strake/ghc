@@ -2093,7 +2093,7 @@ applyTypeToArg fun_ty arg = piResultTy fun_ty (exprToType arg)
 -- panics. NB: This does /not/ convert 'Coercion' to 'CoercionTy'.
 exprToType :: CoreExpr -> Type
 exprToType (Type ty)     = ty
-exprToType _bad          = pprPanic "exprToType" empty
+exprToType _bad          = pprPanic "exprToType" mempty
 
 -- | If the expression is a 'Coercion', converts.
 exprToCoercion_maybe :: CoreExpr -> Maybe Coercion

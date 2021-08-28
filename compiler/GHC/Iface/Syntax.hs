@@ -772,16 +772,16 @@ showToIface = ShowSub { ss_how_much = ShowIface
 
 ppShowIface :: ShowSub -> SDoc -> SDoc
 ppShowIface (ShowSub { ss_how_much = ShowIface }) doc = doc
-ppShowIface _                                     _   = Outputable.empty
+ppShowIface _                                     _   = mempty
 
 -- show if all sub-components or the complete interface is shown
 ppShowAllSubs :: ShowSub -> SDoc -> SDoc -- Note [Minimal complete definition]
 ppShowAllSubs (ShowSub { ss_how_much = ShowSome [] _ }) doc = doc
 ppShowAllSubs (ShowSub { ss_how_much = ShowIface })     doc = doc
-ppShowAllSubs _                                         _   = Outputable.empty
+ppShowAllSubs _                                         _   = mempty
 
 ppShowRhs :: ShowSub -> SDoc -> SDoc
-ppShowRhs (ShowSub { ss_how_much = ShowHeader _ }) _   = Outputable.empty
+ppShowRhs (ShowSub { ss_how_much = ShowHeader _ }) _   = mempty
 ppShowRhs _                                        doc = doc
 
 showSub :: HasOccName n => ShowSub -> n -> Bool
@@ -862,7 +862,7 @@ pprIfaceDecl ss (IfaceData { ifName = tycon, ifCType = ctype, ifResKind = kind,
                                              <+> pprIfaceTyConParent parent
 
     pp_roles
-      | is_data_instance = empty
+      | is_data_instance = mempty
       | otherwise        = pprRoles (== Representational) name_doc binders roles
             -- Don't display roles for data family instances (yet)
             -- See discussion on #8672.
@@ -886,7 +886,7 @@ pprIfaceDecl ss (IfaceData { ifName = tycon, ifCType = ctype, ifResKind = kind,
 
     name_doc = pprPrefixIfDeclBndr (ss_how_much ss) (occName tycon)
 
-    add_bars []     = Outputable.empty
+    add_bars []     = mempty
     add_bars (c:cs) = sep ((equals <+> c) : map (vbar <+>) cs)
 
     ok_con dc = showSub ss dc || any (showSub ss . flSelector) (ifConFields dc)
@@ -993,16 +993,16 @@ pprIfaceDecl ss (IfaceFamily { ifName = tycon
     name_doc = pprPrefixIfDeclBndr (ss_how_much ss) (occName tycon)
 
     pp_where (IfaceClosedSynFamilyTyCon {}) = text "where"
-    pp_where _                              = empty
+    pp_where _                              = mempty
 
-    pp_inj Nothing    _   = empty
+    pp_inj Nothing    _   = mempty
     pp_inj (Just res) inj
        | Injective injectivity <- inj = hsep [ equals, ppr res
                                              , pp_inj_cond res injectivity]
        | otherwise = hsep [ equals, ppr res ]
 
     pp_inj_cond res inj = case filterByList inj binders of
-       []  -> empty
+       []  -> mempty
        tvs -> hsep [vbar, ppr res, text "->", interppSP (map ifTyConBinderName tvs)]
 
     pp_rhs IfaceDataFamilyTyCon
@@ -1012,7 +1012,7 @@ pprIfaceDecl ss (IfaceFamily { ifName = tycon
     pp_rhs IfaceAbstractClosedSynFamilyTyCon
       = ppShowIface ss (text "closed, abstract")
     pp_rhs (IfaceClosedSynFamilyTyCon {})
-      = empty  -- see pp_branches
+      = mempty  -- see pp_branches
     pp_rhs IfaceBuiltInSynFamTyCon
       = ppShowIface ss (text "built-in")
 
@@ -1023,7 +1023,7 @@ pprIfaceDecl ss (IfaceFamily { ifName = tycon
                        (occName tycon))
                   ) $ zip [0..] brs)
         $$ ppShowIface ss (text "axiom" <+> ppr ax)
-    pp_branches _ = Outputable.empty
+    pp_branches _ = mempty
 
     -- See Note [Suppressing binder signatures] in GHC.Iface.Type
     suppress_bndr_sig = SuppressBndrSig True
@@ -1039,7 +1039,7 @@ pprIfaceDecl _ (IfacePatSyn { ifName = name,
       = hang (text "pattern" <+> pprPrefixOcc name)
            2 (dcolon <+> sep [univ_msg
                              , pprIfaceContextArr req_ctxt
-                             , mwhen insert_empty_ctxt $ parens empty <+> darrow
+                             , mwhen insert_empty_ctxt $ parens mempty <+> darrow
                              , ex_msg
                              , pprIfaceContextArr prov_ctxt
                              , pprIfaceType $ foldr (IfaceFunTy VisArg) pat_ty arg_tys ])
@@ -1063,7 +1063,7 @@ pprIfaceDecl _ (IfaceAxiom { ifName = name, ifTyCon = tycon
        2 (vcat $ unzipWith (pprAxBranch (ppr tycon)) $ zip [0..] branches)
 
 pprCType :: Maybe CType -> SDoc
-pprCType Nothing      = Outputable.empty
+pprCType Nothing      = mempty
 pprCType (Just cType) = text "C type:" <+> ppr cType
 
 -- if, for each role, suppress_if role is True, then suppress the role
@@ -1103,7 +1103,7 @@ pprIfaceClassOp ss (IfaceClassOp n ty dm)
    generic_dm | Just (GenericDM dm_ty) <- dm
               =  text "default" <+> pp_sig n dm_ty
               | otherwise
-              = empty
+              = mempty
    pp_sig n ty
      = pprPrefixIfDeclBndr (ss_how_much ss) (occName n)
      <+> dcolon
@@ -1116,7 +1116,7 @@ pprIfaceAT :: ShowSub -> IfaceAT -> SDoc
 pprIfaceAT ss (IfaceAT d mb_def)
   = vcat [ pprIfaceDecl ss d
          , case mb_def of
-              Nothing  -> Outputable.empty
+              Nothing  -> mempty
               Just rhs -> nest 2 $
                           text "Default:" <+> ppr rhs ]
 
@@ -1125,7 +1125,7 @@ instance Outputable IfaceTyConParent where
 
 pprIfaceTyConParent :: IfaceTyConParent -> SDoc
 pprIfaceTyConParent IfNoParent
-  = Outputable.empty
+  = mempty
 pprIfaceTyConParent (IfDataInstance _ tc tys)
   = pprIfaceTypeApp topPrec tc tys
 
@@ -1291,7 +1291,7 @@ instance Outputable IfaceRule where
                    ifRuleHead = fn, ifRuleArgs = args, ifRuleRhs = rhs,
                    ifRuleOrph = orph })
     = sep [ hsep [ pprRuleName name
-                 , if isOrphan orph then text "[orphan]" else Outputable.empty
+                 , isOrphan orph `mwhen` text "[orphan]"
                  , ppr act
                  , pp_foralls ]
           , nest 2 (sep [ppr fn <+> sep (map pprParendIfaceExpr args),
@@ -1304,7 +1304,7 @@ instance Outputable IfaceClsInst where
                     , ifInstCls = cls, ifInstTys = mb_tcs
                     , ifInstOrph = orph })
     = hang (text "instance" <+> ppr flag
-              <+> (if isOrphan orph then text "[orphan]" else Outputable.empty)
+              <+> (isOrphan orph `mwhen` text "[orphan]")
               <+> ppr cls <+> brackets (pprWithCommas ppr_rough mb_tcs))
          2 (equals <+> ppr dfun_id)
 
@@ -1312,7 +1312,7 @@ instance Outputable IfaceFamInst where
   ppr (IfaceFamInst { ifFamInstFam = fam, ifFamInstTys = mb_tcs
                     , ifFamInstAxiom = tycon_ax, ifFamInstOrph = orph })
     = hang (text "family instance"
-              <+> (if isOrphan orph then text "[orphan]" else Outputable.empty)
+              <+> (isOrphan orph `mwhen` text "[orphan]")
               <+> ppr fam <+> pprWithCommas (brackets . ppr_rough) mb_tcs)
          2 (equals <+> ppr tycon_ax)
 
@@ -1450,11 +1450,8 @@ instance Outputable IfaceConAlt where
 
 ------------------
 instance Outputable IfaceIdDetails where
-  ppr IfVanillaId       = Outputable.empty
-  ppr (IfRecSelId tc b) = text "RecSel" <+> ppr tc
-                          <+> if b
-                                then text "<naughty>"
-                                else Outputable.empty
+  ppr IfVanillaId       = mempty
+  ppr (IfRecSelId tc b) = text "RecSel" <+> ppr tc <+> mwhen b (text "<naughty>")
   ppr IfDFunId          = text "DFunId"
 
 instance Outputable IfaceInfoItem where
@@ -1470,17 +1467,13 @@ instance Outputable IfaceInfoItem where
   ppr (HsLFInfo lf_info)    = text "LambdaFormInfo:" <+> ppr lf_info
 
 instance Outputable IfaceJoinInfo where
-  ppr IfaceNotJoinPoint   = empty
+  ppr IfaceNotJoinPoint   = mempty
   ppr (IfaceJoinPoint ar) = angleBrackets (text "join" <+> ppr ar)
 
 instance Outputable IfaceUnfolding where
   ppr (IfCompulsory e)     = text "<compulsory>" <+> parens (ppr e)
-  ppr (IfCoreUnfold s e)   = (if s
-                                then text "<stable>"
-                                else Outputable.empty)
-                              <+> parens (ppr e)
-  ppr (IfInlineRule a uok bok e) = sep [text "InlineRule"
-                                            <+> ppr (a,uok,bok),
+  ppr (IfCoreUnfold s e)   = mwhen s (text "<stable>") <+> parens (ppr e)
+  ppr (IfInlineRule a uok bok e) = sep [text "InlineRule" <+> ppr (a,uok,bok),
                                         pprParendIfaceExpr e]
   ppr (IfDFunUnfold bs es) = hang (text "DFun:" <+> sep (map ppr bs) <> dot)
                                 2 (sep (map pprParendIfaceExpr es))
@@ -2033,7 +2026,7 @@ instance Binary IfaceFamTyConFlav where
     put_ bh (IfaceClosedSynFamilyTyCon mb)    = putByte bh 2 >> put_ bh mb
     put_ bh IfaceAbstractClosedSynFamilyTyCon = putByte bh 3
     put_ _ IfaceBuiltInSynFamTyCon
-        = pprPanic "Cannot serialize IfaceBuiltInSynFamTyCon, used for pretty-printing only" Outputable.empty
+        = pprPanic "Cannot serialize IfaceBuiltInSynFamTyCon, used for pretty-printing only" mempty
 
     get bh = do { h <- getByte bh
                 ; case h of

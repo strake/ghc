@@ -174,7 +174,7 @@ tcTyClGroup (TyClGroup { group_tyclds = tyclds
   = do { let role_annots = mkRoleAnnotEnv roles
 
            -- Step 1: Typecheck the standalone kind signatures and type/class declarations
-       ; traceTc "---- tcTyClGroup ---- {" empty
+       ; traceTc "---- tcTyClGroup ---- {" mempty
        ; traceTc "Decls for" (ppr (map (tcdName . unLoc) tyclds))
        ; (tyclss, data_deriv_info) <-
            tcExtendKindEnv (mkPromotionErrorEnv tyclds) $ -- See Note [Type environment evolution]
@@ -197,7 +197,7 @@ tcTyClGroup (TyClGroup { group_tyclds = tyclds
        ; mapM_ (recoverM (return ()) . checkValidRoleAnnots role_annots) tyclss
            -- See Note [Check role annotations in a second pass]
 
-       ; traceTc "---- end tcTyClGroup ---- }" empty
+       ; traceTc "---- end tcTyClGroup ---- }" mempty
 
            -- Step 3: Add the implicit things;
            -- we want them in the environment because
@@ -1267,7 +1267,7 @@ inferInitialKinds :: [LTyClDecl GhcRn] -> TcM [TcTyCon]
 inferInitialKinds decls
   = do { traceTc "inferInitialKinds {" $ ppr (map (tcdName . unLoc) decls)
        ; tcs <- concatMapM infer_initial_kind decls
-       ; traceTc "inferInitialKinds done }" empty
+       ; traceTc "inferInitialKinds done }" mempty
        ; return tcs }
   where
     infer_initial_kind = addLocM (getInitialKind InitialKindInfer)
@@ -1278,7 +1278,7 @@ checkInitialKinds :: [(LTyClDecl GhcRn, SAKS_or_CUSK)] -> TcM [TcTyCon]
 checkInitialKinds decls
   = do { traceTc "checkInitialKinds {" $ ppr (mapFst (tcdName . unLoc) decls)
        ; tcs <- concatMapM check_initial_kind decls
-       ; traceTc "checkInitialKinds done }" empty
+       ; traceTc "checkInitialKinds done }" mempty
        ; return tcs }
   where
     check_initial_kind (ldecl, msig) =
@@ -2777,7 +2777,7 @@ tcTyFamInstEqn fam_tc mb_clsinfo
          vcat [ ppr fam_tc <+> ppr hs_pats
               , text "fam tc bndrs" <+> pprTyVars (tyConTyVars fam_tc)
               , case mb_clsinfo of
-                  NotAssociated -> empty
+                  NotAssociated -> mempty
                   InClsInst { ai_class = cls } -> text "class" <+> ppr cls <+> pprTyVars (classTyVars cls) ]
 
        -- First, check the arity of visible arguments
@@ -3953,7 +3953,7 @@ checkValidDataCon dflags existential_ok tc con
           -- later check in checkNewDataCon handles this, producing a
           -- better error message than checkForLevPoly would.
         ; unless (isNewTyCon tc)
-            (mapM_ (checkForLevPoly empty) (dataConOrigArgTys con))
+            (checkForLevPoly mempty `traverse_` dataConOrigArgTys con)
 
           -- Extra checks for newtype data constructors. Importantly, these
           -- checks /must/ come before the call to checkValidType below. This
@@ -4133,7 +4133,7 @@ checkValidClass cls
            -- example of what this prevents:
            --   class BoundedX (a :: TYPE r) where minBound :: a
            -- See Note [Levity polymorphism checking] in GHC.HsToCore.Monad
-        ; checkForLevPoly empty tau1
+        ; checkForLevPoly mempty tau1
 
         ; unless constrained_class_methods $
           traverse_ check_constraint (tail (cls_pred:op_theta))

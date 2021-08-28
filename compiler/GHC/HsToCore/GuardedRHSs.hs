@@ -29,7 +29,6 @@ import GHC.Tc.Types
 import GHC.Types.SrcLoc
 import GHC.Utils.Lens.Monad
 import GHC.Utils.Misc
-import GHC.Utils.Outputable
 import GHC.Utils.Panic
 import GHC.Utils.Panic.Plain
 import Control.Monad ( zipWithM )
@@ -51,7 +50,7 @@ necessary.  The type argument gives the type of the @ei@.
 dsGuarded :: GRHSs GhcTc (LHsExpr GhcTc) -> Type -> Maybe (NonEmpty Deltas) -> DsM CoreExpr
 dsGuarded grhss rhs_ty mb_rhss_deltas = do
     match_result <- dsGRHSs PatBindRhs grhss rhs_ty mb_rhss_deltas
-    error_expr <- mkErrorAppDs nON_EXHAUSTIVE_GUARDS_ERROR_ID rhs_ty empty
+    error_expr <- mkErrorAppDs nON_EXHAUSTIVE_GUARDS_ERROR_ID rhs_ty mempty
     extractMatchResult match_result error_expr
 
 -- In contrast, @dsGRHSs@ produces a @MatchResult CoreExpr@.

@@ -156,7 +156,7 @@ rnSrcDecls group@(HsGroup { hs_valds   = val_decls,
   ; (rn_tycl_decls, src_fvs1) <- runWriterT $ rnTyClDecls tycl_decls
 
   ; -- (F) Rename Value declarations right-hand sides
-    traceRn "Start rnmono" empty
+    traceRn "Start rnmono" mempty
   ; let { val_bndr_set = mkNameSet id_bndrs `unionNameSet` mkNameSet pat_syn_bndrs }
   ; is_boot <- tcIsHsBootOrSig
   ; (rn_val_decls, bind_dus) <-
@@ -364,7 +364,7 @@ rnSrcInstDecl ClsInstD { cid_inst = cid } =
   [ ClsInstD { cid_d_ext = noExtField, cid_inst = cid' }
   | () <- traceRn "rnSrcIstDecl {" (ppr cid)
   , cid' <- rnClsInstDecl cid
-  , () <- traceRn "rnSrcIstDecl end }" empty ]
+  , () <- traceRn "rnSrcIstDecl end }" mempty ]
 
 -- | Warn about non-canonical typeclass instance declarations
 --

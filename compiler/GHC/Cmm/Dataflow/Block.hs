@@ -65,7 +65,9 @@ data MaybeO ex t where
   JustO    :: t -> MaybeO O t
   NothingO ::      MaybeO C t
 
+deriving instance Foldable (MaybeO ex)
 deriving instance Functor (MaybeO ex)
+deriving instance Traversable (MaybeO ex)
 
 -- -----------------------------------------------------------------------------
 -- The Block type

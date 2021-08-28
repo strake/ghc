@@ -198,7 +198,7 @@ pprNameSpace TvName    = text "type variable"
 pprNameSpace TcClsName = text "type constructor or class"
 
 pprNonVarNameSpace :: NameSpace -> SDoc
-pprNonVarNameSpace VarName = empty
+pprNonVarNameSpace VarName = mempty
 pprNonVarNameSpace ns = pprNameSpace ns
 
 pprNameSpaceBrief :: NameSpace -> SDoc

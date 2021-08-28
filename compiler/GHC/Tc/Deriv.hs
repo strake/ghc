@@ -188,7 +188,7 @@ tcDeriving  :: [DerivInfo]       -- All `deriving` clauses
             -> TcM (TcGblEnv, Bag (InstInfo GhcRn), HsValBinds GhcRn)
 tcDeriving deriv_infos deriv_decls
   = recoverM (do { g <- getGblEnv
-                 ; return (g, emptyBag, emptyValBindsOut)}) $
+                 ; return (g, empty, emptyValBindsOut)}) $
     do  { -- Fish the "deriving"-related information out of the GHC.Tc.Utils.Env
           -- And make the necessary "equations".
           early_specs <- makeDerivSpecs deriv_infos deriv_decls
@@ -202,8 +202,7 @@ tcDeriving deriv_infos deriv_decls
 
         ; let (_, deriv_stuff, fvs) = unzip3 (insts1 ++ insts2)
         ; loc <- getSrcSpanM
-        ; let (binds, famInsts) = genAuxBinds dflags loc
-                                    (unionManyBags deriv_stuff)
+        ; let (binds, famInsts) = genAuxBinds dflags loc (asum deriv_stuff)
 
         ; let mk_inst_infos1 = map fst3 insts1
         ; inst_infos1 <- apply_inst_infos mk_inst_infos1 given_specs
@@ -1563,8 +1562,7 @@ mkNewTypeEqn newtype_strat dit@(DerivInstTys { dit_cls_tys     = cls_tys
            -- See Note [Determining whether newtype-deriving is appropriate]
            if eta_ok && newtype_deriving
              then mk_eqn_newtype dit rep_inst_ty
-             else bale_out (cant_derive_err $$
-                            if newtype_deriving then empty else suggest_gnd)
+             else bale_out (cant_derive_err $$ munless newtype_deriving suggest_gnd)
        else
          if might_be_newtype_derivable
              && ((newtype_deriving && not deriveAnyClass)
@@ -1964,10 +1962,8 @@ doDerivInstErrorChecks1 mechanism =
 
           cant_derive_err
              = vcat [ munless no_adfs adfs_msg
-                    , maybe empty at_without_last_cls_tv_msg
-                            at_without_last_cls_tv
-                    , maybe empty at_last_cls_tv_in_kinds_msg
-                            at_last_cls_tv_in_kinds
+                    , foldMap at_without_last_cls_tv_msg at_without_last_cls_tv
+                    , foldMap at_last_cls_tv_in_kinds_msg at_last_cls_tv_in_kinds
                     ]
           adfs_msg  = text "the class has associated data types"
           at_without_last_cls_tv_msg at_tc = hang
@@ -2005,7 +2001,7 @@ doDerivInstErrorChecks2 clas clas_inst theta wildcard mechanism
          -- See Note [Deriving strategies]
        ; when (exotic_mechanism && className clas `elem` genericClassNames) $
          do { failIfTc (safeLanguageOn dflags) gen_inst_err
-            ; when (safeInferOn dflags) (recordUnsafeInfer emptyBag) } }
+            ; when (safeInferOn dflags) (recordUnsafeInfer empty) } }
   where
     exotic_mechanism = not $ isDerivSpecStock mechanism
 
@@ -2055,7 +2051,7 @@ genDerivStuff mechanism loc clas inst_tys tyvars
                     (ppr "genDerivStuff: bad derived class" <+> ppr clas) $
           mapM (tcATDefault loc mini_subst emptyNameSet)
                (classATItems clas)
-        return ( emptyBag, [] -- No method bindings are needed...
+        return ( empty, [] -- No method bindings are needed...
                , listToBag (map DerivFamInst (concat tyfam_insts))
                -- ...but we may need to generate binding for associated type
                -- family default instances.
@@ -2231,7 +2227,7 @@ derivingKindErr tc cls cls_tys cls_kind enough_args
   where
     gen1_suggestion | cls `hasKey` gen1ClassKey && enough_args
                     = text "(Perhaps you intended to use PolyKinds)"
-                    | otherwise = Outputable.empty
+                    | otherwise = mempty
 
 derivingViaKindErr :: Class -> Kind -> Type -> Kind -> MsgDoc
 derivingViaKindErr cls cls_kind via_ty via_kind
@@ -2252,7 +2248,7 @@ derivingThingErr :: Bool -> Class -> [Type]
                  -> Maybe (DerivStrategy GhcTc) -> MsgDoc -> MsgDoc
 derivingThingErr newtype_deriving cls cls_args mb_strat why
   = derivingThingErr' newtype_deriving cls cls_args mb_strat
-                      (maybe empty derivStrategyName mb_strat) why
+                      (foldMap derivStrategyName mb_strat) why
 
 derivingThingErrM :: Bool -> MsgDoc -> DerivM MsgDoc
 derivingThingErrM newtype_deriving why
@@ -2280,12 +2276,12 @@ derivingThingErr' newtype_deriving cls cls_args mb_strat strat_msg why
     strat_used = isJust mb_strat
     extra | not strat_used, newtype_deriving
           = text "(even with cunning GeneralizedNewtypeDeriving)"
-          | otherwise = empty
+          | otherwise = mempty
     pred = mkClassPred cls cls_args
     via_mechanism | strat_used
                   = text "with the" <+> strat_msg <+> text "strategy"
                   | otherwise
-                  = empty
+                  = mempty
 
 derivingHiddenErr :: TyCon -> SDoc
 derivingHiddenErr tc

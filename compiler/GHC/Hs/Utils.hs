@@ -1271,7 +1271,7 @@ hsPatSynSelectors :: HsValBinds (GhcPass p) -> [IdP (GhcPass p)]
 -- names are collected by 'collectHsValBinders'.
 hsPatSynSelectors (ValBinds _ _ _) = panic "hsPatSynSelectors"
 hsPatSynSelectors (XValBindsLR (NValBinds binds _))
-  = foldr addPatSynSelector [] . unionManyBags $ map snd binds
+  = foldr addPatSynSelector [] . altMap snd $ binds
 
 addPatSynSelector:: LHsBind p -> [IdP p] -> [IdP p]
 addPatSynSelector bind sels

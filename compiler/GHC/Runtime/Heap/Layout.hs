@@ -512,10 +512,10 @@ instance Outputable SMRep where
      = hang (header <+> lbrace) 2 (ppr tyinfo <+> rbrace)
      where
        header = text "HeapRep"
-                <+> if static then text "static" else empty
+                <+> mwhen static (text "static")
                 <+> pp_n "ptrs" ps <+> pp_n "nonptrs" nps
        pp_n :: String -> Int -> SDoc
-       pp_n _ 0 = empty
+       pp_n _ 0 = mempty
        pp_n s n = int n <+> text s
 
    ppr (ArrayPtrsRep size _) = text "ArrayPtrsRep" <+> ppr size

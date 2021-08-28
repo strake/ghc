@@ -141,7 +141,7 @@ solveSimpleGivens givens
   | otherwise
   = do { traceTcS "solveSimpleGivens {" (ppr givens)
        ; go givens
-       ; traceTcS "End solveSimpleGivens }" empty }
+       ; traceTcS "End solveSimpleGivens }" mempty }
   where
     go givens = do { solveSimples (listToBag givens)
                    ; new_givens <- runTcPluginsGiven
@@ -195,7 +195,7 @@ solve_simple_wanteds (WC { wc_simple = simples1, wc_impl = implics1, wc_holes = 
   = nestTcS
   [ ( unif_count
                 , WC { wc_simple = others `andCts` unflattened_eqs
-                     , wc_impl   = implics1 `unionBags` implics2
+                     , wc_impl   = implics1 <|> implics2
                      , wc_holes  = holes })
   | () <- solveSimples simples1
   , (implics2, tv_eqs, fun_eqs, others) <- getUnsolvedInerts
@@ -378,7 +378,7 @@ runSolverPipeline pipeline workItem
   = do { wl <- getWorkList
        ; inerts <- getTcSInerts
        ; tclevel <- getTcLevel
-       ; traceTcS "----------------------------- " empty
+       ; traceTcS "----------------------------- " mempty
        ; traceTcS "Start solver pipeline {" $
                   vcat [ text "tclevel =" <+> ppr tclevel
                        , text "work item =" <+> ppr workItem
@@ -388,7 +388,7 @@ runSolverPipeline pipeline workItem
        ; bumpStepCountTcS    -- One step for each constraint processed
        ; run_pipeline pipeline (ContinueWith workItem) >>= \ case
            Stop ev s       -> do { traceFireTcS ev s
-                                 ; traceTcS "End solver pipeline (discharged) }" empty }
+                                 ; traceTcS "End solver pipeline (discharged) }" mempty }
            ContinueWith ct -> do { addInertCan ct
                                  ; traceFireTcS (ctEvidence ct) (text "Kept as inert")
                                  ; traceTcS "End solver pipeline (kept as inert) }"
@@ -402,7 +402,7 @@ runSolverPipeline pipeline workItem
           = do { traceTcS ("runStage " ++ stg_name ++ " {")
                           (text "workitem   = " <+> ppr ct)
                ; res <- stg ct
-               ; traceTcS ("end stage " ++ stg_name ++ " }") empty
+               ; traceTcS ("end stage " ++ stg_name ++ " }") mempty
                ; run_pipeline stgs res }
 
 {-
@@ -2449,7 +2449,7 @@ matchClassInst dflags inerts clas tys loc
 
            NotSure -> -- In the NotSure case for local instances
                       -- we don't want to try global instances
-                do { traceTcS "} matchClassInst local not sure" empty
+                do { traceTcS "} matchClassInst local not sure" mempty
                    ; return local_res }
 
            NoInstance  -- No local instances, so try global ones

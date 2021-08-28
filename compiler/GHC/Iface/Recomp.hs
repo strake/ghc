@@ -1121,7 +1121,7 @@ freeNamesIdExtras :: IfaceIdExtras -> NameSet
 freeNamesIdExtras (IdExtras _ rules _) = unionNameSets (map freeNamesIfRule rules)
 
 instance Outputable IfaceDeclExtras where
-  ppr IfaceOtherDeclExtras       = Outputable.empty
+  ppr IfaceOtherDeclExtras       = mempty
   ppr (IfaceIdExtras  extras)    = ppr_id_extras extras
   ppr (IfaceSynonymExtras fix anns) = vcat [ppr fix, ppr anns]
   ppr (IfaceFamilyExtras fix finsts anns) = vcat [ppr fix, ppr finsts, ppr anns]

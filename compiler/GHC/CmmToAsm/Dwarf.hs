@@ -37,7 +37,7 @@ import qualified GHC.Data.Collections as H
 -- | Generate DWARF/debug information
 dwarfGen :: DynFlags -> ModLocation -> UniqSupply -> [DebugBlock]
             -> IO (SDoc, UniqSupply)
-dwarfGen _  _      us [] = return (empty, us)
+dwarfGen _  _      us [] = return (mempty, us)
 dwarfGen df modLoc us blocks = do
   let platform = targetPlatform df
 

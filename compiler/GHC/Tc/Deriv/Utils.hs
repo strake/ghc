@@ -24,7 +24,6 @@ module GHC.Tc.Deriv.Utils (
 
 import GHC.Prelude
 
-import GHC.Data.Bag
 import GHC.Types.Basic
 import GHC.Core.Class
 import GHC.Core.DataCon
@@ -606,7 +605,7 @@ hasStockDeriving clas
     generic gen_fn _ tc inst_tys
       = do { (binds, faminst) <- gen_fn tc inst_tys
            ; let field_names = all_field_names tc
-           ; return (binds, unitBag (DerivFamInst faminst), field_names) }
+           ; return (binds, pure (DerivFamInst faminst), field_names) }
 
     -- See Note [Deriving and unused record selectors]
     all_field_names = map flSelector . concatMap dataConFieldLabels

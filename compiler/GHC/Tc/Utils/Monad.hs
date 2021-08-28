@@ -226,7 +226,7 @@ initTc hsc_env hsc_src keep_rn_syntax mod loc do_this
         used_gre_var <- newIORef [] ;
         th_var       <- newIORef False ;
         th_splice_var<- newIORef False ;
-        infer_var    <- newIORef (True, emptyBag) ;
+        infer_var    <- newIORef (True, empty) ;
         dfun_n_var   <- newIORef emptyOccSet ;
         type_env_var <- case hsc_type_env_var hsc_env of {
                            Just (_mod, te_var) -> return te_var ;
@@ -303,7 +303,7 @@ initTc hsc_env hsc_src keep_rn_syntax mod loc do_this
                 tcg_binds          = emptyLHsBinds,
                 tcg_imp_specs      = [],
                 tcg_sigs           = emptyNameSet,
-                tcg_ev_binds       = emptyBag,
+                tcg_ev_binds       = empty,
                 tcg_warns          = NoWarnings,
                 tcg_anns           = [],
                 tcg_tcs            = [],
@@ -342,7 +342,7 @@ initTcWithGbl :: HscEnv
               -> IO (Messages, Maybe r)
 initTcWithGbl hsc_env gbl_env loc do_this
  = do { lie_var      <- newIORef emptyWC
-      ; errs_var     <- newIORef (emptyBag, emptyBag)
+      ; errs_var     <- newIORef (empty, empty)
       ; let lcl_env = TcLclEnv {
                 tcl_errs       = errs_var,
                 tcl_loc        = loc,     -- Should be over-ridden very soon!
@@ -1292,11 +1292,11 @@ addWarnTcM reason (env0, msg)
 
 -- | Display a warning for the current source location.
 addWarn :: (HasDynFlags m, IsReader m, MonadIO m, EnvType m ~ Env TcGblEnv TcLclEnv) => WarnReason -> MsgDoc -> m ()
-addWarn reason msg = add_warn reason msg Outputable.empty
+addWarn reason msg = add_warn reason msg mempty
 
 -- | Display a warning for a given source location.
 addWarnAt :: (HasDynFlags m, IsReader m, MonadIO m, EnvType m ~ Env TcGblEnv TcLclEnv) => WarnReason -> SrcSpan -> MsgDoc -> m ()
-addWarnAt reason loc msg = add_warn_at reason loc msg Outputable.empty
+addWarnAt reason loc msg = add_warn_at reason loc msg mempty
 
 -- | Display a warning, with an optional flag, for the current source
 -- location.
@@ -1336,7 +1336,7 @@ mkErrInfo
  = go False 0
  where
    go :: Monad m => Bool -> Int -> a -> [(Bool, a -> m (SDoc, a))] -> m SDoc
-   go _ _ _   [] = pure empty
+   go _ _ _   [] = pure mempty
    go dbg n env ((is_landmark, ctxt) : ctxts)
      | is_landmark || n < mAX_CONTEXTS -- Too verbose || dbg
      = do { (msg, env') <- ctxt env
@@ -1362,7 +1362,7 @@ debugTc = when debugIsOn
 -}
 
 addTopEvBinds :: (IsLocal f f, EnvType f ~ Env TcGblEnv lcl) => Bag EvBind -> f a -> f a
-addTopEvBinds = locally (env_gblL . tcg_ev_bindsL) . flip unionBags
+addTopEvBinds = locally (env_gblL . tcg_ev_bindsL) . flip (<|>)
 
 newTcEvBinds :: (MonadIO m, IsReader m, HasDynFlags m, EnvType m ~ Env TcGblEnv TcLclEnv) => m EvBindsVar
 newTcEvBinds =
@@ -1443,7 +1443,7 @@ emitConstraints ct = when (not (isEmptyWC ct)) $
 emitSimple :: (IsReader m, MonadIO m, EnvType m ~ Env gbl TcLclEnv) => Ct -> m ()
 emitSimple ct
   = do { lie_var <- getConstraintVar ;
-         updMutVar lie_var (`addSimples` unitBag ct) }
+         updMutVar lie_var (`addSimples` pure ct) }
 
 emitSimples :: (IsReader m, MonadIO m, EnvType m ~ Env gbl TcLclEnv) => Cts -> m ()
 emitSimples cts
@@ -1453,7 +1453,7 @@ emitSimples cts
 emitImplication :: (IsReader m, MonadIO m, EnvType m ~ Env gbl TcLclEnv) => Implication -> m ()
 emitImplication ct
   = do { lie_var <- getConstraintVar ;
-         updMutVar lie_var (`addImplics` unitBag ct) }
+         updMutVar lie_var (`addImplics` pure ct) }
 
 emitImplications :: (IsReader m, MonadIO m, EnvType m ~ Env gbl TcLclEnv) => Bag Implication -> m ()
 emitImplications ct
@@ -1465,7 +1465,7 @@ emitInsoluble :: (HasDynFlags m, IsReader m, MonadIO m, EnvType m ~ Env TcGblEnv
 emitInsoluble ct
   = do { traceTc "emitInsoluble" (ppr ct)
        ; lie_var <- getConstraintVar
-       ; updMutVar lie_var (`addInsols` unitBag ct) }
+       ; updMutVar lie_var (`addInsols` pure ct) }
 
 emitHole :: (HasDynFlags m, IsReader m, MonadIO m, EnvType m ~ Env TcGblEnv TcLclEnv) => Hole -> m ()
 emitHole hole

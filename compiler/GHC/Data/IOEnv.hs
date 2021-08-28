@@ -45,7 +45,6 @@ import Control.Monad
 import Control.Monad.Catch (MonadCatch, MonadMask, MonadThrow)
 import Control.Monad.Trans.Reader (ReaderT (..))
 import GHC.Utils.Monad
-import Control.Applicative (Alternative(..))
 import Data.Functor.Reader.Class
 
 ----------------------------------------------------------------------

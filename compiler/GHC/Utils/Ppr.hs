@@ -83,7 +83,6 @@ module GHC.Utils.Ppr (
         maybeParens,
 
         -- ** Combining documents
-        empty,
         (<>), (<+>), hcat, hsep,
         ($$), ($+$), vcat,
         sep, cat,
@@ -130,16 +129,16 @@ import GHC.Ptr  ( Ptr(..) )
 Laws for $$
 ~~~~~~~~~~~
 <a1>    (x $$ y) $$ z   = x $$ (y $$ z)
-<a2>    empty $$ x      = x
-<a3>    x $$ empty      = x
+<a2>    mempty $$ x     = x
+<a3>    x $$ mempty     = x
 
         ...ditto $+$...
 
 Laws for <>
 ~~~~~~~~~~~
 <b1>    (x <> y) <> z   = x <> (y <> z)
-<b2>    empty <> x      = empty
-<b3>    x <> empty      = x
+<b2>    mempty <> x     = empty
+<b3>    x <> mempty     = x
 
         ...ditto <+>...
 
@@ -158,11 +157,11 @@ Laws for nest
 <n2>    nest k (nest k' x)      = nest (k+k') x
 <n3>    nest k (x <> y)         = nest k x <> nest k y
 <n4>    nest k (x $$ y)         = nest k x $$ nest k y
-<n5>    nest k empty            = empty
+<n5>    nest k mempty           = mempty
 <n6>    x <> nest k y           = x <> y, if x non-empty
 
 ** Note the side condition on <n6>!  It is this that
-** makes it OK for empty to be a left unit for <>.
+** makes it OK for mempty to be a left unit for <>.
 
 Miscellaneous
 ~~~~~~~~~~~~~
@@ -175,7 +174,7 @@ Miscellaneous
 
 Laws for list versions
 ~~~~~~~~~~~~~~~~~~~~~~
-<l1>    sep (ps++[empty]++qs)   = sep (ps ++ qs)
+<l1>    sep (ps++[mempty]++qs)  = sep (ps ++ qs)
         ...ditto hsep, hcat, vcat, fill...
 
 <l2>    nest k (sep ps) = sep (map (nest k) ps)
@@ -189,12 +188,11 @@ Laws for oneLiner
 You might think that the following version of <m1> would
 be neater:
 
-<3 NO>  (text s <> x) $$ y = text s <> ((empty <> x)) $$
-                                         nest (-length s) y)
+<3 NO>  (text s <> x) $$ y = text s <> (mempty <> x) $$ nest (-length s) y)
 
-But it doesn't work, for if x=empty, we would have
+But it doesn't work, for if x=mempty, we would have
 
-        text s $$ y = text s <> (empty $$ nest (-length s) y)
+        text s $$ y = text s <> (mempty $$ nest (-length s) y)
                     = text s <> nest (-length s) y
 -}
 
@@ -325,12 +323,6 @@ sizedText l s = textBeside_ (Str s) l Empty
 -- such as a HTML or Latex tags
 zeroWidthText :: String -> Doc
 zeroWidthText = sizedText 0
-
--- | The empty document, with no height and no width.
--- 'empty' is the identity for '<>', '<+>', '$$' and '$+$', and anywhere
--- in the argument list for 'sep', 'hcat', 'hsep', 'vcat', 'fcat' etc.
-empty :: Doc
-empty = Empty
 
 instance Monoid Doc where
     mempty = Empty
@@ -496,15 +488,15 @@ reduceDoc p              = p
 
 -- | List version of '<>'.
 hcat :: [Doc] -> Doc
-hcat = reduceAB . foldr (beside_' False) empty
+hcat = reduceAB . foldr (beside_' False) mempty
 
 -- | List version of '<+>'.
 hsep :: [Doc] -> Doc
-hsep = reduceAB . foldr (beside_' True)  empty
+hsep = reduceAB . foldr (beside_' True)  mempty
 
 -- | List version of '$$'.
 vcat :: [Doc] -> Doc
-vcat = reduceAB . foldr (above_' False) empty
+vcat = reduceAB . foldr (above_' False) mempty
 
 -- | Nest (or indent) a document by a given number of positions
 -- (which may also be negative).  'nest' satisfies the laws:
@@ -517,12 +509,12 @@ vcat = reduceAB . foldr (above_' False) empty
 --
 -- * @'nest' k (x '$$' y) = 'nest' k x '$$' 'nest' k y@
 --
--- * @'nest' k 'empty' = 'empty'@
+-- * @'nest' k 'mempty' = 'mempty'@
 --
 -- * @x '<>' 'nest' k y = x '<>' y@, if @x@ non-empty
 --
 -- The side condition on the last law is needed because
--- 'empty' is a left identity for '<>'.
+-- 'mempty' is a left identity for '<>'.
 nest :: Int -> Doc -> Doc
 nest k p = mkNest k (reduceDoc p)
 
@@ -602,7 +594,7 @@ union_ = Union
 -- >    hi
 -- >         there
 --
--- '$$' is associative, with identity 'empty', and also satisfies
+-- '$$' is associative, with identity 'mempty', and also satisfies
 --
 -- * @(x '$$' y) '<>' z = x '$$' (y '<>' z)@, if @y@ non-empty.
 --
@@ -610,7 +602,7 @@ union_ = Union
 p $$  q = above_ p False q
 
 -- | Above, with no overlapping.
--- '$+$' is associative, with identity 'empty'.
+-- '$+$' is associative, with identity 'mempty'.
 ($+$) :: Doc -> Doc -> Doc
 p $+$ q = above_ p True q
 
@@ -666,12 +658,12 @@ nilAboveNest g k q           | not g && k > 0      -- No newline if no overlap
 -- http://www.haskell.org/pipermail/libraries/2011-November/017066.html
 
 -- | Beside.
--- '<>' is associative, with identity 'empty'.
+-- '<>' is associative, with identity 'mempty'.
 instance Semigroup Doc where
     p <> q = beside_ p False q
 
--- | Beside, separated by space, unless one of the arguments is 'empty'.
--- '<+>' is associative, with identity 'empty'.
+-- | Beside, separated by space, unless one of the arguments is 'mempty'.
+-- '<+>' is associative, with identity 'mempty'.
 (<+>) :: Doc -> Doc -> Doc
 p <+> q = beside_ p True  q
 
@@ -722,7 +714,7 @@ cat :: [Doc] -> Doc
 cat = sepX False  -- Don't
 
 sepX :: Bool -> [Doc] -> Doc
-sepX _ []     = empty
+sepX _ []     = mempty
 sepX x (p:ps) = sep1 x (reduceDoc p) 0 ps
 
 
@@ -789,7 +781,7 @@ fsep = fill True
 --                     | otherwise                  = layout1 $+$ layout2
 
 fill :: Bool -> [Doc] -> RDoc
-fill _ []     = empty
+fill _ []     = mempty
 fill g (p:ps) = fill1 g (reduceDoc p) 0 ps
 
 fill1 :: Bool -> RDoc -> Int -> [Doc] -> Doc

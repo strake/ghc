@@ -25,7 +25,6 @@ module GHC.Data.Maybe (
 
 import GHC.Prelude
 
-import Control.Applicative ((<|>))
 import Control.Monad.Trans.Maybe
 import Data.Maybe hiding (catMaybes, mapMaybe)
 import GHC.Utils.Exception (catch, SomeException(..))

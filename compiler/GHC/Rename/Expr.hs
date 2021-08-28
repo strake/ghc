@@ -1873,7 +1873,7 @@ pprStmtCat (ApplicativeStmt {}) = panic "pprStmtCat: ApplicativeStmt"
 
 ------------
 emptyInvalid :: Validity  -- Payload is the empty document
-emptyInvalid = NotValid Outputable.empty
+emptyInvalid = NotValid mempty
 
 okStmt, okDoStmt, okCompStmt, okParStmt
    :: DynFlags -> HsStmtContext GhcRn

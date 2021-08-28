@@ -1213,7 +1213,7 @@ static void hpc_init_Main(void)
 -}
 
 hpcInitCode :: DynFlags -> Module -> HpcInfo -> SDoc
-hpcInitCode _ _ (NoHpcInfo {}) = Outputable.empty
+hpcInitCode _ _ (NoHpcInfo {}) = mempty
 hpcInitCode dflags this_mod (HpcInfo tickCount hashNo)
  = vcat
     [ text "static void hpc_init_" <> ppr this_mod

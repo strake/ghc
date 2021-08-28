@@ -289,7 +289,7 @@ mkHsWrapperConstr :: String -> Data.Constr
 mkHsWrapperConstr name = Data.mkConstr hsWrapper_dataType name [] Data.Prefix
 
 wpFunEmpty :: HsWrapper -> HsWrapper -> TcType -> HsWrapper
-wpFunEmpty c1 c2 t1 = WpFun c1 c2 t1 empty
+wpFunEmpty c1 c2 t1 = WpFun c1 c2 t1 mempty
 
 (<.>) :: HsWrapper -> HsWrapper -> HsWrapper
 WpHole <.> c = c
@@ -367,15 +367,15 @@ hsWrapDictBinders :: HsWrapper -> Bag DictId
 -- up the Given dictionaries for pattern-match overlap checking!
 hsWrapDictBinders wrap = go wrap
  where
-   go (WpEvLam dict_id)   = unitBag dict_id
-   go (w1 `WpCompose` w2) = go w1 `unionBags` go w2
+   go (WpEvLam dict_id)   = pure dict_id
+   go (w1 `WpCompose` w2) = go w1 <|> go w2
    go (WpFun _ w _ _)     = go w
-   go WpHole              = emptyBag
-   go (WpCast  {})        = emptyBag
-   go (WpEvApp {})        = emptyBag
-   go (WpTyLam {})        = emptyBag
-   go (WpTyApp {})        = emptyBag
-   go (WpLet   {})        = emptyBag
+   go WpHole              = empty
+   go (WpCast  {})        = empty
+   go (WpEvApp {})        = empty
+   go (WpTyLam {})        = empty
+   go (WpTyApp {})        = empty
+   go (WpLet   {})        = empty
 
 collectHsWrapBinders :: HsWrapper -> ([Var], HsWrapper)
 -- Collect the outer lambda binders of a HsWrapper,
@@ -496,7 +496,7 @@ lookupEvBind :: EvBindMap -> EvVar -> Maybe EvBind
 lookupEvBind bs = flip mapLookup (ev_bind_varenv bs)
 
 evBindMapBinds :: EvBindMap -> Bag EvBind
-evBindMapBinds = foldEvBindMap consBag emptyBag
+evBindMapBinds = foldEvBindMap consBag empty
 
 foldEvBindMap :: (EvBind -> a -> a) -> a -> EvBindMap -> a
 foldEvBindMap k z bs = foldr k z (ev_bind_varenv bs)
@@ -829,7 +829,7 @@ mkEvScSelectors cls tys
         sc_sel_id  = classSCSelId cls i -- Zero-indexed
 
 emptyTcEvBinds :: TcEvBinds
-emptyTcEvBinds = EvBinds emptyBag
+emptyTcEvBinds = EvBinds empty
 
 isEmptyTcEvBinds :: TcEvBinds -> Bool
 isEmptyTcEvBinds (EvBinds b)    = isEmptyBag b

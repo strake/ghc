@@ -224,7 +224,7 @@ pprCoAxBranchLHS :: TyCon -> CoAxBranch -> SDoc
 -- See FamInstEnv Note [Family instance overlap conflicts]
 pprCoAxBranchLHS = ppr_co_ax_branch pp_rhs
   where
-    pp_rhs _ _ = empty
+    pp_rhs _ _ = mempty
 
 pprCoAxBranch :: TyCon -> CoAxBranch -> SDoc
 pprCoAxBranch = ppr_co_ax_branch ppr_rhs

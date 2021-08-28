@@ -23,7 +23,6 @@ import GHC.CmmToAsm.Types
 import GHC.Platform.Reg.Class
 import GHC.Platform.Reg
 
-import GHC.Data.Bag
 import GHC.Utils.Outputable
 import GHC.Utils.Panic
 import GHC.Platform
@@ -314,14 +313,13 @@ buildGraph code
         let moveList2           = map slurpReloadCoalesce code
 
         -- Add the reg-reg conflicts to the graph.
-        let conflictBag         = unionManyBags conflictList
+        let conflictBag         = asum conflictList
         let graph_conflict
                 = foldr graphAddConflictSet Color.initGraph conflictBag
 
         -- Add the coalescences edges to the graph.
         let moveBag
-                = unionBags (unionManyBags moveList2)
-                            (unionManyBags moveList)
+                = asum moveList2 <|> asum moveList
 
         let graph_coalesce
                 = foldr graphAddCoalesce graph_conflict moveBag

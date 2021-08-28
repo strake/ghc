@@ -159,7 +159,7 @@ instance Outputable CoreToDo where
 pprPassDetails :: CoreToDo -> SDoc
 pprPassDetails (CoreDoSimplify n md) = vcat [ text "Max iterations =" <+> int n
                                             , ppr md ]
-pprPassDetails _ = Outputable.empty
+pprPassDetails _ = mempty
 
 data SimplMode             -- See comments in GHC.Core.Opt.Simplify.Monad
   = SimplMode
@@ -350,12 +350,10 @@ pprSimplCount (SimplCount { ticks = tks, details = dts, log1 = l1, log2 = l2 })
   = vcat [text "Total ticks:    " <+> int tks,
           blankLine,
           pprTickCounts dts,
-          getVerboseSimplStats $ \dbg -> if dbg
-          then
+          getVerboseSimplStats $ \dbg -> mwhen dbg $
                 vcat [blankLine,
                       text "Log (most recent first)",
                       nest 4 (vcat (map ppr l1) $$ vcat (map ppr l2))]
-          else Outputable.empty
     ]
 
 {- Note [Which transformations are innocuous]
@@ -523,7 +521,7 @@ pprTickCts (PreInlineUnconditionally v) = ppr v
 pprTickCts (PostInlineUnconditionally v)= ppr v
 pprTickCts (UnfoldingDone v)            = ppr v
 pprTickCts (RuleFired v)                = ppr v
-pprTickCts LetFloatFromLet              = Outputable.empty
+pprTickCts LetFloatFromLet              = mempty
 pprTickCts (EtaExpansion v)             = ppr v
 pprTickCts (EtaReduction v)             = ppr v
 pprTickCts (BetaReduction v)            = ppr v
@@ -534,7 +532,7 @@ pprTickCts (AltMerge v)                 = ppr v
 pprTickCts (CaseElim v)                 = ppr v
 pprTickCts (CaseIdentity v)             = ppr v
 pprTickCts (FillInCaseDefault v)        = ppr v
-pprTickCts _                            = Outputable.empty
+pprTickCts _                            = mempty
 
 cmpTick :: Tick -> Tick -> Ordering
 cmpTick a b = case (tickToTag a `compare` tickToTag b) of

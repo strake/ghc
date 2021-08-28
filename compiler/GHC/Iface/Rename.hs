@@ -51,7 +51,7 @@ import Data.IORef
 tcRnMsgMaybe :: IO (Either ErrorMessages a) -> TcM a
 tcRnMsgMaybe do_this = liftIO do_this >>= \ case
     Left errs -> do
-        addMessages (emptyBag, errs)
+        addMessages (empty, errs)
         failM
     Right x -> pure x
 
@@ -182,7 +182,7 @@ rnDepModules sel deps = do
 initRnIface :: HscEnv -> ModIface -> [(ModuleName, Module)] -> Maybe NameShape
             -> ShIfM a -> IO (Either ErrorMessages a)
 initRnIface hsc_env iface insts nsubst do_this = do
-    errs_var <- newIORef emptyBag
+    errs_var <- newIORef empty
     let dflags = hsc_dflags hsc_env
         hsubst = listToUFM insts
         rn_mod = renameHoleModule (pkgState dflags) hsubst

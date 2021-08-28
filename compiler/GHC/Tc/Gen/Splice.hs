@@ -122,7 +122,6 @@ import GHC.Utils.Outputable
 
 import GHC.SysTools.FileCleanup ( newTempName, TempFileLifetime(..) )
 
-import GHC.Data.Bag
 import GHC.Data.FastString
 import GHC.Data.Maybe( MaybeErr(..) )
 import qualified GHC.Data.EnumSet as EnumSet
@@ -880,7 +879,7 @@ defaultRunMeta (MetaT r)
 defaultRunMeta (MetaD r)
   = fmap r . runMeta' True ppr (runQResult TH.pprint convertToHsDecls runTHDec)
 defaultRunMeta (MetaAW r)
-  = fmap r . runMeta' False (const empty) (const convertAnnotationWrapper)
+  = fmap r . runMeta' False mempty (const convertAnnotationWrapper)
     -- We turn off showing the code in meta-level exceptions because doing so exposes
     -- the toAnnotationWrapper function that we slap around the user's code
 
@@ -976,7 +975,7 @@ runMeta' show_code ppr_hs run_and_convert expr
         exn_msg <- liftIO $ Panic.safeShowException exn
         let msg = vcat [text "Exception when trying to" <+> text phase <+> text "compile-time code:",
                         nest 2 (text exn_msg),
-                        if show_code then text "Code:" <+> ppr expr else empty]
+                        mwhen show_code $ text "Code:" <+> ppr expr]
         failWithTc msg
 
 {-
@@ -1303,7 +1302,7 @@ runRemoteTH iserv recovers = do
       -- keep the warnings only if there were no errors
       writeMutVar v $ if caught_error
         then prev_msgs
-        else (prev_warns `unionBags` warn_msgs, prev_errs)
+        else (prev_warns <|> warn_msgs, prev_errs)
       runRemoteTH iserv rest
     _other -> do
       r <- handleTHMessage msg

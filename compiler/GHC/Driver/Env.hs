@@ -57,8 +57,6 @@ import GHC.Types.TyThing
 
 import GHC.Builtin.Names ( gHC_PRIM )
 
-import GHC.Data.Bag
-
 import GHC.Unit.Module.Graph
 
 import GHC.Utils.Outputable
@@ -84,7 +82,7 @@ instance HasDynFlags Hsc where
 
 runHsc :: HscEnv -> Hsc a -> IO a
 runHsc hsc_env (Hsc hsc) = do
-    (a, w) <- hsc hsc_env emptyBag
+    (a, w) <- hsc hsc_env empty
     a <$ printOrThrowWarnings (hsc_dflags hsc_env) w
 
 -- | Switches in the DynFlags and Plugins from the InteractiveContext

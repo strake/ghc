@@ -101,11 +101,11 @@ rnBracket e br_body
        ; recordThUse
 
        ; runWriterT $ case isTypedBracket br_body of
-            True  -> do { traceRn "Renaming typed TH bracket" empty
+            True  -> do { traceRn "Renaming typed TH bracket" mempty
                         ; HsBracket noExtField <$>
                           setStage (Brack cur_stage RnPendingTyped) (rn_bracket cur_stage br_body) }
 
-            False -> do { traceRn "Renaming untyped TH bracket" empty
+            False -> do { traceRn "Renaming untyped TH bracket" mempty
                         ; ps_var <- newMutVar []
                         ; HsRnBracketOut noExtField
                           <$> setStage (Brack cur_stage (RnPendingUntyped ps_var)) (rn_bracket cur_stage br_body)
@@ -387,7 +387,7 @@ rnSpliceExpr = rnSpliceGen run_expr_splice pend_expr_splice
     run_expr_splice rn_splice
       | isTypedSplice rn_splice   -- Run it later, in the type checker
       = do {  -- Ugh!  See Note [Splices] above
-             traceRn "rnSpliceExpr: typed expression splice" empty
+             traceRn "rnSpliceExpr: typed expression splice" mempty
            ; lcl_rdr <- getLocalRdrEnv
            ; gbl_rdr <- getGlobalRdrEnv
            ; let gbl_names = mkNameSet [gre_name gre | gre <- globalRdrEnvElts gbl_rdr
@@ -397,7 +397,7 @@ rnSpliceExpr = rnSpliceGen run_expr_splice pend_expr_splice
            ; HsSpliceE noExtField rn_splice <$ tell (plusFV lcl_names gbl_names) }
 
       | otherwise  -- Run it here, see Note [Running splices in the Renamer]
-      = do { traceRn "rnSpliceExpr: untyped expression splice" empty
+      = do { traceRn "rnSpliceExpr: untyped expression splice" mempty
            ; (rn_expr, mod_finalizers) <-
                 lift $ runRnSplice UntypedExpSplice runMetaE ppr rn_splice
            ; HsPar noExtField .
@@ -506,7 +506,7 @@ rnSpliceType = rnSpliceGen (WriterT . run_type_splice) pend_type_splice
          , HsSpliceTy noExtField rn_splice)
 
     run_type_splice rn_splice
-      = do { traceRn "rnSpliceType: untyped type splice" empty
+      = do { traceRn "rnSpliceType: untyped type splice" mempty
            ; (hs_ty2, mod_finalizers) <-
                 runRnSplice UntypedTypeSplice runMetaT ppr rn_splice
            ; checkNoErrs $ runWriterT
@@ -582,7 +582,7 @@ rnSplicePat = rnSpliceGen run_pat_splice pend_pat_splice
         SplicePat noExtField . HsSpliced noExtField (ThModFinalizers mod_finalizers) .
         HsSplicedPat <$>
         pat
-      | () <- traceRn "rnSplicePat: untyped pattern splice" empty
+      | () <- traceRn "rnSplicePat: untyped pattern splice" mempty
       , (pat, mod_finalizers) <- runRnSplice UntypedPatSplice runMetaP ppr rn_splice
         -- See Note [Delaying modFinalizers in untyped splices].
       ]
@@ -614,7 +614,7 @@ rnTopSpliceDecls splice = WriterT
     -- reference to store errors, and add_mod_finalizers would
     -- cause this reference to be stored after checkNoErrs finishes.
     -- This is checked by test TH_finalizer.
-  , () <- traceRn "rnTopSpliceDecls: untyped declaration splice" empty
+  , () <- traceRn "rnTopSpliceDecls: untyped declaration splice" mempty
   , (decls, mod_finalizers) <- checkNoErrs $
                runRnSplice UntypedDeclSplice runMetaD ppr_decls rn_splice
   , () <- add_mod_finalizers_now mod_finalizers ]

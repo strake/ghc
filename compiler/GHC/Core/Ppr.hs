@@ -85,7 +85,7 @@ sizeAnn e = text "-- RHS size:" <+> ppr (exprStats e)
 
 -- | No annotation
 noAnn :: Expr b -> SDoc
-noAnn _ = empty
+noAnn _ = mempty
 
 pprTopBinds :: OutputableBndr a
             => Annotation a -- ^ generate an annotation to place before the
@@ -390,7 +390,7 @@ pprTypedLamBinder bind_site debug_on var
     _
       | not debug_on            -- Show case-bound wild binders only if debug is on
       , CaseBind <- bind_site
-      , isDeadBinder var        -> empty
+      , isDeadBinder var        -> mempty
 
       | not debug_on            -- Even dead binders can be one-shot
       , isDeadBinder var        -> char '_' <+> mwhen (isId var)
@@ -412,7 +412,7 @@ pprTypedLamBinder bind_site debug_on var
   where
     unf_info = unfoldingInfo (idInfo var)
     pp_unf | hasSomeUnfolding unf_info = text "Unf=" <> ppr unf_info
-           | otherwise                 = empty
+           | otherwise                 = mempty
 
 pprTypedLetBinder :: Var -> SDoc
 -- Print binder with a type or kind signature (not paren'd)
@@ -548,7 +548,7 @@ ppIdInfo id info
 
 showAttributes :: [(Bool,SDoc)] -> SDoc
 showAttributes stuff
-  | null docs = empty
+  | null docs = mempty
   | otherwise = brackets (sep (punctuate comma docs))
   where
     docs = [d | (True,d) <- stuff]
@@ -602,7 +602,7 @@ instance Outputable Unfolding where
       pp_tmpl = ppUnlessOption sdocSuppressUnfoldings
                   (text "Tmpl=" <+> ppr rhs)
       pp_rhs | isStableSource src = pp_tmpl
-             | otherwise          = empty
+             | otherwise          = mempty
             -- Don't print the RHS or we get a quadratic
             -- blowup in the size of the printout!
 

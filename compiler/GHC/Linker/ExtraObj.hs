@@ -96,12 +96,10 @@ mkExtraObjToLinkIntoBinary dflags = do
   mkExtraObj dflags "c" (showSDoc dflags main)
   where
     main
-      | gopt Opt_NoHsMain dflags = Outputable.empty
+      | gopt Opt_NoHsMain dflags = mempty
       | otherwise
           = case ghcLink dflags of
-                  LinkDynLib -> if platformOS (targetPlatform dflags) == OSMinGW32
-                                    then dllMain
-                                    else Outputable.empty
+                  LinkDynLib -> mwhen (platformOS (targetPlatform dflags) == OSMinGW32) dllMain
                   _                      -> exeMain
 
     exeMain = vcat [
@@ -121,7 +119,7 @@ mkExtraObjToLinkIntoBinary dflags = do
                        then "true"
                        else "false") <> semi,
         case rtsOpts dflags of
-            Nothing   -> Outputable.empty
+            Nothing   -> mempty
             Just opts -> text "    __conf.rts_opts= " <>
                           text (show opts) <> semi,
         text " __conf.rts_hs_main = true;",
@@ -169,10 +167,8 @@ mkNoteObjsToLinkIntoBinary dflags dep_packages = do
       -- executable stacks.  See also
       -- "GHC.CmmToAsm" for another instance
       -- where we need to do this.
-      if platformHasGnuNonexecStack platform
-        then text ".section .note.GNU-stack,\"\","
-             <> sectionType platform "progbits" <> char '\n'
-        else Outputable.empty
+      mwhen (platformHasGnuNonexecStack platform) $
+      text ".section .note.GNU-stack,\"\"," <> sectionType platform "progbits" <> char '\n'
       ]
 
 -- | Return the "link info" string

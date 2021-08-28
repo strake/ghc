@@ -747,9 +747,7 @@ cvObtainTerm hsc_env max_depth force old_ty hval = runTR hsc_env $ do
  -- The interesting case
       ConstrClosure{ptrArgs=pArgs,dataArgs=dArgs} -> do
         traceTR (text "entering a constructor " <> ppr dArgs <+>
-                      if monomorphic
-                        then parens (text "already monomorphic: " <> ppr my_ty)
-                        else Ppr.empty)
+                      mwhen monomorphic (parens (text "already monomorphic: " <> ppr my_ty)))
         Right dcname <- liftIO $ constrClosToName hsc_env clos
         (mb_dc, _)   <- tryTc (tcLookupDataCon dcname)
         case mb_dc of

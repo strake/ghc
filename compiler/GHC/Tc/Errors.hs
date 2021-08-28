@@ -71,7 +71,7 @@ import GHC.Utils.Lens.Monad.Zoom ( zoom )
 
 import Control.Monad    ( when )
 import Control.Monad.Trans.State ( StateT (..) )
-import Data.Foldable    ( toList )
+import Data.Foldable    ( fold, toList )
 import Data.List        ( sortBy, unfoldr )
 import Lens.Micro.Extras( view )
 
@@ -240,7 +240,7 @@ report_unsolved type_errors expr_holes
 
        ; tc_lvl <- getTcLevel
        ; reportWanteds err_ctxt tc_lvl wanted
-       ; traceTc "reportUnsolved }" empty }
+       ; traceTc "reportUnsolved }" mempty }
 
 --------------------------------------------
 --      Internal functions
@@ -991,9 +991,9 @@ tryReporter ctxt (str, keep_me,  suppress_after, reporter) cts
 pprArising :: CtOrigin -> SDoc
 -- Used for the main, top-level error message
 -- We've done special processing for TypeEq, KindEq, Given
-pprArising (TypeEqOrigin {}) = empty
-pprArising (KindEqOrigin {}) = empty
-pprArising (GivenOrigin {})  = empty
+pprArising (TypeEqOrigin {}) = mempty
+pprArising (KindEqOrigin {}) = mempty
+pprArising (GivenOrigin {})  = mempty
 pprArising orig              = pprCtOrigin orig
 
 -- Add the "arising from..." part to a message about bunch of dicts
@@ -1173,12 +1173,12 @@ mkHoleError tidy_simples ctxt hole@(Hole { hole_occ = occ
                | ExprHole _ <- sort, show_hole_constraints
                = givenConstraintsMsg ctxt
                | otherwise
-               = empty
+               = mempty
 
        ; show_valid_hole_fits <- goptM Opt_ShowValidHoleFits
        ; (ctxt, sub_msg) <- if show_valid_hole_fits
                             then validHoleFits ctxt tidy_simples hole
-                            else return (ctxt, empty)
+                            else return (ctxt, mempty)
 
        ; mkErrorReport ctxt lcl_env $
             important hole_msg `mappend`
@@ -1219,20 +1219,20 @@ mkHoleError tidy_simples ctxt hole@(Hole { hole_occ = occ
          | HoleError <- cec_type_holes ctxt
          = text "To use the inferred type, enable PartialTypeSignatures"
          | otherwise
-         = empty
+         = mempty
 
     expr_hole_hint                       -- Give hint for, say,   f x = _x
          | lengthFS (occNameFS occ) > 1  -- Don't give this hint for plain "_"
          = text "Or perhaps" <+> quotes (ppr occ)
            <+> text "is mis-spelled, or not in scope"
          | otherwise
-         = empty
+         = mempty
 
     loc_msg tv
        | isTyVar tv
        = case tcTyVarDetails tv of
            MetaTv {} -> quotes (ppr tv) <+> text "is an ambiguous type variable"
-           _         -> empty  -- Skolems dealt with already
+           _         -> mempty  -- Skolems dealt with already
        | otherwise  -- A coercion variable can be free in the hole type
        = ppWhenOption sdocPrintExplicitCoercions $
            quotes (ppr tv) <+> text "is a coercion variable"
@@ -1363,7 +1363,7 @@ mkEqErr1 ctxt ct   -- Wanted or derived;
        ; let (keep_going, is_oriented, wanted_msg)
                            = mk_wanted_extra (ctLoc ct) exp_syns
              coercible_msg = case ctEqRel ct of
-               NomEq  -> empty
+               NomEq  -> mempty
                ReprEq -> mkCoercibleExplanation rdr_env fam_envs ty1 ty2
        ; dflags <- getDynFlags
        ; traceTc "mkEqErr1" (ppr ct $$ pprCtOrigin (ctOrigin ct) $$ ppr keep_going)
@@ -1406,8 +1406,8 @@ mkEqErr1 ctxt ct   -- Wanted or derived;
                          | Just cty2 <- mb_cty2 ->
                          thd3 (mkExpectedActualMsg cty1 cty2 sub_o sub_t_or_k
                                                      expandSyns)
-                       _ -> empty
-          _ -> (True, Nothing, empty)
+                       _ -> mempty
+          _ -> (True, Nothing, mempty)
 
 -- | This function tries to reconstruct why a "Coercible ty1 ty2" constraint
 -- is left over.
@@ -1430,7 +1430,7 @@ mkCoercibleExplanation rdr_env fam_envs ty1 ty2
           quotes (ppr s1) <+> text "have;")
        2 (text "we must assume that the role is nominal")
   | otherwise
-  = empty
+  = mempty
   where
     coercible_msg_for_tycon tc
         | isAbstractTyCon tc
@@ -1649,7 +1649,7 @@ mkEqInfoMsg ct ty1 ty2
 
     ambig_msg | isJust mb_fun1 || isJust mb_fun2
               = snd (mkAmbigMsg False ct)
-              | otherwise = empty
+              | otherwise = mempty
 
     tyfun_msg | Just tc1 <- mb_fun1
               , Just tc2 <- mb_fun2
@@ -1657,7 +1657,7 @@ mkEqInfoMsg ct ty1 ty2
               , not (isInjectiveTyCon tc1 Nominal)
               = text "NB:" <+> quotes (ppr tc1)
                 <+> text "is a non-injective type family"
-              | otherwise = empty
+              | otherwise = mempty
 
 isUserSkolem :: ReportErrCtxt -> TcTyVar -> Bool
 -- See Note [Reporting occurs-check errors]
@@ -1772,7 +1772,7 @@ extraTyVarEqInfo ctxt tv1 ty2
   where
     ty_extra ty = case tcGetCastedTyVar_maybe ty of
                     Just (tv, _) -> extraTyVarInfo ctxt tv
-                    Nothing      -> empty
+                    Nothing      -> mempty
 
 extraTyVarInfo :: ReportErrCtxt -> TcTyVar -> SDoc
 extraTyVarInfo ctxt tv
@@ -1780,13 +1780,13 @@ extraTyVarInfo ctxt tv
     case tcTyVarDetails tv of
           SkolemTv {}   -> pprSkols ctxt [tv]
           RuntimeUnk {} -> quotes (ppr tv) <+> text "is an interactive-debugger skolem"
-          MetaTv {}     -> empty
+          MetaTv {}     -> mempty
 
 suggestAddSig :: ReportErrCtxt -> TcType -> TcType -> SDoc
 -- See Note [Suggest adding a type signature]
 suggestAddSig ctxt ty1 ty2
   | null inferred_bndrs
-  = empty
+  = mempty
   | [bndr] <- inferred_bndrs
   = text "Possible fix: add a type signature for" <+> quotes (ppr bndr)
   | otherwise
@@ -1886,14 +1886,14 @@ mkExpectedActualMsg ty1 ty2 ct@(TypeEqOrigin { uo_actual = act
                                              , uo_expected = exp
                                              , uo_thing = maybe_thing })
                     m_level printExpanded
-  | KindLevel <- level, occurs_check_error       = (True, Nothing, empty)
+  | KindLevel <- level, occurs_check_error       = (True, Nothing, mempty)
   | isUnliftedTypeKind act, isLiftedTypeKind exp = (False, Nothing, msg2)
   | isLiftedTypeKind act, isUnliftedTypeKind exp = (False, Nothing, msg3)
   | tcIsLiftedTypeKind exp                       = (False, Nothing, msg4)
   | Just msg <- num_args_msg                     = (False, Nothing, msg $$ msg1)
   | KindLevel <- level, Just th <- maybe_thing   = (False, Nothing, msg5 th)
-  | act `pickyEqType` ty1, exp `pickyEqType` ty2 = (True, Just NotSwapped, empty)
-  | exp `pickyEqType` ty1, act `pickyEqType` ty2 = (True, Just IsSwapped, empty)
+  | act `pickyEqType` ty1, exp `pickyEqType` ty2 = (True, Just NotSwapped, mempty)
+  | exp `pickyEqType` ty1, act `pickyEqType` ty2 = (True, Just IsSwapped, mempty)
   | otherwise                                    = (True, Nothing, msg1)
   where
     level = m_level `orElse` TypeLevel
@@ -1921,17 +1921,17 @@ mkExpectedActualMsg ty1 ty2 ct@(TypeEqOrigin { uo_actual = act
         -> pprWithExplicitKindsWhenMismatch ty1 ty2 ct $
            vcat [ text "Expected" <+> sort <> colon <+> ppr exp
                 , text "  Actual" <+> sort <> colon <+> ppr act
-                , if printExpanded then expandedTys else empty ]
+                , mwhen printExpanded expandedTys ]
 
         | otherwise
-        -> empty
+        -> mempty
 
     thing_msg = case maybe_thing of
                   Just thing -> \_ levity ->
                     quotes thing <+> text "is" <+> levity
                   Nothing    -> \vowel levity ->
                     text "got a" <>
-                    (if vowel then char 'n' else empty) <+>
+                    mwhen vowel (char 'n') <+>
                     levity <+>
                     text "type"
     msg2 = sep [ text "Expecting a lifted type, but"
@@ -1982,9 +1982,7 @@ mkExpectedActualMsg ty1 ty2 ct@(TypeEqOrigin { uo_actual = act
 
       _ -> Nothing
 
-    maybe_num_args_msg = case num_args_msg of
-      Nothing -> empty
-      Just m  -> m
+    maybe_num_args_msg = fold num_args_msg
 
     count_args ty = count isVisibleBinder $ fst $ splitPiTys ty
 
@@ -2151,7 +2149,7 @@ expandSynonymsToMatch ty1 ty2 = (ty1_ret, ty2_ret)
     -- | Drop the type pairs until types in a pair look alike (i.e. the outer
     -- constructors are the same).
     followExpansions :: [(Type, Type)] -> (Type, Type)
-    followExpansions [] = pprPanic "followExpansions" empty
+    followExpansions [] = pprPanic "followExpansions" mempty
     followExpansions [(t1, t2)]
       | sameShapes t1 t2 = go t1 t2 -- expand subtrees
       | otherwise        = (t1, t2) -- the difference is already visible
@@ -2183,7 +2181,7 @@ sameOccExtra ty1 ty2
   , same_occ   -- but same OccName
   = text "NB:" <+> (ppr_from same_pkg n1 $$ ppr_from same_pkg n2)
   | otherwise
-  = empty
+  = mempty
   where
     ppr_from same_pkg nm
       | isGoodSrcSpan loc
@@ -2344,7 +2342,7 @@ mk_dict_err ctxt@(CEC {cec_encl = implics}) (ct, (matches, unifiers, unsafe_over
       = vcat [ no_inst_msg
              , nest 2 extra_note
              , vcat (pp_givens useful_givens)
-             , mb_patsyn_prov `orElse` empty
+             , fold mb_patsyn_prov
              , mwhen (has_ambig_tvs && not (null unifiers && null useful_givens))
                (vcat [ munless lead_with_ambig ambig_msg, binds_msg, potential_msg ])
 
@@ -2416,7 +2414,7 @@ mk_dict_err ctxt@(CEC {cec_encl = implics}) (ct, (matches, unifiers, unsafe_over
                     2 (text "Typeable" <+>
                        parens (ppr ty <+> dcolon <+> ppr (tcTypeKind ty)))
                | otherwise
-               = empty
+               = mempty
 
     drv_fixes = case orig of
                    DerivClauseOrigin                  -> [drv_fix False]
@@ -2510,7 +2508,7 @@ ctxtFixes has_ambig_tvs pred implics
              , SigSkol (PatSynCtxt {}) _ _ <- skol
              = text "\"required\""
              | otherwise
-             = empty
+             = mempty
   = [sep [ text "add" <+> pprParendType pred
            <+> text "to the" <+> what <+> text "context of"
          , nest 2 $ ppr_skol skol $$
@@ -2629,7 +2627,7 @@ message (showing both problems):
 -}
 
 show_fixes :: [SDoc] -> SDoc
-show_fixes []     = empty
+show_fixes []     = mempty
 show_fixes (f:fs) = sep [ text "Possible fix:"
                         , nest 2 (vcat (f : map (text "or" <+>) fs))]
 
@@ -2641,11 +2639,11 @@ pprPotentials :: PrintPotentialInstances -> PprStyle -> SDoc -> [ClsInst] -> SDo
 -- See Note [Displaying potential instances]
 pprPotentials (PrintPotentialInstances show_potentials) sty herald insts
   | null insts
-  = empty
+  = mempty
 
   | null show_these
   = hang herald
-       2 (vcat [ not_in_scope_msg empty
+       2 (vcat [ not_in_scope_msg mempty
                , flag_hint ])
 
   | otherwise
@@ -2687,7 +2685,7 @@ pprPotentials (PrintPotentialInstances show_potentials) sty herald insts
 
     not_in_scope_msg herald
       | null not_in_scope
-      = empty
+      = mempty
       | otherwise
       = hang (herald <+> speakNOf (length not_in_scope) (text "instance")
                      <+> text "involving out-of-scope types")
@@ -2758,7 +2756,7 @@ Which makes it clearer that the culprit is the mismatch between `k2` and `k20`.
 mkAmbigMsg :: Bool -- True when message has to be at beginning of sentence
            -> Ct -> (Bool, SDoc)
 mkAmbigMsg prepend_msg ct
-  | null ambig_kvs && null ambig_tvs = (False, empty)
+  | null ambig_kvs && null ambig_tvs = (False, mempty)
   | otherwise                        = (True,  msg)
   where
     (ambig_kvs, ambig_tvs) = getAmbigTkvs ct

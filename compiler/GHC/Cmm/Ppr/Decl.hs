@@ -117,14 +117,14 @@ pprInfoTable platform (CmmInfoTable { cit_lbl = lbl, cit_rep = rep
   = vcat [ text "label: " <> pdoc platform lbl
          , text "rep: " <> ppr rep
          , case prof_info of
-             NoProfilingInfo -> empty
+             NoProfilingInfo -> mempty
              ProfilingInfo ct cd ->
                vcat [ text "type: " <> text (show (BS.unpack ct))
                     , text "desc: " <> text (show (BS.unpack cd)) ]
          , text "srt: " <> pdoc platform srt ]
 
 instance Outputable ForeignHint where
-  ppr NoHint     = empty
+  ppr NoHint     = mempty
   ppr SignedHint = quotes(text "signed")
 --  ppr AddrHint   = quotes(text "address")
 -- Temp Jan08

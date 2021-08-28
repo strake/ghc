@@ -1182,7 +1182,7 @@ ruleCheckProgram ropts phase rule_pat rules binds
                        , rc_rules     = rules
                        , rc_ropts     = ropts
                        }
-    results = unionManyBags (map (ruleCheckBind env) binds)
+    results = altMap (ruleCheckBind env) binds
     line = text (replicate 20 '-')
 
 data RuleCheckEnv = RuleCheckEnv {
@@ -1196,23 +1196,23 @@ data RuleCheckEnv = RuleCheckEnv {
 ruleCheckBind :: RuleCheckEnv -> CoreBind -> Bag SDoc
    -- The Bag returned has one SDoc for each call site found
 ruleCheckBind env (NonRec _ r) = ruleCheck env r
-ruleCheckBind env (Rec prs)    = unionManyBags [ruleCheck env r | (_,r) <- prs]
+ruleCheckBind env (Rec prs)    = asum [ruleCheck env r | (_,r) <- prs]
 
 ruleCheck :: RuleCheckEnv -> CoreExpr -> Bag SDoc
-ruleCheck _   (Var _)       = emptyBag
-ruleCheck _   (Lit _)       = emptyBag
-ruleCheck _   (Type _)      = emptyBag
-ruleCheck _   (Coercion _)  = emptyBag
+ruleCheck _   (Var _)       = empty
+ruleCheck _   (Lit _)       = empty
+ruleCheck _   (Type _)      = empty
+ruleCheck _   (Coercion _)  = empty
 ruleCheck env (App f a)     = ruleCheckApp env (App f a) []
 ruleCheck env (Tick _ e)  = ruleCheck env e
 ruleCheck env (Cast e _)    = ruleCheck env e
-ruleCheck env (Let bd e)    = ruleCheckBind env bd `unionBags` ruleCheck env e
+ruleCheck env (Let bd e)    = ruleCheckBind env bd <|> ruleCheck env e
 ruleCheck env (Lam _ e)     = ruleCheck env e
-ruleCheck env (Case e _ _ as) = ruleCheck env e `unionBags`
-                                unionManyBags [ruleCheck env r | (_,_,r) <- as]
+ruleCheck env (Case e _ _ as) = ruleCheck env e <|>
+                                asum [ruleCheck env r | (_,_,r) <- as]
 
 ruleCheckApp :: RuleCheckEnv -> Expr CoreBndr -> [Arg CoreBndr] -> Bag SDoc
-ruleCheckApp env (App f a) as = ruleCheck env a `unionBags` ruleCheckApp env f (a:as)
+ruleCheckApp env (App f a) as = ruleCheck env a <|> ruleCheckApp env f (a:as)
 ruleCheckApp env (Var f) as   = ruleCheckFun env f as
 ruleCheckApp env other _      = ruleCheck env other
 
@@ -1221,8 +1221,8 @@ ruleCheckFun :: RuleCheckEnv -> Id -> [CoreExpr] -> Bag SDoc
 -- saying why it doesn't match the specified application
 
 ruleCheckFun env fn args
-  | null name_match_rules = emptyBag
-  | otherwise             = unitBag (ruleAppCheck_help env fn args name_match_rules)
+  | null name_match_rules = empty
+  | otherwise             = pure (ruleAppCheck_help env fn args name_match_rules)
   where
     name_match_rules = filter match (rc_rules env fn)
     match rule = (rc_pattern env) `isPrefixOf` unpackFS (ruleName rule)

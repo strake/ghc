@@ -66,21 +66,18 @@ pprNatCmmDecl config proc@(CmmProc top_info lbl _ (ListGraph blocks)) =
         vcat (map (pprBasicBlock platform top_info) blocks)
 
     Just (CmmStaticsRaw info_lbl _) ->
-      (if platformHasSubsectionsViaSymbols platform
-          then pprSectionAlign config dspSection $$
-               pdoc platform (mkDeadStripPreventer info_lbl) <> char ':'
-          else empty) $$
+      (mwhen (platformHasSubsectionsViaSymbols platform) $
+               pprSectionAlign config dspSection $$
+               pdoc platform (mkDeadStripPreventer info_lbl) <> char ':') $$
       vcat (map (pprBasicBlock platform top_info) blocks) $$
       -- above: Even the first block gets a label, because with branch-chain
       -- elimination, it might be the target of a goto.
-      (if platformHasSubsectionsViaSymbols platform
-       then
+      (mwhen (platformHasSubsectionsViaSymbols platform) $
        -- See Note [Subsections Via Symbols] in X86/Ppr.hs
                 text "\t.long "
             <+> pdoc platform info_lbl
             <+> char '-'
-            <+> pdoc platform (mkDeadStripPreventer info_lbl)
-       else empty)
+            <+> pdoc platform (mkDeadStripPreventer info_lbl))
 
 dspSection :: Section
 dspSection = Section Text $
@@ -93,7 +90,7 @@ pprBasicBlock platform info_env (BasicBlock blockid instrs)
     vcat (map (pprInstr platform) instrs)
   where
     maybe_infotable = case mapLookup blockid info_env of
-       Nothing   -> empty
+       Nothing   -> mempty
        Just (CmmStaticsRaw info_lbl info) ->
            pprAlignForSection Text $$
            vcat (map (pprData platform) info) $$
@@ -122,14 +119,13 @@ pprData platform d = case d of
 
 pprGloblDecl :: Platform -> CLabel -> SDoc
 pprGloblDecl platform lbl
-  | not (externallyVisibleCLabel lbl) = empty
+  | not (externallyVisibleCLabel lbl) = mempty
   | otherwise = text ".global " <> pdoc platform lbl
 
 pprTypeAndSizeDecl :: Platform -> CLabel -> SDoc
 pprTypeAndSizeDecl platform lbl
-    = if platformOS platform == OSLinux && externallyVisibleCLabel lbl
-      then text ".type " <> pdoc platform lbl <> ptext (sLit ", @object")
-      else empty
+    = mwhen (platformOS platform == OSLinux && externallyVisibleCLabel lbl) $
+      text ".type " <> pdoc platform lbl <> ptext (sLit ", @object")
 
 pprLabel :: Platform -> CLabel -> SDoc
 pprLabel platform lbl =
@@ -278,14 +274,14 @@ pprAddr platform am
          | not (fits13Bits i)   -> largeOffsetError i
          | otherwise            -> hcat [ pprReg r1, pp_sign, int i ]
          where
-                pp_sign = if i > 0 then char '+' else empty
+                pp_sign = mwhen (i > 0) (char '+')
 
         AddrRegImm r1 (ImmInteger i)
          | i == 0               -> pprReg r1
          | not (fits13Bits i)   -> largeOffsetError i
          | otherwise            -> hcat [ pprReg r1, pp_sign, integer i ]
          where
-                pp_sign = if i > 0 then char '+' else empty
+                pp_sign = mwhen (i > 0) (char '+')
 
         AddrRegImm r1 imm
          -> hcat [ pprReg r1, char '+', pprImm platform imm ]
@@ -370,7 +366,7 @@ pprDataItem platform lit
 -- | Pretty print an instruction.
 pprInstr :: Platform -> Instr -> SDoc
 pprInstr platform = \case
-   COMMENT _ -> empty -- nuke comments.
+   COMMENT _ -> mempty -- nuke comments.
    DELTA d   -> pprInstr platform (COMMENT (mkFastString ("\tdelta = " ++ show d)))
 
    -- Newblocks and LData should have been slurped out before producing the .s file.
@@ -439,7 +435,7 @@ pprInstr platform = \case
         | not b && reg1 == g0
         -> let doit = hcat [ text "\tmov\t", pprRI platform ri, comma, pprReg reg2 ]
            in  case ri of
-                   RIReg rrr | rrr == reg2 -> empty
+                   RIReg rrr | rrr == reg2 -> mempty
                    _                       -> doit
 
         | otherwise
@@ -529,7 +525,7 @@ pprInstr platform = \case
    BI cond b blockid
       -> hcat [
             text "\tb", pprCond cond,
-            if b then pp_comma_a else empty,
+            mwhen b pp_comma_a,
             char '\t',
             pdoc platform (blockLbl blockid)
          ]
@@ -537,7 +533,7 @@ pprInstr platform = \case
    BF cond b blockid
       -> hcat [
             text "\tfb", pprCond cond,
-            if b then pp_comma_a else empty,
+            mwhen b pp_comma_a,
             char '\t',
             pdoc platform (blockLbl blockid)
          ]

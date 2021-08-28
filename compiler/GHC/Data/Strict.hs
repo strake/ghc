@@ -18,7 +18,6 @@ module GHC.Data.Strict (
   ) where
 
 import GHC.Prelude hiding (Maybe(..), Either(..), fromMaybe)
-import Control.Applicative
 import Data.Data
 
 data Maybe a = Nothing | Just !a

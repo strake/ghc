@@ -100,11 +100,11 @@ colorGraph iterative spinCount colors triv spill graph0
         --
    in   if not $ null ksNoTriv
          then   pprPanic "colorGraph: trivially colorable nodes didn't color!" -- empty
-                        (  empty
+                        (  mempty
                         $$ text "ksTriv    = " <> ppr ksTriv
                         $$ text "ksNoTriv  = " <> ppr ksNoTriv
                         $$ text "colors    = " <> ppr colors
-                        $$ empty
+                        $$ mempty
                         $$ dotGraph (\_ -> text "white") triv graph_triv)
 
          else   ( graph_prob

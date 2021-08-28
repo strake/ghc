@@ -989,7 +989,7 @@ ppr_expr (ExplicitTuple _ exprs boxity)
     punc (Present {} : _) = comma <> space
     punc (Missing {} : _) = comma
     punc (XTupArg {} : _) = comma <> space
-    punc []               = empty
+    punc []               = mempty
 
 ppr_expr (ExplicitSum _ alt arity expr)
   = text "(#" <+> ppr_bars (alt - 1) <+> ppr expr <+> ppr_bars (arity - alt) <+> text "#)"
@@ -1751,7 +1751,7 @@ pprMatch (Match { m_pats = pats, m_ctxt = ctxt, m_grhss = grhss })
             LambdaExpr -> (char '\\', pats)
 
             _ -> case pats of
-                   []    -> (empty, [])
+                   []    -> (mempty, [])
                    [pat] -> (ppr pat, [])  -- No parens around the single pat in a case
                    _     -> pprPanic "pprMatch" (ppr ctxt $$ ppr pats)
 
@@ -2263,7 +2263,7 @@ pprStmt (LastStmt _ expr m_dollar_stripped _)
       (case m_dollar_stripped of
         Just True -> text "return $"
         Just False -> text "return"
-        Nothing -> empty) <+>
+        Nothing -> mempty) <+>
       ppr expr
 pprStmt (BindStmt _ pat expr) = hsep [ppr pat, larrow, ppr expr]
 pprStmt (LetStmt _ (L _ binds))   = hsep [text "let", pprBinds binds]
@@ -2313,7 +2313,7 @@ pprStmt (ApplicativeStmt _ args mb_join)
      let
          ap_expr = sep (punctuate (text " |") (map pp_arg args))
      in
-       whenPprDebug (if isJust mb_join then text "[join]" else empty) <+>
+       whenPprDebug (isJust mb_join `mwhen` text "[join]") <+>
        (if lengthAtLeast args 2 then parens else id) ap_expr
 
    pp_arg :: (a, ApplicativeArg (GhcPass idL)) -> SDoc
@@ -2353,7 +2353,7 @@ pprTransStmt by using GroupForm
   = sep [ text "then group", nest 2 (pprBy by), nest 2 (ptext (sLit "using") <+> ppr using)]
 
 pprBy :: Outputable body => Maybe body -> SDoc
-pprBy Nothing  = empty
+pprBy Nothing  = mempty
 pprBy (Just e) = text "by" <+> ppr e
 
 pprDo :: (OutputableBndrId p, Outputable body)
@@ -2370,7 +2370,7 @@ pprDo _             _     = panic "pprDo" -- PatGuard, ParStmtCxt
 
 ppr_module_name_prefix :: Maybe ModuleName -> SDoc
 ppr_module_name_prefix = \case
-  Nothing -> empty
+  Nothing -> mempty
   Just module_name -> ppr module_name <> char '.'
 
 ppr_do_stmts :: (OutputableBndrId idL, OutputableBndrId idR,
@@ -2606,18 +2606,18 @@ pprSpliceDecl e ImplicitSplice   = ppr_splice_decl e
 
 ppr_splice_decl :: (OutputableBndrId p)
                 => HsSplice (GhcPass p) -> SDoc
-ppr_splice_decl (HsUntypedSplice _ _ n e) = ppr_splice empty n e empty
+ppr_splice_decl (HsUntypedSplice _ _ n e) = ppr_splice mempty n e mempty
 ppr_splice_decl e = pprSplice e
 
 pprSplice :: forall p. (OutputableBndrId p) => HsSplice (GhcPass p) -> SDoc
 pprSplice (HsTypedSplice _ DollarSplice n e)
-  = ppr_splice (text "$$") n e empty
+  = ppr_splice (text "$$") n e mempty
 pprSplice (HsTypedSplice _ BareSplice _ _ )
   = panic "Bare typed splice"  -- impossible
 pprSplice (HsUntypedSplice _ DollarSplice n e)
-  = ppr_splice (text "$")  n e empty
+  = ppr_splice (text "$")  n e mempty
 pprSplice (HsUntypedSplice _ BareSplice n e)
-  = ppr_splice empty  n e empty
+  = ppr_splice mempty  n e mempty
 pprSplice (HsQuasiQuote _ n q _ s)      = ppr_quasi n q s
 pprSplice (HsSpliced _ _ thing)         = ppr thing
 pprSplice (XSplice x)                   = case ghcPass @p of
@@ -2669,7 +2669,7 @@ instance OutputableBndrId p
 
 
 pprHsBracket :: (OutputableBndrId p) => HsBracket (GhcPass p) -> SDoc
-pprHsBracket (ExpBr _ e)   = thBrackets empty (ppr e)
+pprHsBracket (ExpBr _ e)   = thBrackets mempty (ppr e)
 pprHsBracket (PatBr _ p)   = thBrackets (char 'p') (ppr p)
 pprHsBracket (DecBrG _ gp) = thBrackets (char 'd') (ppr gp)
 pprHsBracket (DecBrL _ ds) = thBrackets (char 'd') (vcat (map ppr ds))

@@ -795,16 +795,16 @@ instance Outputable HsImplBang where
 instance Outputable SrcStrictness where
     ppr SrcLazy     = char '~'
     ppr SrcStrict   = char '!'
-    ppr NoSrcStrict = empty
+    ppr NoSrcStrict = mempty
 
 instance Outputable SrcUnpackedness where
     ppr SrcUnpack   = text "{-# UNPACK #-}"
     ppr SrcNoUnpack = text "{-# NOUNPACK #-}"
-    ppr NoSrcUnpack = empty
+    ppr NoSrcUnpack = mempty
 
 instance Outputable StrictnessMark where
     ppr MarkedStrict    = text "!"
-    ppr NotMarkedStrict = empty
+    ppr NotMarkedStrict = mempty
 
 instance Binary SrcStrictness where
     put_ bh SrcLazy     = putByte bh 0

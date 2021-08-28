@@ -1237,7 +1237,7 @@ warnIfDeprecated gre@(GRE { gre_name = name, gre_imp = iss })
       where
         imp_mod  = importSpecModule imp_spec
         imp_msg  = text "imported from" <+> ppr imp_mod <> extra
-        extra | imp_mod == moduleName name_mod = Outputable.empty
+        extra | imp_mod == moduleName name_mod = mempty
               | otherwise = text ", but defined in" <+> ppr name_mod
 
 lookupImpDeprec :: ModIface -> GlobalRdrElt -> Maybe WarningTxt
@@ -1482,7 +1482,7 @@ lookupBindGroupOcc ctxt what rdr_name
     candidates :: [Name] -> MsgDoc
     candidates names_in_scope
       = case similar_names of
-          []  -> Outputable.empty
+          []  -> mempty
           [n] -> text "Perhaps you meant" <+> pp_item n
           _   -> sep [ text "Perhaps you meant one of these:"
                      , nest 2 (pprWithCommas pp_item similar_names) ]

@@ -1058,7 +1058,7 @@ ppr_app_args :: PprPrec -> IfaceAppArgs -> SDoc
 ppr_app_args ctx_prec = go
   where
     go :: IfaceAppArgs -> SDoc
-    go IA_Nil             = empty
+    go IA_Nil             = mempty
     go (IA_Arg t argf ts) = ppr_app_arg ctx_prec (t, argf) <+> go ts
 
 -- See Note [Pretty-printing invisible arguments]
@@ -1071,7 +1071,7 @@ ppr_app_arg ctx_prec (t, argf) =
                  -> char '@' <> ppr_ty appPrec t
        Inferred  |  print_kinds
                  -> char '@' <> braces (ppr_ty topPrec t)
-       _         -> empty
+       _         -> mempty
 
 -------------------
 pprIfaceForAllPart :: [IfaceForAllBndr] -> [IfacePredType] -> SDoc -> SDoc
@@ -1098,7 +1098,7 @@ ppr_iface_forall_part show_forall tvs ctxt sdoc
 
 -- | Render the "forall ... ." or "forall ... ->" bit of a type.
 pprIfaceForAll :: [IfaceForAllBndr] -> SDoc
-pprIfaceForAll [] = empty
+pprIfaceForAll [] = mempty
 pprIfaceForAll bndrs@(Bndr _ vis : _)
   = sep [ add_separator (forAllLit <+> fsep docs)
         , pprIfaceForAll bndrs' ]
@@ -1123,7 +1123,7 @@ ppr_itv_bndrs all_bndrs@(bndr@(Bndr _ vis) : bndrs) vis1
 ppr_itv_bndrs [] _ = ([], [])
 
 pprIfaceForAllCo :: [(IfLclName, IfaceCoercion)] -> SDoc
-pprIfaceForAllCo []  = empty
+pprIfaceForAllCo []  = mempty
 pprIfaceForAllCo tvs = text "forall" <+> pprIfaceForAllCoBndrs tvs <> dot
 
 pprIfaceForAllCoBndrs :: [(IfLclName, IfaceCoercion)] -> SDoc
@@ -1651,7 +1651,7 @@ pprPromotionQuote tc =
     pprPromotionQuoteI $ ifaceTyConIsPromoted $ ifaceTyConInfo tc
 
 pprPromotionQuoteI  :: PromotionFlag -> SDoc
-pprPromotionQuoteI NotPromoted = empty
+pprPromotionQuoteI NotPromoted = mempty
 pprPromotionQuoteI IsPromoted    = char '\''
 
 instance Outputable IfaceCoercion where
@@ -1754,7 +1754,7 @@ instance Binary IfaceAppArgs where
 -- use 'funPrec' to decide whether to parenthesise a singleton
 -- predicate; e.g.   Num a => a -> a
 pprIfaceContextArr :: [IfacePredType] -> SDoc
-pprIfaceContextArr []     = empty
+pprIfaceContextArr []     = mempty
 pprIfaceContextArr [pred] = ppr_ty funPrec pred <+> darrow
 pprIfaceContextArr preds  = ppr_parend_preds preds <+> darrow
 

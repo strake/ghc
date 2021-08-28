@@ -152,7 +152,7 @@ gen_Functor_binds :: SrcSpan -> TyCon -> (LHsBinds GhcPs, BagDerivStuff)
 -- See Note [Phantom types with Functor, Foldable, and Traversable]
 gen_Functor_binds loc tycon
   | Phantom <- last (tyConRoles tycon)
-  = (unitBag fmap_bind, emptyBag)
+  = (pure fmap_bind, empty)
   where
     fmap_name = L loc fmap_RDR
     fmap_bind = mkRdrFunBind fmap_name fmap_eqns
@@ -162,7 +162,7 @@ gen_Functor_binds loc tycon
     fmap_match_ctxt = mkPrefixFunRhs fmap_name
 
 gen_Functor_binds loc tycon
-  = (listToBag [fmap_bind, replace_bind], emptyBag)
+  = (listToBag [fmap_bind, replace_bind], empty)
   where
     data_cons = tyConDataCons tycon
     fmap_name = L loc fmap_RDR
@@ -788,7 +788,7 @@ gen_Foldable_binds :: SrcSpan -> TyCon -> (LHsBinds GhcPs, BagDerivStuff)
 -- See Note [Phantom types with Functor, Foldable, and Traversable]
 gen_Foldable_binds loc tycon
   | Phantom <- last (tyConRoles tycon)
-  = (unitBag foldMap_bind, emptyBag)
+  = (pure foldMap_bind, empty)
   where
     foldMap_name = L loc foldMap_RDR
     foldMap_bind = mkRdrFunBind foldMap_name foldMap_eqns
@@ -800,10 +800,10 @@ gen_Foldable_binds loc tycon
 gen_Foldable_binds loc tycon
   | null data_cons  -- There's no real point producing anything but
                     -- foldMap for a type with no constructors.
-  = (unitBag foldMap_bind, emptyBag)
+  = (pure foldMap_bind, empty)
 
   | otherwise
-  = (listToBag [foldr_bind, foldMap_bind, null_bind], emptyBag)
+  = (listToBag [foldr_bind, foldMap_bind, null_bind], empty)
   where
     data_cons = tyConDataCons tycon
 
@@ -1017,7 +1017,7 @@ gen_Traversable_binds :: SrcSpan -> TyCon -> (LHsBinds GhcPs, BagDerivStuff)
 -- See Note [Phantom types with Functor, Foldable, and Traversable]
 gen_Traversable_binds loc tycon
   | Phantom <- last (tyConRoles tycon)
-  = (unitBag traverse_bind, emptyBag)
+  = (pure traverse_bind, empty)
   where
     traverse_name = L loc traverse_RDR
     traverse_bind = mkRdrFunBind traverse_name traverse_eqns
@@ -1028,7 +1028,7 @@ gen_Traversable_binds loc tycon
     traverse_match_ctxt = mkPrefixFunRhs traverse_name
 
 gen_Traversable_binds loc tycon
-  = (unitBag traverse_bind, emptyBag)
+  = (pure traverse_bind, empty)
   where
     data_cons = tyConDataCons tycon
 

@@ -15,6 +15,7 @@ module GHC.Prelude (module GHC.Prelude, module X) where
 -- through GHC's code-base.
 
 import Prelude as X hiding (filter, unzip, unzip3, unzip4, unzip5)
+import Control.Applicative as X (Alternative (..))
 import Control.Monad as X (guard)
 import Data.Bool as X (bool)
 import Data.Filtrable as X
@@ -27,7 +28,7 @@ import Data.Traversable as X (for, mapAccumL)
 import Lens.Micro (_1, _2, _3)
 import Lens.Micro as X (Lens, Lens', over, set)
 import Lens.Micro.Extras (view)
-import Util as X ((<₪>), (&))
+import Util as X ((<₪>), (&), altMap)
 
 {-
 Note [Why do we import Prelude here?]

@@ -272,7 +272,7 @@ See #2766.
 pprDataCons :: TyCon -> SDoc
 pprDataCons = sepWithVBars . fmap pprDataConWithArgs . tyConDataCons
   where
-    sepWithVBars [] = empty
+    sepWithVBars [] = mempty
     sepWithVBars docs = sep (punctuate (space <> vbar) docs)
 
 pprDataConWithArgs :: DataCon -> SDoc

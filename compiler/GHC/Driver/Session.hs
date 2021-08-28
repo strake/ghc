@@ -1434,7 +1434,7 @@ defaultLogAction dflags reason severity srcSpan msg
         caretDiagnostic <-
             if gopt Opt_DiagnosticsShowCaret dflags
             then getCaretDiagnostic severity srcSpan
-            else pure empty
+            else pure mempty
         printErrs $ getPprStyle $ \style ->
           withPprStyle (setStyleColoured True style)
             (message $+$ caretDiagnostic)

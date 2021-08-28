@@ -135,7 +135,7 @@ normaliseFfiType' env ty0 = go initRecTc ty0
                   , mkForAllTys bndrs nty1, gres1 )
 
       | otherwise -- see Note [Don't recur in normaliseFfiType']
-      = return (mkRepReflCo ty, ty, emptyBag)
+      = return (mkRepReflCo ty, ty, empty)
 
     go_tc_app :: RecTcChecker -> TyCon -> [Type]
               -> TcM (Coercion, Type, Bag GlobalRdrElt)
@@ -179,12 +179,12 @@ normaliseFfiType' env ty0 = go initRecTc ty0
                      cos' = zipWith3 downgradeRole (tyConRoles tc)
                                      (repeat Representational) cos
                  return ( mkTyConAppCo Representational tc cos'
-                        , mkTyConApp tc tys', unionManyBags gres)
+                        , mkTyConApp tc tys', asum gres)
           nt_co  = mkUnbranchedAxInstCo Representational (newTyConCo tc) tys []
           nt_rhs = newTyConInstRhs tc tys
 
           ty      = mkTyConApp tc tys
-          nothing = return (mkRepReflCo ty, ty, emptyBag)
+          nothing = return (mkRepReflCo ty, ty, empty)
 
 checkNewtypeFFI :: GlobalRdrEnv -> TyCon -> Maybe GlobalRdrElt
 checkNewtypeFFI rdr_env tc
@@ -237,7 +237,7 @@ tcForeignImports' :: [LForeignDecl GhcRn]
 tcForeignImports' decls
   = do { (ids, decls, gres) <- mapAndUnzip3M tcFImport $
                                filter isForeignImport decls
-       ; return (ids, decls, unionManyBags gres) }
+       ; return (ids, decls, asum gres) }
 
 tcFImport :: LForeignDecl GhcRn
           -> TcM (Id, LForeignDecl GhcTc, Bag GlobalRdrElt)
@@ -274,7 +274,7 @@ tcCheckFIType arg_tys res_ty (CImport (L lc cconv) safety mh l@(CLabel _) src)
   = do checkCg checkCOrAsmOrLlvmOrInterp
        -- NB check res_ty not sig_ty!
        --    In case sig_ty is (forall a. ForeignPtr a)
-       check (isFFILabelTy (mkVisFunTys arg_tys res_ty)) (illegalForeignTyErr Outputable.empty)
+       check (isFFILabelTy (mkVisFunTys arg_tys res_ty)) (illegalForeignTyErr mempty)
        cconv' <- checkCConv cconv
        return (CImport (L lc cconv') safety mh l src)
 
@@ -291,7 +291,7 @@ tcCheckFIType arg_tys res_ty (CImport (L lc cconv) safety mh CWrapper src) = do
                         checkForeignRes mustBeIO checkSafe (isFFIDynTy arg1_ty) res_ty
                   where
                      (arg1_tys, res1_ty) = tcSplitFunTys arg1_ty
-        _ -> addErrTc (illegalForeignTyErr Outputable.empty (text "One argument expected"))
+        _ -> addErrTc (illegalForeignTyErr mempty (text "One argument expected"))
     return (CImport (L lc cconv') safety mh CWrapper src)
 
 tcCheckFIType arg_tys res_ty idecl@(CImport (L lc cconv) (L ls safety) mh
@@ -301,7 +301,7 @@ tcCheckFIType arg_tys res_ty idecl@(CImport (L lc cconv) (L ls safety) mh
       cconv' <- checkCConv cconv
       case arg_tys of           -- The first arg must be Ptr or FunPtr
         []                ->
-          addErrTc (illegalForeignTyErr Outputable.empty (text "At least one argument expected"))
+          addErrTc (illegalForeignTyErr mempty (text "At least one argument expected"))
         (arg1_ty:arg_tys) -> do
           dflags <- getDynFlags
           let curried_res_ty = mkVisFunTys arg_tys res_ty
@@ -376,11 +376,11 @@ tcForeignExports' :: [LForeignDecl GhcRn]
 -- For the (Bag GlobalRdrElt) result,
 -- see Note [Newtype constructor usage in foreign declarations]
 tcForeignExports' decls
-  = foldlM combine (emptyLHsBinds, [], emptyBag) (filter isForeignExport decls)
+  = foldlM combine (emptyLHsBinds, [], empty) (filter isForeignExport decls)
   where
    combine (binds, fs, gres1) (L loc fe) = do
        (b, f, gres2) <- setSrcSpan loc (tcFExport fe)
-       return (b `consBag` binds, L loc f : fs, gres1 `unionBags` gres2)
+       return (b `consBag` binds, L loc f : fs, gres1 <|> gres2)
 
 tcFExport :: ForeignDecl GhcRn
           -> TcM (LHsBind GhcTc, ForeignDecl GhcTc, Bag GlobalRdrElt)
@@ -473,7 +473,7 @@ checkForeignRes non_io_result_ok check_safe pred_res_ty ty
 
            -- handle safe infer fail
            _ | check_safe && safeInferOn dflags
-               -> recordUnsafeInfer emptyBag
+               -> recordUnsafeInfer empty
 
            -- handle safe language typecheck fail
            _ | check_safe && safeLanguageOn dflags

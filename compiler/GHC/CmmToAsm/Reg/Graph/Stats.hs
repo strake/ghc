@@ -138,11 +138,10 @@ instance (OutputableP Platform statics, OutputableP Platform instr)
         $$ pdoc (raPlatform s) (raCode s)
         $$ text ""
 
-        $$ (if (not $ isNullUFM $ raCoalesced s)
-                then    text "#  Registers coalesced."
+        $$ (munless (isNullUFM $ raCoalesced s) $
+                        text "#  Registers coalesced."
                         $$ pprUFMWithKeys (raCoalesced s) (vcat . map ppr)
-                        $$ text ""
-                else empty)
+                        $$ text "")
 
         $$ text "#  Spills inserted."
         $$ ppr (raSpillStats s)
@@ -168,11 +167,10 @@ instance (OutputableP Platform statics, OutputableP Platform instr)
                 (raGraphColored s)
         $$ text ""
 
-        $$ (if (not $ isNullUFM $ raCoalesced s)
-                then    text "#  Registers coalesced."
+        $$ (munless (isNullUFM $ raCoalesced s) $
+                        text "#  Registers coalesced."
                         $$ pprUFMWithKeys (raCoalesced s) (vcat . map ppr)
-                        $$ text ""
-                else empty)
+                        $$ text "")
 
         $$ text "#  Native code after coalescings applied."
         $$ pdoc (raPlatform s) (raCodeCoalesced s)

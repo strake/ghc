@@ -245,7 +245,7 @@ instance Outputable instr
 
          where  pprRegs :: SDoc -> RegSet -> SDoc
                 pprRegs name regs
-                 | isEmptyUniqSet regs  = empty
+                 | isEmptyUniqSet regs  = mempty
                  | otherwise            = name <>
                      (pprUFM (getUniqSet regs) (hcat . punctuate space . map ppr))
 
@@ -329,7 +329,7 @@ slurpConflicts
         -> (Bag (UniqSet Reg), Bag (Reg, Reg))
 
 slurpConflicts live
-        = slurpCmm (emptyBag, emptyBag) live
+        = slurpCmm (empty, empty) live
 
  where  slurpCmm   rs  CmmData{}                = rs
         slurpCmm   rs (CmmProc info _ _ sccs)
@@ -404,7 +404,7 @@ slurpReloadCoalesce
         -> Bag (Reg, Reg)
 
 slurpReloadCoalesce live
-        = slurpCmm emptyBag live
+        = slurpCmm empty live
 
  where
         slurpCmm :: Bag (Reg, Reg)
@@ -419,7 +419,7 @@ slurpReloadCoalesce live
                      -> Bag (Reg, Reg)
         slurpComp  cs blocks
          = let  (moveBags, _)   = runState (slurpCompM blocks) emptyUFM
-           in   unionManyBags (cs : moveBags)
+           in   asum (cs : moveBags)
 
         slurpCompM :: [LiveBasicBlock instr]
                    -> State (UniqFM BlockId [UniqFM Slot Reg]) [Bag (Reg, Reg)]

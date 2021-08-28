@@ -75,7 +75,6 @@ import GHC.Prelude
 import qualified GHC.Data.Strict as Strict
 
 -- base
-import Control.Applicative
 import Control.Monad
 import Data.Bits
 import Data.Char

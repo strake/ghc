@@ -22,7 +22,6 @@ import Data.Bits
 import qualified Data.List as List
 import Data.Word
 import qualified Data.Map as M
-import GHC.Utils.Outputable
 import GHC.Utils.Panic
 import qualified GHC.Data.TrieMap as TM
 import GHC.Types.Unique
@@ -110,7 +109,7 @@ mergeBlocks subst existing new = go new
         Nothing -> second (b:) $ go bs
 
 mergeBlockList :: Subst -> [DistinctBlocks] -> (Subst, DistinctBlocks)
-mergeBlockList _ [] = pprPanic "mergeBlockList" empty
+mergeBlockList _ [] = pprPanic "mergeBlockList" mempty
 mergeBlockList subst (b:bs) = go mapEmpty b bs
   where
     go !new_subst1 b [] = (new_subst1, b)

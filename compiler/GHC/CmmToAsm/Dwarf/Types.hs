@@ -178,9 +178,7 @@ pprDwarfInfoOpen platform haveSrc (DwarfCompileUnit _ name producer compDir lowL
   $$ pprString compDir
   $$ pprWord platform (pdoc platform lowLabel)
   $$ pprWord platform (pdoc platform highLabel)
-  $$ if haveSrc
-     then sectionOffset platform (ptext lineLbl) (ptext dwarfLineLabel)
-     else empty
+  $$ mwhen haveSrc (sectionOffset platform (ptext lineLbl) (ptext dwarfLineLabel))
 pprDwarfInfoOpen platform _ (DwarfSubprogram _ name label parent) =
   pdoc platform (mkAsmTempDieLabel label) <> colon
   $$ pprAbbrev abbrev
@@ -195,7 +193,7 @@ pprDwarfInfoOpen platform _ (DwarfSubprogram _ name label parent) =
   where
     abbrev = case parent of Nothing -> DwAbbrSubprogram
                             Just _  -> DwAbbrSubprogramWithParent
-    parentValue = maybe empty pprParentDie parent
+    parentValue = foldMap pprParentDie parent
     pprParentDie sym = sectionOffset platform (pdoc platform sym) (ptext dwarfInfoLabel)
 pprDwarfInfoOpen platform _ (DwarfBlock _ label Nothing) =
   pdoc platform (mkAsmTempDieLabel label) <> colon
@@ -310,7 +308,7 @@ pprDwarfFrame platform DwarfFrame{dwCieLabel=cieLabel,dwCieInit=cieInit,dwCiePro
         preserveSp = case platformArch platform of
           ArchX86    -> pprByte dW_CFA_same_value $$ pprLEBWord 4
           ArchX86_64 -> pprByte dW_CFA_same_value $$ pprLEBWord 7
-          _          -> empty
+          _          -> mempty
     in vcat [ pdoc platform cieLabel <> colon
             , pprData4' length -- Length of CIE
             , pdoc platform cieStartLabel <> colon
@@ -353,7 +351,7 @@ pprFrameProc platform frameLbl initUw (DwarfFrameProc procLbl hasInfo blocks)
   = let fdeLabel    = mkAsmTempDerivedLabel procLbl (fsLit "_fde")
         fdeEndLabel = mkAsmTempDerivedLabel procLbl (fsLit "_fde_end")
         procEnd     = mkAsmTempEndLabel procLbl
-        ifInfo str  = if hasInfo then text str else empty
+        ifInfo str  = hasInfo `mwhen` text str
                       -- see [Note: Info Offset]
     in vcat [ whenPprDebug $ text "# Unwinding for" <+> pdoc platform procLbl <> colon
             , pprData4' (pdoc platform fdeEndLabel <> char '-' <> pdoc platform fdeLabel)
@@ -395,11 +393,10 @@ pprFrameBlock platform (DwarfFrameBlock hasInfo uws0) =
             changed = Map.toList $ Map.mapMaybeWithKey isChanged uws
 
         in if oldUws == uws
-             then (empty, oldUws)
+             then (mempty, oldUws)
              else let -- see [Note: Info Offset]
                       needsOffset = firstDecl && hasInfo
-                      lblDoc = pdoc platform lbl <>
-                               if needsOffset then text "-1" else empty
+                      lblDoc = pdoc platform lbl <> mwhen needsOffset (text "-1")
                       doc = pprByte dW_CFA_set_loc $$ pprWord platform lblDoc $$
                             vcat (map (uncurry $ pprSetUnwind platform) changed)
                   in (doc, uws)

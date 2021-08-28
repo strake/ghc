@@ -205,7 +205,7 @@ pprBooleanFormula' :: (Rational -> a -> SDoc)
 pprBooleanFormula' pprVar pprAnd pprOr = go
   where
   go p (Var x)  = pprVar p x
-  go p (And []) = cparen (p > 0) $ empty
+  go p (And []) = cparen (p > 0) $ mempty
   go p (And xs) = pprAnd p (map (go 3 . unLoc) xs)
   go _ (Or  []) = keyword $ text "FALSE"
   go p (Or  xs) = pprOr p (map (go 2 . unLoc) xs)
@@ -224,7 +224,7 @@ pprBooleanFormulaNice = pprBooleanFormula' pprVar pprAnd pprOr 0
   where
   pprVar _ = quotes . ppr
   pprAnd p = cparen (p > 1) . pprAnd'
-  pprAnd' [] = empty
+  pprAnd' [] = mempty
   pprAnd' [x,y] = x <+> text "and" <+> y
   pprAnd' xs@(_:_) = fsep (punctuate comma (init xs)) <> text ", and" <+> last xs
   pprOr p xs = cparen (p > 1) $ text "either" <+> sep (intersperse (text "or") xs)

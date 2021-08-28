@@ -387,7 +387,7 @@ mkFlatSwitchPlan :: Bool -> Maybe Label -> (Integer, Integer) -> [M.Map Integer 
 
 -- If we have no default (i.e. undefined where there is no entry), we can
 -- branch at the minimum of each map
-mkFlatSwitchPlan _ Nothing _ [] = pprPanic "mkFlatSwitchPlan with nothing left to do" empty
+mkFlatSwitchPlan _ Nothing _ [] = pprPanic "mkFlatSwitchPlan with nothing left to do" mempty
 mkFlatSwitchPlan signed  Nothing _ (m:ms)
   = (mkLeafPlan signed Nothing m , [ (fst (M.findMin m'), mkLeafPlan signed Nothing m') | m' <- ms ])
 

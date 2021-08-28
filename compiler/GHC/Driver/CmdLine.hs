@@ -127,7 +127,7 @@ instance Monad m => Monad (EwM m) where
                                       unEwM (k r) l e' w')
 
 runEwM :: EwM m a -> m (Errs, Warns, a)
-runEwM action = unEwM action (panic "processArgs: no arg yet") emptyBag emptyBag
+runEwM action = unEwM action (panic "processArgs: no arg yet") empty empty
 
 setArg :: Located String -> EwM m () -> EwM m ()
 setArg l (EwM f) = EwM (\_ es ws -> f l es ws)

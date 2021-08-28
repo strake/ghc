@@ -370,7 +370,7 @@ instance (OutputableBndrId p) => Outputable (HsGroup (GhcPass p)) where
                    hs_fords  = foreign_decls,
                    hs_defds  = default_decls,
                    hs_ruleds = rule_decls })
-        = vcat_mb empty
+        = vcat_mb mempty
             [ppr_ds fix_decls, ppr_ds default_decls,
              ppr_ds deprec_decls, ppr_ds ann_decls,
              ppr_ds rule_decls,
@@ -390,7 +390,7 @@ instance (OutputableBndrId p) => Outputable (HsGroup (GhcPass p)) where
 
           vcat_mb :: SDoc -> [Maybe SDoc] -> SDoc
           -- Concatenate vertically with white-space between non-blanks
-          vcat_mb _    []             = empty
+          vcat_mb _    []             = mempty
           vcat_mb gap (Nothing : ds) = vcat_mb gap ds
           vcat_mb gap (Just d  : ds) = gap $$ d $$ vcat_mb blankLine ds
 
@@ -1196,23 +1196,23 @@ pprFamilyDecl top_level (FamilyDecl { fdInfo = info, fdLName = ltycon
   where
     pp_top_level = case top_level of
                      TopLevel    -> text "family"
-                     NotTopLevel -> empty
+                     NotTopLevel -> mempty
 
     pp_kind = case result of
-                NoSig    _         -> empty
+                NoSig    _         -> mempty
                 KindSig  _ kind    -> dcolon <+> ppr kind
                 TyVarSig _ tv_bndr -> text "=" <+> ppr tv_bndr
     pp_inj = case mb_inj of
                Just (L _ (InjectivityAnn lhs rhs)) ->
                  hsep [ vbar, ppr lhs, text "->", hsep (map ppr rhs) ]
-               Nothing -> empty
+               Nothing -> mempty
     (pp_where, pp_eqns) = case info of
       ClosedTypeFamily mb_eqns ->
         ( text "where"
         , case mb_eqns of
             Nothing   -> text ".."
             Just eqns -> vcat $ map (ppr_fam_inst_eqn . unLoc) eqns )
-      _ -> (empty, empty)
+      _ -> (mempty, mempty)
 
 pprFlavour :: FamilyInfo pass -> SDoc
 pprFlavour DataFamily            = text "data"
@@ -1329,8 +1329,8 @@ instance OutputableBndrId p
         -- so we must special-case it.
         (pp_strat_before, pp_strat_after) =
           case dcs of
-            Just (L _ via@ViaStrategy{}) -> (empty, ppr via)
-            _                            -> (ppDerivStrategy dcs, empty)
+            Just (L _ via@ViaStrategy{}) -> (mempty, ppr via)
+            _                            -> (ppDerivStrategy dcs, mempty)
 
 -- | Located Standalone Kind Signature
 type LStandaloneKindSig pass = Located (StandaloneKindSig pass)
@@ -1612,11 +1612,9 @@ pp_data_defn pp_hdr (HsDataDefn { dd_ND = new_or_data, dd_ctxt = context
   = hang (ppr new_or_data <+> pp_ct  <+> pp_hdr context <+> pp_sig)
        2 (pp_condecls condecls $$ pp_derivings derivings)
   where
-    pp_ct = case mb_ct of
-               Nothing   -> empty
-               Just ct -> ppr ct
+    pp_ct = foldMap ppr mb_ct
     pp_sig = case mb_sig of
-               Nothing   -> empty
+               Nothing   -> mempty
                Just kind -> dcolon <+> ppr kind
     pp_derivings (L _ ds) = vcat (map ppr ds)
 
@@ -1685,7 +1683,7 @@ pprConDecl (ConDeclGADT { con_names = cons, con_qvars = qvars
     cxt = fromMaybe noLHsContext mcxt
 
     ppr_arrow_chain (a:as) = sep (a : map (arrow <+>) as)
-    ppr_arrow_chain []     = empty
+    ppr_arrow_chain []     = mempty
 
 pprConDecl (XConDecl x) =
   case ghcPass @p of
@@ -1919,7 +1917,7 @@ pprTyFamInstDecl top_lvl (TyFamInstDecl { tfid_eqn = eqn })
 
 ppr_instance_keyword :: TopLevelFlag -> SDoc
 ppr_instance_keyword TopLevel    = text "instance"
-ppr_instance_keyword NotTopLevel = empty
+ppr_instance_keyword NotTopLevel = mempty
 
 pprTyFamDefltDecl :: (OutputableBndrId p)
                   => TyFamDefltDecl (GhcPass p) -> SDoc
@@ -2004,7 +2002,7 @@ ppDerivStrategy = foldMap (ppr . unLoc)
 
 ppOverlapPragma :: Maybe (Located OverlapMode) -> SDoc
 ppOverlapPragma = \ case
-    Nothing           -> empty
+    Nothing           -> mempty
     Just (L _ (NoOverlap s))    -> maybe_stext s "{-# NO_OVERLAP #-}"
     Just (L _ (Overlappable s)) -> maybe_stext s "{-# OVERLAPPABLE #-}"
     Just (L _ (Overlapping s))  -> maybe_stext s "{-# OVERLAPPING #-}"
@@ -2293,13 +2291,13 @@ instance Outputable ForeignImport where
       <+> pprWithSourceText srcText (pprCEntity spec "")
     where
       pp_hdr = case mHeader of
-               Nothing -> empty
+               Nothing -> mempty
                Just (Header _ header) -> ftext header
 
       pprCEntity (CLabel lbl) _ =
         doubleQuotes $ text "static" <+> pp_hdr <+> char '&' <> ppr lbl
       pprCEntity (CFunction (StaticTarget st _lbl _ isFun)) src =
-        if dqNeeded then doubleQuotes ce else empty
+        mwhen dqNeeded (doubleQuotes ce)
           where
             dqNeeded = (take 6 src == "static")
                     || isJust mHeader
@@ -2307,10 +2305,10 @@ instance Outputable ForeignImport where
                     || st /= NoSourceText
             ce =
                   -- We may need to drop leading spaces first
-                  (if take 6 src == "static" then text "static" else empty)
+                  (mwhen (take 6 src == "static") $ text "static")
               <+> pp_hdr
-              <+> (if isFun then empty else text "value")
-              <+> (pprWithSourceText st empty)
+              <+> munless isFun (text "value")
+              <+> pprWithSourceText st mempty
       pprCEntity (CFunction DynamicTarget) _ =
         doubleQuotes $ text "dynamic"
       pprCEntity CWrapper _ = doubleQuotes $ text "wrapper"
@@ -2422,9 +2420,9 @@ instance (OutputableBndrId p) => Outputable (RuleDecl (GhcPass p)) where
                                         <+> pprExpr (unLoc lhs)),
                nest 6 (equals <+> pprExpr (unLoc rhs)) ]
         where
-          pp_forall_ty Nothing     = empty
+          pp_forall_ty Nothing     = mempty
           pp_forall_ty (Just qtvs) = forAllLit <+> fsep (map ppr qtvs) <> dot
-          pp_forall_tm Nothing | null tms = empty
+          pp_forall_tm Nothing | null tms = mempty
           pp_forall_tm _ = forAllLit <+> fsep (map ppr tms) <> dot
 
 instance (OutputableBndrId p) => Outputable (RuleBndr (GhcPass p)) where

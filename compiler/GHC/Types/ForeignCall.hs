@@ -181,8 +181,8 @@ calling convention (used by PprAbsC):
 
 ccallConvAttribute :: CCallConv -> SDoc
 ccallConvAttribute StdCallConv       = text "__attribute__((__stdcall__))"
-ccallConvAttribute CCallConv         = empty
-ccallConvAttribute CApiConv          = empty
+ccallConvAttribute CCallConv         = mempty
+ccallConvAttribute CApiConv          = mempty
 ccallConvAttribute (PrimCallConv {}) = panic "ccallConvAttribute PrimCallConv"
 ccallConvAttribute JavaScriptCallConv = panic "ccallConvAttribute JavaScriptCallConv"
 
@@ -211,16 +211,14 @@ instance Outputable CCallSpec where
       callconv = text "{-" <> ppr cconv <> text "-}"
 
       gc_suf | playSafe safety = text "_GC"
-             | otherwise       = empty
+             | otherwise       = mempty
 
       ppr_fun (StaticTarget st _fn mPkgId isFun)
         = text (if isFun then "__pkg_ccall"
                          else "__pkg_ccall_value")
        <> gc_suf
-       <+> (case mPkgId of
-            Nothing -> empty
-            Just pkgId -> ppr pkgId)
-       <+> (pprWithSourceText st empty)
+       <+> foldMap ppr mPkgId
+       <+> pprWithSourceText st mempty
 
       ppr_fun DynamicTarget
         = text "__dyn_ccall" <> gc_suf <+> text "\"\""
@@ -249,9 +247,7 @@ instance Outputable CType where
     ppr (CType stp mh (stct,ct))
       = pprWithSourceText stp (text "{-# CTYPE") <+> hDoc
         <+> pprWithSourceText stct (doubleQuotes (ftext ct)) <+> text "#-}"
-        where hDoc = case mh of
-                     Nothing -> empty
-                     Just h -> ppr h
+        where hDoc = foldMap ppr mh
 
 {-
 ************************************************************************

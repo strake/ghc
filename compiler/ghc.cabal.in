@@ -76,7 +76,7 @@ Library
                    ftl        >= 0.1 && < 0.2,
                    hs-functors >= 0.2 && < 0.3,
                    microlens  == 0.4.12.*,
-                   util       >= 0.1.18.1 && < 0.2,
+                   util       >= 0.1.19 && < 0.2,
                    ghc-boot   == @ProjectVersionMunged@,
                    ghc-boot-th == @ProjectVersionMunged@,
                    ghc-heap   == @ProjectVersionMunged@,

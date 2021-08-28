@@ -198,7 +198,7 @@ tcRnModule hsc_env mod_sum save_rn_syntax
           tcRnModuleTcRnM hsc_env mod_sum parsedModule pair
 
   | otherwise
-  = return ((emptyBag, unitBag err_msg), Nothing)
+  = return ((empty, pure err_msg), Nothing)
 
   where
     hsc_src = ms_hsc_src mod_sum
@@ -284,17 +284,17 @@ tcRnModuleTcRnM hsc_env mod_sum
               }
         ; setGblEnv tcg_env1
           $ do { -- Rename and type check the declarations
-                 traceRn "rn1a" empty
+                 traceRn "rn1a" mempty
                ; tcg_env <- if isHsBootOrSig hsc_src
                             then tcRnHsBootDecls hsc_src local_decls
                             else {-# SCC "tcRnSrcDecls" #-}
                                  tcRnSrcDecls explicit_mod_hdr local_decls export_ies
                ; setGblEnv tcg_env
                  $ do { -- Process the export list
-                        traceRn "rn4a: before exports" empty
+                        traceRn "rn4a: before exports" mempty
                       ; tcg_env <- tcRnExports explicit_mod_hdr export_ies
                                      tcg_env
-                      ; traceRn "rn4b: after exports" empty
+                      ; traceRn "rn4b: after exports" mempty
                       ; -- Compare hi-boot iface (if any) with the real thing;
                         -- Must be done after processing the exports.
                         -- Don't need to rename the Haddock documentation;
@@ -392,12 +392,12 @@ tcRnImports hsc_env import_decls
 
                 -- Check type-family consistency between imports.
                 -- See Note [The type family instance consistency story]
-        ; traceRn "rn1: checking family instance consistency {" empty
+        ; traceRn "rn1: checking family instance consistency {" mempty
         ; let { dir_imp_mods = moduleEnvKeys
                              . imp_mods
                              $ imports }
         ; checkFamInstConsistency dir_imp_mods
-        ; traceRn "rn1: } checking family instance consistency" empty
+        ; traceRn "rn1: } checking family instance consistency" mempty
 
         ; getGblEnv } }
 
@@ -442,12 +442,12 @@ tcRnSrcDecls explicit_mod_hdr decls export_ies
       ; tcg_env <- mkTypeableBinds
 
 
-      ; traceTc "Tc9" empty
+      ; traceTc "Tc9" mempty
 
       ; failIfErrsM     -- Don't zonk if there have been errors
                         -- It's a waste of time; and we may get debug warnings
                         -- about strangely-typed TyCons!
-      ; traceTc "Tc10" empty
+      ; traceTc "Tc10" mempty
 
         -- Zonk the final code.  This must be done last.
         -- Even simplifyTop may do some unification.
@@ -462,20 +462,20 @@ tcRnSrcDecls explicit_mod_hdr decls export_ies
       ; (tcg_env_mf, _) <- setGblEnv (clearTcGblEnv tcg_env)
                                      run_th_modfinalizers
       ; finishTH
-      ; traceTc "Tc11" empty
+      ; traceTc "Tc11" mempty
 
       ; -- zonk the new bindings arising from running the finalisers.
         -- This won't give rise to any more finalisers as you can't nest
         -- finalisers inside finalisers.
       ; (bind_env_mf, ev_binds_mf, binds_mf, fords_mf, imp_specs_mf, rules_mf)
-            <- zonkTcGblEnv emptyBag tcg_env_mf
+            <- zonkTcGblEnv empty tcg_env_mf
 
 
       ; let { final_type_env = plusTypeEnv (tcg_type_env tcg_env)
                                 (plusTypeEnv bind_env_mf bind_env)
             ; tcg_env' = tcg_env_mf
-                          { tcg_binds    = binds' `unionBags` binds_mf,
-                            tcg_ev_binds = ev_binds' `unionBags` ev_binds_mf ,
+                          { tcg_binds    = binds' <|> binds_mf,
+                            tcg_ev_binds = ev_binds' <|> ev_binds_mf ,
                             tcg_imp_specs = imp_specs' ++ imp_specs_mf ,
                             tcg_rules    = rules' ++ rules_mf ,
                             tcg_fords    = fords' ++ fords_mf } } ;
@@ -494,7 +494,7 @@ zonkTcGblEnv new_ev_binds tcg_env =
                    tcg_rules     = rules,
                    tcg_fords     = fords } = tcg_env
 
-      all_ev_binds = cur_ev_binds `unionBags` new_ev_binds
+      all_ev_binds = cur_ev_binds <|> new_ev_binds
 
   in {-# SCC "zonkTopDecls" #-}
       zonkTopDecls all_ev_binds binds rules imp_specs fords
@@ -503,8 +503,8 @@ zonkTcGblEnv new_ev_binds tcg_env =
 -- | Remove accumulated bindings, rules and so on from TcGblEnv
 clearTcGblEnv :: TcGblEnv -> TcGblEnv
 clearTcGblEnv tcg_env
-  = tcg_env { tcg_binds    = emptyBag,
-              tcg_ev_binds = emptyBag ,
+  = tcg_env { tcg_binds    = empty,
+              tcg_ev_binds = empty,
               tcg_imp_specs = [],
               tcg_rules    = [],
               tcg_fords    = [] }
@@ -651,7 +651,7 @@ tcRnHsBootDecls hsc_src decls
         ; traverse_ (badBootDecl hsc_src "rule")    rule_decls
 
                 -- Typecheck type/class/instance decls
-        ; traceTc "Tc2 (boot)" empty
+        ; traceTc "Tc2 (boot)" mempty
         ; (tcg_env, inst_infos, _deriv_binds)
              <- tcTyClsInstDecls tycl_decls deriv_decls val_binds
         ; setGblEnv tcg_env     $ do {
@@ -661,12 +661,12 @@ tcRnHsBootDecls hsc_src decls
         ; setGblEnv tcg_env $ do {
 
                 -- Typecheck value declarations
-        ; traceTc "Tc5" empty
+        ; traceTc "Tc5" mempty
         ; val_ids <- tcHsBootSigs val_binds val_sigs
 
                 -- Wrap up
                 -- No simplification or zonking to do
-        ; traceTc "Tc7a" empty
+        ; traceTc "Tc7a" mempty
         ; gbl_env <- getGblEnv
 
                 -- Make the final type-env
@@ -726,7 +726,7 @@ checkHiBootIface tcg_env boot_info
               dfun_binds = listToBag [ mkVarBind boot_dfun (nlHsVar dfun)
                                      | (boot_dfun, dfun) <- dfun_prs ]
               tcg_env_w_binds
-                = tcg_env { tcg_binds = binds `unionBags` dfun_binds }
+                = tcg_env { tcg_binds = binds <|> dfun_binds }
 
         ; type_env' `seq`
              -- Why the seq?  Without, we will put a TypeEnv thunk in
@@ -924,8 +924,7 @@ checkBootDeclM is_boot boot_thing real_thing
 
 -- | Compares the two things for equivalence between boot-file and normal
 -- code. Returns @Nothing@ on success or @Just "some helpful info for user"@
--- failure. If the difference will be apparent to the user, @Just empty@ is
--- perfectly suitable.
+-- failure. If the difference will be apparent to the user, @Just mempty@ is perfectly suitable.
 checkBootDecl :: Bool -> TyThing -> TyThing -> Maybe SDoc
 
 checkBootDecl _ (AnId id1) (AnId id2)
@@ -939,7 +938,7 @@ checkBootDecl is_boot (ATyCon tc1) (ATyCon tc2)
 checkBootDecl _ (AConLike (RealDataCon dc1)) (AConLike (RealDataCon _))
   = pprPanic "checkBootDecl" (ppr dc1)
 
-checkBootDecl _ _ _ = Just empty -- probably shouldn't happen
+checkBootDecl _ _ _ = Just mempty -- probably shouldn't happen
 
 -- | Combines two potential error messages
 andThenCheck :: Maybe SDoc -> Maybe SDoc -> Maybe SDoc
@@ -1073,7 +1072,7 @@ checkBootTyCon is_boot tc1 tc2
   , Just env <- eqVarBndrs emptyRnEnv2 (tyConTyVars tc1) (tyConTyVars tc2)
   = assert (tc1 == tc2) $
     checkRoles roles1 roles2 `andThenCheck`
-    check (eqTypeX env syn_rhs1 syn_rhs2) empty   -- nothing interesting to say
+    check (eqTypeX env syn_rhs1 syn_rhs2) mempty   -- nothing interesting to say
   -- This allows abstract 'data T a' to be implemented using 'type T = ...'
   -- and abstract 'class K a' to be implement using 'type K = ...'
   -- See Note [Synonyms implement abstract data]
@@ -1131,7 +1130,7 @@ checkBootTyCon is_boot tc1 tc2
     checkRoles roles1 roles2 `andThenCheck`
     eqAlgRhs tc1 (algTyConRhs tc1) (algTyConRhs tc2)
 
-  | otherwise = Just empty   -- two very different types -- should be obvious
+  | otherwise = Just mempty   -- two very different types -- should be obvious
   where
     roles1 = tyConRoles tc1 -- the abstract one
     roles2 = tyConRoles tc2
@@ -1367,11 +1366,11 @@ rnTopSrcDecls :: HsGroup GhcPs -> TcM (TcGblEnv, HsGroup GhcRn)
 -- Fails if there are any errors
 rnTopSrcDecls group
  = do { -- Rename the source decls
-        traceRn "rn12" empty ;
+        traceRn "rn12" mempty ;
         (tcg_env, rn_decls) <- checkNoErrs $ rnSrcDecls group ;
-        traceRn "rn13" empty ;
+        traceRn "rn13" mempty ;
         (tcg_env, rn_decls) <- runRenamerPlugin tcg_env rn_decls ;
-        traceRn "rn13-plugin" empty ;
+        traceRn "rn13-plugin" mempty ;
 
         -- save the renamed syntax, if we want it
         let { tcg_env'
@@ -1395,30 +1394,30 @@ tcTopSrcDecls (HsGroup { hs_tyclds = tycl_decls,
                                               (NValBinds val_binds val_sigs)) })
  = do {         -- Type-check the type and class decls, and all imported decls
                 -- The latter come in via tycl_decls
-        traceTc "Tc2 (src)" empty ;
+        traceTc "Tc2 (src)" mempty ;
 
                 -- Source-language instances, including derivings,
                 -- and import the supporting declarations
-        traceTc "Tc3" empty ;
+        traceTc "Tc3" mempty ;
         (tcg_env, inst_infos, XValBindsLR (NValBinds deriv_binds deriv_sigs))
             <- tcTyClsInstDecls tycl_decls deriv_decls val_binds ;
 
         setGblEnv tcg_env       $ do {
 
                 -- Generate Applicative/Monad proposal (AMP) warnings
-        traceTc "Tc3b" empty ;
+        traceTc "Tc3b" mempty ;
 
                 -- Generate Semigroup/Monoid warnings
-        traceTc "Tc3c" empty ;
+        traceTc "Tc3c" mempty ;
         tcSemigroupWarnings ;
 
                 -- Foreign import declarations next.
-        traceTc "Tc4" empty ;
+        traceTc "Tc4" mempty ;
         (fi_ids, fi_decls, fi_gres) <- tcForeignImports foreign_decls ;
         tcExtendGlobalValEnv fi_ids     $ do {
 
                 -- Default declarations
-        traceTc "Tc4a" empty ;
+        traceTc "Tc4a" mempty ;
         default_tys <- tcDefaults default_decls ;
         locally (env_gblL . tcg_defaultL) (pure default_tys) do {
 
@@ -1427,7 +1426,7 @@ tcTopSrcDecls (HsGroup { hs_tyclds = tycl_decls,
                 -- before the GHC-generated derived bindings, since the latter
                 -- may be defined in terms of the former. (For instance,
                 -- the bindings produced in a Data instance.)
-        traceTc "Tc5" empty ;
+        traceTc "Tc5" mempty ;
         tc_envs <- tcTopBinds val_binds val_sigs;
         setEnvs tc_envs $ do {
 
@@ -1440,11 +1439,11 @@ tcTopSrcDecls (HsGroup { hs_tyclds = tycl_decls,
 
                 -- Second pass over class and instance declarations,
                 -- now using the kind-checked decls
-        traceTc "Tc6" empty ;
+        traceTc "Tc6" mempty ;
         inst_binds <- tcInstDecls2 (tyClGroupTyClDecls tycl_decls) inst_infos ;
 
                 -- Foreign exports
-        traceTc "Tc7" empty ;
+        traceTc "Tc7" mempty ;
         (foe_binds, foe_decls, foe_gres) <- tcForeignExports foreign_decls ;
 
                 -- Annotations
@@ -1454,11 +1453,11 @@ tcTopSrcDecls (HsGroup { hs_tyclds = tycl_decls,
         rules <- tcRules rule_decls ;
 
                 -- Wrap up
-        traceTc "Tc7a" empty ;
-        let { all_binds = inst_binds     `unionBags`
+        traceTc "Tc7a" mempty ;
+        let { all_binds = inst_binds     <|>
                           foe_binds
 
-            ; fo_gres = fi_gres `unionBags` foe_gres
+            ; fo_gres = fi_gres <|> foe_gres
             ; fo_fvs = foldr (\gre fvs -> fvs `addOneFV` gre_name gre)
                                 emptyFVs fo_gres
 
@@ -1467,7 +1466,7 @@ tcTopSrcDecls (HsGroup { hs_tyclds = tycl_decls,
 
                 -- Extend the GblEnv with the (as yet un-zonked)
                 -- bindings, rules, foreign decls
-            ; tcg_env' = tcg_env { tcg_binds   = tcg_binds tcg_env `unionBags` all_binds
+            ; tcg_env' = tcg_env { tcg_binds   = tcg_binds tcg_env <|> all_binds
                                  , tcg_sigs    = tcg_sigs tcg_env `unionNameSet` sig_names
                                  , tcg_rules   = tcg_rules tcg_env
                                                       ++ flattenRuleDecls rules
@@ -1488,7 +1487,7 @@ tcTopSrcDecls _ = panic "tcTopSrcDecls: ValBindsIn"
 
 tcSemigroupWarnings :: TcM ()
 tcSemigroupWarnings = do
-    traceTc "tcSemigroupWarnings" empty
+    traceTc "tcSemigroupWarnings" mempty
     let warnFlag = Opt_WarnSemigroup
     tcPreludeClashWarn warnFlag sappendName
     tcMissingParentClassWarn warnFlag monoidClassName semigroupClassName
@@ -1508,7 +1507,7 @@ tcPreludeClashWarn :: WarningFlag
 tcPreludeClashWarn warnFlag name = do
     { warn <- woptM warnFlag
     ; when warn $ do
-    { traceTc "tcPreludeClashWarn/wouldBeImported" empty
+    { traceTc "tcPreludeClashWarn/wouldBeImported" mempty
     -- Is the name imported (unqualified) from Prelude? (Point 4 above)
     ; rnImports <- fmap (map unLoc . tcg_rn_imports) getGblEnv
     -- (Note that this automatically handles -XNoImplicitPrelude, as Prelude
@@ -1607,7 +1606,7 @@ tcMissingParentClassWarn :: WarningFlag
 tcMissingParentClassWarn warnFlag isName shouldName
   = do { warn <- woptM warnFlag
        ; when warn $ do
-       { traceTc "tcMissingParentClassWarn" empty
+       { traceTc "tcMissingParentClassWarn" mempty
        ; isClass'     <- tcLookupClass_maybe isName
        ; shouldClass' <- tcLookupClass_maybe shouldName
        ; case (isClass', shouldClass') of
@@ -2078,7 +2077,7 @@ tcRnStmt hsc_env rdr_stmt
         -- cast them all to HValues in the end!
     mapM_ bad_unboxed (filter (isUnliftedType . idType) zonked_ids) ;
 
-    traceTc "tcs 1" empty ;
+    traceTc "tcs 1" mempty ;
     this_mod <- getModule ;
     global_ids <- mapM (externaliseAndTidyId this_mod) zonked_ids ;
         -- Note [Interactively-bound Ids in GHCi] in GHC.Driver.Env
@@ -2175,7 +2174,7 @@ tcUserStmt (L loc (BodyStmt _ expr _ _))
               -- [let it = expr]
               let_stmt  = L loc $ LetStmt noExtField $ noLoc $ HsValBinds noExtField
                            $ XValBindsLR
-                               (NValBinds [(NonRecursive,unitBag the_bind)] [])
+                               (NValBinds [(NonRecursive,pure the_bind)] [])
 
               -- [it <- e]
               bind_stmt = L loc $ BindStmt
@@ -2364,7 +2363,7 @@ tcGhciStmts stmts
             names = collectLStmtsBinders stmts
 
         -- OK, we're ready to typecheck the stmts
-      ; traceTc "GHC.Tc.Module.tcGhciStmts: tc stmts" empty
+      ; traceTc "GHC.Tc.Module.tcGhciStmts: tc stmts" mempty
       ; ((tc_stmts, ids), lie) <- captureTopConstraints $
                                   tc_io_stmts $ \ _ ->
                                   mapM tcLookupId names
@@ -2372,12 +2371,12 @@ tcGhciStmts stmts
                         -- where they will all be in scope
 
         -- Simplify the context
-      ; traceTc "GHC.Tc.Module.tcGhciStmts: simplify ctxt" empty
+      ; traceTc "GHC.Tc.Module.tcGhciStmts: simplify ctxt" mempty
       ; const_binds <- checkNoErrs (simplifyInteractive lie)
                 -- checkNoErrs ensures that the plan fails if context redn fails
 
 
-      ; traceTc "GHC.Tc.Module.tcGhciStmts: done" empty
+      ; traceTc "GHC.Tc.Module.tcGhciStmts: done" mempty
 
       -- rec_expr is the expression
       --      returnIO @ [()] [unsafeCoerce# () x, ..,  unsafeCorece# () z]
@@ -2941,7 +2940,7 @@ ppr_fam_insts = ppr_things "FAMILY INSTANCES" pprFamInst
 
 ppr_things :: String -> (a -> SDoc) -> [a] -> SDoc
 ppr_things herald ppr_one things
-  | null things = empty
+  | null things = mempty
   | otherwise   = text herald $$ nest 2 (vcat (map ppr_one things))
 
 hasTopUserName :: NamedThing x => x -> Bool
@@ -3039,5 +3038,5 @@ mark_plugin_unsafe dflags = unless (gopt Opt_PluginTrustworthy dflags) $
   recordUnsafeInfer pluginUnsafe
   where
     unsafeText = "Use of plugins makes the module unsafe"
-    pluginUnsafe = unitBag ( mkPlainWarnMsg dflags noSrcSpan
+    pluginUnsafe = pure ( mkPlainWarnMsg dflags noSrcSpan
                                    (Outputable.text unsafeText) )

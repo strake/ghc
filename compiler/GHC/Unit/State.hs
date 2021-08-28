@@ -975,7 +975,7 @@ packageFlagErr' :: DynFlags
 packageFlagErr' dflags flag_doc reasons
   = throwGhcExceptionIO (CmdLineError (Driver.Ppr.showSDoc dflags $ err))
   where err = text "cannot satisfy " <> flag_doc <>
-                (if null reasons then Outputable.empty else text ": ") $$
+                munless (null reasons) (text ": ") $$
               nest 4 (ppr_reasons $$
                       text "(use -v for more information)")
         ppr_reasons = vcat (map ppr_reason reasons)
@@ -1881,8 +1881,8 @@ lookupModuleWithSuggestions' pkgs mod_map m mb_pn
     filterOrigin Nothing _ o = o
     filterOrigin (Just pn) pkg o =
       case o of
-          ModHidden -> if go pkg then ModHidden else mempty
-          (ModUnusable _) -> if go pkg then o else mempty
+          ModHidden -> go pkg `mwhen` ModHidden
+          (ModUnusable _) -> go pkg `mwhen` o
           ModOrigin { fromOrigPackage = e, fromExposedReexport = res,
                       fromHiddenReexport = rhs }
             -> ModOrigin {
@@ -1975,7 +1975,7 @@ missingPackageMsg :: Outputable pkgid => pkgid -> SDoc
 missingPackageMsg p = text "unknown package:" <+> ppr p
 
 missingDependencyMsg :: Maybe UnitId -> SDoc
-missingDependencyMsg Nothing = Outputable.empty
+missingDependencyMsg Nothing = mempty
 missingDependencyMsg (Just parent)
   = space <> parens (text "dependency of" <+> ftext (unitIdFS parent))
 

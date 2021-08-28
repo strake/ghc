@@ -10,7 +10,6 @@ module GHC.Types.SourceError
 where
 
 import GHC.Prelude
-import GHC.Data.Bag
 import GHC.Types.Error
 import GHC.Utils.Monad
 import GHC.Utils.Panic
@@ -29,7 +28,7 @@ throwErrors :: MonadIO io => ErrorMessages -> io a
 throwErrors = liftIO . throwIO . mkSrcErr
 
 throwOneError :: MonadIO io => ErrMsg -> io a
-throwOneError = throwErrors . unitBag
+throwOneError = throwErrors . pure
 
 -- | A source error is an error that is caused by one or more errors in the
 -- source code.  A 'SourceError' is thrown by many functions in the

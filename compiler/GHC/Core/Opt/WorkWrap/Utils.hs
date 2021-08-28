@@ -1260,7 +1260,7 @@ mk_absent_let dflags fam_envs arg
     msg          = showSDoc (gopt_set dflags Opt_SuppressUniques)
                             (ppr arg <+> ppr (idType arg) <+> file_msg)
     file_msg     = case outputFile dflags of
-                     Nothing -> empty
+                     Nothing -> mempty
                      Just f  -> text "in output file " <+> quotes (text f)
               -- We need to suppress uniques here because otherwise they'd
               -- end up in the generated code as strings. This is bad for

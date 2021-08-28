@@ -198,7 +198,7 @@ mkModIdBindings
 
        ; tcg_env <- tcExtendGlobalValEnv [mod_id] getGblEnv
        ; return (tcg_env { tcg_tr_module = Just mod_id }
-                 `addTypecheckedBinds` [unitBag mod_bind]) }
+                 `addTypecheckedBinds` [pure mod_bind]) }
 
 mkModIdRHS :: Module -> TcM (LHsExpr GhcTc)
 mkModIdRHS mod
@@ -327,7 +327,7 @@ mkPrimTypeableTodos
                    ; gbl_env <- tcExtendGlobalValEnv [ghc_prim_module_id]
                                                      getGblEnv
                    ; let gbl_env' = gbl_env `addTypecheckedBinds`
-                                    [unitBag ghc_prim_module_bind]
+                                    [pure ghc_prim_module_bind]
 
                      -- Build TypeRepTodos for built-in KindReps
                    ; todo1 <- todoForExportedKindReps builtInKindReps
@@ -413,7 +413,7 @@ mkTyConRepBinds stuff todo (TypeableTyCon {..})
        -- Make the TyCon binding
        let tycon_rep_rhs = mkTyConRepTyConRHS stuff todo tycon kind_rep
            tycon_rep_bind = mkVarBind tycon_rep_id tycon_rep_rhs
-       return $ unitBag tycon_rep_bind
+       return $ pure tycon_rep_bind
 
 -- | Is a particular 'TyCon' representable by @Typeable@?. These exclude type
 -- families and polytypes.

@@ -142,13 +142,11 @@ instance Outputable InstantiatedUnit where
     ppr uid =
       -- getPprStyle $ \sty ->
       ppr cid <>
-        (if not (null insts) -- pprIf
-          then
+        (munless (null insts) $
             brackets (hcat
                 (punctuate comma $
                     [ ppr modname <> text "=" <> pprModule m
-                    | (modname, m) <- insts]))
-          else empty)
+                    | (modname, m) <- insts])))
      where
       cid   = instUnitInstanceOf uid
       insts = instUnitInsts uid
@@ -158,9 +156,8 @@ pprModule mod@(Module p n)  = getPprStyle doc
  where
   doc sty
     | codeStyle sty =
-        (if p == mainUnitId
-                then empty -- never qualify the main package in code
-                else ztext (zEncodeFS (unitFS p)) <> char '_')
+        (munless (p == mainUnitId) $ -- never qualify the main package in code
+         ztext (zEncodeFS (unitFS p)) <> char '_')
             <> pprModuleName n
     | qualModule sty mod =
         case p of

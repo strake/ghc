@@ -474,8 +474,8 @@ pprEdgeWeights m =
         nodes = filter (\n -> (not . setMember n) edgeNodes) . mapKeys $ filter null m
     in
     text "digraph {\n" <>
-        (foldl' (<>) empty (map printEdge edges)) <>
-        (foldl' (<>) empty (map printNode nodes)) <>
+        foldMap' printEdge edges <>
+        foldMap' printNode nodes <>
     text "}\n"
 
 {-# INLINE updateEdgeWeight #-} --Allows eliminating the tuple when possible

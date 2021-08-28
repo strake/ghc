@@ -1498,7 +1498,7 @@ data WhereFrom
 
 instance Outputable WhereFrom where
   ppr (ImportByUser IsBoot)                = text "{- SOURCE -}"
-  ppr (ImportByUser NotBoot)               = empty
+  ppr (ImportByUser NotBoot)               = mempty
   ppr ImportBySystem                       = text "{- SYSTEM -}"
   ppr ImportByPlugin                       = text "{- PLUGIN -}"
 

@@ -66,7 +66,7 @@ import GHC.Utils.Panic
 -- <https://developer.apple.com/library/mac/documentation/DeveloperTools/Reference/Assembler/040-Assembler_Directives/asm_directives.html#//apple_ref/doc/uid/TP30000823-TPXREF101>
 
 pprProcAlignment :: NCGConfig -> SDoc
-pprProcAlignment config = maybe empty (pprAlign platform . mkAlignment) (ncgProcAlignment config)
+pprProcAlignment config = foldMap (pprAlign platform . mkAlignment) (ncgProcAlignment config)
    where
       platform = ncgPlatform config
 
@@ -84,44 +84,39 @@ pprNatCmmDecl config proc@(CmmProc top_info lbl _ (ListGraph blocks)) =
         pprProcAlignment config $$
         pprLabel platform lbl $$ -- blocks guaranteed not null, so label needed
         vcat (map (pprBasicBlock config top_info) blocks) $$
-        (if ncgDebugLevel config > 0
-         then pdoc platform (mkAsmTempEndLabel lbl) <> char ':' else empty) $$
+        (mwhen (ncgDebugLevel config > 0) $
+         pdoc platform (mkAsmTempEndLabel lbl) <> char ':') $$
         pprSizeDecl platform lbl
 
     Just (CmmStaticsRaw info_lbl _) ->
       pprSectionAlign config (Section Text info_lbl) $$
       pprProcAlignment config $$
-      (if platformHasSubsectionsViaSymbols platform
-          then pdoc platform (mkDeadStripPreventer info_lbl) <> char ':'
-          else empty) $$
+      (mwhen (platformHasSubsectionsViaSymbols platform) $
+       pdoc platform (mkDeadStripPreventer info_lbl) <> char ':') $$
       vcat (map (pprBasicBlock config top_info) blocks) $$
       -- above: Even the first block gets a label, because with branch-chain
       -- elimination, it might be the target of a goto.
-      (if platformHasSubsectionsViaSymbols platform
-       then -- See Note [Subsections Via Symbols]
+      (mwhen (platformHasSubsectionsViaSymbols platform) $
+       -- See Note [Subsections Via Symbols]
                 text "\t.long "
             <+> pdoc platform info_lbl
             <+> char '-'
-            <+> pdoc platform (mkDeadStripPreventer info_lbl)
-       else empty) $$
+            <+> pdoc platform (mkDeadStripPreventer info_lbl)) $$
       pprSizeDecl platform info_lbl
 
 -- | Output the ELF .size directive.
 pprSizeDecl :: Platform -> CLabel -> SDoc
 pprSizeDecl platform lbl
- = if osElfTarget (platformOS platform)
-   then text "\t.size" <+> pdoc platform lbl <> ptext (sLit ", .-") <> pdoc platform lbl
-   else empty
+ = mwhen (osElfTarget (platformOS platform)) $
+   text "\t.size" <+> pdoc platform lbl <> ptext (sLit ", .-") <> pdoc platform lbl
 
 pprBasicBlock :: NCGConfig -> LabelMap RawCmmStatics -> NatBasicBlock Instr -> SDoc
 pprBasicBlock config info_env (BasicBlock blockid instrs)
   = maybe_infotable $
     pprLabel platform asmLbl $$
     vcat (map (pprInstr platform) instrs) $$
-    (if ncgDebugLevel config > 0
-      then pdoc (ncgPlatform config) (mkAsmTempEndLabel asmLbl) <> char ':'
-      else empty
-    )
+    (mwhen (ncgDebugLevel config > 0) $
+     pdoc (ncgPlatform config) (mkAsmTempEndLabel asmLbl) <> char ':')
   where
     asmLbl = blockLbl blockid
     platform = ncgPlatform config
@@ -133,15 +128,13 @@ pprBasicBlock config info_env (BasicBlock blockid instrs)
            vcat (map (pprData config) info) $$
            pprLabel platform infoLbl $$
            c $$
-           (if ncgDebugLevel config > 0
-               then pdoc platform (mkAsmTempEndLabel infoLbl) <> char ':'
-               else empty
-           )
+           (mwhen (ncgDebugLevel config > 0) $
+            pdoc platform (mkAsmTempEndLabel infoLbl) <> char ':')
     -- Make sure the info table has the right .loc for the block
     -- coming right after it. See [Note: Info Offset]
     infoTableLoc = case instrs of
       (l@LOCATION{} : _) -> pprInstr platform l
-      _other             -> empty
+      _other             -> mempty
 
 
 pprDatas :: NCGConfig -> (Alignment, RawCmmStatics) -> SDoc
@@ -175,7 +168,7 @@ pprData config (CmmStaticLit lit) = pprDataItem config lit
 
 pprGloblDecl :: Platform -> CLabel -> SDoc
 pprGloblDecl platform lbl
-  | not (externallyVisibleCLabel lbl) = empty
+  | not (externallyVisibleCLabel lbl) = mempty
   | otherwise = text ".globl " <> pdoc platform lbl
 
 pprLabelType' :: Platform -> CLabel -> SDoc
@@ -238,9 +231,8 @@ pprLabelType' platform lbl =
 
 pprTypeDecl :: Platform -> CLabel -> SDoc
 pprTypeDecl platform lbl
-    = if osElfTarget (platformOS platform) && externallyVisibleCLabel lbl
-      then text ".type " <> pdoc platform lbl <> ptext (sLit  ", ") <> pprLabelType' platform lbl
-      else empty
+    = mwhen (osElfTarget (platformOS platform) && externallyVisibleCLabel lbl) $
+      text ".type " <> pdoc platform lbl <> ptext (sLit  ", ") <> pprLabelType' platform lbl
 
 pprLabel :: Platform -> CLabel -> SDoc
 pprLabel platform lbl =
@@ -410,7 +402,7 @@ pprAddr platform (AddrBaseIndex base index displacement)
       _                         -> panic "X86.Ppr.pprAddr: no match"
 
   where
-    ppr_disp (ImmInt 0) = empty
+    ppr_disp (ImmInt 0) = mempty
     ppr_disp imm        = pprImm platform imm
 
 -- | Print section header and appropriate alignment for that section.

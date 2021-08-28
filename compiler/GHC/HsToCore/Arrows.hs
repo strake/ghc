@@ -866,7 +866,7 @@ dsCmdStmt ids local_vars out_ids (BodyStmt c_ty cmd _ _) env_ids = do
         out_ty = mkBigCoreVarTupTy out_ids
         before_c_ty = mkCorePairTy in_ty1 out_ty
         after_c_ty = mkCorePairTy c_ty out_ty
-    dsNoLevPoly c_ty empty -- I (Richard E, Dec '16) have no idea what to say here
+    dsNoLevPoly c_ty mempty -- I (Richard E, Dec '16) have no idea what to say here
     snd_fn <- mkSndExpr c_ty out_ty
     return (do_premap ids in_ty before_c_ty out_ty core_mux $
                 do_compose ids before_c_ty after_c_ty out_ty

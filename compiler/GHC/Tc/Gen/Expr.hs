@@ -1144,7 +1144,7 @@ instance OutputableBndrId id => Outputable (HsExprArg id) where
   ppr (HsEPar _)             = text "HsEPar"
   ppr (HsEWrap w)             = case ghcPass @id of
                                     GhcTc -> text "HsEWrap" <+> ppr w
-                                    _     -> empty
+                                    _     -> mempty
 
 type family XExprTypeArg id where
   XExprTypeArg 'Parsed      = NoExtField
@@ -1460,7 +1460,7 @@ tcArg fun arg ty arg_no
            vcat [ text "arg #" <> ppr arg_no <+> dcolon <+> ppr ty
                 , text "arg:" <+> ppr arg ]
        ; arg' <- tcCheckExprNC arg ty
-       ; traceTc "tcArg }" empty
+       ; traceTc "tcArg }" mempty
        ; return arg' }
 
 ----------------
@@ -2546,7 +2546,7 @@ addFunResCtxt has_args fun fun_res_ty env_ty
                  (args_env, res_env) = tcSplitFunTys env_tau
                  n_fun = length args_fun
                  n_env = length args_env
-                 info  | n_fun == n_env = Outputable.empty
+                 info  | n_fun == n_env = mempty
                        | n_fun > n_env
                        , not_fun res_env
                        = text "Probable cause:" <+> quotes (ppr fun)
@@ -2558,7 +2558,7 @@ addFunResCtxt has_args fun fun_res_ty env_ty
                          <+> text "is applied to too many arguments"
 
                        | otherwise
-                       = Outputable.empty  -- Never suggest that a naked variable is                                         -- applied to too many args!
+                       = mempty  -- Never suggest that a naked variable is                                         -- applied to too many args!
            ; return info }
       where
         not_fun ty   -- ty is definitely not an arrow type,
@@ -2719,7 +2719,7 @@ missingStrictFields :: ConLike -> [FieldLabelString] -> SDoc
 missingStrictFields con fields
   = header <> rest
   where
-    rest | null fields = Outputable.empty  -- Happens for non-record constructors
+    rest | null fields = mempty  -- Happens for non-record constructors
                                            -- with strict fields
          | otherwise   = colon <+> pprWithCommas ppr fields
 
@@ -2730,7 +2730,7 @@ missingFields :: ConLike -> [FieldLabelString] -> SDoc
 missingFields con fields
   = header <> rest
   where
-    rest | null fields = Outputable.empty
+    rest | null fields = mempty
          | otherwise = colon <+> pprWithCommas ppr fields
     header = text "Fields of" <+> quotes (ppr con) <+>
              text "not initialised"

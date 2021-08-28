@@ -253,7 +253,7 @@ checkedTick t
       , pp_details sc
       , pprSimplCount sc ]
     pp_details sc
-      | hasDetailedCounts sc = empty
+      | hasDetailedCounts sc = mempty
       | otherwise = text "To see detailed counts use -ddump-simpl-stats"
 
 

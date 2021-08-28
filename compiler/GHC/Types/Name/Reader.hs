@@ -476,7 +476,7 @@ data Parent = NoParent
             deriving (Eq, Data)
 
 instance Outputable Parent where
-   ppr NoParent        = empty
+   ppr NoParent        = mempty
    ppr (ParentIs n)    = text "parent:" <> ppr n
    ppr (FldParent n f) = text "fldparent:"
                              <> ppr n <> colon <> ppr f
@@ -772,7 +772,7 @@ pprGlobalRdrEnv locals_only env
   where
     remove_locals gres | locals_only = filter isLocalGRE gres
                        | otherwise   = gres
-    pp []   = empty
+    pp []   = mempty
     pp gres = hang (ppr occ
                      <+> parens (text "unique" <+> ppr (getUnique occ))
                      <> colon)
@@ -1291,7 +1291,7 @@ pprNameProvenance (GRE { gre_name = name, gre_lcl = lcl, gre_imp = iss })
 ppr_defn_site :: ImportSpec -> Name -> SDoc
 ppr_defn_site imp_spec name
   | same_module && not (isGoodSrcSpan loc)
-  = empty              -- Nothing interesting to say
+  = mempty              -- Nothing interesting to say
   | otherwise
   = parens $ hang (text "and originally defined" <+> pp_mod)
                 2 (pprLoc loc)
@@ -1299,7 +1299,7 @@ ppr_defn_site imp_spec name
     loc = nameSrcSpan name
     defining_mod = assertPpr (isExternalName name) (ppr name) $ nameModule name
     same_module = importSpecModule imp_spec == moduleName defining_mod
-    pp_mod | same_module = empty
+    pp_mod | same_module = mempty
            | otherwise   = text "in" <+> quotes (ppr defining_mod)
 
 
@@ -1310,11 +1310,11 @@ instance Outputable ImportSpec where
         <+> pprLoc (importSpecLoc imp_spec)
      where
        qual | is_qual (is_decl imp_spec) = text "qualified"
-            | otherwise                  = empty
+            | otherwise                  = mempty
 
 pprLoc :: SrcSpan -> SDoc
 pprLoc (RealSrcSpan s _)  = text "at" <+> ppr s
-pprLoc (UnhelpfulSpan {}) = empty
+pprLoc (UnhelpfulSpan {}) = mempty
 
 -- | Display info about the treatment of '*' under NoStarIsType.
 --
@@ -1375,14 +1375,13 @@ starInfo star_is_type rdr_name =
   -- must be displayed even if we load this definition from a module (or GHCi)
   -- with StarIsType enabled!
   --
-  if isUnqualStar && not star_is_type
-     then text "With NoStarIsType, " <>
+  mwhen (isUnqualStar && not star_is_type) $
+          text "With NoStarIsType, " <>
           quotes (ppr rdr_name) <>
           text " is treated as a regular type operator. "
         $$
           text "Did you mean to use " <> quotes (text "Type") <>
           text " from Data.Kind instead?"
-      else empty
   where
     -- Does rdr_name look like the user might have meant the '*' kind by it?
     -- We focus on unqualified stars specifically, because qualified stars are

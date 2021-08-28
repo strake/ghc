@@ -1621,7 +1621,7 @@ pprHsExplicitForAll :: (OutputableBndrId p)
                     -> Maybe [LHsTyVarBndr () (GhcPass p)] -> SDoc
 pprHsExplicitForAll fvf (Just qtvs) = forAllLit <+> interppSP qtvs
                                                  <> ppr_forall_separator fvf
-pprHsExplicitForAll _   Nothing     = empty
+pprHsExplicitForAll _   Nothing     = mempty
 
 -- | Prints an arrow for visible @forall@s (e.g., @forall a ->@) and a dot for
 -- invisible @forall@s (e.g., @forall a.@).
@@ -1632,7 +1632,7 @@ ppr_forall_separator ForallInvis = dot
 pprLHsContext :: (OutputableBndrId p)
               => LHsContext (GhcPass p) -> SDoc
 pprLHsContext lctxt
-  | null (unLoc lctxt) = empty
+  | null (unLoc lctxt) = mempty
   | otherwise          = pprLHsContextAlways lctxt
 
 -- For use in a HsQualTy, which always gets printed if it exists.
@@ -1640,7 +1640,7 @@ pprLHsContextAlways :: (OutputableBndrId p)
                     => LHsContext (GhcPass p) -> SDoc
 pprLHsContextAlways (L _ ctxt)
   = case ctxt of
-      []       -> parens empty             <+> darrow
+      []       -> parens mempty            <+> darrow
       [L _ ty] -> ppr_mono_ty ty           <+> darrow
       _        -> parens (interpp'SP ctxt) <+> darrow
 

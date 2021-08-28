@@ -762,12 +762,12 @@ type OutputableBndrId pass =
 -- useful helper functions:
 pprIfPs :: forall p. IsPass p => (p ~ 'Parsed => SDoc) -> SDoc
 pprIfPs pp = case ghcPass @p of GhcPs -> pp
-                                _     -> empty
+                                _     -> mempty
 
 pprIfRn :: forall p. IsPass p => (p ~ 'Renamed => SDoc) -> SDoc
 pprIfRn pp = case ghcPass @p of GhcRn -> pp
-                                _     -> empty
+                                _     -> mempty
 
 pprIfTc :: forall p. IsPass p => (p ~ 'Typechecked => SDoc) -> SDoc
 pprIfTc pp = case ghcPass @p of GhcTc -> pp
-                                _     -> empty
+                                _     -> mempty

@@ -39,7 +39,6 @@ import Data.List (isPrefixOf)
 import Data.Binary.Get
 import Data.Binary.Put
 import Control.Monad
-import Control.Applicative
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Char8 as C
 import qualified Data.ByteString.Lazy as L

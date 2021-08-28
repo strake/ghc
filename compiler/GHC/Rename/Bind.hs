@@ -560,7 +560,7 @@ depAnalBinds binds_w_dus
                    -- Note [depAnal determinism] in GHC.Types.Name.Env.
                    (toList binds_w_dus)
 
-    get_binds (AcyclicSCC (bind, _, _)) = (NonRecursive, unitBag bind)
+    get_binds (AcyclicSCC (bind, _, _)) = (NonRecursive, pure bind)
     get_binds (CyclicSCC  binds_w_dus)  = (Recursive, listToBag [b | (b,_,_) <- binds_w_dus])
 
     get_du (AcyclicSCC (_, bndrs, uses)) = (Just (mkNameSet bndrs), uses)
@@ -824,7 +824,7 @@ rnMethodBinds is_cls_decl cls ktv_names binds sigs
              -- for instance decls too
 
        -- Rename the bindings LHSs
-       ; binds' <- foldrM (rnMethodBindLHS is_cls_decl cls) emptyBag binds
+       ; binds' <- foldrM (rnMethodBindLHS is_cls_decl cls) empty binds
 
        -- Rename the pragmas and signatures
        -- Annoyingly the type variables /are/ in scope for signatures, but

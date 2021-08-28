@@ -284,7 +284,7 @@ instance Outputable BCInstr where
                                                <+> (case flags of
                                                       0x1 -> text "(interruptible)"
                                                       0x2 -> text "(unsafe)"
-                                                      _   -> empty)
+                                                      _   -> mempty)
    ppr (SWIZZLE stkoff n)    = text "SWIZZLE " <+> text "stkoff" <+> ppr stkoff
                                                <+> text "by" <+> ppr n
    ppr ENTER                 = text "ENTER"

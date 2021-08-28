@@ -340,13 +340,13 @@ instance Outputable Class where
     ppr c = ppr (getName c)
 
 pprDefMethInfo :: DefMethInfo -> SDoc
-pprDefMethInfo Nothing                  = empty   -- No default method
+pprDefMethInfo Nothing                  = mempty   -- No default method
 pprDefMethInfo (Just (n, VanillaDM))    = text "Default method" <+> ppr n
 pprDefMethInfo (Just (n, GenericDM ty)) = text "Generic default method"
                                           <+> ppr n <+> dcolon <+> pprType ty
 
 pprFundeps :: Outputable a => [FunDep a] -> SDoc
-pprFundeps []  = empty
+pprFundeps []  = mempty
 pprFundeps fds = hsep (vbar : punctuate comma (map pprFunDep fds))
 
 pprFunDep :: Outputable a => FunDep a -> SDoc

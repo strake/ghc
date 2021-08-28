@@ -136,31 +136,29 @@ instance OutputableBndrId p
                     pp_qual qual False, pp_pkg pkg, ppr mod', pp_qual qual True, pp_as as])
              4 (pp_spec spec)
       where
-        pp_implicit False = empty
-        pp_implicit True = ptext (sLit ("(implicit)"))
+        pp_implicit = mwhen `flip` ptext (sLit "(implicit)")
 
-        pp_pkg Nothing                    = empty
+        pp_pkg Nothing                    = mempty
         pp_pkg (Just (StringLiteral st p))
           = pprWithSourceText st (doubleQuotes (ftext p))
 
         pp_qual QualifiedPre False = text "qualified" -- Prepositive qualifier/prepositive position.
         pp_qual QualifiedPost True = text "qualified" -- Postpositive qualifier/postpositive position.
-        pp_qual QualifiedPre True = empty -- Prepositive qualifier/postpositive position.
-        pp_qual QualifiedPost False = empty -- Postpositive qualifier/prepositive position.
-        pp_qual NotQualified _ = empty
+        pp_qual QualifiedPre True = mempty -- Prepositive qualifier/postpositive position.
+        pp_qual QualifiedPost False = mempty -- Postpositive qualifier/prepositive position.
+        pp_qual NotQualified _ = mempty
 
-        pp_safe False   = empty
-        pp_safe True    = text "safe"
+        pp_safe = mwhen `flip` text "safe"
 
-        pp_as Nothing   = empty
+        pp_as Nothing   = mempty
         pp_as (Just a)  = text "as" <+> ppr a
 
         ppr_imp IsBoot = case mSrcText of
                           NoSourceText   -> text "{-# SOURCE #-}"
                           SourceText src -> text src <+> text "#-}"
-        ppr_imp NotBoot = empty
+        ppr_imp NotBoot = mempty
 
-        pp_spec Nothing             = empty
+        pp_spec Nothing             = mempty
         pp_spec (Just (False, (L _ ies))) = ppr_ies ies
         pp_spec (Just (True, (L _ ies))) = text "hiding" <+> ppr_ies ies
 
@@ -360,4 +358,4 @@ pprImpExp name = type_pref <+> pprPrefixOcc name
     where
     occ = occName name
     type_pref | isTcOcc occ && isSymOcc occ = text "type"
-              | otherwise                   = empty
+              | otherwise                   = mempty

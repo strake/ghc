@@ -221,7 +221,7 @@ mkLFReEntrant :: TopLevelFlag    -- True of top level
               -> LambdaFormInfo
 
 mkLFReEntrant _ _ [] _
-  = pprPanic "mkLFReEntrant" empty
+  = pprPanic "mkLFReEntrant" mempty
 mkLFReEntrant top fvs args arg_descr
   = LFReEntrant top (length args) (null fvs) arg_descr
 

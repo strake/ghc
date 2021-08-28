@@ -404,7 +404,6 @@ import GHC.Utils.Exception
 import Data.IORef
 import System.FilePath
 import Control.Concurrent
-import Control.Applicative ((<|>))
 import Control.Monad.Catch as MC
 
 import GHC.Data.Maybe

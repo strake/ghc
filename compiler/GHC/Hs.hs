@@ -142,7 +142,7 @@ instance Outputable HsModule where
         pp_modname = text "module" <+> ppr name
 
 pp_nonnull :: Outputable t => [t] -> SDoc
-pp_nonnull [] = empty
+pp_nonnull [] = mempty
 pp_nonnull xs = vcat (map ppr xs)
 
 data HsParsedModule = HsParsedModule {

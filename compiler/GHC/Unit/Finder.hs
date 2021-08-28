@@ -747,7 +747,7 @@ cantFindErr cannot_find _ dflags mod_name find_result
            quotes (text ":set -package " <> ppr (unitPackageName pkg)) <+>
            text "to expose it." $$
            text "(Note: this unloads all the modules in the current scope.)"
-     | otherwise = Outputable.empty
+     | otherwise = mempty
 
     mod_hidden pkg =
         text "it is a hidden module in the package" <+> quotes (ppr pkg)
@@ -759,7 +759,7 @@ cantFindErr cannot_find _ dflags mod_name find_result
 
     pp_suggestions :: [ModuleSuggestion] -> SDoc
     pp_suggestions sugs
-      | null sugs = Outputable.empty
+      | null sugs = mempty
       | otherwise = hang (text "Perhaps you meant")
                        2 (vcat (map pp_sugg sugs))
 
@@ -767,8 +767,8 @@ cantFindErr cannot_find _ dflags mod_name find_result
     -- package flags when making suggestions.  ToDo: if the original package
     -- also has a reexport, prefer that one
     pp_sugg (SuggestVisible m mod o) = ppr m <+> provenance o
-      where provenance ModHidden = Outputable.empty
-            provenance (ModUnusable _) = Outputable.empty
+      where provenance ModHidden = mempty
+            provenance (ModUnusable _) = mempty
             provenance (ModOrigin{ fromOrigPackage = e,
                                    fromExposedReexport = res,
                                    fromPackageFlag = f })
@@ -782,10 +782,10 @@ cantFindErr cannot_find _ dflags mod_name find_result
               | f
                  = parens (text "defined via package flags to be"
                     <+> ppr mod)
-              | otherwise = Outputable.empty
+              | otherwise = mempty
     pp_sugg (SuggestHidden m mod o) = ppr m <+> provenance o
-      where provenance ModHidden =  Outputable.empty
-            provenance (ModUnusable _) = Outputable.empty
+      where provenance ModHidden =  mempty
+            provenance (ModUnusable _) = mempty
             provenance (ModOrigin{ fromOrigPackage = e,
                                    fromHiddenReexport = rhs })
               | Just False <- e
@@ -794,7 +794,7 @@ cantFindErr cannot_find _ dflags mod_name find_result
               | (pkg:_) <- rhs
                  = parens (text "needs flag -package-id"
                     <+> ppr (mkUnit pkg))
-              | otherwise = Outputable.empty
+              | otherwise = mempty
 
 cantFindInstalledErr :: PtrString -> PtrString -> DynFlags -> ModuleName
                      -> InstalledFindResult -> SDoc
@@ -830,10 +830,9 @@ cantFindInstalledErr cannot_find _ dflags mod_name find_result
      | (pkg:pkgs) <- searchPackageId pkgstate (PackageId (unitIdFS pk))
      = parens (text "This unit ID looks like the source package ID;" $$
        text "the real unit ID is" <+> quotes (ftext (unitIdFS (unitId pkg))) $$
-       (if null pkgs then Outputable.empty
-        else text "and" <+> int (length pkgs) <+> text "other candidates"))
+       (munless (null pkgs) $ text "and" <+> int (length pkgs) <+> text "other candidates"))
      -- Todo: also check if it looks like a package name!
-     | otherwise = Outputable.empty
+     | otherwise = mempty
 
     not_found_in_package pkg files
        | build_tag /= ""
@@ -853,7 +852,7 @@ cantFindInstalledErr cannot_find _ dflags mod_name find_result
 
 tried_these :: [FilePath] -> DynFlags -> SDoc
 tried_these files dflags
-    | null files = Outputable.empty
+    | null files = mempty
     | verbosity dflags < 3 =
           text "Use -v (or `:set -v` in ghci) " <>
               text "to see a list of the files searched for."

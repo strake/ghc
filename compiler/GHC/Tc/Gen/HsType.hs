@@ -2884,7 +2884,7 @@ kindGeneralizeSome should_gen kind_or_type
 -- constraints on the type's metavariables will arise or be solved.
 kindGeneralizeAll :: TcType  -- needn't be zonked
                   -> TcM [KindVar]
-kindGeneralizeAll ty = do { traceTc "kindGeneralizeAll" empty
+kindGeneralizeAll ty = do { traceTc "kindGeneralizeAll" mempty
                           ; kindGeneralizeSome (const True) ty }
 
 -- | Specialized version of 'kindGeneralizeSome', but where no variables
@@ -2898,7 +2898,7 @@ kindGeneralizeAll ty = do { traceTc "kindGeneralizeAll" empty
 kindGeneralizeNone :: TcType  -- needn't be zonked
                    -> TcM ()
 kindGeneralizeNone ty
-  = do { traceTc "kindGeneralizeNone" empty
+  = do { traceTc "kindGeneralizeNone" mempty
        ; kvs <- kindGeneralizeSome (const False) ty
        ; massert (null kvs)
        }
@@ -3106,12 +3106,11 @@ checkDataKindSig data_sort kind = do
       sep [ (sep [ pp_dec <+>
                    text "has non-" <>
                    (if tYPE_ok dflags then text "TYPE" else ppr liftedTypeKind)
-                 , (if is_data_family then text "and non-variable" else empty) <+>
+                 , (is_data_family `mwhen` text "and non-variable") <+>
                    text "return kind" <+> quotes (ppr kind) ])
-          , if not (tYPE_ok dflags) && is_TYPE && is_newtype &&
-               not (xopt LangExt.UnliftedNewtypes dflags)
-            then text "Perhaps you intended to use UnliftedNewtypes"
-            else empty ]
+          , mwhen (not (tYPE_ok dflags) && is_TYPE && is_newtype &&
+               not (xopt LangExt.UnliftedNewtypes dflags)) $
+            text "Perhaps you intended to use UnliftedNewtypes" ]
 
 -- | Checks that the result kind of a class is exactly `Constraint`, rejecting
 -- type synonyms and type families that reduce to `Constraint`. See #16826.
