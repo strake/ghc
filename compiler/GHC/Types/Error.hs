@@ -31,6 +31,7 @@ import GHC.Data.FastString (unpackFS)
 import GHC.Data.StringBuffer (atLine, hGetStringBuffer, len, lexemeToString)
 import GHC.Utils.Json
 
+import Data.Foldable ( toList )
 import System.IO.Error  ( catchIOError )
 
 type Messages        = (WarningMessages, ErrorMessages)
@@ -103,7 +104,7 @@ instance Show ErrMsg where
     show em = errMsgShortString em
 
 pprMessageBag :: Bag MsgDoc -> SDoc
-pprMessageBag msgs = vcat (punctuate blankLine (bagToList msgs))
+pprMessageBag msgs = vcat (punctuate blankLine (toList msgs))
 
 -- | Make an unannotated error message with location info.
 mkLocMessage :: Severity -> SrcSpan -> MsgDoc -> MsgDoc

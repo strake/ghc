@@ -8,6 +8,9 @@ The bits common to GHC.Tc.TyCl.Instance and GHC.Tc.Deriv.
 -}
 
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE CPP #-}
+
+#include "lens.h"
 
 module GHC.Core.InstEnv (
         DFunId, InstMatch, ClsInstLookupResult,
@@ -26,7 +29,9 @@ module GHC.Core.InstEnv (
         instIsVisible,
         classInstances, instanceBindFun,
         instanceCantMatch, roughMatchTcs,
-        isOverlappable, isOverlapping, isIncoherent
+        isOverlappable, isOverlapping, isIncoherent,
+
+        is_flagL, overlapModeL, isSafeOverlapL,
     ) where
 
 import GHC.Prelude
@@ -46,6 +51,7 @@ import GHC.Types.Basic
 import GHC.Types.Unique.DFM
 import GHC.Types.Id
 import Data.Data        ( Data )
+import Data.Foldable    ( toList )
 import Data.Maybe       ( isJust, isNothing )
 
 import GHC.Utils.Misc
@@ -98,6 +104,8 @@ data ClsInst
              , is_orphan :: IsOrphan
     }
   deriving Data
+
+LENS_FIELD(is_flagL, is_flag)
 
 -- | A fuzzy comparison function for class instances, intended for sorting
 -- instances before displaying them to the user.
@@ -435,11 +443,11 @@ emptyInstEnv :: InstEnv
 emptyInstEnv = emptyUDFM
 
 instEnvElts :: InstEnv -> [ClsInst]
-instEnvElts ie = [elt | ClsIE elts <- eltsUDFM ie, elt <- elts]
+instEnvElts ie = [elt | ClsIE elts <- toList ie, elt <- elts]
   -- See Note [InstEnv determinism]
 
 instEnvClasses :: InstEnv -> [Class]
-instEnvClasses ie = [is_cls e | ClsIE (e : _) <- eltsUDFM ie]
+instEnvClasses ie = [is_cls e | ClsIE (e : _) <- toList ie]
 
 -- | Test if an instance is visible, by checking that its origin module
 -- is in 'VisibleOrphanModules'.

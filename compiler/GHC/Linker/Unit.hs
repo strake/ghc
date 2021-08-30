@@ -26,7 +26,6 @@ import qualified GHC.Data.ShortText as ST
 import GHC.Driver.Session
 
 import Data.Foldable
-import Data.Semigroup
 import Data.Set (Set)
 import qualified Data.Set as Set
 import Control.Monad

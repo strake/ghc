@@ -276,13 +276,14 @@ import Data.IORef
 import Control.Arrow ((&&&))
 import Control.Monad
 import Control.Monad.Trans.Class
-import Control.Monad.Trans.Writer
-import Control.Monad.Trans.Reader
 import Control.Monad.Trans.Except
+import Control.Monad.Trans.Reader
+import Control.Monad.Trans.State
+import Control.Monad.Trans.Writer
 
 import Data.Ord
 import Data.Char
-import Data.List
+import Data.List hiding (filter)
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Set (Set)
@@ -822,6 +823,9 @@ instance (Monad m, HasDynFlags m) => HasDynFlags (MaybeT m) where
     getDynFlags = lift getDynFlags
 
 instance (Monad m, HasDynFlags m) => HasDynFlags (ExceptT e m) where
+    getDynFlags = lift getDynFlags
+
+instance (Monad m, HasDynFlags m) => HasDynFlags (StateT s m) where
     getDynFlags = lift getDynFlags
 
 class ContainsDynFlags t where

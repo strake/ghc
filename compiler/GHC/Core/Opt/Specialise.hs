@@ -38,7 +38,7 @@ import GHC.Core.Opt.Arity     ( etaExpandToJoinPointRule )
 
 import GHC.Builtin.Types.Prim (voidPrimTy)
 
-import GHC.Data.Maybe     ( mapMaybe, maybeToList, isJust )
+import GHC.Data.Maybe     ( isJust )
 import GHC.Data.Bag
 import GHC.Data.FastString
 
@@ -64,6 +64,7 @@ import GHC.Unit.External
 
 import Control.Monad
 import Control.Monad.Trans.State (State, evalState, get, put)
+import Data.Foldable (toList)
 import Data.List.NonEmpty (NonEmpty (..))
 
 {-
@@ -695,7 +696,7 @@ spec_imports :: DynFlags
                       , [CoreBind] ) -- Specialised bindings
 spec_imports dflags this_mod top_env
              callers rule_base dict_binds calls
-  = do { let import_calls = dVarEnvElts calls
+  = do { let import_calls = toList calls
        -- ; debugTraceMsg (text "specImports {" <+>
        --                  vcat [ text "calls:" <+> ppr import_calls
        --                       , text "dict_binds:" <+> ppr dict_binds ])
@@ -1245,7 +1246,7 @@ specBind rhs_env (NonRec fn rhs) body_uds
                = [recWithDumpedDicts pairs dump_dbs]
                | otherwise
                = [mkDB $ NonRec b r | (b,r) <- pairs]
-                 ++ bagToList dump_dbs
+                 ++ toList dump_dbs
 
        ; if float_all then
              -- Rather than discard the calls mentioning the bound variables
@@ -2205,7 +2206,7 @@ specHeader env (bndr : bndrs) (SpecDict d : args)
               , exprFreeIdsList (varToCoreExpr bndr') ++ rule_bs
               , varToCoreExpr bndr' : rule_es
               , bs'
-              , maybeToList dx_bind ++ dx
+              , toList dx_bind ++ dx
               , spec_dict : spec_args
               )
        }
@@ -2417,7 +2418,7 @@ data CallInfo
 type DictExpr = CoreExpr
 
 ciSetFilter :: (CallInfo -> Bool) -> CallInfoSet -> CallInfoSet
-ciSetFilter p (CIS id a) = CIS id (filterBag p a)
+ciSetFilter p (CIS id a) = CIS id (filter p a)
 
 instance Outputable CallInfoSet where
   ppr (CIS fn map) = hang (text "CIS" <+> ppr fn)
@@ -2748,7 +2749,7 @@ callsForMe fn (MkUD { ud_binds = orig_dbs, ud_calls = orig_calls })
 filterCalls :: CallInfoSet -> Bag DictBind -> [CallInfo]
 -- See Note [Avoiding loops]
 filterCalls (CIS fn call_bag) dbs
-  = filter ok_call (bagToList call_bag)
+  = filter ok_call (toList call_bag)
   where
     dump_set = foldl' go (unitVarSet fn) dbs
       -- This dump-set could also be computed by splitDictBinds
@@ -2788,14 +2789,13 @@ splitDictBinds dbs bndr_set
 ----------------------
 deleteCallsMentioning :: VarSet -> CallDetails -> CallDetails
 -- Remove calls *mentioning* bs in any way
-deleteCallsMentioning bs calls
-  = mapDVarEnv (ciSetFilter keep_call) calls
+deleteCallsMentioning bs = fmap (ciSetFilter keep_call)
   where
     keep_call (CI { ci_fvs = fvs }) = fvs `disjointVarSet` bs
 
 deleteCallsFor :: [Id] -> CallDetails -> CallDetails
 -- Remove calls *for* bs
-deleteCallsFor bs calls = delDVarEnvList calls bs
+deleteCallsFor = flip delDVarEnvList
 
 {-
 ************************************************************************

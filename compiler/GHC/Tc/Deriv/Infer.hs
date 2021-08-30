@@ -16,7 +16,6 @@ where
 
 import GHC.Prelude
 
-import GHC.Data.Bag
 import GHC.Types.Basic
 import GHC.Core.Class
 import GHC.Core.DataCon
@@ -53,8 +52,8 @@ import GHC.Types.Var.Set
 import Control.Monad
 import Control.Monad.Trans.Class  (lift)
 import Control.Monad.Trans.Reader (ask)
+import Data.Foldable              (toList)
 import Data.List                  (sortBy)
-import Data.Maybe
 
 ----------------------
 
@@ -795,7 +794,7 @@ simplifyDeriv pred tvs thetas
        -- From the simplified constraints extract a subset 'good' that will
        -- become the context 'min_theta' for the derived instance.
        ; let residual_simple = approximateWC True solved_wanteds
-             good = mapMaybeBag get_good residual_simple
+             good = mapMaybe get_good residual_simple
 
              -- Returns @Just p@ (where @p@ is the type of the Ct) if a Ct is
              -- suitable to be inferred in the context of a derived instance.
@@ -819,7 +818,7 @@ simplifyDeriv pred tvs thetas
          vcat [ ppr tvs_skols, ppr residual_simple, ppr good ]
 
        -- Return the good unsolved constraints (unskolemizing on the way out.)
-       ; let min_theta = mkMinimalBySCs id (bagToList good)
+       ; let min_theta = mkMinimalBySCs id (toList good)
              -- An important property of mkMinimalBySCs (used above) is that in
              -- addition to removing constraints that are made redundant by
              -- superclass relationships, it also removes _duplicate_

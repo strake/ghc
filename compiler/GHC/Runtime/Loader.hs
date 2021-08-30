@@ -62,8 +62,6 @@ import GHC.Utils.Exception
 import GHC.Data.FastString
 
 import Control.Monad     ( unless )
-import Data.Maybe        ( fromMaybe, mapMaybe )
-import Data.Traversable  ( for )
 import Unsafe.Coerce     ( unsafeCoerce )
 
 -- | Loads the plugins specified in the pluginModNames field of the dynamic
@@ -91,8 +89,7 @@ loadPlugins :: HscEnv -> IO [LoadedPlugin]
 loadPlugins hsc_env
   = do { unless (null to_load) $
            checkExternalInterpreter hsc_env
-       ; plugins <- mapM loadPlugin to_load
-       ; return $ zipWith attachOptions to_load plugins }
+       ; zipWith attachOptions to_load <$> traverse loadPlugin to_load }
   where
     dflags  = hsc_dflags hsc_env
     to_load = pluginModNames dflags
@@ -123,9 +120,8 @@ loadPlugin' :: OccName -> Name -> HscEnv -> ModuleName -> IO (a, ModIface)
 loadPlugin' occ_name plugin_name hsc_env mod_name
   = do { let plugin_rdr_name = mkRdrQual mod_name occ_name
              dflags = hsc_dflags hsc_env
-       ; mb_name <- lookupRdrNameInModuleForPlugins hsc_env mod_name
-                        plugin_rdr_name
-       ; case mb_name of {
+       ; lookupRdrNameInModuleForPlugins hsc_env mod_name
+                        plugin_rdr_name >>= \ case {
             Nothing ->
                 throwGhcExceptionIO (CmdLineError $ showSDoc dflags $ hsep
                           [ text "The module", ppr mod_name
@@ -134,8 +130,7 @@ loadPlugin' occ_name plugin_name hsc_env mod_name
             Just (name, mod_iface) ->
 
      do { plugin_tycon <- forceLoadTyCon hsc_env plugin_name
-        ; mb_plugin <- getValueSafely hsc_env name (mkTyConTy plugin_tycon)
-        ; case mb_plugin of
+        ; getValueSafely hsc_env name (mkTyConTy plugin_tycon) >>= \ case
             Nothing ->
                 throwGhcExceptionIO (CmdLineError $ showSDoc dflags $ hsep
                           [ text "The value", ppr name
@@ -147,11 +142,8 @@ loadPlugin' occ_name plugin_name hsc_env mod_name
 -- | Force the interfaces for the given modules to be loaded. The 'SDoc' parameter is used
 -- for debugging (@-ddump-if-trace@) only: it is shown as the reason why the module is being loaded.
 forceLoadModuleInterfaces :: HscEnv -> SDoc -> [Module] -> IO ()
-forceLoadModuleInterfaces hsc_env doc modules
-    = (initTcInteractive hsc_env $
-       initIfaceTcRn $
-       mapM_ (loadPluginInterface doc) modules)
-      >> return ()
+forceLoadModuleInterfaces hsc_env doc =
+    (() <$) . initTcInteractive hsc_env . initIfaceTcRn . traverse_ (loadPluginInterface doc)
 
 -- | Force the interface for the module containing the name to be loaded. The 'SDoc' parameter is used
 -- for debugging (@-ddump-if-trace@) only: it is shown as the reason why the module is being loaded.
@@ -169,8 +161,7 @@ forceLoadTyCon :: HscEnv -> Name -> IO TyCon
 forceLoadTyCon hsc_env con_name = do
     forceLoadNameModuleInterface hsc_env (text "contains a name used in an invocation of loadTyConTy") con_name
 
-    mb_con_thing <- lookupType hsc_env con_name
-    case mb_con_thing of
+    lookupType hsc_env con_name >>= \ case
         Nothing -> throwCmdLineErrorS dflags $ missingTyThingError con_name
         Just (ATyCon tycon) -> return tycon
         Just con_thing -> throwCmdLineErrorS dflags $ wrongTyThingError con_name con_thing
@@ -198,23 +189,18 @@ getHValueSafely :: HscEnv -> Name -> Type -> IO (Maybe HValue)
 getHValueSafely hsc_env val_name expected_type = do
     forceLoadNameModuleInterface hsc_env (text "contains a name used in an invocation of getHValueSafely") val_name
     -- Now look up the names for the value and type constructor in the type environment
-    mb_val_thing <- lookupType hsc_env val_name
-    case mb_val_thing of
+    lookupType hsc_env val_name >>= \ case
         Nothing -> throwCmdLineErrorS dflags $ missingTyThingError val_name
-        Just (AnId id) -> do
+        Just (AnId id) ->
             -- Check the value type in the interface against the type recovered from the type constructor
             -- before finally casting the value to the type we assume corresponds to that constructor
             if expected_type `eqType` idType id
              then do
                 -- Link in the module that contains the value, if it has such a module
-                case nameModule_maybe val_name of
-                    Just mod -> do loadModule hsc_env mod
-                                   return ()
-                    Nothing ->  return ()
+                loadModule hsc_env `traverse_` nameModule_maybe val_name
                 -- Find the value that we just linked in and cast it given that we have proved it's type
-                hval <- withInterp hsc_env $ \interp -> loadName hsc_env val_name >>= wormhole interp
-                return (Just hval)
-             else return Nothing
+                Just <$> withInterp hsc_env \interp -> loadName hsc_env val_name >>= wormhole interp
+             else pure Nothing
         Just val_thing -> throwCmdLineErrorS dflags $ wrongTyThingError val_name val_thing
    where dflags = hsc_dflags hsc_env
 
@@ -229,8 +215,7 @@ lessUnsafeCoerce dflags context what = do
     debugTraceMsg dflags 3 $ (text "Coercing a value in") <+> (text context) <>
                              (text "...")
     output <- evaluate (unsafeCoerce what)
-    debugTraceMsg dflags 3 (text "Successfully evaluated coercion")
-    return output
+    output <$ debugTraceMsg dflags 3 (text "Successfully evaluated coercion")
 
 
 -- | Finds the 'Name' corresponding to the given 'RdrName' in the

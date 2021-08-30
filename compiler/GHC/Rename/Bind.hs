@@ -40,7 +40,7 @@ import GHC.Rename.Pat
 import GHC.Rename.Names
 import GHC.Rename.Env
 import GHC.Rename.Fixity
-import GHC.Rename.Utils ( HsDocContext(..), mapFvRn, extendTyVarEnvFVRn
+import GHC.Rename.Utils ( HsDocContext(..), mapFvRn
                         , checkDupRdrNames, warnUnusedLocalBinds
                         , checkUnusedRecordWildcard
                         , checkDupAndShadowedNames, bindLocalNamesFV )
@@ -63,10 +63,11 @@ import GHC.Data.Maybe          ( orElse )
 import GHC.Data.OrdList
 import qualified GHC.LanguageExtensions as LangExt
 
-import Control.Monad
+import Control.Monad hiding ( mapAndUnzipM )
 import Data.Foldable      ( toList )
-import Data.List          ( partition, sortBy )
+import Data.List          ( sortBy )
 import Data.List.NonEmpty ( NonEmpty(..) )
+import Lens.Micro ( _1 )
 
 {-
 -- ToDo: Put the annotations into the monad, so that they arrive in the proper
@@ -181,17 +182,16 @@ it expects the global environment to contain bindings for the binders
 rnTopBindsLHS :: MiniFixityEnv
               -> HsValBinds GhcPs
               -> RnM (HsValBindsLR GhcRn GhcPs)
-rnTopBindsLHS fix_env binds
-  = rnValBindsLHS (topRecNameMaker fix_env) binds
+rnTopBindsLHS fix_env = rnValBindsLHS (topRecNameMaker fix_env)
 
 rnTopBindsBoot :: NameSet -> HsValBindsLR GhcRn GhcPs
                -> RnM (HsValBinds GhcRn, DefUses)
 -- A hs-boot file has no bindings.
 -- Return a single HsBindGroup with empty binds and renamed signatures
-rnTopBindsBoot bound_names (ValBinds _ mbinds sigs)
-  = do  { checkErr (isEmptyLHsBinds mbinds) (bindsInHsBootFile mbinds)
-        ; (sigs', fvs) <- renameSigs (HsBootCtxt bound_names) sigs
-        ; return (XValBindsLR (NValBinds [] sigs'), usesOnly fvs) }
+rnTopBindsBoot bound_names (ValBinds _ mbinds sigs) =
+  [ (XValBindsLR (NValBinds [] sigs'), usesOnly fvs)
+  | () <- checkErr (isEmptyLHsBinds mbinds) (bindsInHsBootFile mbinds)
+  , (sigs', fvs) <- renameSigs (HsBootCtxt bound_names) sigs ]
 rnTopBindsBoot _ b = pprPanic "rnTopBindsBoot" (ppr b)
 
 {-
@@ -269,9 +269,7 @@ rnLocalValBindsLHS fix_env binds
              -- pattern synonyms, we'll collect them anyway, so that
              -- we don't generate subsequent out-of-scope messages
        ; envs <- getRdrEnvs
-       ; checkDupAndShadowedNames envs bound_names
-
-       ; return (bound_names, binds') }
+       ; (bound_names, binds') <$ checkDupAndShadowedNames envs bound_names }
 
 -- renames the left-hand sides
 -- generic version used both at the top level and for local binds
@@ -279,9 +277,8 @@ rnLocalValBindsLHS fix_env binds
 rnValBindsLHS :: NameMaker
               -> HsValBinds GhcPs
               -> RnM (HsValBindsLR GhcRn GhcPs)
-rnValBindsLHS topP (ValBinds x mbinds sigs)
-  = do { mbinds' <- mapBagM (wrapLocM (rnBindLHS topP doc)) mbinds
-       ; return $ ValBinds x mbinds' sigs }
+rnValBindsLHS topP (ValBinds x mbinds sigs) =
+  [ ValBinds x mbinds' sigs | mbinds' <- traverse (wrapLocM (rnBindLHS topP doc)) mbinds ]
   where
     bndrs = collectHsBindsBinders mbinds
     doc   = text "In the binding group for:" <+> pprWithCommas ppr bndrs
@@ -298,7 +295,7 @@ rnValBindsRHS :: HsSigCtxt
 
 rnValBindsRHS ctxt (ValBinds _ mbinds sigs)
   = do { (sigs', sig_fvs) <- renameSigs ctxt sigs
-       ; binds_w_dus <- mapBagM (rnLBind (mkScopedTvFn sigs')) mbinds
+       ; binds_w_dus <- traverse (rnLBind (mkScopedTvFn sigs')) mbinds
        ; let !(anal_binds, anal_dus) = depAnalBinds binds_w_dus
 
        ; let patsyn_fvs = foldr (unionNameSet . psb_ext) emptyNameSet $
@@ -329,8 +326,7 @@ rnValBindsRHS _ b = pprPanic "rnValBindsRHS" (ppr b)
 rnLocalValBindsRHS :: NameSet  -- names bound by the LHSes
                    -> HsValBindsLR GhcRn GhcPs
                    -> RnM (HsValBinds GhcRn, DefUses)
-rnLocalValBindsRHS bound_names binds
-  = rnValBindsRHS (LocalBindCtxt bound_names) binds
+rnLocalValBindsRHS bound_names = rnValBindsRHS (LocalBindCtxt bound_names)
 
 -- for local binds
 -- wrapper that does both the left- and right-hand sides
@@ -351,29 +347,29 @@ rnLocalValBindsAndThen binds@(ValBinds _ _ sigs) thing_inside
 
               --     ...and bring them (and their fixities) into scope
         ; bindLocalNamesFV bound_names              $
-          addLocalFixities new_fixities bound_names $ do
+          addLocalFixities new_fixities bound_names $
+        [ (result, all_uses)
 
-        {      -- (C) Do the RHS and thing inside
-          (binds', dus) <- rnLocalValBindsRHS (mkNameSet bound_names) new_lhs
-        ; (result, result_fvs) <- thing_inside binds' (allUses dus)
+               -- (C) Do the RHS and thing inside
+        | (binds', dus) <- rnLocalValBindsRHS (mkNameSet bound_names) new_lhs
+        , (result, result_fvs) <- thing_inside binds' (allUses dus)
 
                 -- Report unused bindings based on the (accurate)
                 -- findUses.  E.g.
                 --      let x = x in 3
                 -- should report 'x' unused
-        ; let real_uses = findUses dus result_fvs
+        , let real_uses = findUses dus result_fvs
               -- Insert fake uses for variables introduced implicitly by
               -- wildcards (#4404)
               rec_uses = hsValBindsImplicits binds'
               implicit_uses = mkNameSet $ concatMap snd
                                         $ rec_uses
-        ; mapM_ (\(loc, ns) ->
-                    checkUnusedRecordWildcard loc real_uses (Just ns))
-                rec_uses
-        ; warnUnusedLocalBinds bound_names
+        , () <- for_ rec_uses \(loc, ns) ->
+                    checkUnusedRecordWildcard loc real_uses (Just ns)
+        , () <- warnUnusedLocalBinds bound_names
                                       (real_uses `unionNameSet` implicit_uses)
 
-        ; let
+        , let
             -- The variables "used" in the val binds are:
             --   (1) the uses of the binds (allUses)
             --   (2) the FVs of the thing-inside
@@ -391,8 +387,7 @@ rnLocalValBindsAndThen binds@(ValBinds _ _ sigs) thing_inside
                 --
                 -- But note that this means we won't report 'x' as unused,
                 -- whereas we would if we had { x = 3; p = x; y = 'x' }
-
-        ; return (result, all_uses) }}
+        ] }
                 -- The bound names are pruned out of all_uses
                 -- by the bindLocalNamesFV call above
 
@@ -420,15 +415,14 @@ rnBindLHS name_maker _ bind@(PatBind { pat_lhs = pat })
                 -- gets updated to the FVs of the whole bind
                 -- when doing the RHS below
 
-rnBindLHS name_maker _ bind@(FunBind { fun_id = rdr_name })
-  = do { name <- applyNameMaker name_maker rdr_name
-       ; return (bind { fun_id = name
-                      , fun_ext = noExtField }) }
+rnBindLHS name_maker _ bind@(FunBind { fun_id = rdr_name }) =
+  [ bind { fun_id = name, fun_ext = noExtField }
+  | name <- applyNameMaker name_maker rdr_name ]
 
 rnBindLHS name_maker _ (PatSynBind x psb@PSB{ psb_id = rdrname })
   | isTopRecNameMaker name_maker
   = do { addLocM checkConName rdrname
-       ; name <- lookupLocatedTopBndrRn rdrname   -- Should be in scope already
+       ; name <- wrapLocM lookupTopBndrRn rdrname   -- Should be in scope already
        ; return (PatSynBind x psb{ psb_ext = noExtField, psb_id = name }) }
 
   | otherwise  -- Pattern synonym, not at top level
@@ -447,10 +441,7 @@ rnBindLHS _ _ b = pprPanic "rnBindHS" (ppr b)
 rnLBind :: (Name -> [Name])      -- Signature tyvar function
         -> LHsBindLR GhcRn GhcPs
         -> RnM (LHsBind GhcRn, [Name], Uses)
-rnLBind sig_fn (L loc bind)
-  = setSrcSpan loc $
-    do { (bind', bndrs, dus) <- rnBind sig_fn bind
-       ; return (L loc bind', bndrs, dus) }
+rnLBind sig_fn (L loc bind) = setSrcSpan loc $ over _1 (L loc) <$> rnBind sig_fn bind
 
 -- assumes the left-hands-side vars are in scope
 rnBind :: (Name -> [Name])        -- Signature tyvar function
@@ -484,9 +475,7 @@ rnBind _ bind@(PatBind { pat_lhs = pat
 
         -- Warn if the pattern binds no variables
         -- See Note [Pattern bindings that bind no variables]
-        ; whenWOptM Opt_WarnUnusedPatternBinds $
-          when (null bndrs && not ok_nobind_pat) $
-          addWarn (Reason Opt_WarnUnusedPatternBinds) $
+        ; warnIfFlag Opt_WarnUnusedPatternBinds (null bndrs && not ok_nobind_pat) $
           unusedPatBindWarn bind'
 
         ; fvs' `seq` -- See Note [Free-variable space leak]
@@ -575,7 +564,7 @@ depAnalBinds binds_w_dus
                    (\(_, _, uses) -> nonDetEltsUniqSet uses)
                    -- It's OK to use nonDetEltsUniqSet here as explained in
                    -- Note [depAnal determinism] in GHC.Types.Name.Env.
-                   (bagToList binds_w_dus)
+                   (toList binds_w_dus)
 
     get_binds (AcyclicSCC (bind, _, _)) = (NonRecursive, unitBag bind)
     get_binds (CyclicSCC  binds_w_dus)  = (Recursive, listToBag [b | (b,_,_) <- binds_w_dus])
@@ -694,12 +683,12 @@ rnPatSynBind sig_fn bind@(PSB { psb_id = L l name
                    do { checkDupRdrNames (map recordPatSynSelectorId vars)
                       ; let rnRecordPatSynField
                               (RecordPatSynField { recordPatSynSelectorId = visible
-                                                 , recordPatSynPatVar = hidden })
-                              = do { visible' <- lookupLocatedTopBndrRn visible
-                                   ; hidden'  <- lookupPatSynBndr hidden
-                                   ; return $ RecordPatSynField { recordPatSynSelectorId = visible'
-                                                                , recordPatSynPatVar = hidden' } }
-                      ; names <- mapM rnRecordPatSynField  vars
+                                                 , recordPatSynPatVar = hidden }) =
+                              [ RecordPatSynField { recordPatSynSelectorId = visible'
+                                                  , recordPatSynPatVar = hidden' }
+                              | visible' <- wrapLocM lookupTopBndrRn visible
+                              , hidden'  <- lookupPatSynBndr hidden ]
+                      ; names <- traverse rnRecordPatSynField vars
                       ; return ( (pat', RecCon names)
                                , mkFVs (map (unLoc . recordPatSynPatVar) names)) }
 
@@ -724,9 +713,8 @@ rnPatSynBind sig_fn bind@(PSB { psb_id = L l name
                           , psb_dir = dir'
                           , psb_ext = fvs' }
               selector_names = case details' of
-                                 RecCon names ->
-                                  map (unLoc . recordPatSynSelectorId) names
-                                 _ -> []
+                  RecCon names -> unLoc . recordPatSynSelectorId <$> names
+                  _ -> []
 
         ; fvs' `seq` -- See Note [Free-variable space leak]
           return (bind', name : selector_names , fvs1)
@@ -864,17 +852,17 @@ rnMethodBinds is_cls_decl cls ktv_names binds sigs
              sig_ctxt | is_cls_decl = ClsDeclCtxt cls
                       | otherwise   = InstDeclCtxt bound_nms
        ; (spec_inst_prags', sip_fvs) <- renameSigs sig_ctxt spec_inst_prags
-       ; (other_sigs',      sig_fvs) <- extendTyVarEnvFVRn ktv_names $
+       ; (other_sigs',      sig_fvs) <- bindLocalNamesFV ktv_names $
                                         renameSigs sig_ctxt other_sigs
 
        -- Rename the bindings RHSs.  Again there's an issue about whether the
        -- type variables from the class/instance head are in scope.
        -- Answer no in Haskell 2010, but yes if you have -XScopedTypeVariables
        ; (binds'', bind_fvs) <- bindSigTyVarsFV ktv_names $
-              do { binds_w_dus <- mapBagM (rnLBind (mkScopedTvFn other_sigs')) binds'
+              do { binds_w_dus <- traverse (rnLBind (mkScopedTvFn other_sigs')) binds'
                  ; let bind_fvs = foldr (\(_,_,fv1) fv2 -> fv1 `plusFV` fv2)
                                            emptyFVs binds_w_dus
-                 ; return (mapBag fstOf3 binds_w_dus, bind_fvs) }
+                 ; return (fmap fst3 binds_w_dus, bind_fvs) }
 
        ; return ( binds'', spec_inst_prags' ++ other_sigs'
                 , sig_fvs `plusFV` sip_fvs `plusFV` bind_fvs) }
@@ -884,19 +872,18 @@ rnMethodBindLHS :: Bool -> Name
                 -> LHsBindsLR GhcRn GhcPs
                 -> RnM (LHsBindsLR GhcRn GhcPs)
 rnMethodBindLHS _ cls (L loc bind@(FunBind { fun_id = name })) rest
-  = setSrcSpan loc $ do
-    do { sel_name <- wrapLocM (lookupInstDeclBndr cls (text "method")) name
+  = setSrcSpan loc
+  [ L loc bind' `consBag` rest
+  | sel_name <- wrapLocM (lookupInstDeclBndr cls (text "method")) name
                      -- We use the selector name as the binder
-       ; let bind' = bind { fun_id = sel_name, fun_ext = noExtField }
-       ; return (L loc bind' `consBag` rest ) }
+  , let bind' = bind { fun_id = sel_name, fun_ext = noExtField } ]
 
 -- Report error for all other forms of bindings
 -- This is why we use a fold rather than map
 rnMethodBindLHS is_cls_decl _ (L loc bind) rest
-  = do { addErrAt loc $
+  = rest <$ (addErrAt loc $
          vcat [ what <+> text "not allowed in" <+> decl_sort
-              , nest 2 (ppr bind) ]
-       ; return rest }
+              , nest 2 (ppr bind) ])
   where
     decl_sort | is_cls_decl = text "class declaration:"
               | otherwise   = text "instance declaration:"
@@ -970,9 +957,7 @@ renameSig ctxt sig@(ClassOpSig _ is_deflt vs ty)
     (v1:_) = vs
     ty_ctxt = GenericCtx (text "a class method signature for"
                           <+> quotes (ppr v1))
-    inf_msg = if is_deflt
-      then Just (text "A default type signature cannot contain inferred type variables")
-      else Nothing
+    inf_msg = text "A default type signature cannot contain inferred type variables" <$ guard is_deflt
 
 renameSig _ (SpecInstSig _ src ty)
   = do  { (new_ty, fvs) <- rnHsSigType SpecInstSigCtx TypeLevel inf_msg ty
@@ -986,7 +971,7 @@ renameSig _ (SpecInstSig _ src ty)
 -- then the SPECIALISE pragma is ambiguous, unlike all other signatures
 renameSig ctxt sig@(SpecSig _ v tys inl)
   = do  { new_v <- case ctxt of
-                     TopSigCtxt {} -> lookupLocatedOccRn v
+                     TopSigCtxt {} -> wrapLocM lookupOccRn v
                      _             -> lookupSigOccRn ctxt sig v
         ; (new_ty, fvs) <- foldM do_one ([],emptyFVs) tys
         ; return (SpecSig noExtField new_v new_ty inl, fvs) }
@@ -1024,8 +1009,8 @@ renameSig ctxt sig@(SCCFunSig _ st v s)
 -- COMPLETE Sigs can refer to imported IDs which is why we use
 -- lookupLocatedOccRn rather than lookupSigOccRn
 renameSig _ctxt sig@(CompleteMatchSig _ s (L l bf) mty)
-  = do new_bf <- traverse lookupLocatedOccRn bf
-       new_mty  <- traverse lookupLocatedOccRn mty
+  = do new_bf <- traverse (wrapLocM lookupOccRn) bf
+       new_mty  <- traverse (wrapLocM lookupOccRn) mty
 
        this_mod <- fmap tcg_mod getGblEnv
        unless (any (nameIsLocalOrFrom this_mod . unLoc) new_bf) $ do

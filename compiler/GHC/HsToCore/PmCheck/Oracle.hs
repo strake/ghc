@@ -70,16 +70,14 @@ import GHC.HsToCore.Monad hiding (foldlM)
 import GHC.Tc.Instance.Family
 import GHC.Core.FamInstEnv
 
-import Control.Monad (guard, mzero, when)
+import Control.Monad (mzero, when)
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.State.Strict
 import Data.Bifunctor (second)
-import Data.Either   (partitionEithers)
 import Data.Foldable (foldlM, minimumBy, toList)
 import Data.List     (find)
 import qualified Data.List.NonEmpty as NonEmpty
 import Data.Ord      (comparing)
-import qualified Data.Semigroup as Semigroup
 import Data.Tuple    (swap)
 
 -- Debugging Infrastructure
@@ -94,10 +92,10 @@ tracePm herald doc = do
 
 -- | Generate a fresh `Id` of a given type
 mkPmId :: Type -> DsM Id
-mkPmId ty = getUniqueM >>= \unique ->
+mkPmId ty = getUniqueM <₪> \unique ->
   let occname = mkVarOccFS $ fsLit "pm"
       name    = mkInternalName unique occname noSrcSpan
-  in  return (mkLocalIdOrCoVar name ty)
+  in  mkLocalIdOrCoVar name ty
 
 -----------------------------------------------
 -- * Caching possible matches of a COMPLETE set
@@ -491,11 +489,10 @@ equalities (such as i ~ Int) that may be in scope.
 
 -- | Allocates a fresh 'EvVar' name for 'PredTy's.
 nameTyCt :: PredType -> DsM EvVar
-nameTyCt pred_ty = do
-  unique <- getUniqueM
+nameTyCt pred_ty = getUniqueM <₪> \unique ->
   let occname = mkVarOccFS (fsLit ("pm_"++show unique))
       idname  = mkInternalName unique occname noSrcSpan
-  return (mkLocalIdOrCoVar idname pred_ty)
+  in  mkLocalIdOrCoVar idname pred_ty
 
 -- | Add some extra type constraints to the 'TyState'; return 'Nothing' if we
 -- find a contradiction (e.g. @Int ~ Bool@).
@@ -674,7 +671,7 @@ initPossibleMatches ty_st vi@VI{ vi_ty = ty, vi_cache = NoPM } = do
           pure (tc_rep, tc)
       -- Note that the common case here is tc_rep == tc_fam
       let mb_rdcs = map RealDataCon <$> tyConDataCons_maybe tc_rep
-      let rdcs = maybeToList mb_rdcs
+      let rdcs = toList mb_rdcs
       -- NB: tc_fam, because COMPLETE sets are associated with the parent data
       -- family TyCon
       pragmas <- dsGetCompleteMatches tc_fam
@@ -866,15 +863,14 @@ addPmCts :: Delta -> PmCts -> DsM (Maybe Delta)
 addPmCts delta cts = do
   let (ty_cts, tm_cts) = partitionTyTmCts cts
   runSatisfiabilityCheck delta $ mconcat
-    [ tyIsSatisfiable True (listToBag ty_cts)
-    , tmIsSatisfiable (listToBag tm_cts)
+    [ tyIsSatisfiable True ty_cts
+    , tmIsSatisfiable tm_cts
     ]
 
-partitionTyTmCts :: PmCts -> ([TyCt], [TmCt])
-partitionTyTmCts = partitionEithers . map to_either . toList
-  where
-    to_either (PmTyCt pred_ty) = Left pred_ty
-    to_either (PmTmCt tm_ct)   = Right tm_ct
+partitionTyTmCts :: Filtrable f => f PmCt -> (f TyCt, f TmCt)
+partitionTyTmCts = mapEither \ case
+    PmTyCt pred_ty -> Left pred_ty
+    PmTmCt tm_ct   -> Right tm_ct
 
 -- | Adds a single term constraint by dispatching to the various term oracle
 -- functions.
@@ -892,9 +888,7 @@ addTmCt delta (TmNotBotCt x)           = addNotBotCt delta x
 -- Only that's a lie, because we don't currently preserve the fact in 'Delta'
 -- after we checked compatibility. See Note [Preserving TmBotCt]
 addBotCt :: Delta -> Id -> MaybeT DsM Delta
-addBotCt delta x
-  | canDiverge delta x = pure delta
-  | otherwise          = mzero
+addBotCt delta x = delta <$ guard (canDiverge delta x)
 
 {- Note [Preserving TmBotCt]
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1137,10 +1131,10 @@ addConCt delta@MkDelta{ delta_tm_st = TmSt env reps } x alt tvs args = do
   -- Then see if any of the other solutions (remember: each of them is an
   -- additional refinement of the possible values x could take) indicate a
   -- contradiction
-  guard (all ((/= Disjoint) . eqPmAltCon alt . fstOf3) pos)
+  guard (all ((/= Disjoint) . eqPmAltCon alt . fst3) pos)
   -- Now we should be good! Add (alt, tvs, args) as a possible solution, or
   -- refine an existing one
-  case find ((== Equal) . eqPmAltCon alt . fstOf3) pos of
+  case find ((== Equal) . eqPmAltCon alt . fst3) pos of
     Just (_con, other_tvs, other_args) -> do
       -- We must unify existentially bound ty vars and arguments!
       let ty_cts = equateTys (map mkTyVarTy tvs) (map mkTyVarTy other_tvs)
@@ -1360,8 +1354,8 @@ nonVoid rec_ts amb_cs strict_arg_ty = do
                             , ic_strict_arg_tys = new_strict_arg_tys }) = do
         let (new_ty_cs, new_tm_cs) = partitionTyTmCts new_cs
         fmap isJust $ runSatisfiabilityCheck amb_cs $ mconcat
-          [ tyIsSatisfiable False (listToBag new_ty_cs)
-          , tmIsSatisfiable (listToBag new_tm_cs)
+          [ tyIsSatisfiable False new_ty_cs
+          , tmIsSatisfiable new_tm_cs
           , tysAreNonVoid rec_ts new_strict_arg_tys
           ]
 
@@ -1643,11 +1637,11 @@ pickMinimalCompleteSet _ (PM clss) = do
 -- there weren't any such constraints.
 representCoreExpr :: Delta -> CoreExpr -> DsM (Delta, Id)
 representCoreExpr delta@MkDelta{ delta_tm_st = ts@TmSt{ ts_reps = reps } } e
-  | Just rep <- lookupCoreMap reps e = pure (delta, rep)
+  | Just rep <- lookupTM e reps = pure (delta, rep)
   | otherwise = do
       rep <- mkPmId (exprType e)
-      let reps'  = extendCoreMap reps e rep
-      let delta' = delta{ delta_tm_st = ts{ ts_reps = reps' } }
+      let reps'  = insertTM e rep reps
+      let delta' = delta { delta_tm_st = ts{ ts_reps = reps' } }
       pure (delta', rep)
 
 -- | Inspects a 'PmCoreCt' @let x = e@ by recording constraints for @x@ based

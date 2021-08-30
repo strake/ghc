@@ -17,7 +17,6 @@ where
 import GHC.Prelude
 
 import GHC.Utils.Outputable
-import qualified Data.Semigroup as Semi
 
 data Pair a = Pair { pFst :: a, pSnd :: a }
   deriving (Foldable, Functor, Traversable)
@@ -32,12 +31,11 @@ instance Applicative Pair where
   pure x = Pair x x
   (Pair f g) <*> (Pair x y) = Pair (f x) (g y)
 
-instance Semi.Semigroup a => Semi.Semigroup (Pair a) where
-  Pair a1 b1 <> Pair a2 b2 =  Pair (a1 Semi.<> a2) (b1 Semi.<> b2)
+instance Semigroup a => Semigroup (Pair a) where
+  Pair a1 b1 <> Pair a2 b2 =  Pair (a1 <> a2) (b1 <> b2)
 
-instance (Semi.Semigroup a, Monoid a) => Monoid (Pair a) where
+instance Monoid a => Monoid (Pair a) where
   mempty = Pair mempty mempty
-  mappend = (Semi.<>)
 
 instance Outputable a => Outputable (Pair a) where
   ppr (Pair a b) = ppr a <+> char '~' <+> ppr b

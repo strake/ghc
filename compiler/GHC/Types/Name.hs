@@ -8,6 +8,9 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE CPP #-}
+
+#include "lens.h"
 
 -- |
 -- #name_types#
@@ -49,9 +52,9 @@ module GHC.Types.Name (
         mkExternalName, mkWiredInName,
 
         -- ** Manipulating and deconstructing 'Name's
-        nameUnique, setNameUnique,
+        nameUnique, nameUniqueL,
         nameOccName, nameNameSpace, nameModule, nameModule_maybe,
-        setNameLoc,
+        nameLocL,
         tidyNameOcc,
         localiseName,
 
@@ -436,13 +439,11 @@ mkFCallName uniq str = mkInternalName uniq (mkVarOcc str) noSrcSpan
 -- When we renumber/rename things, we need to be
 -- able to change a Name's Unique to match the cached
 -- one in the thing it's the name of.  If you know what I mean.
-setNameUnique :: Name -> Unique -> Name
-setNameUnique name uniq = name {n_uniq = uniq}
+LENS_FIELD(nameUniqueL, n_uniq)
 
 -- This is used for hsigs: we want to use the name of the originally exported
 -- entity, but edit the location to refer to the reexport site
-setNameLoc :: Name -> SrcSpan -> Name
-setNameLoc name loc = name {n_loc = loc}
+LENS_FIELD(nameLocL, n_loc)
 
 tidyNameOcc :: Name -> OccName -> Name
 -- We set the OccName of a Name when tidying

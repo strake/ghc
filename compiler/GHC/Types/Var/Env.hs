@@ -17,24 +17,21 @@ module GHC.Types.Var.Env (
         delVarEnvList, delVarEnv,
         minusVarEnv,
         lookupVarEnv, lookupVarEnv_NF, lookupWithDefaultVarEnv,
-        mapVarEnv, zipVarEnv,
+        zipVarEnv,
         modifyVarEnv, modifyVarEnv_Directly,
         isEmptyVarEnv,
         elemVarEnvByKey,
-        filterVarEnv, restrictVarEnv,
-        partitionVarEnv,
+        restrictVarEnv,
 
         -- * Deterministic Var environments (maps)
         DVarEnv, DIdEnv, DTyVarEnv,
 
         -- ** Manipulating these environments
         emptyDVarEnv, mkDVarEnv,
-        dVarEnvElts,
         extendDVarEnv, extendDVarEnv_C,
         extendDVarEnvList,
         lookupDVarEnv, elemDVarEnv,
-        isEmptyDVarEnv, foldDVarEnv, nonDetStrictFoldDVarEnv,
-        mapDVarEnv, filterDVarEnv,
+        nonDetStrictFoldDVarEnv,
         modifyDVarEnv,
         alterDVarEnv,
         plusDVarEnv, plusDVarEnv_C,
@@ -42,8 +39,6 @@ module GHC.Types.Var.Env (
         delDVarEnv,
         delDVarEnvList,
         minusDVarEnv,
-        partitionDVarEnv,
-        anyDVarEnv,
 
         -- * The InScopeSet type
         InScopeSet,
@@ -126,7 +121,7 @@ getInScopeVars ::  InScopeSet -> VarSet
 getInScopeVars (InScope vs) = vs
 
 mkInScopeSet :: VarSet -> InScopeSet
-mkInScopeSet in_scope = InScope in_scope
+mkInScopeSet = InScope
 
 extendInScopeSet :: InScopeSet -> Var -> InScopeSet
 extendInScopeSet (InScope in_scope) v
@@ -149,15 +144,13 @@ elemInScopeSet v (InScope in_scope) = v `elemVarSet` in_scope
 -- | Look up a variable the 'InScopeSet'.  This lets you map from
 -- the variable's identity (unique) to its full value.
 lookupInScope :: InScopeSet -> Var -> Maybe Var
-lookupInScope (InScope in_scope) v  = lookupVarSet in_scope v
+lookupInScope (InScope in_scope) = lookupVarSet in_scope
 
 lookupInScope_Directly :: InScopeSet -> Unique -> Maybe Var
-lookupInScope_Directly (InScope in_scope) uniq
-  = lookupVarSet_Directly in_scope uniq
+lookupInScope_Directly (InScope in_scope) = lookupVarSet_Directly in_scope
 
 unionInScope :: InScopeSet -> InScopeSet -> InScopeSet
-unionInScope (InScope s1) (InScope s2)
-  = InScope (s1 `unionVarSet` s2)
+unionInScope (InScope s1) (InScope s2) = InScope (s1 `unionVarSet` s2)
 
 varSetInScope :: VarSet -> InScopeSet -> Bool
 varSetInScope vars (InScope s1) = vars `subVarSet` s1
@@ -193,8 +186,7 @@ uniqAway in_scope var
 
 uniqAway' :: InScopeSet -> Var -> Var
 -- This one *always* makes up a new variable
-uniqAway' in_scope var
-  = setVarUnique var (unsafeGetFreshLocalUnique in_scope)
+uniqAway' in_scope = set varUniqueL (unsafeGetFreshLocalUnique in_scope)
 
 -- | @unsafeGetFreshUnique in_scope@ finds a unique that is not in-scope in the
 -- given 'InScopeSet'. This must be used very carefully since one can very easily
@@ -472,7 +464,6 @@ plusVarEnv        :: VarEnv a -> VarEnv a -> VarEnv a
 plusVarEnvList    :: [VarEnv a] -> VarEnv a
 extendVarEnvList  :: VarEnv a -> [(Var, a)] -> VarEnv a
 
-partitionVarEnv   :: (a -> Bool) -> VarEnv a -> (VarEnv a, VarEnv a)
 restrictVarEnv    :: VarEnv a -> VarSet -> VarEnv a
 delVarEnvList     :: VarEnv a -> [Var] -> VarEnv a
 delVarEnv         :: VarEnv a -> Var -> VarEnv a
@@ -480,12 +471,10 @@ minusVarEnv       :: VarEnv a -> VarEnv b -> VarEnv a
 plusVarEnv_C      :: (a -> a -> a) -> VarEnv a -> VarEnv a -> VarEnv a
 plusVarEnv_CD     :: (a -> a -> a) -> VarEnv a -> a -> VarEnv a -> a -> VarEnv a
 plusMaybeVarEnv_C :: (a -> a -> Maybe a) -> VarEnv a -> VarEnv a -> VarEnv a
-mapVarEnv         :: (a -> b) -> VarEnv a -> VarEnv b
 modifyVarEnv      :: (a -> a) -> VarEnv a -> Var -> VarEnv a
 
 isEmptyVarEnv     :: VarEnv a -> Bool
 lookupVarEnv      :: VarEnv a -> Var -> Maybe a
-filterVarEnv      :: (a -> Bool) -> VarEnv a -> VarEnv a
 lookupVarEnv_NF   :: VarEnv a -> Var -> a
 lookupWithDefaultVarEnv :: VarEnv a -> a -> Var -> a
 elemVarEnv        :: Var -> VarEnv a -> Bool
@@ -509,15 +498,12 @@ minusVarEnv      = minusUFM
 plusVarEnv       = plusUFM
 plusVarEnvList   = plusUFMList
 lookupVarEnv     = lookupUFM
-filterVarEnv     = filterUFM
 lookupWithDefaultVarEnv = lookupWithDefaultUFM
-mapVarEnv        = mapUFM
 mkVarEnv         = listToUFM
 mkVarEnv_Directly= listToUFM_Directly
 emptyVarEnv      = emptyUFM
 unitVarEnv       = unitUFM
 isEmptyVarEnv    = isNullUFM
-partitionVarEnv       = partitionUFM
 
 restrictVarEnv env vs = filterUFM_Directly keep env
   where
@@ -561,9 +547,6 @@ type DTyVarEnv elt = UniqDFM TyVar elt
 emptyDVarEnv :: DVarEnv a
 emptyDVarEnv = emptyUDFM
 
-dVarEnvElts :: DVarEnv a -> [a]
-dVarEnvElts = eltsUDFM
-
 mkDVarEnv :: [(Var, a)] -> DVarEnv a
 mkDVarEnv = listToUDFM
 
@@ -576,20 +559,11 @@ minusDVarEnv = minusUDFM
 lookupDVarEnv :: DVarEnv a -> Var -> Maybe a
 lookupDVarEnv = lookupUDFM
 
-foldDVarEnv :: (a -> b -> b) -> b -> DVarEnv a -> b
-foldDVarEnv = foldUDFM
-
 -- See Note [Deterministic UniqFM] to learn about nondeterminism.
 -- If you use this please provide a justification why it doesn't introduce
 -- nondeterminism.
 nonDetStrictFoldDVarEnv :: (a -> b -> b) -> b -> DVarEnv a -> b
 nonDetStrictFoldDVarEnv = nonDetStrictFoldUDFM
-
-mapDVarEnv :: (a -> b) -> DVarEnv a -> DVarEnv b
-mapDVarEnv = mapUDFM
-
-filterDVarEnv      :: (a -> Bool) -> DVarEnv a -> DVarEnv a
-filterDVarEnv = filterUDFM
 
 alterDVarEnv :: (Maybe a -> Maybe a) -> DVarEnv a -> Var -> DVarEnv a
 alterDVarEnv = alterUDFM
@@ -609,9 +583,6 @@ delDVarEnv = delFromUDFM
 delDVarEnvList :: DVarEnv a -> [Var] -> DVarEnv a
 delDVarEnvList = delListFromUDFM
 
-isEmptyDVarEnv :: DVarEnv a -> Bool
-isEmptyDVarEnv = isNullUDFM
-
 elemDVarEnv :: Var -> DVarEnv a -> Bool
 elemDVarEnv = elemUDFM
 
@@ -620,15 +591,9 @@ extendDVarEnv_C = addToUDFM_C
 
 modifyDVarEnv :: (a -> a) -> DVarEnv a -> Var -> DVarEnv a
 modifyDVarEnv mangle_fn env key
-  = case (lookupDVarEnv env key) of
+  = case lookupDVarEnv env key of
       Nothing -> env
       Just xx -> extendDVarEnv env key (mangle_fn xx)
 
-partitionDVarEnv :: (a -> Bool) -> DVarEnv a -> (DVarEnv a, DVarEnv a)
-partitionDVarEnv = partitionUDFM
-
 extendDVarEnvList :: DVarEnv a -> [(Var, a)] -> DVarEnv a
 extendDVarEnvList = addListToUDFM
-
-anyDVarEnv :: (a -> Bool) -> DVarEnv a -> Bool
-anyDVarEnv = anyUDFM

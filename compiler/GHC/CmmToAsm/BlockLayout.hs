@@ -43,7 +43,7 @@ import GHC.Data.Maybe
 import GHC.Data.List.SetOps (removeDups)
 
 import GHC.Data.OrdList
-import Data.List
+import Data.List hiding (filter)
 import Data.Foldable (toList)
 
 import qualified Data.Set as Set
@@ -316,7 +316,7 @@ instance Ord (BlockChain) where
 
 instance Outputable (BlockChain) where
     ppr (BlockChain blks) =
-        parens (text "Chain:" <+> ppr (fromOL $ blks) )
+        parens (text "Chain:" <+> ppr (toList $ blks) )
 
 chainFoldl :: (b -> BlockId -> b) -> b -> BlockChain -> b
 chainFoldl f z (BlockChain blocks) = foldl' f z blocks
@@ -352,7 +352,7 @@ chainConcat (BlockChain blks1) (BlockChain blks2)
   = BlockChain (blks1 `appOL` blks2)
 
 chainToBlocks :: BlockChain -> [BlockId]
-chainToBlocks (BlockChain blks) = fromOL blks
+chainToBlocks (BlockChain blks) = toList blks
 
 -- | Given the Chain A -> B -> C -> D and we break at C
 --   we get the two Chains (A -> B, C -> D) as result.
@@ -365,7 +365,7 @@ breakChainAt bid (BlockChain blks)
     = (BlockChain (toOL lblks),
        BlockChain (toOL rblks))
   where
-    (lblks, rblks) = break (\lbl -> lbl == bid) (fromOL blks)
+    (lblks, rblks) = break (\lbl -> lbl == bid) (toList blks)
 
 takeR :: Int -> BlockChain -> [BlockId]
 takeR n (BlockChain blks) =
@@ -373,7 +373,7 @@ takeR n (BlockChain blks) =
 
 takeL :: Int -> BlockChain -> [BlockId]
 takeL n (BlockChain blks) =
-    take n . fromOL $ blks
+    take n . toList $ blks
 
 -- Note [Combining neighborhood chains]
 -- ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -433,7 +433,7 @@ combineNeighbourhood edges chains
         applyEdges :: [CfgEdge] -> FrontierMap -> FrontierMap -> Set.Set (BlockId, BlockId)
                    -> ([BlockChain], Set.Set (BlockId,BlockId))
         applyEdges [] chainEnds _chainFronts combined =
-            (ordNub $ map snd $ mapElems chainEnds, combined)
+            (ordNub $ map snd $ toList chainEnds, combined)
         applyEdges ((CfgEdge from to _w):edges) chainEnds chainFronts combined
             | Just (c1_e,c1) <- mapLookup from chainEnds
             , Just (c2_f,c2) <- mapLookup to chainFronts
@@ -505,7 +505,7 @@ mergeChains edges chains
 
         merge :: forall s. [CfgEdge] -> LabelMap (STRef s BlockChain) -> ST s BlockChain
         merge [] chains = do
-            chains' <- ordNub <$> (mapM readSTRef $ mapElems chains) :: ST s [BlockChain]
+            chains' <- ordNub <$> (traverse readSTRef $ toList chains) :: ST s [BlockChain]
             return $ foldl' chainConcat (head chains') (tail chains')
         merge ((CfgEdge from to _):edges) chains
         --   | pprTrace "merge" (ppr (from,to) <> ppr chains) False
@@ -560,7 +560,7 @@ buildChains edges blocks
                         , Set.Set (BlockId, BlockId) --List of fused edges
                         )
     buildNext placed _chainStarts chainEnds  [] linked = do
-        ends' <- sequence $ mapMap readSTRef chainEnds :: ST s (LabelMap BlockChain)
+        ends' <- sequence $ fmap readSTRef chainEnds :: ST s (LabelMap BlockChain)
         -- Any remaining blocks have to be made to singleton chains.
         -- They might be combined with other chains later on outside this function.
         let unplaced = filter (\x -> not (setMember x placed)) blocks
@@ -617,7 +617,7 @@ buildChains edges blocks
             ref <- newSTRef newChain
             let start = head $ takeL 1 newChain
             let end = head $ takeR 1 newChain
-            -- chains <- sequence $ mapMap readSTRef chainStarts
+            -- chains <- sequence $ fmap readSTRef chainStarts
             -- pprTraceM "pre-fuse chains:" $ ppr chains
             buildNext
                 placed
@@ -640,7 +640,7 @@ buildChains edges blocks
             let newChain = chainSnoc chain to
             writeSTRef predChain newChain
             let chainEnds' = mapInsert to predChain $ mapDelete from chainEnds
-            -- chains <- sequence $ mapMap readSTRef chainStarts
+            -- chains <- sequence $ fmap readSTRef chainStarts
             -- pprTraceM "from chains:" $ ppr chains
             buildNext (setInsert to placed) chainStarts chainEnds' todo (Set.insert (from,to) linked)
           -- We can attack it to the front of a chain
@@ -651,7 +651,7 @@ buildChains edges blocks
             let newChain = from `chainCons` chain
             writeSTRef succChain newChain
             let chainStarts' = mapInsert from succChain $ mapDelete to chainStarts
-            -- chains <- sequence $ mapMap readSTRef chainStarts'
+            -- chains <- sequence $ fmap readSTRef chainStarts'
             -- pprTraceM "to chains:" $ ppr chains
             buildNext (setInsert from placed) chainStarts' chainEnds todo (Set.insert (from,to) linked)
           -- The placed end of the edge is part of a chain already and not an end.
@@ -724,10 +724,10 @@ sequenceChain  info weights     blocks@((BasicBlock entry _):_) =
             directEdges
 
         (neighbourChains, combined)
-            = assert (noDups $ mapElems builtChains) $
+            = assert (noDups $ toList builtChains) $
               {-# SCC "groupNeighbourChains" #-}
             --   pprTraceIt "NeighbourChains" $
-              combineNeighbourhood rankedEdges (mapElems builtChains)
+              combineNeighbourhood rankedEdges (toList builtChains)
 
 
         allEdges :: [CfgEdge]
@@ -765,7 +765,7 @@ sequenceChain  info weights     blocks@((BasicBlock entry _):_) =
 
         blockList
             = assert (noDups [masterChain])
-              (concatMap fromOL $ map chainBlocks prepedChains)
+              (toList =<< chainBlocks <$> prepedChains)
 
         --chainPlaced = setFromList $ map blockId blockList :: LabelSet
         chainPlaced = setFromList $ blockList :: LabelSet

@@ -5,6 +5,9 @@
 -}
 
 {-# LANGUAGE DeriveFunctor, ExistentialQuantification, GeneralizedNewtypeDeriving, ViewPatterns #-}
+{-# LANGUAGE CPP #-}
+
+#include "lens.h"
 
 -- | Various types used during typechecking.
 --
@@ -23,11 +26,11 @@ module GHC.Tc.Types(
         TcRef,
 
         -- The environment types
-        Env(..),
-        TcGblEnv(..), TcLclEnv(..),
-        setLclEnvTcLevel, getLclEnvTcLevel,
-        setLclEnvLoc, getLclEnvLoc,
-        IfGblEnv(..), IfLclEnv(..),
+        Env(..), env_topL, env_umL, env_gblL, env_lclL,
+        TcGblEnv(..), tcg_modL, tcg_semantic_modL, tcg_srcL, tcg_rdr_envL, tcg_defaultL, tcg_fix_envL, tcg_field_envL, tcg_type_envL, tcg_type_env_varL, tcg_inst_envL, tcg_fam_inst_envL, tcg_ann_envL, tcg_exportsL, tcg_importsL, tcg_dusL, tcg_used_gresL, tcg_keepL, tcg_th_usedL, tcg_th_splice_usedL, tcg_dfun_nL, tcg_mergedL, tcg_rn_exportsL, tcg_rn_importsL, tcg_rn_declsL, tcg_dependent_filesL, tcg_th_topdeclsL, tcg_th_foreign_filesL, tcg_th_topnamesL, tcg_th_modfinalizersL, tcg_th_corepluginsL, tcg_th_stateL, tcg_th_remote_stateL, tcg_ev_bindsL, tcg_tr_moduleL, tcg_bindsL, tcg_sigsL, tcg_imp_specsL, tcg_warnsL, tcg_annsL, tcg_tcsL, tcg_instsL, tcg_fam_instsL, tcg_rulesL, tcg_fordsL, tcg_patsynsL, tcg_doc_hdrL, tcg_hpcL, tcg_self_bootL, tcg_mainL, tcg_safeInferL, tcg_tc_pluginsL, tcg_hf_pluginsL, tcg_top_locL, tcg_static_wcL, tcg_complete_matchesL, tcg_cc_stL,
+        TcLclEnv(..), tcl_locL, tcl_ctxtL, tcl_tclvlL, tcl_th_ctxtL, tcl_th_bndrsL, tcl_arrow_ctxtL, tcl_rdrL, tcl_envL, tcl_bndrsL, tcl_lieL, tcl_errsL,
+        IfGblEnv(..), if_docL, if_rec_typesL,
+        IfLclEnv(..), if_modL, if_bootL, if_locL, if_nsubstL, if_implicits_envL, if_tv_envL, if_id_envL,
         tcVisibleOrphanMods,
 
         -- Frontend types (shouldn't really be here)
@@ -143,7 +146,6 @@ import Data.List ( sort )
 import Data.Map ( Map )
 import Data.Dynamic  ( Dynamic )
 import Data.Typeable ( TypeRep )
-import Data.Maybe    ( mapMaybe )
 import GHCi.Message
 import GHCi.RemoteTypes
 
@@ -224,6 +226,11 @@ data Env gbl lcl
         env_lcl  :: lcl      -- Nested stuff; changes as we go into
     }
 
+LENS_FIELD(env_topL, env_top)
+LENS_FIELD(env_umL, env_um)
+LENS_FIELD(env_gblL, env_gbl)
+LENS_FIELD(env_lclL, env_lcl)
+
 instance ContainsDynFlags (Env gbl lcl) where
     extractDynFlags env = hsc_dflags (env_top env)
 
@@ -260,6 +267,9 @@ data IfGblEnv
                 -- Nothing => interactive stuff, no loops possible
     }
 
+LENS_FIELD(if_docL, if_doc)
+LENS_FIELD(if_rec_typesL, if_rec_types)
+
 data IfLclEnv
   = IfLclEnv {
         -- The module for the current IfaceDecl
@@ -293,6 +303,14 @@ data IfLclEnv
         if_tv_env  :: FastStringEnv TyVar,     -- Nested tyvar bindings
         if_id_env  :: FastStringEnv Id         -- Nested id binding
     }
+
+LENS_FIELD(if_modL, if_mod)
+LENS_FIELD(if_bootL, if_boot)
+LENS_FIELD(if_locL, if_loc)
+LENS_FIELD(if_nsubstL, if_nsubst)
+LENS_FIELD(if_implicits_envL, if_implicits_env)
+LENS_FIELD(if_tv_envL, if_tv_env)
+LENS_FIELD(if_id_envL, if_id_env)
 
 {-
 ************************************************************************
@@ -561,6 +579,63 @@ data TcGblEnv
         tcg_cc_st   :: TcRef CostCentreState
     }
 
+LENS_FIELD(tcg_modL, tcg_mod)
+LENS_FIELD(tcg_semantic_modL, tcg_semantic_mod)
+LENS_FIELD(tcg_srcL, tcg_src)
+LENS_FIELD(tcg_rdr_envL, tcg_rdr_env)
+LENS_FIELD(tcg_defaultL, tcg_default)
+LENS_FIELD(tcg_fix_envL, tcg_fix_env)
+LENS_FIELD(tcg_field_envL, tcg_field_env)
+LENS_FIELD(tcg_type_envL, tcg_type_env)
+LENS_FIELD(tcg_type_env_varL, tcg_type_env_var)
+LENS_FIELD(tcg_inst_envL, tcg_inst_env)
+LENS_FIELD(tcg_fam_inst_envL, tcg_fam_inst_env)
+LENS_FIELD(tcg_ann_envL, tcg_ann_env)
+LENS_FIELD(tcg_exportsL, tcg_exports)
+LENS_FIELD(tcg_importsL, tcg_imports)
+LENS_FIELD(tcg_dusL, tcg_dus)
+LENS_FIELD(tcg_used_gresL, tcg_used_gres)
+LENS_FIELD(tcg_keepL, tcg_keep)
+LENS_FIELD(tcg_th_usedL, tcg_th_used)
+LENS_FIELD(tcg_th_splice_usedL, tcg_th_splice_used)
+LENS_FIELD(tcg_dfun_nL, tcg_dfun_n)
+LENS_FIELD(tcg_mergedL, tcg_merged)
+LENS_FIELD(tcg_rn_exportsL, tcg_rn_exports)
+LENS_FIELD(tcg_rn_importsL, tcg_rn_imports)
+LENS_FIELD(tcg_rn_declsL, tcg_rn_decls)
+LENS_FIELD(tcg_dependent_filesL, tcg_dependent_files)
+LENS_FIELD(tcg_th_topdeclsL, tcg_th_topdecls)
+LENS_FIELD(tcg_th_foreign_filesL, tcg_th_foreign_files)
+LENS_FIELD(tcg_th_topnamesL, tcg_th_topnames)
+LENS_FIELD(tcg_th_modfinalizersL, tcg_th_modfinalizers)
+LENS_FIELD(tcg_th_corepluginsL, tcg_th_coreplugins)
+LENS_FIELD(tcg_th_stateL, tcg_th_state)
+LENS_FIELD(tcg_th_remote_stateL, tcg_th_remote_state)
+LENS_FIELD(tcg_ev_bindsL, tcg_ev_binds)
+LENS_FIELD(tcg_tr_moduleL, tcg_tr_module)
+LENS_FIELD(tcg_bindsL, tcg_binds)
+LENS_FIELD(tcg_sigsL, tcg_sigs)
+LENS_FIELD(tcg_imp_specsL, tcg_imp_specs)
+LENS_FIELD(tcg_warnsL, tcg_warns)
+LENS_FIELD(tcg_annsL, tcg_anns)
+LENS_FIELD(tcg_tcsL, tcg_tcs)
+LENS_FIELD(tcg_instsL, tcg_insts)
+LENS_FIELD(tcg_fam_instsL, tcg_fam_insts)
+LENS_FIELD(tcg_rulesL, tcg_rules)
+LENS_FIELD(tcg_fordsL, tcg_fords)
+LENS_FIELD(tcg_patsynsL, tcg_patsyns)
+LENS_FIELD(tcg_doc_hdrL, tcg_doc_hdr)
+LENS_FIELD(tcg_hpcL, tcg_hpc)
+LENS_FIELD(tcg_self_bootL, tcg_self_boot)
+LENS_FIELD(tcg_mainL, tcg_main)
+LENS_FIELD(tcg_safeInferL, tcg_safeInfer)
+LENS_FIELD(tcg_tc_pluginsL, tcg_tc_plugins)
+LENS_FIELD(tcg_hf_pluginsL, tcg_hf_plugins)
+LENS_FIELD(tcg_top_locL, tcg_top_loc)
+LENS_FIELD(tcg_static_wcL, tcg_static_wc)
+LENS_FIELD(tcg_complete_matchesL, tcg_complete_matches)
+LENS_FIELD(tcg_cc_stL, tcg_cc_st)
+
 -- NB: topModIdentity, not topModSemantic!
 -- Definition sites of orphan identities will be identity modules, not semantic
 -- modules.
@@ -741,17 +816,17 @@ data TcLclEnv           -- Changes as we move inside an expression
         tcl_errs :: TcRef Messages              -- Place to accumulate errors
     }
 
-setLclEnvTcLevel :: TcLclEnv -> TcLevel -> TcLclEnv
-setLclEnvTcLevel env lvl = env { tcl_tclvl = lvl }
-
-getLclEnvTcLevel :: TcLclEnv -> TcLevel
-getLclEnvTcLevel = tcl_tclvl
-
-setLclEnvLoc :: TcLclEnv -> RealSrcSpan -> TcLclEnv
-setLclEnvLoc env loc = env { tcl_loc = loc }
-
-getLclEnvLoc :: TcLclEnv -> RealSrcSpan
-getLclEnvLoc = tcl_loc
+LENS_FIELD(tcl_locL, tcl_loc)
+LENS_FIELD(tcl_ctxtL, tcl_ctxt)
+LENS_FIELD(tcl_tclvlL, tcl_tclvl)
+LENS_FIELD(tcl_th_ctxtL, tcl_th_ctxt)
+LENS_FIELD(tcl_th_bndrsL, tcl_th_bndrs)
+LENS_FIELD(tcl_arrow_ctxtL, tcl_arrow_ctxt)
+LENS_FIELD(tcl_rdrL, tcl_rdr)
+LENS_FIELD(tcl_envL, tcl_env)
+LENS_FIELD(tcl_bndrsL, tcl_bndrs)
+LENS_FIELD(tcl_lieL, tcl_lie)
+LENS_FIELD(tcl_errsL, tcl_errs)
 
 type ErrCtxt = (Bool, TidyEnv -> TcM (TidyEnv, MsgDoc))
         -- Monadic so that we have a chance

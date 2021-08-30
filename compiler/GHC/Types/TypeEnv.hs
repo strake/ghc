@@ -84,12 +84,12 @@ extendTypeEnv :: TypeEnv -> TyThing -> TypeEnv
 extendTypeEnv env thing = extendNameEnv env (getName thing) thing
 
 extendTypeEnvList :: TypeEnv -> [TyThing] -> TypeEnv
-extendTypeEnvList env things = foldl' extendTypeEnv env things
+extendTypeEnvList = foldl' extendTypeEnv
 
 extendTypeEnvWithIds :: TypeEnv -> [Id] -> TypeEnv
 extendTypeEnvWithIds env ids
   = extendNameEnvList env [(getName id, AnId id) | id <- ids]
 
 plusTypeEnv :: TypeEnv -> TypeEnv -> TypeEnv
-plusTypeEnv env1 env2 = plusNameEnv env1 env2
+plusTypeEnv = plusNameEnv
 

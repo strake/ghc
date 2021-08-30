@@ -64,7 +64,6 @@ import GHC.Driver.Hooks
 import qualified GHC.LanguageExtensions as LangExt
 
 import Control.Monad
-import Data.Maybe (fromMaybe)
 
 -- Defines a binding
 isForeignImport :: LForeignDecl name -> Bool

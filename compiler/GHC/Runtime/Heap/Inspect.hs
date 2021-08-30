@@ -64,8 +64,7 @@ import GHC.Runtime.Heap.Layout ( roundUpTo )
 import GHC.IO (throwIO)
 
 import Control.Monad
-import Data.Maybe
-import Data.List
+import Data.List hiding (filter)
 import GHC.Exts
 import qualified Data.Sequence as Seq
 import Data.Sequence (viewl, ViewL(..))
@@ -607,8 +606,8 @@ addConstraint actual expected = do
     traceTR (text "add constraint:" <+> fsep [ppr actual, equals, ppr expected])
     recoverTR (traceTR $ fsep [text "Failed to unify", ppr actual,
                                     text "with", ppr expected]) $
-      discardResult $
-      captureConstraints $
+      () <$
+      captureConstraints
       do { (ty1, ty2) <- congruenceNewtypes actual expected
          ; unifyType Nothing ty1 ty2 }
      -- TOMDO: what about the coercion?
@@ -805,7 +804,7 @@ cvObtainTerm hsc_env max_depth force old_ty hval = runTR hsc_env $ do
 
 extractSubTerms :: (Type -> ForeignHValue -> TcM Term)
                 -> GenClosure ForeignHValue -> [Type] -> TcM [Term]
-extractSubTerms recurse clos = liftM thdOf3 . go 0 0
+extractSubTerms recurse clos = fmap thd3 . go 0 0
   where
     array = dataArgs clos
 

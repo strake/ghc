@@ -5,6 +5,7 @@ module Haddock.Backends.Hyperlinker.Parser (parse) where
 import Control.Applicative ( Alternative(..) )
 import Control.Monad.Trans.Maybe ( MaybeT(..) )
 import Control.Monad.Trans.Class ( MonadTrans(lift) )
+import Data.Foldable ( toList )
 import Data.List           ( isPrefixOf, isSuffixOf )
 
 import qualified Data.ByteString as BS
@@ -17,7 +18,6 @@ import GHC.Data.FastString ( mkFastString )
 import GHC.Parser.Lexer    as Lexer
                            ( P(..), ParseResult(..), PState(..), Token(..)
                            , initParserState, lexer, mkParserOpts, getErrorMessages)
-import GHC.Data.Bag         ( bagToList )
 import GHC.Utils.Outputable ( text, ($$) )
 import GHC.Utils.Panic      ( panic )
 import GHC.Types.SrcLoc
@@ -38,7 +38,7 @@ parse
 parse dflags fpath bs = case unP (go False []) initState of
     POk _ toks -> reverse toks
     PFailed pst ->
-      let err:_ = bagToList (getErrorMessages pst dflags) in
+      let err:_ = toList (getErrorMessages pst dflags) in
       panic $ showSDoc dflags $
         text "Hyperlinker parse error:" $$ pprLocErrMsg err
   where

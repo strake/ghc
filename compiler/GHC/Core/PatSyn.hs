@@ -37,7 +37,6 @@ import GHC.Utils.Outputable
 import GHC.Utils.Panic
 
 import qualified Data.Data as Data
-import Data.Function
 import Data.List (find)
 
 {-
@@ -479,7 +478,7 @@ pprPatSynType (MkPatSyn { psUnivTyVars = univ_tvs,  psReqTheta  = req_theta
                         , psArgs       = orig_args, psResultTy = orig_res_ty })
   = sep [ pprForAll $ tyVarSpecToBinders univ_tvs
         , pprThetaArrowTy req_theta
-        , ppWhen insert_empty_ctxt $ parens empty <+> darrow
+        , mwhen insert_empty_ctxt $ parens empty <+> darrow
         , pprType sigma_ty ]
   where
     sigma_ty = mkInvisForAllTys ex_tvs $

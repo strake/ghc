@@ -31,8 +31,8 @@ import GHC.Data.Bag
 import GHC.Types.SrcLoc
 import GHC.Utils.Json
 
-import Data.Function
-import Data.List
+import Data.Foldable (toList)
+import Data.List hiding (filter)
 
 import Control.Monad (ap)
 import Control.Monad.Trans.State (State, runState)
@@ -183,7 +183,7 @@ processArgs :: Monad m
                    [Warn] ) -- warnings
 processArgs spec args = do
     (errs, warns, spare) <- runEwM action
-    return (spare, bagToList errs, bagToList warns)
+    return (spare, toList errs, toList warns)
   where
     action = process args []
 

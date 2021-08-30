@@ -6,7 +6,7 @@
 module GHC.Core.TyCo.Tidy
   (
         -- * Tidying type related things up for printing
-        tidyType,      tidyTypes,
+        tidyType,
         tidyOpenType,  tidyOpenTypes,
         tidyOpenKind,
         tidyVarBndr, tidyVarBndrs, tidyFreeTyCoVars, avoidNameClashes,
@@ -27,8 +27,6 @@ import GHC.Types.Name hiding (varName)
 import GHC.Types.Var
 import GHC.Types.Var.Env
 import GHC.Utils.Misc (seqList)
-
-import Data.List (mapAccumL)
 
 {-
 %************************************************************************
@@ -52,7 +50,7 @@ tidyVarBndr tidy_env@(occ_env, subst) var
       (occ_env', occ') -> ((occ_env', subst'), var')
         where
           subst' = extendVarEnv subst var var'
-          var'   = updateVarType (tidyType tidy_env) (setVarName var name')
+          var'   = over varTypeL (tidyType tidy_env) . set varNameL name' $ var
           name'  = tidyNameOcc name occ'
           name   = varName var
 
@@ -101,7 +99,7 @@ tidyFreeTyCoVars tidy_env tyvars
 
 ---------------
 tidyOpenTyCoVars :: TidyEnv -> [TyCoVar] -> (TidyEnv, [TyCoVar])
-tidyOpenTyCoVars env tyvars = mapAccumL tidyOpenTyCoVar env tyvars
+tidyOpenTyCoVars = mapAccumL tidyOpenTyCoVar
 
 ---------------
 tidyOpenTyCoVar :: TidyEnv -> TyCoVar -> (TidyEnv, TyCoVar)
@@ -119,18 +117,14 @@ tidyOpenTyCoVar env@(_, subst) tyvar
 tidyTyCoVarOcc :: TidyEnv -> TyCoVar -> TyCoVar
 tidyTyCoVarOcc env@(_, subst) tv
   = case lookupVarEnv subst tv of
-        Nothing  -> updateVarType (tidyType env) tv
+        Nothing  -> over varTypeL (tidyType env) tv
         Just tv' -> tv'
-
----------------
-tidyTypes :: TidyEnv -> [Type] -> [Type]
-tidyTypes env tys = map (tidyType env) tys
 
 ---------------
 tidyType :: TidyEnv -> Type -> Type
 tidyType _   (LitTy n)             = LitTy n
 tidyType env (TyVarTy tv)          = TyVarTy (tidyTyCoVarOcc env tv)
-tidyType env (TyConApp tycon tys)  = let args = tidyTypes env tys
+tidyType env (TyConApp tycon tys)  = let args = tidyType env <$> tys
                                      in args `seqList` TyConApp tycon args
 tidyType env (AppTy fun arg)       = (AppTy $! (tidyType env fun)) $! (tidyType env arg)
 tidyType env ty@(FunTy _ arg res)  = let { !arg' = tidyType env arg
@@ -164,7 +158,7 @@ splitForAllTys' ty = go ty [] []
 -- and then uses 'tidyType' to work over the type itself
 tidyOpenTypes :: TidyEnv -> [Type] -> (TidyEnv, [Type])
 tidyOpenTypes env tys
-  = (env', tidyTypes (trimmed_occ_env, var_env) tys)
+  = (env', tidyType (trimmed_occ_env, var_env) <$> tys)
   where
     (env'@(_, var_env), tvs') = tidyOpenTyCoVars env $
                                 tyCoVarsOfTypesWellScoped tys

@@ -23,6 +23,7 @@ of arguments of combining function.
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE CPP #-}
 {-# OPTIONS_GHC -Wall #-}
 
@@ -64,9 +65,9 @@ module GHC.Types.Unique.FM (
         equalKeysUFM,
         nonDetStrictFoldUFM, foldUFM, nonDetStrictFoldUFM_Directly,
         anyUFM, allUFM, seqEltsUFM,
-        mapUFM, mapUFM_Directly,
+        mapUFM_Directly,
         elemUFM, elemUFM_Directly,
-        filterUFM, filterUFM_Directly, partitionUFM,
+        filterUFM_Directly,
         sizeUFM,
         isNullUFM,
         lookupUFM, lookupUFM_Directly,
@@ -83,12 +84,14 @@ import GHC.Prelude
 import GHC.Types.Unique ( Uniquable(..), Unique, getKey )
 import GHC.Utils.Outputable
 import GHC.Utils.Panic.Plain (assert)
+import Control.Monad (join)
+import Data.Bifunctor (bimap)
 import qualified Data.IntMap as M
 import qualified Data.IntSet as S
 import Data.Data
-import qualified Data.Semigroup as Semi
 import Data.Functor.Classes (Eq1 (..))
 import Data.Coerce
+import Lens.Micro (_1)
 
 -- | A finite map from @uniques@ of one type to
 -- elements in another type.
@@ -98,11 +101,16 @@ import Data.Coerce
 -- If two types don't overlap in their uniques it's also safe
 -- to index the same map at multiple key types. But this is
 -- very much discouraged.
-newtype UniqFM key ele = UFM (M.IntMap ele)
+newtype UniqFM key a = UFM { unUFM :: M.IntMap a }
   deriving (Data, Eq, Functor)
   -- Nondeterministic Foldable and Traversable instances are accessible through
   -- use of the 'NonDetUniqFM' wrapper.
   -- See Note [Deterministic UniqFM] in GHC.Types.Unique.DFM to learn about determinism.
+
+instance Filtrable (UniqFM key) where
+    mapMaybe f = UFM . M.mapMaybe f . unUFM
+    filter f = UFM . M.filter f . unUFM
+    partition f = bimap UFM UFM . M.partition f . unUFM
 
 emptyUFM :: UniqFM key elt
 emptyUFM = UFM M.empty
@@ -130,14 +138,14 @@ zipToUFM ks vs = assert (length ks == length vs) innerZip emptyUFM ks vs
     innerZip ufm (k:ks) (v:vs) = innerZip (addToUFM ufm k v) ks vs
     innerZip ufm _ _ = ufm
 
-listToUFM :: Uniquable key => [(key,elt)] -> UniqFM key elt
-listToUFM = foldl' (\m (k, v) -> addToUFM m k v) emptyUFM
+listToUFM :: (Foldable f, Uniquable key) => f (key,elt) -> UniqFM key elt
+listToUFM = foldl' (uncurry . addToUFM) emptyUFM
 
-listToUFM_Directly :: [(Unique, elt)] -> UniqFM key elt
-listToUFM_Directly = foldl' (\m (u, v) -> addToUFM_Directly m u v) emptyUFM
+listToUFM_Directly :: Foldable f => f (Unique, elt) -> UniqFM key elt
+listToUFM_Directly = foldl' (uncurry . addToUFM_Directly) emptyUFM
 
-listToIdentityUFM :: Uniquable key => [key] -> UniqFM key key
-listToIdentityUFM = foldl' (\m x -> addToUFM m x x) emptyUFM
+listToIdentityUFM :: (Foldable f, Uniquable key) => f key -> UniqFM key key
+listToIdentityUFM = foldl' (join . addToUFM) emptyUFM
 
 listToUFM_C
   :: Uniquable key
@@ -193,7 +201,7 @@ addListToUFM_C
   => (elt -> elt -> elt)
   -> UniqFM key elt -> [(key,elt)]
   -> UniqFM key elt
-addListToUFM_C f = foldl' (\m (k, v) -> addToUFM_C f m k v)
+addListToUFM_C f = foldl' (uncurry . addToUFM_C f)
 
 adjustUFM :: Uniquable key => (elt -> elt) -> UniqFM key elt -> key -> UniqFM key elt
 adjustUFM f (UFM m) k = UFM (M.adjust f (getKey $ getUnique k) m)
@@ -253,8 +261,8 @@ plusUFM_CD f (UFM xm) dx (UFM ym) dy
 -- instead passed as `Nothing` to `f`. `f` can never have both its arguments
 -- be `Nothing`.
 --
--- `plusUFM_CD2 f m1 m2` is the same as `plusUFM_CD f (mapUFM Just m1) Nothing
--- (mapUFM Just m2) Nothing`.
+-- `plusUFM_CD2 f m1 m2` is the same as `plusUFM_CD f (fmap Just m1) Nothing
+-- (fmap Just m2) Nothing`.
 plusUFM_CD2
   :: (Maybe elta -> Maybe eltb -> eltc)
   -> UniqFM key elta  -- map X
@@ -276,7 +284,7 @@ mergeUFM
   -> UniqFM key eltc
 mergeUFM f g h (UFM xm) (UFM ym)
   = UFM $ M.mergeWithKey
-      (\_ x y -> (x `f` y))
+      (pure f)
       (coerce g)
       (coerce h)
       xm ym
@@ -312,22 +320,11 @@ disjointUFM (UFM x) (UFM y) = M.disjoint x y
 foldUFM :: (elt -> a -> a) -> a -> UniqFM key elt -> a
 foldUFM k z (UFM m) = M.foldr k z m
 
-mapUFM :: (elt1 -> elt2) -> UniqFM key elt1 -> UniqFM key elt2
-mapUFM f (UFM m) = UFM (M.map f m)
-
 mapUFM_Directly :: (Unique -> elt1 -> elt2) -> UniqFM key elt1 -> UniqFM key elt2
 mapUFM_Directly f (UFM m) = UFM (M.mapWithKey (f . getUnique) m)
 
-filterUFM :: (elt -> Bool) -> UniqFM key elt -> UniqFM key elt
-filterUFM p (UFM m) = UFM (M.filter p m)
-
 filterUFM_Directly :: (Unique -> elt -> Bool) -> UniqFM key elt -> UniqFM key elt
 filterUFM_Directly p (UFM m) = UFM (M.filterWithKey (p . getUnique) m)
-
-partitionUFM :: (elt -> Bool) -> UniqFM key elt -> (UniqFM key elt, UniqFM key elt)
-partitionUFM p (UFM m) =
-  case M.partition p m of
-    (left, right) -> (UFM left, UFM right)
 
 sizeUFM :: UniqFM key elt -> Int
 sizeUFM (UFM m) = M.size m
@@ -397,7 +394,7 @@ nonDetStrictFoldUFM_Directly k z (UFM m) = M.foldlWithKey' (\z' i x -> k (getUni
 -- If you use this please provide a justification why it doesn't introduce
 -- nondeterminism.
 nonDetUFMToList :: UniqFM key elt -> [(Unique, elt)]
-nonDetUFMToList (UFM m) = map (\(k, v) -> (getUnique k, v)) $ M.toList m
+nonDetUFMToList (UFM m) = over _1 getUnique <$> M.toList m
 
 -- | A wrapper around 'UniqFM' with the sole purpose of informing call sites
 -- that the provided 'Foldable' and 'Traversable' instances are
@@ -406,14 +403,8 @@ nonDetUFMToList (UFM m) = map (\(k, v) -> (getUnique k, v)) $ M.toList m
 -- nondeterminism.
 -- See Note [Deterministic UniqFM] in "GHC.Types.Unique.DFM" to learn about determinism.
 newtype NonDetUniqFM key ele = NonDetUniqFM { getNonDet :: UniqFM key ele }
-  deriving (Functor)
-
--- | Inherently nondeterministic.
--- If you use this please provide a justification why it doesn't introduce
--- nondeterminism.
--- See Note [Deterministic UniqFM] in "GHC.Types.Unique.DFM" to learn about determinism.
-instance forall key. Foldable (NonDetUniqFM key) where
-  foldr f z (NonDetUniqFM (UFM m)) = foldr f z m
+  deriving stock (Functor)
+  deriving (Foldable) via M.IntMap
 
 -- | Inherently nondeterministic.
 -- If you use this please provide a justification why it doesn't introduce
@@ -441,12 +432,11 @@ equalKeysUFM (UFM m1) (UFM m2) = liftEq (\_ _ -> True) m1 m2
 
 -- Instances
 
-instance Semi.Semigroup (UniqFM key a) where
-  (<>) = plusUFM
+instance Semigroup a => Semigroup (UniqFM key a) where
+  (<>) = plusUFM_C (<>)
 
-instance Monoid (UniqFM key a) where
+instance Semigroup a => Monoid (UniqFM key a) where
     mempty = emptyUFM
-    mappend = (Semi.<>)
 
 -- Output-ery
 

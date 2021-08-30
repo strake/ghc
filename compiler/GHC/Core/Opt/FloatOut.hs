@@ -31,7 +31,7 @@ import GHC.Utils.Panic
 import GHC.Core.Type
 import qualified Data.IntMap as M
 
-import Data.List        ( partition )
+import Data.Foldable ( toList )
 
 {-
         -----------------
@@ -183,7 +183,7 @@ floatOutwards float_sws dflags us pgm
                         int ntlets, text " Lets floated elsewhere; from ",
                         int lams,   text " Lambda groups"]);
 
-        return (bagToList (unionManyBags binds_s'))
+        return (toList (unionManyBags binds_s'))
     }
 
 floatTopBind :: LevelledBind -> (FloatStats, Bag CoreBind)
@@ -264,7 +264,7 @@ splitRecFloats :: Bag FloatBind
 -- The "tail" begins with a case
 -- See Note [Floating out of Rec rhss]
 splitRecFloats fs
-  = go [] [] (bagToList fs)
+  = go [] [] (toList fs)
   where
     go ul_prs prs (FloatLet (NonRec b r) : fs) | isUnliftedType (idType b)
                                                , not (isJoinId b)
@@ -575,8 +575,8 @@ add_stats (FlS a1 b1 c1) (FlS a2 b2 c2)
 
 add_to_stats :: FloatStats -> FloatBinds -> FloatStats
 add_to_stats (FlS a b c) (FB tops ceils others)
-  = FlS (a + lengthBag tops)
-        (b + lengthBag ceils + lengthBag (flattenMajor others))
+  = FlS (a + length tops)
+        (b + length ceils + length (flattenMajor others))
         (c + 1)
 
 {-
@@ -736,10 +736,10 @@ atJoinCeiling (fs, floats, expr')
 
 wrapTick :: Tickish Id -> FloatBinds -> FloatBinds
 wrapTick t (FB tops ceils defns)
-  = FB (mapBag wrap_bind tops) (wrap_defns ceils)
-       (M.map (M.map wrap_defns) defns)
+  = FB (fmap wrap_bind tops) (wrap_defns ceils)
+       (fmap (fmap wrap_defns) defns)
   where
-    wrap_defns = mapBag wrap_one
+    wrap_defns = fmap wrap_one
 
     wrap_bind (NonRec binder rhs) = NonRec binder (maybe_tick rhs)
     wrap_bind (Rec pairs)         = Rec (mapSnd maybe_tick pairs)

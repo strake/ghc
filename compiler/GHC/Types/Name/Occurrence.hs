@@ -6,6 +6,8 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE DerivingVia #-}
 
 -- |
 -- #name_types#
@@ -79,10 +81,10 @@ module GHC.Types.Name.Occurrence (
         isTcClsNameSpace, isTvNameSpace, isDataConNameSpace, isVarNameSpace, isValNameSpace,
 
         -- * The 'OccEnv' type
-        OccEnv, emptyOccEnv, unitOccEnv, extendOccEnv, mapOccEnv,
+        OccEnv, emptyOccEnv, unitOccEnv, extendOccEnv,
         lookupOccEnv, mkOccEnv, mkOccEnv_C, extendOccEnvList, elemOccEnv,
-        occEnvElts, foldOccEnv, plusOccEnv, plusOccEnv_C, extendOccEnv_C,
-        extendOccEnv_Acc, filterOccEnv, delListFromOccEnv, delFromOccEnv,
+        plusOccEnv, plusOccEnv_C, extendOccEnv_C,
+        extendOccEnv_Acc, delListFromOccEnv, delFromOccEnv,
         alterOccEnv, pprOccEnv,
 
         -- * The 'OccSet' type
@@ -112,6 +114,7 @@ import GHC.Utils.Outputable
 import GHC.Utils.Lexeme
 import GHC.Utils.Binary
 import Control.DeepSeq
+import Data.Bifunctor (bimap)
 import Data.Char
 import Data.Data
 
@@ -230,9 +233,7 @@ data OccName = OccName
     { occNameSpace  :: !NameSpace
     , occNameFS     :: !FastString
     }
-
-instance Eq OccName where
-    (OccName sp1 s1) == (OccName sp2 s2) = s1 == s2 && sp1 == sp2
+  deriving (Eq)
 
 instance Ord OccName where
         -- Compares lexicographically, *not* by Unique of the string
@@ -336,9 +337,8 @@ mkClsOccFS = mkOccNameFS clsName
 -- demoteOccName lowers the Namespace of OccName.
 -- see Note [Demotion]
 demoteOccName :: OccName -> Maybe OccName
-demoteOccName (OccName space name) = do
-  space' <- demoteNameSpace space
-  return $ OccName space' name
+demoteOccName (OccName space name) =
+  [OccName space' name | space' <- demoteNameSpace space]
 
 -- Name spaces are related if there is a chance to mean the one when one writes
 -- the other, i.e. variables <-> data constructors and type variables <-> type constructors
@@ -386,8 +386,15 @@ instance Uniquable OccName where
   getUnique (OccName TvName    fs) = mkTvOccUnique   fs
   getUnique (OccName TcClsName fs) = mkTcOccUnique   fs
 
-newtype OccEnv a = A (UniqFM OccName a)
+newtype OccEnv a = A { unA :: UniqFM OccName a }
   deriving Data
+  deriving stock (Functor)
+  deriving (Foldable) via NonDetUniqFM OccName
+
+instance Filtrable OccEnv where
+    mapEither f = bimap A A . mapEither f . unA
+    mapMaybe f = A . mapMaybe f . unA
+    filter f = A . filter f . unA
 
 emptyOccEnv :: OccEnv a
 unitOccEnv  :: OccName -> a -> OccEnv a
@@ -397,16 +404,12 @@ lookupOccEnv :: OccEnv a -> OccName -> Maybe a
 mkOccEnv     :: [(OccName,a)] -> OccEnv a
 mkOccEnv_C   :: (a -> a -> a) -> [(OccName,a)] -> OccEnv a
 elemOccEnv   :: OccName -> OccEnv a -> Bool
-foldOccEnv   :: (a -> b -> b) -> b -> OccEnv a -> b
-occEnvElts   :: OccEnv a -> [a]
 extendOccEnv_C :: (a->a->a) -> OccEnv a -> OccName -> a -> OccEnv a
 extendOccEnv_Acc :: (a->b->b) -> (a->b) -> OccEnv b -> OccName -> a -> OccEnv b
 plusOccEnv     :: OccEnv a -> OccEnv a -> OccEnv a
 plusOccEnv_C   :: (a->a->a) -> OccEnv a -> OccEnv a -> OccEnv a
-mapOccEnv      :: (a->b) -> OccEnv a -> OccEnv b
 delFromOccEnv      :: OccEnv a -> OccName -> OccEnv a
 delListFromOccEnv :: OccEnv a -> [OccName] -> OccEnv a
-filterOccEnv       :: (elt -> Bool) -> OccEnv elt -> OccEnv elt
 alterOccEnv        :: (Maybe elt -> Maybe elt) -> OccEnv elt -> OccName -> OccEnv elt
 
 emptyOccEnv      = A emptyUFM
@@ -416,17 +419,13 @@ extendOccEnvList (A x) l = A $ addListToUFM x l
 lookupOccEnv (A x) y = lookupUFM x y
 mkOccEnv     l    = A $ listToUFM l
 elemOccEnv x (A y)       = elemUFM x y
-foldOccEnv a b (A c)     = foldUFM a b c
-occEnvElts (A x)         = eltsUFM x
 plusOccEnv (A x) (A y)   = A $ plusUFM x y
 plusOccEnv_C f (A x) (A y)       = A $ plusUFM_C f x y
 extendOccEnv_C f (A x) y z   = A $ addToUFM_C f x y z
 extendOccEnv_Acc f g (A x) y z   = A $ addToUFM_Acc f g x y z
-mapOccEnv f (A x)        = A $ mapUFM f x
 mkOccEnv_C comb l = A $ addListToUFM_C comb emptyUFM l
 delFromOccEnv (A x) y    = A $ delFromUFM x y
 delListFromOccEnv (A x) y  = A $ delListFromUFM x y
-filterOccEnv x (A y)       = A $ filterUFM x y
 alterOccEnv fn (A y) k     = A $ alterUFM fn y k
 
 instance Outputable a => Outputable (OccEnv a) where

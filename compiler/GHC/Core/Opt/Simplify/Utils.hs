@@ -61,7 +61,6 @@ import GHC.Core.Type     hiding( substTy )
 import GHC.Core.Coercion hiding( substCo )
 import GHC.Core.DataCon ( dataConWorkId, isNullaryRepDataCon )
 import GHC.Utils.Misc
-import GHC.Data.OrdList ( isNilOL )
 import GHC.Utils.Monad
 import GHC.Utils.Outputable
 import GHC.Utils.Outputable.Ppr
@@ -71,6 +70,7 @@ import GHC.Core.Opt.ConstantFold
 import GHC.Data.FastString ( fsLit )
 
 import Control.Monad    ( when )
+import Data.Foldable    ( toList )
 import Data.List        ( sortBy )
 
 {-
@@ -1784,7 +1784,7 @@ abstractFloats :: UnfoldingOpts -> TopLevelFlag -> [OutTyVar] -> SimplFloats
               -> OutExpr -> SimplM ([OutBind], OutExpr)
 abstractFloats uf_opts top_lvl main_tvs floats body
   = assert (notNull body_floats) $
-    assert (isNilOL (sfJoinFloats floats)) $
+    assert (null (sfJoinFloats floats)) $
     do  { (subst, float_binds) <- mapAccumLM abstract empty_subst body_floats
         ; return (float_binds, GHC.Core.Subst.substExpr subst body) }
   where
@@ -1835,7 +1835,7 @@ abstractFloats uf_opts top_lvl main_tvs floats body
     mk_poly1 :: [TyVar] -> Id -> SimplM (Id, CoreExpr)
     mk_poly1 tvs_here var
       = do { uniq <- getUniqueM
-           ; let  poly_name = setNameUnique (idName var) uniq      -- Keep same name
+           ; let  poly_name = set nameUniqueL uniq (idName var)      -- Keep same name
                   poly_ty   = mkInfForAllTys tvs_here (idType var) -- But new type of course
                   poly_id   = transferPolyIdInfo var tvs_here $ -- Note [transferPolyIdInfo] in GHC.Types.Id
                               mkLocalId poly_name poly_ty
@@ -1960,7 +1960,7 @@ prepareAlts scrut case_bndr' alts
            --   Test simpl013 is an example
   = do { us <- getUniquesM
        ; let (idcs1, alts1)       = filterAlts tc tys imposs_cons alts
-             (yes2,  alts2)       = refineDefaultAlt us tc tys idcs1 alts1
+             (yes2,  alts2)       = refineDefaultAlt (toList us) tc tys idcs1 alts1
              (yes3, idcs3, alts3) = combineIdenticalAlts idcs1 alts2
              -- "idcs" stands for "impossible default data constructors"
              -- i.e. the constructors that can't match the default case
@@ -2144,7 +2144,7 @@ mkCase1 _dflags scrut case_bndr _ alts@((_,_,rhs1) : _)      -- Identity case
   = do { tick (CaseIdentity case_bndr)
        ; return (mkTicks ticks $ re_cast scrut rhs1) }
   where
-    ticks = concatMap (stripTicksT tickishFloatable . thdOf3) (tail alts)
+    ticks = concatMap (stripTicksT tickishFloatable . thd3) (tail alts)
     identity_alt (con, args, rhs) = check_eq rhs con args
 
     check_eq (Cast rhs co) con args        -- See Note [RHS casts]
@@ -2193,8 +2193,8 @@ mkCase2 dflags scrut bndr alts_ty alts
   , Just (scrut', tx_con, mk_orig) <- caseRules (targetPlatform dflags) scrut
   = do { bndr' <- newId (fsLit "lwild") (exprType scrut')
 
-       ; alts' <- mapMaybeM (tx_alt tx_con mk_orig bndr') alts
-                  -- mapMaybeM: discard unreachable alternatives
+       ; alts' <- mapMaybeA (tx_alt tx_con mk_orig bndr') alts
+                  -- mapMaybeA: discard unreachable alternatives
                   -- See Note [Unreachable caseRules alternatives]
                   -- in GHC.Core.Opt.ConstantFold
 
@@ -2242,7 +2242,7 @@ mkCase2 dflags scrut bndr alts_ty alts
       = -- For non-nullary data cons we must invent some fake binders
         -- See Note [caseRules for dataToTag] in GHC.Core.Opt.ConstantFold
         do { us <- getUniquesM
-           ; let (ex_tvs, arg_ids) = dataConRepInstPat us dc
+           ; let (ex_tvs, arg_ids) = dataConRepInstPat (toList us) dc
                                         (tyConAppArgs (idType new_bndr))
            ; return (ex_tvs ++ arg_ids) }
     mk_new_bndrs _ _ = return []

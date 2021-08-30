@@ -23,9 +23,12 @@ import GHC.Core.Utils (bindNonRec)
 import GHC.HsToCore.Monad
 import GHC.HsToCore.Utils
 import GHC.HsToCore.PmCheck.Types ( Deltas, initDeltas )
+import GHC.HsToCore.Types
 import GHC.Core.Type ( Type )
-import GHC.Utils.Misc
+import GHC.Tc.Types
 import GHC.Types.SrcLoc
+import GHC.Utils.Lens.Monad
+import GHC.Utils.Misc
 import GHC.Utils.Outputable
 import GHC.Utils.Panic
 import GHC.Utils.Panic.Plain
@@ -62,19 +65,16 @@ dsGRHSs :: HsMatchContext GhcRn
         -> DsM (MatchResult CoreExpr)
 dsGRHSs hs_ctx (GRHSs _ grhss binds) rhs_ty mb_rhss_deltas
   = assert (notNull grhss) $
-    do { match_results <- case toList <$> mb_rhss_deltas of
-           Nothing          -> mapM     (dsGRHS hs_ctx rhs_ty initDeltas) grhss
+    -- NB: nested dsLet inside matchResult
+    adjustMatchResultDs (dsLocalBinds binds) . foldr1 combineMatchResults <$> case toList <$> mb_rhss_deltas of
+           Nothing          -> traverse (dsGRHS hs_ctx rhs_ty initDeltas) grhss
            Just rhss_deltas -> assert (length grhss == length rhss_deltas)
                                zipWithM (dsGRHS hs_ctx rhs_ty) rhss_deltas grhss
-       ; let match_result1 = foldr1 combineMatchResults match_results
-             match_result2 = adjustMatchResultDs (dsLocalBinds binds) match_result1
-                             -- NB: nested dsLet inside matchResult
-       ; return match_result2 }
 
 dsGRHS :: HsMatchContext GhcRn -> Type -> Deltas -> LGRHS GhcTc (LHsExpr GhcTc)
        -> DsM (MatchResult CoreExpr)
 dsGRHS hs_ctx rhs_ty rhs_deltas (L _ (GRHS _ guards rhs))
-  = updPmDeltas rhs_deltas (matchGuards (map unLoc guards) (PatGuard hs_ctx) rhs rhs_ty)
+  = locally (env_lclL . dsl_deltasL) (pure rhs_deltas) (matchGuards (unLoc <$> guards) (PatGuard hs_ctx) rhs rhs_ty)
 
 {-
 ************************************************************************
@@ -106,16 +106,12 @@ matchGuards [] _ rhs _
         --      If it does, you'll get bogus overlap warnings
 matchGuards (BodyStmt _ e _ _ : stmts) ctx rhs rhs_ty
   | Just addTicks <- isTrueLHsExpr e = do
-    match_result <- matchGuards stmts ctx rhs rhs_ty
-    return (adjustMatchResultDs addTicks match_result)
-matchGuards (BodyStmt _ expr _ _ : stmts) ctx rhs rhs_ty = do
-    match_result <- matchGuards stmts ctx rhs rhs_ty
-    pred_expr <- dsLExpr expr
-    return (mkGuardedMatchResult pred_expr match_result)
+    adjustMatchResultDs addTicks <$> matchGuards stmts ctx rhs rhs_ty
+matchGuards (BodyStmt _ expr _ _ : stmts) ctx rhs rhs_ty =
+    flip mkGuardedMatchResult <$> matchGuards stmts ctx rhs rhs_ty <*> dsLExpr expr
 
-matchGuards (LetStmt _ binds : stmts) ctx rhs rhs_ty = do
-    match_result <- matchGuards stmts ctx rhs rhs_ty
-    return (adjustMatchResultDs (dsLocalBinds binds) match_result)
+matchGuards (LetStmt _ binds : stmts) ctx rhs rhs_ty =
+    adjustMatchResultDs (dsLocalBinds binds) <$> matchGuards stmts ctx rhs rhs_ty
         -- NB the dsLet occurs inside the match_result
         -- Reason: dsLet takes the body expression as its argument
         --         so we can't desugar the bindings without the
@@ -127,9 +123,8 @@ matchGuards (BindStmt _ pat bind_rhs : stmts) ctx rhs rhs_ty = do
 
     match_result <- matchGuards stmts ctx rhs rhs_ty
     core_rhs <- dsLExpr bind_rhs
-    match_result' <- matchSinglePatVar match_var (StmtCtxt ctx) pat rhs_ty
-                                       match_result
-    pure $ bindNonRec match_var core_rhs <$> match_result'
+    fmap (bindNonRec match_var core_rhs) <$>
+        matchSinglePatVar match_var (StmtCtxt ctx) pat rhs_ty match_result
 
 matchGuards (LastStmt  {} : _) _ _ _ = panic "matchGuards LastStmt"
 matchGuards (ParStmt   {} : _) _ _ _ = panic "matchGuards ParStmt"

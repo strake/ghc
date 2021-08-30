@@ -59,6 +59,8 @@ import GHC.Types.Basic
 import GHC.Cmm.Dataflow.Block
 import GHC.Cmm.Dataflow.Graph
 
+import Data.Foldable (toList)
+
 -------------------------------------------------
 -- Outputable instances
 
@@ -130,7 +132,7 @@ pprGraph platform = \case
    GUnit block           -> pdoc platform block
    GMany entry body exit ->
          text "{"
-      $$ nest 2 (pprMaybeO entry $$ (vcat $ map (pdoc platform) $ bodyToBlockList body) $$ pprMaybeO exit)
+      $$ nest 2 (pprMaybeO entry $$ vcat (pdoc platform <$> toList body) $$ pprMaybeO exit)
       $$ text "}"
       where pprMaybeO :: OutputableP Platform (Block CmmNode e x)
                       => MaybeO ex (Block CmmNode e x) -> SDoc
@@ -217,7 +219,7 @@ pprNode platform node = pp_node <+> pp_debug
       -- call "ccall" foo(x, y)[r1, r2];
       -- ToDo ppr volatile
       CmmUnsafeForeignCall target results args ->
-          hsep [ ppUnless (null results) $
+          hsep [ munless (null results) $
                     parens (commafy $ map ppr results) <+> equals,
                  text "call",
                  pdoc platform target <> parens (commafy $ map (pdoc platform) args) <> semi]

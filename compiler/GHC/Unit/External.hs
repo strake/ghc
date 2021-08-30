@@ -1,5 +1,9 @@
+{-# LANGUAGE CPP #-}
+
+#include "lens.h"
+
 module GHC.Unit.External
-   ( ExternalPackageState (..)
+   ( ExternalPackageState (..), eps_is_bootL, eps_PITL, eps_free_holesL, eps_PTEL, eps_inst_envL, eps_fam_inst_envL, eps_rule_baseL, eps_ann_envL, eps_complete_matchesL, eps_mod_fam_inst_envL, eps_statsL
    , EpsStats(..)
    , addEpsInStats
    , PackageTypeEnv
@@ -111,6 +115,18 @@ data ExternalPackageState
 
         eps_stats :: !EpsStats                 -- ^ Stastics about what was loaded from external packages
   }
+
+LENS_FIELD(eps_is_bootL, eps_is_boot)
+LENS_FIELD(eps_PITL, eps_PIT)
+LENS_FIELD(eps_free_holesL, eps_free_holes)
+LENS_FIELD(eps_PTEL, eps_PTE)
+LENS_FIELD(eps_inst_envL, eps_inst_env)
+LENS_FIELD(eps_fam_inst_envL, eps_fam_inst_env)
+LENS_FIELD(eps_rule_baseL, eps_rule_base)
+LENS_FIELD(eps_ann_envL, eps_ann_env)
+LENS_FIELD(eps_complete_matchesL, eps_complete_matches)
+LENS_FIELD(eps_mod_fam_inst_envL, eps_mod_fam_inst_env)
+LENS_FIELD(eps_statsL, eps_stats)
 
 -- | Accumulated statistics about what we are putting into the 'ExternalPackageState'.
 -- \"In\" means stuff that is just /read/ from interface files,

@@ -58,7 +58,6 @@ import GHC.Platform.Profile
 import GHC.Unit
 
 import GHC.Utils.Misc
-import Data.List
 import GHC.Utils.Monad.RS.Lazy
 import GHC.Utils.Outputable
 import GHC.Utils.Panic
@@ -66,7 +65,6 @@ import GHC.Utils.Panic.Plain
 import GHC.Utils.Constants (debugIsOn)
 import GHC.Data.FastString
 import Control.Monad
-import Lens.Micro (set)
 
 ------------------------------------------------------------------------
 --                Call and return sequences
@@ -88,7 +86,7 @@ emitReturn results
        ; platform  <- getPlatform
        ; sequel    <- getSequel
        ; updfr_off <- getUpdFrameOff
-       ; case sequel of
+       ; AssignedDirectly <$ case sequel of
            Return ->
              do { adjustHpBackwards
                 ; let e = CmmLoad (CmmStackSlot Old updfr_off) (gcWord platform)
@@ -97,7 +95,6 @@ emitReturn results
            AssignTo regs adjust ->
              do { when adjust adjustHpBackwards
                 ; emitMultiAssign  regs results }
-       ; return AssignedDirectly
        }
 
 
@@ -202,17 +199,16 @@ slowCall fun stg_args
         argsreps <- getArgRepsAmodes stg_args
         let (rts_fun, arity) = slowCallPattern (map fst argsreps)
 
-        (r, slow_code) <- getCodeR $ do
-           r <- direct_call "slow_call" NativeNodeCall
-                 (mkRtsApFastLabel rts_fun) arity ((P,Just fun):argsreps)
-           emitComment $ mkFastString ("slow_call for " ++
+        (r, slow_code) <- getCodeR $
+           direct_call "slow_call" NativeNodeCall
+                 (mkRtsApFastLabel rts_fun) arity ((P,Just fun):argsreps) <*
+           (emitComment . mkFastString) ("slow_call for " ++
                                       showSDoc dflags (pdoc platform fun) ++
                                       " with pat " ++ unpackFS rts_fun)
-           return r
 
         -- Note [avoid intermediate PAPs]
         let n_args = length stg_args
-        if n_args > arity && optLevel dflags >= 2
+        r <$ if n_args > arity && optLevel dflags >= 2
            then do
              ptr_opts <- getPtrOpts
              funv <- (CmmReg . CmmLocal) `fmap` assignTemp fun
@@ -252,11 +248,8 @@ slowCall fun stg_args
                    <*> mkLabel slow_lbl tscope
                    <*> slow_code
                    <*> mkLabel end_lbl tscope)
-             return r
 
-           else do
-             emit slow_code
-             return r
+           else emit slow_code
 
 
 -- Note [avoid intermediate PAPs]

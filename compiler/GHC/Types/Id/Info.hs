@@ -216,10 +216,10 @@ pprIdDetails other     = brackets (pp other)
    pp (PrimOpId _)            = text "PrimOp"
    pp (FCallId _)             = text "ForeignCall"
    pp (TickBoxOpId _)         = text "TickBoxOp"
-   pp (DFunId nt)             = text "DFunId" <> ppWhen nt (text "(nt)")
+   pp (DFunId nt)             = text "DFunId" <> mwhen nt (text "(nt)")
    pp (RecSelId { sel_naughty = is_naughty })
                               = brackets $ text "RecSel" <>
-                                           ppWhen is_naughty (text "(naughty)")
+                                           mwhen is_naughty (text "(naughty)")
    pp CoVarId                 = text "CoVarId"
    pp (JoinId arity)          = text "JoinId" <> parens (int arity)
 

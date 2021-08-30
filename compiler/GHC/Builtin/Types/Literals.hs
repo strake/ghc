@@ -19,7 +19,7 @@ module GHC.Builtin.Types.Literals
   , typeSymbolAppendTyCon
   ) where
 
-import GHC.Prelude
+import GHC.Prelude hiding (bool)
 
 import GHC.Core.Type
 import GHC.Data.Pair
@@ -50,7 +50,6 @@ import GHC.Builtin.Names
 import GHC.Data.FastString
 import qualified Data.Map as Map
 import Data.Maybe ( isJust )
-import Control.Monad ( guard )
 import Data.List  ( isPrefixOf, isSuffixOf )
 
 {-

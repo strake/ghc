@@ -28,7 +28,6 @@ import GHC.Cmm.Dataflow
 import GHC.Cmm.Dataflow.Graph
 import GHC.Cmm.Dataflow.Label
 import GHC.Types.Unique.Supply
-import GHC.Data.Maybe
 import GHC.Types.Unique.FM
 import GHC.Utils.Misc
 
@@ -40,7 +39,7 @@ import qualified Data.Set as Set
 import Control.Monad.Fix
 import Data.Array as Array
 import Data.Bits
-import Data.List (nub)
+import Data.Foldable (toList)
 
 {- Note [Stack Layout]
 
@@ -345,7 +344,7 @@ layout dflags procpoints liveness entry entry_args final_stackmaps final_sp_high
            this_sp_hwm | isGcJump last0 = 0
                        | otherwise      = sp0 - sp_off
 
-           hwm' = maximum (acc_hwm : this_sp_hwm : map sm_sp (mapElems out))
+           hwm' = maximum (acc_hwm : this_sp_hwm : map sm_sp (toList out))
 
        go bs acc_stackmaps' hwm' (final_blocks ++ acc_blocks)
 
@@ -570,7 +569,7 @@ handleLastNode dflags procpoints liveness cont_info stackmaps
         --       by fixupStack if this is a join point.
         | otherwise = return (l, l, stack1, [])
         where live = mapFindWithDefault (panic "handleBranch") l liveness
-              stack1 = stack0 { sm_regs = filterUFM is_live (sm_regs stack0) }
+              stack1 = stack0 { sm_regs = filter is_live (sm_regs stack0) }
               is_live (r,_) = r `elemRegSet` live
 
 
@@ -727,7 +726,7 @@ allocate platform ret_off live stackmap@StackMap{ sm_sp = sp0
  =
    -- we only have to save regs that are not already in a slot
    let to_save = filter (not . (`elemUFM` regs0)) (Set.elems live)
-       regs1   = filterUFM (\(r,_) -> elemRegSet r live) regs0
+       regs1   = filter (\(r,_) -> elemRegSet r live) regs0
    in
 
    -- make a map of the stack

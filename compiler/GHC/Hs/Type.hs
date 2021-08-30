@@ -578,9 +578,9 @@ instance Outputable HsIPName where
     ppr (HsIPName n) = char '?' <> ftext n -- Ordinary implicit parameters
 
 instance OutputableBndr HsIPName where
-    pprBndr _ n   = ppr n         -- Simple for now
-    pprInfixOcc  n = ppr n
-    pprPrefixOcc n = ppr n
+    pprBndr _   = ppr         -- Simple for now
+    pprInfixOcc  = ppr
+    pprPrefixOcc = ppr
 
 --------------------------------------------------
 
@@ -1170,7 +1170,7 @@ hsAllLTyVarNames (HsQTvs { hsq_ext = kvs
   = kvs ++ hsLTyVarNames tvs
 
 hsLTyVarLocName :: LHsTyVarBndr flag (GhcPass p) -> Located (IdP (GhcPass p))
-hsLTyVarLocName = mapLoc hsTyVarName
+hsLTyVarLocName = fmap hsTyVarName
 
 hsLTyVarLocNames :: LHsQTyVars (GhcPass p) -> [Located (IdP (GhcPass p))]
 hsLTyVarLocNames qtvs = map hsLTyVarLocName (hsQTvExplicit qtvs)
@@ -1286,9 +1286,9 @@ type LHsTypeArg p = HsArg (LHsType p) (LHsKind p)
 
 -- | Compute the 'SrcSpan' associated with an 'LHsTypeArg'.
 lhsTypeArgSrcSpan :: LHsTypeArg pass -> SrcSpan
-lhsTypeArgSrcSpan arg = case arg of
+lhsTypeArgSrcSpan = \ case
   HsValArg  tm    -> getLoc tm
-  HsTypeArg at ty -> at `combineSrcSpans` getLoc ty
+  HsTypeArg at ty -> at <> getLoc ty
   HsArgPar  sp    -> sp
 
 instance (Outputable tm, Outputable ty) => Outputable (HsArg tm ty) where
@@ -1446,10 +1446,7 @@ getLHsInstDeclHead inst_ty
 getLHsInstDeclClass_maybe :: LHsSigType (GhcPass p)
                           -> Maybe (Located (IdP (GhcPass p)))
 -- Works on (HsSigType RdrName)
-getLHsInstDeclClass_maybe inst_ty
-  = do { let head_ty = getLHsInstDeclHead inst_ty
-       ; cls <- hsTyGetAppHead_maybe head_ty
-       ; return cls }
+getLHsInstDeclClass_maybe = hsTyGetAppHead_maybe . getLHsInstDeclHead
 
 {-
 ************************************************************************
@@ -1563,7 +1560,7 @@ instance OutputableBndrFlag Specificity where
     pprTyVarBndr (KindedTyVar _ InferredSpec n k)  = braces $ hsep [ppr n, dcolon, ppr k]
 
 instance OutputableBndrId p => Outputable (HsType (GhcPass p)) where
-    ppr ty = pprHsType ty
+    ppr = pprHsType
 
 instance Outputable HsTyLit where
     ppr = ppr_tylit
@@ -1663,7 +1660,7 @@ pprConDeclFields fields = braces (sep (punctuate comma (map ppr_fld fields)))
   where
     ppr_fld (L _ (ConDeclField { cd_fld_names = ns, cd_fld_type = ty,
                                  cd_fld_doc = doc }))
-        = ppr_names ns <+> dcolon <+> ppr ty <+> ppr_mbDoc doc
+        = ppr_names ns <+> dcolon <+> ppr ty <+> foldMap ppr doc
     ppr_fld (L _ (XConDeclField x)) = ppr x
     ppr_names [n] = ppr n
     ppr_names ns = sep (punctuate comma (map ppr ns))
@@ -1811,10 +1808,9 @@ maybeAddSpace tys doc
   | otherwise                          = doc
 
 lhsTypeHasLeadingPromotionQuote :: LHsType pass -> Bool
-lhsTypeHasLeadingPromotionQuote ty
-  = goL ty
+lhsTypeHasLeadingPromotionQuote = goL
   where
-    goL (L _ ty) = go ty
+    goL = go . unLoc
 
     go (HsForAllTy{})        = False
     go (HsQualTy{ hst_ctxt = ctxt, hst_body = body})

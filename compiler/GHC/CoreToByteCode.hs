@@ -1,5 +1,6 @@
 {-# LANGUAGE MagicHash, RecordWildCards, BangPatterns #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE CPP #-}
 {-# OPTIONS_GHC -fprof-auto-top #-}
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
@@ -61,11 +62,10 @@ import GHC.Runtime.Heap.Layout hiding (WordOff, ByteOff, wordsToBytes)
 import GHC.Data.Bitmap
 import GHC.Data.OrdList
 import GHC.Data.Maybe
-import GHC.Types.Var ( updateVarType )
+import GHC.Types.Var ( varTypeL )
 import GHC.Types.Var.Env
 import GHC.Builtin.Names ( unsafeEqualityProofName )
 
-import Data.List
 import Foreign
 import Control.Monad
 import Data.Char
@@ -74,10 +74,12 @@ import GHC.Types.Unique.Supply
 import GHC.Unit.Module
 
 import Control.Monad.IO.Class (MonadIO (..))
-import Control.Monad.State.Class (MonadState (..), get)
-import Control.Monad.Trans.State.Lazy (StateT (..), gets)
+import Control.Monad.Trans.State.Lazy (StateT (..))
 import Data.Array
 import Data.ByteString (ByteString)
+import Data.Foldable (toList)
+import Data.Functor.State.Class (IsState (..), get, gets)
+import Data.List (genericLength, genericReplicate, intersperse, scanl', sort, sortBy, zip4, zip6)
 import Data.Map (Map)
 import Data.IntMap (IntMap)
 import qualified Data.Map as Map
@@ -85,7 +87,6 @@ import qualified Data.IntMap as IntMap
 import qualified GHC.Data.FiniteMap as Map
 import Data.Ord
 import GHC.Stack.CCS
-import Data.Either ( partitionEithers )
 import Data.Tuple (swap)
 
 -- -----------------------------------------------------------------------------
@@ -294,7 +295,7 @@ mkProtoBCO platform nm instrs_ordlist origin arity bitmap_size bitmap is_ret ffi
         stack_usage = sum (map bciStackUse peep_d)
 
         -- Merge local pushes
-        peep_d = peep (fromOL instrs_ordlist)
+        peep_d = peep (toList instrs_ordlist)
 
         peep (PUSH_L off1 : PUSH_L off2 : PUSH_L off3 : rest)
            = PUSH_LLL off1 (off2-1) (off3-2) : peep rest
@@ -685,7 +686,7 @@ schemeE d s p (AnnCase scrut bndr _ alt@[(DEFAULT, [], _)])
        _    -> Nothing
        -- handles any pattern with a single non-void binder; in particular I/O
        -- monad returns (# RealWorld#, a #)
-   = doCase d s p scrut (bndr `setIdType` ty) alt (Just bndr)
+   = doCase d s p scrut (set idTypeL ty bndr) alt (Just bndr)
 
 schemeE d s p (AnnCase scrut bndr _ alts)
    = doCase d s p scrut bndr alts Nothing{-not an unboxed tuple-}
@@ -716,7 +717,7 @@ protectNNLJoinPointBind x rhs@(fvs, _)
 protectNNLJoinPointId :: Id -> Id
 protectNNLJoinPointId x
   = assert (isNNLJoinPoint x )
-    updateVarType (voidPrimTy `mkVisFunTy`) x
+    (over varTypeL) (voidPrimTy `mkVisFunTy`) x
 
 {-
    Ticked Expressions
@@ -1991,7 +1992,12 @@ LENS_FIELD(topStringsL, topStrings)
 
 newtype BcM r = BcM (BcM_State -> IO (r, BcM_State))
   deriving (Functor)
-  deriving (Applicative, Monad, MonadIO, MonadState BcM_State) via StateT BcM_State IO
+  deriving (Applicative, Monad, MonadIO) via StateT BcM_State IO
+
+instance IsState BcM where
+    type StateType BcM = BcM_State
+    state = BcM . runStateT . state
+    {-# INLINE state #-}
 
 runBc :: HscEnv -> UniqSupply -> Module -> Maybe ModBreaks
       -> IdEnv (RemotePtr ())

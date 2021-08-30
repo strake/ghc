@@ -58,8 +58,8 @@ import GHC.Utils.Panic.Plain
 import GHC.Driver.Hooks
 import GHC.Utils.Encoding
 
-import Data.Maybe
-import Data.List
+import Data.Maybe (isNothing)
+import Data.List (unzip4)
 
 {-
 Desugaring of @foreign@ declarations is naturally split up into
@@ -170,7 +170,7 @@ dsCImport id co (CLabel cid) cconv _ _ = do
                  IsFunction
              _ -> IsData
    (resTy, foRhs) <- resultWrapper ty
-   assert (fromJust resTy `eqType` addrPrimTy) $    -- typechecker ensures this
+   assert (maybe False (`eqType` addrPrimTy) resTy) $    -- typechecker ensures this
     let
         rhs = foRhs (Lit (LitLabel cid stdcall_info fod))
         rhs' = Cast rhs co
@@ -692,7 +692,7 @@ mkFExportCBits dflags c_nm maybe_target arg_htys res_hty is_IO_res_ty cc
                                                 <> comma <> text "cap") <> semi
      ,   assignCResult
      ,   text "rts_unlock(cap);"
-     ,   ppUnless res_hty_is_unit $
+     ,   munless res_hty_is_unit $
          if libffi
                   then char '*' <> parens (ffi_cResType <> char '*') <>
                        text "resp = cret;"

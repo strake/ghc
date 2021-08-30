@@ -63,7 +63,10 @@ stage0Packages = do
              , compareSizes
              , compiler
              , deriveConstants
+             , dual
              , exceptions
+             , filtrable
+             , ftl
              , genapply
              , genprimopcode
              , ghc
@@ -74,14 +77,17 @@ stage0Packages = do
              , ghcPkg
              , haddock
              , hsc2hs
+             , hs_functors
              , hpc
              , microlens
              , mtl
              , parsec
+             , tagged
              , templateHaskell
              , text
              , transformers
              , unlit
+             , util'
              ]
           ++ [ terminfo | not windowsHost, not cross ]
           ++ [ timeout  | windowsHost                ]

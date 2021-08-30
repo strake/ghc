@@ -59,7 +59,6 @@ import GHC.Iface.Load
 import Control.Monad
 import Data.List ( sortBy )
 import Data.List.NonEmpty ( NonEmpty(..) )
-import Data.Function ( on )
 
 import qualified GHC.LanguageExtensions  as LangExt
 
@@ -1002,8 +1001,8 @@ reportUnusedInjectiveVarsErr fam_tc tvs has_kinds undec_inst tyfamEqn
                                   (tyfamEqn :| [])
     in addErrAt loc (pprWithExplicitKindsWhen has_kinds doc)
     where
-      herald = sep [ what <+> text "variable" <>
-                  pluralVarSet tvs <+> pprVarSet tvs (pprQuotedList . scopedSort)
+      herald = sep [ what <+> (text "variable" <>
+                  pluralVarSet tvs) <+> pprVarSet tvs (pprQuotedList . scopedSort)
                 , text "cannot be inferred from the right-hand side." ]
                $$ extra
 

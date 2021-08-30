@@ -41,7 +41,7 @@ import GHC.Core.Class
 
 import GHC.Utils.Outputable
 import GHC.Utils.Panic
-import GHC.Utils.Misc( splitAtList, fstOf3 )
+import GHC.Utils.Misc( splitAtList, fst3 )
 
 import Data.Maybe
 
@@ -670,7 +670,7 @@ matchHasField dflags short_cut clas tys
                -- r should be an applied type constructor
              , Just (tc, args) <- tcSplitTyConApp_maybe r_ty
                -- use representation tycon (if data family); it has the fields
-             , let r_tc = fstOf3 (tcLookupDataFamInst fam_inst_envs tc args)
+             , let r_tc = fst3 (tcLookupDataFamInst fam_inst_envs tc args)
                -- x should be a field of r
              , Just fl <- lookupTyConFieldLabel x r_tc
                -- the field selector should be in scope

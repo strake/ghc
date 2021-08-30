@@ -20,7 +20,6 @@ import GHC.Types.Unique
 import GHC.Types.Unique.FM
 
 import qualified Data.IntSet as IntSet
-import Data.List (partition)
 import qualified Data.Set as Set
 import Data.Maybe
 
@@ -274,7 +273,7 @@ annotate platform live nodes = snd $ foldr ann (live,[]) nodes
 -- Find the blocks that have multiple successors (join points)
 --
 findJoinPoints :: [CmmBlock] -> LabelMap Int
-findJoinPoints blocks = mapFilter (>1) succ_counts
+findJoinPoints blocks = filter (>1) succ_counts
  where
   all_succs = concatMap successors blocks
 

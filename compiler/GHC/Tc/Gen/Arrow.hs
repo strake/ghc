@@ -39,7 +39,7 @@ import GHC.Utils.Outputable
 import GHC.Utils.Panic
 import GHC.Utils.Misc
 
-import Control.Monad
+import Control.Monad hiding (mapAndUnzipM)
 
 {-
 Note [Arrow overview]

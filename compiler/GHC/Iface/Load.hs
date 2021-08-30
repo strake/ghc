@@ -669,10 +669,9 @@ computeInterface doc_str hi_boot_file mod0 = do
             case r of
                 Succeeded (iface0, path) -> do
                     hsc_env <- getTopEnv
-                    r <- liftIO $
-                        rnModIface hsc_env (instUnitInsts (moduleUnit indef))
-                                   Nothing iface0
-                    case r of
+                    liftIO
+                        (rnModIface hsc_env (instUnitInsts (moduleUnit indef))
+                                   Nothing iface0) >>= \ case
                         Right x -> return (Succeeded (x, path))
                         Left errs -> liftIO . throwIO . mkSrcErr $ errs
                 Failed err -> return (Failed err)
@@ -772,7 +771,7 @@ badSourceImport mod
 -----------------------------------------------------
 
 addDeclsToPTE :: PackageTypeEnv -> [(Name,TyThing)] -> PackageTypeEnv
-addDeclsToPTE pte things = extendNameEnvList pte things
+addDeclsToPTE = extendNameEnvList
 
 loadDecls :: Bool
           -> [(Fingerprint, IfaceDecl)]
@@ -943,8 +942,7 @@ findAndReadIface doc_str mod wanted_mod_with_insts hi_boot_file
                dflags <- getDynFlags
                -- Look for the file
                hsc_env <- getTopEnv
-               mb_found <- liftIO (findExactModule hsc_env mod)
-               case mb_found of
+               liftIO (findExactModule hsc_env mod) >>= \ case
                    InstalledFound loc mod -> do
                        -- Found file, so read it
                        let file_path = addBootSuffix_maybe hi_boot_file
@@ -955,8 +953,7 @@ findAndReadIface doc_str mod wanted_mod_with_insts hi_boot_file
                           not (isOneShot (ghcMode dflags))
                            then return (Failed (homeModError mod loc))
                            else do r <- read_file file_path
-                                   checkBuildDynamicToo r
-                                   return r
+                                   r <$ checkBuildDynamicToo r
                    err -> do
                        traceIf (text "...not found")
                        dflags <- getDynFlags

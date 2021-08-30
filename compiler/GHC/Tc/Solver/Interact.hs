@@ -7,58 +7,57 @@ module GHC.Tc.Solver.Interact (
   ) where
 
 import GHC.Prelude
-import GHC.Types.Basic ( SwapFlag(..), isSwapped,
-                         infinity, IntWithInf, intGtLimit )
-import GHC.Tc.Solver.Canonical
-import GHC.Tc.Solver.Flatten
-import GHC.Tc.Utils.Unify( canSolveByUnification )
-import GHC.Types.Var.Set
-import GHC.Core.Type as Type
-import GHC.Core.Coercion        ( BlockSubstFlag(..) )
-import GHC.Core.InstEnv         ( DFunInstType )
-import GHC.Core.Coercion.Axiom  ( sfInteractTop, sfInteractInert )
 
-import GHC.Types.Var
-import GHC.Tc.Utils.TcType
-import GHC.Builtin.Names ( coercibleTyConKey,
-                   heqTyConKey, eqTyConKey, ipClassKey )
-import GHC.Core.Coercion.Axiom ( TypeEqn, CoAxiom(..), CoAxBranch(..), fromBranches )
+import GHC.Builtin.Names ( coercibleTyConKey, heqTyConKey, eqTyConKey, ipClassKey )
+
+import GHC.Core
+import GHC.Core.Coercion        ( BlockSubstFlag(..) )
+import GHC.Core.Coercion.Axiom  ( TypeEqn, CoAxiom(..), CoAxBranch(..), fromBranches, sfInteractTop, sfInteractInert )
 import GHC.Core.Class
-import GHC.Core.TyCon
-import GHC.Tc.Instance.FunDeps
-import GHC.Tc.Instance.Family
-import GHC.Tc.Instance.Class( InstanceWhat(..), safeOverlap )
 import GHC.Core.FamInstEnv
+import GHC.Core.InstEnv         ( DFunInstType )
+import GHC.Core.Predicate
+import GHC.Core.TyCon
+import GHC.Core.Type as Type
 import GHC.Core.Unify ( tcUnifyTyWithTFs, ruleMatchTyKiX )
 
+import GHC.Data.Bag
+import GHC.Data.Maybe ( isJust )
+import GHC.Data.Pair (Pair(..))
+
+import GHC.Driver.Session
+
+import GHC.Tc.Instance.Class ( InstanceWhat(..), safeOverlap )
+import GHC.Tc.Instance.FunDeps
+import GHC.Tc.Solver.Canonical
+import GHC.Tc.Solver.Flatten
+import GHC.Tc.Solver.Monad
+import GHC.Tc.Types
+import GHC.Tc.Types.Constraint
 import GHC.Tc.Types.Evidence
+import GHC.Tc.Types.Origin
+import GHC.Tc.Utils.TcType
+import GHC.Tc.Utils.Unify ( canSolveByUnification )
+
+import GHC.Types.Basic ( SwapFlag(..), isSwapped, infinity, IntWithInf, intGtLimit )
+import GHC.Types.SrcLoc
+import GHC.Types.Unique ( hasKey )
+import GHC.Types.Var.Env
+import GHC.Types.Var.Set
+
+import GHC.Utils.Misc
+import GHC.Utils.Monad ( concatMapM, foldlM )
 import GHC.Utils.Outputable
 import GHC.Utils.Panic
 import GHC.Utils.Panic.Plain
 
-import GHC.Tc.Types
-import GHC.Tc.Types.Constraint
-import GHC.Core.Predicate
-import GHC.Tc.Types.Origin
-import GHC.Tc.Solver.Monad
-import GHC.Data.Bag
-import GHC.Utils.Monad ( concatMapM, foldlM )
-
-import GHC.Core
-import Data.List( partition, deleteFirstsBy )
-import GHC.Types.SrcLoc
-import GHC.Types.Var.Env
-
-import Control.Monad
-import GHC.Data.Maybe( isJust )
-import GHC.Data.Pair (Pair(..))
-import GHC.Types.Unique( hasKey )
-import GHC.Driver.Session
-import GHC.Utils.Misc
 import qualified GHC.LanguageExtensions as LangExt
 
+import Control.Monad
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.Maybe
+import Data.Foldable (toList)
+import Data.List ( deleteFirstsBy )
 
 {-
 **********************************************************************
@@ -157,10 +156,9 @@ solveSimpleWanteds simples
   = do { traceTcS "solveSimpleWanteds {" (ppr simples)
        ; dflags <- getDynFlags
        ; (n,wc) <- go 1 (solverIterations dflags) (emptyWC { wc_simple = simples })
-       ; traceTcS "solveSimpleWanteds end }" $
-             vcat [ text "iterations =" <+> ppr n
-                  , text "residual =" <+> ppr wc ]
-       ; return wc }
+       ; wc <$ (traceTcS "solveSimpleWanteds end }" . vcat)
+                  [ text "iterations =" <+> ppr n
+                  , text "residual =" <+> ppr wc ] }
   where
     go :: Int -> IntWithInf -> WantedConstraints -> TcS (Int, WantedConstraints)
     go n limit wc
@@ -194,16 +192,16 @@ solve_simple_wanteds :: WantedConstraints -> TcS (Int, WantedConstraints)
 -- Affects the unification state (of course) but not the inert set
 -- The result is not necessarily zonked
 solve_simple_wanteds (WC { wc_simple = simples1, wc_impl = implics1, wc_holes = holes })
-  = nestTcS $
-    do { solveSimples simples1
-       ; (implics2, tv_eqs, fun_eqs, others) <- getUnsolvedInerts
-       ; (unif_count, unflattened_eqs) <- reportUnifications $
-                                          unflattenWanteds tv_eqs fun_eqs
-            -- See Note [Unflatten after solving the simple wanteds]
-       ; return ( unif_count
+  = nestTcS
+  [ ( unif_count
                 , WC { wc_simple = others `andCts` unflattened_eqs
                      , wc_impl   = implics1 `unionBags` implics2
-                     , wc_holes  = holes }) }
+                     , wc_holes  = holes })
+  | () <- solveSimples simples1
+  , (implics2, tv_eqs, fun_eqs, others) <- getUnsolvedInerts
+  , (unif_count, unflattened_eqs) <- reportUnifications $ unflattenWanteds tv_eqs fun_eqs
+    -- See Note [Unflatten after solving the simple wanteds]
+  ]
 
 {- Note [The solveSimpleWanteds loop]
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -234,11 +232,9 @@ solveSimples cts
   where
     solve_loop
       = {-# SCC "solve_loop" #-}
-        do { sel <- selectNextWorkItem
-           ; case sel of
-              Nothing -> return ()
-              Just ct -> do { runSolverPipeline thePipeline ct
-                            ; solve_loop } }
+        selectNextWorkItem >>= traverse_ \ ct ->
+                         do { runSolverPipeline thePipeline ct
+                            ; solve_loop }
 
 -- | Extract the (inert) givens and invoke the plugins on them.
 -- Remove solved givens from the inert set and emit insolubles, but
@@ -254,8 +250,7 @@ runTcPluginsGiven
        ; let (solved_givens, _, _) = pluginSolvedCts p
              insols                = pluginBadCts p
        ; updInertCans (removeInertCts solved_givens)
-       ; updInertIrreds (\irreds -> extendCtsList irreds insols)
-       ; return (pluginNewCts p) } } }
+       ; pluginNewCts p <$ updInertIrreds (`extendCtsList` insols) } } }
 
 -- | Given a bag of (flattened, zonked) wanteds, invoke the plugins on
 -- them and produce an updated bag of wanteds (possibly with some new
@@ -272,7 +267,7 @@ runTcPluginsWanted wc@(WC { wc_simple = simples1 })
 
     do { given <- getInertGivens
        ; simples1 <- zonkSimples simples1    -- Plugin requires zonked inputs
-       ; let (wanted, derived) = partition isWantedCt (bagToList simples1)
+       ; let (wanted, derived) = partition isWantedCt (toList simples1)
        ; p <- runTcPlugins plugins (given, derived, wanted)
        ; let (_, _,                solved_wanted)   = pluginSolvedCts p
              (_, unsolved_derived, unsolved_wanted) = pluginInputCts p
@@ -282,12 +277,12 @@ runTcPluginsWanted wc@(WC { wc_simple = simples1 })
 -- SLPJ: I'm deeply suspicious of this
 --       ; updInertCans (removeInertCts $ solved_givens ++ solved_deriveds)
 
-       ; mapM_ setEv solved_wanted
-       ; return ( notNull (pluginNewCts p)
+       ; ( notNull (pluginNewCts p)
                 , wc { wc_simple = listToBag new_wanted       `andCts`
                                    listToBag unsolved_wanted  `andCts`
                                    listToBag unsolved_derived `andCts`
-                                   listToBag insols } ) } }
+                                   listToBag insols } ) <$
+         traverse_ setEv solved_wanted } }
   where
     setEv :: (EvTerm,Ct) -> TcS ()
     setEv (ev,ct) = case ctEvidence ct of
@@ -315,7 +310,7 @@ data TcPluginProgress = TcPluginProgress
     }
 
 getTcPlugins :: TcS [TcPluginSolver]
-getTcPlugins = do { tcg_env <- getGblEnv; return (tcg_tc_plugins tcg_env) }
+getTcPlugins = tcg_tc_plugins <$> getGblEnv
 
 -- | Starting from a triple of (given, derived, wanted) constraints,
 -- invoke each of the typechecker plugins in turn and return
@@ -335,9 +330,8 @@ runTcPlugins plugins all_cts
   = foldM do_plugin initialProgress plugins
   where
     do_plugin :: TcPluginProgress -> TcPluginSolver -> TcS TcPluginProgress
-    do_plugin p solver = do
-        result <- runTcPluginTcS (uncurry3 solver (pluginInputCts p))
-        return $ progress p result
+    do_plugin p solver =
+        progress p <$> runTcPluginTcS (uncurry3 solver (pluginInputCts p))
 
     progress :: TcPluginProgress -> TcPluginResult -> TcPluginProgress
     progress p (TcPluginContradiction bad_cts) =
@@ -364,7 +358,7 @@ runTcPlugins plugins all_cts
              && ctPred c `tcEqType` ctPred c'
 
     add :: [(EvTerm,Ct)] -> SolvedCts -> SolvedCts
-    add xs scs = foldl' addOne scs xs
+    add = flip $ foldl' addOne
 
     addOne :: SolvedCts -> (EvTerm,Ct) -> SolvedCts
     addOne (givens, deriveds, wanteds) (ev,ct) = case ctEvidence ct of
@@ -392,15 +386,12 @@ runSolverPipeline pipeline workItem
                        , text "rest of worklist =" <+> ppr wl ]
 
        ; bumpStepCountTcS    -- One step for each constraint processed
-       ; final_res  <- run_pipeline pipeline (ContinueWith workItem)
-
-       ; case final_res of
+       ; run_pipeline pipeline (ContinueWith workItem) >>= \ case
            Stop ev s       -> do { traceFireTcS ev s
-                                 ; traceTcS "End solver pipeline (discharged) }" empty
-                                 ; return () }
+                                 ; traceTcS "End solver pipeline (discharged) }" empty }
            ContinueWith ct -> do { addInertCan ct
                                  ; traceFireTcS (ctEvidence ct) (text "Kept as inert")
-                                 ; traceTcS "End solver pipeline (kept as inert) }" $
+                                 ; traceTcS "End solver pipeline (kept as inert) }"
                                             (text "final_item =" <+> ppr ct) }
        }
   where run_pipeline :: [(String,SimplifierStage)] -> StopOrContinue Ct
@@ -548,8 +539,7 @@ solveOneFromTheOther ev_i ev_w
 
   | lvl_i == lvl_w
   = do { ev_binds_var <- getTcEvBindsVar
-       ; binds <- getTcEvBindsMap ev_binds_var
-       ; return (same_level_strategy binds) }
+       ; same_level_strategy <$> getTcEvBindsMap ev_binds_var }
 
   | otherwise   -- Both are Given, levels differ
   = return different_level_strategy
@@ -695,7 +685,7 @@ interactIrred inerts workItem@(CIrredCan { cc_ev = ev_w, cc_status = status })
   = continueWith workItem
 
   | let (matching_irreds, others) = findMatchingIrreds (inert_irreds inerts) ev_w
-  , ((ct_i, swap) : _rest) <- bagToList matching_irreds
+  , ((ct_i, swap) : _rest) <- toList matching_irreds
         -- See Note [Multiple matching irreds]
   , let ev_i = ctEvidence ct_i
   = do { what_next <- solveOneFromTheOther ev_i ev_w
@@ -723,9 +713,9 @@ findMatchingIrreds :: Cts -> CtEvidence -> (Bag (Ct, SwapFlag), Bag Ct)
 findMatchingIrreds irreds ev
   | EqPred eq_rel1 lty1 rty1 <- classifyPredType pred
     -- See Note [Solving irreducible equalities]
-  = partitionBagWith (match_eq eq_rel1 lty1 rty1) irreds
+  = mapEither (match_eq eq_rel1 lty1 rty1) irreds
   | otherwise
-  = partitionBagWith match_non_eq irreds
+  = mapEither match_non_eq irreds
   where
     pred = ctEvPred ev
     match_non_eq ct
@@ -1038,8 +1028,8 @@ interactDict inerts workItem@(CDictCan { cc_ev = ev_w, cc_class = cls, cc_tyargs
          what_next <- solveOneFromTheOther ev_i ev_w
        ; traceTcS "lookupInertDict" (ppr what_next)
        ; case what_next of
-           KeepInert -> do { setEvBindIfWanted ev_w (ctEvTerm ev_i)
-                           ; return $ Stop ev_w (text "Dict equal" <+> parens (ppr what_next)) }
+           KeepInert -> Stop ev_w (text "Dict equal" <+> parens (ppr what_next)) <$
+                        setEvBindIfWanted ev_w (ctEvTerm ev_i)
            KeepWork  -> do { setEvBindIfWanted ev_i (ctEvTerm ev_w)
                            ; updInertDicts $ \ ds -> delDict ds cls tys
                            ; continueWith workItem } } }
@@ -1081,15 +1071,11 @@ shortCutSolver dflags ev_w ev_i
                      getTcEvBindsMap ev_binds_var
        ; solved_dicts <- getSolvedDicts
 
-       ; mb_stuff <- runMaybeT $ try_solve_from_instance
-                                   (ev_binds, solved_dicts) ev_w
-
-       ; case mb_stuff of
+       ; runMaybeT (try_solve_from_instance (ev_binds, solved_dicts) ev_w) >>= \ case
            Nothing -> return False
-           Just (ev_binds', solved_dicts')
-              -> do { setTcEvBindsMap ev_binds_var ev_binds'
-                    ; setSolvedDicts solved_dicts'
-                    ; return True } }
+           Just (ev_binds', solved_dicts') -> True <$
+                 do { setTcEvBindsMap ev_binds_var ev_binds'
+                    ; setSolvedDicts solved_dicts' } }
 
   | otherwise
   = return False
@@ -1106,8 +1092,7 @@ shortCutSolver dflags ev_w ev_i
       | let pred = ctEvPred ev
             loc  = ctEvLoc  ev
       , ClassPred cls tys <- classifyPredType pred
-      = do { inst_res <- lift $ matchGlobalInst dflags True cls tys
-           ; case inst_res of
+      = lift (matchGlobalInst dflags True cls tys) >>= \ case
                OneInst { cir_new_theta = preds
                        , cir_mk_ev     = mk_ev
                        , cir_what      = what }
@@ -1133,7 +1118,7 @@ shortCutSolver dflags ev_w ev_i
                                 (ev_binds', solved_dicts')
                                 (freshGoals evc_vs) }
 
-               _ -> mzero }
+               _ -> mzero
       | otherwise = mzero
 
 
@@ -1152,7 +1137,7 @@ addFunDepWork :: InertCans -> CtEvidence -> Class -> TcS ()
 -- Add derived constraints from type-class functional dependencies.
 addFunDepWork inerts work_ev cls
   | isImprovable work_ev
-  = mapBagM_ add_fds (findDictsByClass (inert_dicts inerts) cls)
+  = traverse_ add_fds (findDictsByClass (inert_dicts inerts) cls)
                -- No need to check flavour; fundeps work between
                -- any pair of constraints, regardless of flavour
                -- Importantly we don't throw workitem back in the
@@ -1206,12 +1191,12 @@ interactGivenIP :: InertCans -> Ct -> TcS (StopOrContinue Ct)
 -- See Note [Shadowing of Implicit Parameters]
 interactGivenIP inerts workItem@(CDictCan { cc_ev = ev, cc_class = cls
                                           , cc_tyargs = tys@(ip_str:_) })
-  = do { updInertCans $ \cans -> cans { inert_dicts = addDict filtered_dicts cls tys workItem }
+  = do { updInertTcS $ set (inert_cansL . inert_dictsL) (addDict filtered_dicts cls tys workItem)
        ; stopWith ev "Given IP" }
   where
     dicts           = inert_dicts inerts
     ip_dicts        = findDictsByClass dicts cls
-    other_ip_dicts  = filterBag (not . is_this_ip) ip_dicts
+    other_ip_dicts  = filter (not . is_this_ip) ip_dicts
     filtered_dicts  = addDictsByClass dicts cls other_ip_dicts
 
     -- Pick out any Given constraints for the same implicit parameter
@@ -1314,8 +1299,7 @@ interactFunEq inerts work_item@(CFunEqCan { cc_ev = ev, cc_fun = tc
                  ; stopWith ev "Work item rewrites inert" }
          else do {   -- Rewrite work-item using inert
                  ; when upgrade_flag $
-                   updInertFunEqs $ \ feqs -> insertFunEq feqs tc args
-                                                 (upgradeWanted inert_ct)
+                   updInertFunEqs $ \ feqs -> insertFunEq feqs tc args (upgradeWanted inert_ct)
                  ; reactFunEq ev_i fsk_i ev fsk
                  ; stopWith ev "Inert rewrites work item" } }
 
@@ -1328,10 +1312,9 @@ interactFunEq _ work_item = pprPanic "interactFunEq" (ppr work_item)
 upgradeWanted :: Ct -> Ct
 -- We are combining a [W] F tys ~ fmv1 and [D] F tys ~ fmv2
 -- so upgrade the [W] to [WD] before putting it in the inert set
-upgradeWanted ct = ct { cc_ev = upgrade_ev (cc_ev ct) }
+upgradeWanted ct = over ctEvidenceL upgrade_ev ct
   where
-    upgrade_ev ev = assertPpr (isWanted ev) (ppr ct)
-                    ev { ctev_nosh = WDeriv }
+    upgrade_ev ev = assertPpr (isWanted ev) (ppr ct) ev { ctev_nosh = WDeriv }
 
 improveLocalFunEqs :: CtEvidence -> InertCans -> TyCon -> [TcType] -> TcTyVar
                    -> TcS ()
@@ -1347,13 +1330,12 @@ improveLocalFunEqs work_ev inerts fam_tc args fsk
 
   | otherwise
   = do { eqns <- improvement_eqns
-       ; if not (null eqns)
-         then do { traceTcS "interactFunEq improvements: " $
+       ; unless (null eqns)
+              do { traceTcS "interactFunEq improvements: " $
                    vcat [ text "Eqns:" <+> ppr eqns
                         , text "Candidates:" <+> ppr funeqs_for_tc
                         , text "Inert eqs:" <+> ppr (inert_eqs inerts) ]
-                 ; emitFunDepDeriveds eqns }
-         else return () }
+                 ; emitFunDepDeriveds eqns } }
 
   where
     funeqs        = inert_funeqs inerts
@@ -1380,8 +1362,7 @@ improveLocalFunEqs work_ev inerts fam_tc args fsk
 
     --------------------
     do_one_built_in ops rhs (CFunEqCan { cc_tyargs = iargs, cc_fsk = ifsk, cc_ev = inert_ev })
-      = do { inert_rhs <- rewriteTyVar ifsk
-           ; return $ mk_fd_eqns inert_ev (sfInteractInert ops args rhs iargs inert_rhs) }
+      = mk_fd_eqns inert_ev . sfInteractInert ops args rhs iargs <$> rewriteTyVar ifsk
 
     do_one_built_in _ _ _ = pprPanic "interactFunEq 1" (ppr fam_tc)
 
@@ -1783,17 +1764,16 @@ as the fundeps.
 
 emitFunDepDeriveds :: [FunDepEqn CtLoc] -> TcS ()
 -- See Note [FunDep and implicit parameter reactions]
-emitFunDepDeriveds fd_eqns
-  = mapM_ do_one_FDEqn fd_eqns
+emitFunDepDeriveds = traverse_ do_one_FDEqn
   where
     do_one_FDEqn (FDEqn { fd_qtvs = tvs, fd_eqs = eqs, fd_loc = loc })
      | null tvs  -- Common shortcut
      = do { traceTcS "emitFunDepDeriveds 1" (ppr (ctl_depth loc) $$ ppr eqs $$ ppr (isGivenLoc loc))
-          ; mapM_ (unifyDerived loc Nominal) eqs }
+          ; traverse_ (unifyDerived loc Nominal) eqs }
      | otherwise
      = do { traceTcS "emitFunDepDeriveds 2" (ppr (ctl_depth loc) $$ ppr tvs $$ ppr eqs)
           ; subst <- instFlexi tvs  -- Takes account of kind substitution
-          ; mapM_ (do_one_eq loc subst) eqs }
+          ; traverse_ (do_one_eq loc subst) eqs }
 
     do_one_eq loc subst (Pair ty1 ty2)
        = unifyDerived loc Nominal $
@@ -1950,12 +1930,11 @@ doTopReactFunEq work_item@(CFunEqCan { cc_ev = old_ev, cc_fun = fam_tc
   = no_reduction    -- See Note [FunEq occurs-check principle]
 
   | otherwise  -- Note [Reduction for Derived CFunEqCans]
-  = do { match_res <- matchFam fam_tc args
+  = matchFam fam_tc args >>= \ case
                            -- Look up in top-level instances, or built-in axiom
                            -- See Note [MATCHING-SYNONYMS]
-       ; case match_res of
            Nothing         -> no_reduction
-           Just match_info -> reduce_top_fun_eq old_ev fsk match_info }
+           Just match_info -> reduce_top_fun_eq old_ev fsk match_info
   where
     no_reduction
       = do { improveTopFunEqs old_ev fam_tc args fsk
@@ -2007,7 +1986,7 @@ improveTopFunEqs ev fam_tc args fsk
                                           , ppr eqns ])
        ; mapM_ (unifyDerived loc Nominal) eqns }
   where
-    loc = bumpCtLocDepth (ctEvLoc ev)
+    loc = over ctLocDepthL bumpSubGoalDepth (ctEvLoc ev)
         -- ToDo: this location is wrong; it should be FunDepOrigin2
         -- See #14778
 
@@ -2113,7 +2092,7 @@ shortCutReduction old_ev fsk ax_co fam_tc tc_args
                                 , cc_tyargs = tc_args, cc_fsk = fsk }
        ; updWorkListTcS (extendWorkListFunEq new_ct) }
   where
-    deeper_loc = bumpCtLocDepth (ctEvLoc old_ev)
+    deeper_loc = over ctLocDepthL bumpSubGoalDepth (ctEvLoc old_ev)
 
 {- Note [Top-level reductions for type functions]
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -2338,8 +2317,7 @@ doTopReactDict inerts work_item@(CDictCan { cc_ev = ev, cc_class = cls
                         ; addSolvedDict what ev cls xis
                         ; chooseInstance work_item lkup_res }
                _  ->  -- NoInstance or NotSure
-                     do { when (isImprovable ev) $
-                          try_fundep_improvement
+                     do { when (isImprovable ev) try_fundep_improvement
                         ; continueWith work_item } }
    where
      dict_pred   = mkClassPred cls xis
@@ -2411,19 +2389,17 @@ checkInstanceOK :: CtLoc -> InstanceWhat -> TcPredType -> TcS CtLoc
 --    (b) we have not recursed too deep
 -- Returns the CtLoc to used for sub-goals
 checkInstanceOK loc what pred
-  = do { checkWellStagedDFun loc what pred
-       ; checkReductionDepth deeper_loc pred
-       ; return deeper_loc }
+  = deeper_loc <$ do { checkWellStagedDFun loc what pred; checkReductionDepth deeper_loc pred }
   where
-     deeper_loc = zap_origin (bumpCtLocDepth loc)
+     deeper_loc = zap_origin (over ctLocDepthL bumpSubGoalDepth loc)
      origin     = ctLocOrigin loc
 
-     zap_origin loc  -- After applying an instance we can set ScOrigin to
+     zap_origin      -- After applying an instance we can set ScOrigin to
                      -- infinity, so that prohibitedSuperClassSolve never fires
        | ScOrigin {} <- origin
-       = setCtLocOrigin loc (ScOrigin infinity)
+       = set ctLocOriginL (ScOrigin infinity)
        | otherwise
-       = loc
+       = id
 
 {- Note [Instances in no-evidence implications]
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -2655,8 +2631,7 @@ matchLocalInst :: TcPredType -> CtLoc -> TcS ClsInstResult
 matchLocalInst pred loc
   = do { ics <- getInertCans
        ; case match_local_inst (inert_insts ics) of
-           ([], False) -> do { traceTcS "No local instance for" (ppr pred)
-                             ; return NoInstance }
+           ([], False) -> NoInstance <$ traceTcS "No local instance for" (ppr pred)
            ([(dfun_ev, inst_tys)], unifs)
              | not unifs
              -> do { let dfun_id = ctEvEvId dfun_ev
@@ -2664,10 +2639,8 @@ matchLocalInst pred loc
                    ; let result = OneInst { cir_new_theta = theta
                                           , cir_mk_ev     = evDFunApp dfun_id tys
                                           , cir_what      = LocalInstance }
-                   ; traceTcS "Local inst found:" (ppr result)
-                   ; return result }
-           _ -> do { traceTcS "Multiple local instances for" (ppr pred)
-                   ; return NotSure }}
+                   ; result <$ traceTcS "Local inst found:" (ppr result) }
+           _ -> NotSure <$ traceTcS "Multiple local instances for" (ppr pred) }
   where
     pred_tv_set = tyCoVarsOfType pred
 

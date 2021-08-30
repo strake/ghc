@@ -28,7 +28,6 @@ import GHC.Utils.Outputable
 import GHC.Utils.Binary
 import GHC.Utils.Panic
 
-import Data.Function (on)
 import Data.Data
 
 {-

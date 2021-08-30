@@ -229,10 +229,7 @@ withSignalHandlers act = do
   main_thread <- liftIO myThreadId
   wtid <- liftIO (mkWeakThreadId main_thread)
 
-  let
-      interrupt = do
-        r <- deRefWeak wtid
-        case r of
+  let interrupt = deRefWeak wtid >>= \ case
           Nothing -> return ()
           Just t  -> throwTo t UserInterrupt
 

@@ -1,3 +1,4 @@
+{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ViewPatterns #-}
 
 {-
@@ -36,12 +37,10 @@ import GHC.Types.SrcLoc
 import GHC.Utils.Outputable
 import GHC.Utils.Panic
 
-import GHC.Data.Maybe
-
 import GHC.Rename.Unbound
 
-import Data.List
-import Data.Function    ( on )
+import Data.Functor.Reader.Class
+import Data.List hiding (filter)
 
 {-
 *********************************************************
@@ -87,14 +86,11 @@ type MiniFixityEnv = FastStringEnv (Located Fixity)
 -- Used for nested fixity decls to bind names along with their fixities.
 -- the fixities are given as a UFM from an OccName's FastString to a fixity decl
 
-addLocalFixities :: MiniFixityEnv -> [Name] -> RnM a -> RnM a
-addLocalFixities mini_fix_env names thing_inside
-  = extendFixityEnv (mapMaybe find_fixity names) thing_inside
+addLocalFixities :: (IsLocal f f, EnvType f ~ Env TcGblEnv lcl) => MiniFixityEnv -> [Name] -> f a -> f a
+addLocalFixities mini_fix_env names = extendFixityEnv (mapMaybe find_fixity names)
   where
-    find_fixity name
-      = case lookupFsEnv mini_fix_env (occNameFS occ) of
-          Just lfix -> Just (name, FixItem occ (unLoc lfix))
-          Nothing   -> Nothing
+    find_fixity name =
+      [ (name, FixItem occ (unLoc lfix)) | lfix <- lookupFsEnv mini_fix_env (occNameFS occ) ]
       where
         occ = nameOccName name
 
@@ -124,14 +120,11 @@ lookupFixityRn' name = fmap snd . lookupFixityRn_help' name
 -- in a local environment or from an interface file. Otherwise, it returns
 -- @(False, fixity)@ (e.g., for unbound 'Name's or 'Name's without
 -- user-supplied fixity declarations).
-lookupFixityRn_help :: Name
-                    -> RnM (Bool, Fixity)
+lookupFixityRn_help :: Name -> RnM (Bool, Fixity)
 lookupFixityRn_help name =
     lookupFixityRn_help' name (nameOccName name)
 
-lookupFixityRn_help' :: Name
-                     -> OccName
-                     -> RnM (Bool, Fixity)
+lookupFixityRn_help' :: Name -> OccName -> RnM (Bool, Fixity)
 lookupFixityRn_help' name occ
   | isUnboundName name
   = return (False, Fixity NoSourceText minPrecedence InfixL)
@@ -149,10 +142,10 @@ lookupFixityRn_help' name occ
        ; if nameIsLocalOrFrom this_mod name
                -- Local (and interactive) names are all in the
                -- fixity env, and don't have entries in the HPT
-         then return (False, defaultFixity)
+         then pure (False, defaultFixity)
          else lookup_imported } } }
   where
-    lookup_imported
+    lookup_imported =
       -- For imported names, we have to get their fixities by doing a
       -- loadInterfaceForName, and consulting the Ifaces that comes back
       -- from that, because the interface file for the Name might not
@@ -169,9 +162,10 @@ lookupFixityRn_help' name occ
       --
       -- loadInterfaceForName will find B.hi even if B is a hidden module,
       -- and that's what we want.
-      = do { iface <- loadInterfaceForName doc name
-           ; let mb_fix = mi_fix_fn (mi_final_exts iface) occ
-           ; let msg = case mb_fix of
+      [ maybe (False, defaultFixity) ((,) True) mb_fix
+      | iface <- loadInterfaceForName doc name
+      , let mb_fix = mi_fix_fn (mi_final_exts iface) occ
+      , let msg = case mb_fix of
                             Nothing ->
                                   text "looking up name" <+> ppr name
                               <+> text "in iface, but found no fixity for it."
@@ -179,8 +173,7 @@ lookupFixityRn_help' name occ
                             Just f ->
                                   text "looking up name in iface and found:"
                               <+> vcat [ppr name, ppr f]
-           ; traceRn "lookupFixityRn_either:" msg
-           ; return (maybe (False, defaultFixity) (\f -> (True, f)) mb_fix)  }
+      , () <- traceRn "lookupFixityRn_either:" msg ]
 
     doc = text "Checking fixity for" <+> ppr name
 

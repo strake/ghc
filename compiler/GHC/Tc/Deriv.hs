@@ -67,10 +67,10 @@ import GHC.Data.Bag
 import GHC.Utils.FV as FV (fvVarList, unionFV, mkFVs)
 import qualified GHC.LanguageExtensions as LangExt
 
-import Control.Monad
+import Control.Monad hiding (mapAndUnzipM)
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.Reader
-import Data.List (partition, find)
+import Data.Foldable (find, toList)
 
 {-
 ************************************************************************
@@ -206,7 +206,7 @@ tcDeriving deriv_infos deriv_decls
         ; let (binds, famInsts) = genAuxBinds dflags loc
                                     (unionManyBags deriv_stuff)
 
-        ; let mk_inst_infos1 = map fstOf3 insts1
+        ; let mk_inst_infos1 = map fst3 insts1
         ; inst_infos1 <- apply_inst_infos mk_inst_infos1 given_specs
 
           -- We must put all the derived type family instances (from both
@@ -214,7 +214,7 @@ tcDeriving deriv_infos deriv_decls
           -- before proceeding, or else simplifyInstanceContexts might
           -- get stuck if it has to reason about any of those family instances.
           -- See Note [Staging of tcDeriving]
-        ; tcExtendLocalFamInstEnv (bagToList famInsts) $
+        ; tcExtendLocalFamInstEnv (toList famInsts) $
           -- NB: only call tcExtendLocalFamInstEnv once, as it performs
           -- validity checking for all of the family instances you give it.
           -- If the family instances have errors, calling it twice will result
@@ -227,7 +227,7 @@ tcDeriving deriv_infos deriv_decls
         ; final_specs <- extendLocalInstEnv (map iSpec inst_infos1) $
                          simplifyInstanceContexts infer_specs
 
-        ; let mk_inst_infos2 = map fstOf3 insts2
+        ; let mk_inst_infos2 = map fst3 insts2
         ; inst_infos2 <- apply_inst_infos mk_inst_infos2 final_specs
         ; let inst_infos = inst_infos1 ++ inst_infos2
 
@@ -238,7 +238,7 @@ tcDeriving deriv_infos deriv_decls
                         FormatHaskell
                         (ddump_deriving inst_info rn_binds famInsts))
 
-        ; gbl_env <- tcExtendLocalInstEnv (map iSpec (bagToList inst_info))
+        ; gbl_env <- tcExtendLocalInstEnv (map iSpec (toList inst_info))
                                           getGblEnv
         ; let all_dus = rn_dus `plusDU` usesOnly (NameSet.mkFVs $ concat fvs)
         ; return (addTcgDUs gbl_env all_dus, inst_info, rn_binds) } }
@@ -248,10 +248,10 @@ tcDeriving deriv_infos deriv_decls
                    -> SDoc
     ddump_deriving inst_infos extra_binds repFamInsts
       =    hang (text "Derived class instances:")
-              2 (vcat (map (\i -> pprInstInfoDetails i $$ text "") (bagToList inst_infos))
+              2 (vcat (map (\i -> pprInstInfoDetails i $$ text "") (toList inst_infos))
                  $$ ppr extra_binds)
         $$ hangP "Derived type family instances:"
-             (vcat (map pprRepTy (bagToList repFamInsts)))
+             (vcat (map pprRepTy (toList repFamInsts)))
 
     hangP s x = text "" $$ hang (ptext (sLit s)) 2 x
 
@@ -292,8 +292,8 @@ renameDeriv inst_infos bagBinds
         -- Bring the extra deriving stuff into scope
         -- before renaming the instances themselves
         ; traceTc "rnd" (vcat (map (\i -> pprInstInfoDetails i $$ text "") inst_infos))
-        ; (aux_binds, aux_sigs) <- mapAndUnzipBagM return bagBinds
-        ; let aux_val_binds = ValBinds noExtField aux_binds (bagToList aux_sigs)
+        ; let (aux_binds, aux_sigs) = unzip bagBinds
+        ; let aux_val_binds = ValBinds noExtField aux_binds (toList aux_sigs)
         ; rn_aux_lhs <- rnTopBindsLHS emptyFsEnv aux_val_binds
         ; let bndrs = collectHsValBinders rn_aux_lhs
         ; envs <- extendGlobalRdrEnvRn (map avail bndrs) emptyFsEnv ;
@@ -470,7 +470,7 @@ deriveClause rep_tc scoped_tvs mb_lderiv_strat deriv_preds err_ctxt
         -- Moreover, when using DerivingVia one can bind type variables in
         -- the `via` type as well, so these type variables must also be
         -- brought into scope.
-          mapMaybeM (derivePred tc tys mb_lderiv_strat' via_tvs) deriv_preds
+          mapMaybeA (derivePred tc tys mb_lderiv_strat' via_tvs) deriv_preds
           -- After typechecking the `via` type once, we then typecheck all
           -- of the classes associated with that `via` type in the
           -- `deriving` clause.
@@ -1411,7 +1411,7 @@ mk_eqn_no_strategy = do
                  -- If it is stock, we must confirm that the last argument's
                  -- type constructor is algebraic.
                  -- See Note [DerivEnv and DerivSpecMechanism] in GHC.Tc.Deriv.Utils
-                 whenIsJust (hasStockDeriving cls) $ \_ ->
+                 for_ (hasStockDeriving cls) \_ ->
                    expectNonDataFamTyCon dit
                  mk_eqn_originative dit
 
@@ -1550,7 +1550,7 @@ mkNewTypeEqn newtype_strat dit@(DerivInstTys { dit_cls_tys     = cls_tys
              --     And the [a] must not mention 'b'.  That's all handled
              --     by nt_eta_rity.
 
-           cant_derive_err = ppUnless eta_ok  eta_msg
+           cant_derive_err = munless eta_ok  eta_msg
            eta_msg = text "cannot eta-reduce the representation type enough"
 
        massert (cls_tys `lengthIs` (classArity cls - 1))
@@ -1964,7 +1964,7 @@ doDerivInstErrorChecks1 mechanism =
                         last cls_tyvars
 
           cant_derive_err
-             = vcat [ ppUnless no_adfs adfs_msg
+             = vcat [ munless no_adfs adfs_msg
                     , maybe empty at_without_last_cls_tv_msg
                             at_without_last_cls_tv
                     , maybe empty at_last_cls_tv_in_kinds_msg

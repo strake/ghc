@@ -69,7 +69,7 @@ module GHC.Hs.Decls (
   CImportSpec(..),
   -- ** Data-constructor declarations
   ConDecl(..), LConDecl, ConDeclGADTPrefixPs(..),
-  HsConDeclDetails, hsConDeclArgTys, hsConDeclTheta,
+  HsConDeclDetails, hsConDeclArgTys,
   getConNames, getConArgs,
   -- ** Document comments
   DocDecl(..), LDocDecl, docDeclDoc,
@@ -84,6 +84,7 @@ module GHC.Hs.Decls (
   -- ** Injective type families
   FamilyResultSig(..), LFamilyResultSig, InjectivityAnn(..), LInjectivityAnn,
   resultVariableName, familyDeclLName, familyDeclName,
+  injectivityAnnVarsL,
 
   -- * Grouping
   HsGroup(..),  emptyRdrGroup, emptyRnGroup, appendGroups, hsGroupInstDecls,
@@ -124,6 +125,7 @@ import GHC.Unit.Module.Warnings
 import GHC.Data.Bag
 import GHC.Data.Maybe
 import Data.Data        hiding (TyCon,Fixity, Infix)
+import Lens.Micro (Traversal)
 
 {-
 ************************************************************************
@@ -1121,6 +1123,10 @@ data InjectivityAnn pass
 
   -- For details on above see note [Api annotations] in GHC.Parser.Annotation
 
+injectivityAnnVarsL :: Traversal (InjectivityAnn p) (InjectivityAnn q) (IdP p) (IdP q)
+injectivityAnnVarsL f (InjectivityAnn u vs) =
+    InjectivityAnn <$> traverse f u <*> (traverse . traverse) f vs
+
 data FamilyInfo pass
   = DataFamily
   | OpenTypeFamily
@@ -1563,16 +1569,12 @@ getConNames ConDeclH98  {con_name  = name}  = [name]
 getConNames ConDeclGADT {con_names = names} = names
 
 getConArgs :: ConDecl pass -> HsConDeclDetails pass
-getConArgs d = con_args d
+getConArgs = con_args
 
 hsConDeclArgTys :: HsConDeclDetails pass -> [LBangType pass]
 hsConDeclArgTys (PrefixCon tys)    = tys
 hsConDeclArgTys (InfixCon ty1 ty2) = [ty1,ty2]
 hsConDeclArgTys (RecCon flds)      = map (cd_fld_type . unLoc) (unLoc flds)
-
-hsConDeclTheta :: Maybe (LHsContext pass) -> [LHsType pass]
-hsConDeclTheta Nothing            = []
-hsConDeclTheta (Just (L _ theta)) = theta
 
 pp_data_defn :: (OutputableBndrId p)
                   => (LHsContext (GhcPass p) -> SDoc)   -- Printing the header
@@ -1640,7 +1642,7 @@ pprConDecl (ConDeclH98 { con_name = L _ con
                        , con_mb_cxt = mcxt
                        , con_args = args
                        , con_doc = doc })
-  = sep [ppr_mbDoc doc, pprHsForAll ForallInvis ex_tvs cxt, ppr_details args]
+  = sep [foldMap ppr doc, pprHsForAll ForallInvis ex_tvs cxt, ppr_details args]
   where
     ppr_details (InfixCon t1 t2) = hsep [ppr t1, pprInfixOcc con, ppr t2]
     ppr_details (PrefixCon tys)  = hsep (pprPrefixOcc con
@@ -1652,7 +1654,7 @@ pprConDecl (ConDeclH98 { con_name = L _ con
 pprConDecl (ConDeclGADT { con_names = cons, con_qvars = qvars
                         , con_mb_cxt = mcxt, con_args = args
                         , con_res_ty = res_ty, con_doc = doc })
-  = ppr_mbDoc doc <+> ppr_con_names cons <+> dcolon
+  = foldMap ppr doc <+> ppr_con_names cons <+> dcolon
     <+> (sep [pprHsForAll ForallInvis qvars cxt,
               ppr_arrow_chain (get_args args ++ [ppr res_ty]) ])
   where
@@ -1669,7 +1671,7 @@ pprConDecl (XConDecl x) =
   case ghcPass @p of
     GhcPs |  ConDeclGADTPrefixPs { con_gp_names = cons, con_gp_ty = ty
                                  , con_gp_doc = doc } <- x
-          -> ppr_mbDoc doc <+> ppr_con_names cons <+> dcolon <+> ppr ty
+          -> foldMap ppr doc <+> ppr_con_names cons <+> dcolon <+> ppr ty
 #if __GLASGOW_HASKELL__ < 811
     GhcRn -> noExtCon x
     GhcTc -> noExtCon x
@@ -1974,14 +1976,10 @@ instance OutputableBndrId p
 
 ppDerivStrategy :: OutputableBndrId p
                 => Maybe (LDerivStrategy (GhcPass p)) -> SDoc
-ppDerivStrategy mb =
-  case mb of
-    Nothing       -> empty
-    Just (L _ ds) -> ppr ds
+ppDerivStrategy = foldMap (ppr . unLoc)
 
 ppOverlapPragma :: Maybe (Located OverlapMode) -> SDoc
-ppOverlapPragma mb =
-  case mb of
+ppOverlapPragma = \ case
     Nothing           -> empty
     Just (L _ (NoOverlap s))    -> maybe_stext s "{-# NO_OVERLAP #-}"
     Just (L _ (Overlappable s)) -> maybe_stext s "{-# OVERLAPPABLE #-}"
@@ -2001,8 +1999,7 @@ instance (OutputableBndrId p) => Outputable (InstDecl (GhcPass p)) where
 -- Extract the declarations of associated data types from an instance
 
 instDeclDataFamInsts :: [LInstDecl (GhcPass p)] -> [DataFamInstDecl (GhcPass p)]
-instDeclDataFamInsts inst_decls
-  = concatMap do_one inst_decls
+instDeclDataFamInsts = concatMap do_one
   where
     do_one :: LInstDecl (GhcPass p) -> [DataFamInstDecl (GhcPass p)]
     do_one (L _ (ClsInstD { cid_inst = ClsInstDecl { cid_datafam_insts = fam_insts } }))

@@ -7,7 +7,7 @@ import GHC.Data.FastString
 import GHC.Types.SrcLoc
 import GHC.Utils.Monad
 import GHC.Utils.Outputable
-import GHC.Data.Bag (filterBag,isEmptyBag)
+import GHC.Data.Bag (isEmptyBag)
 import System.Directory (removeFile)
 import System.Environment( getArgs )
 

@@ -14,7 +14,7 @@ import GHC.Driver.Ppr
 import GHC.Utils.Monad
 import GHC.Utils.Outputable
 import GHC.Parser.Annotation
-import GHC.Data.Bag (filterBag,isEmptyBag)
+import GHC.Data.Bag (isEmptyBag)
 import System.Directory (removeFile)
 import System.Environment( getArgs )
 import qualified Data.Map as Map

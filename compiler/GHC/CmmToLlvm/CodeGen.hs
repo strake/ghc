@@ -44,8 +44,7 @@ import Control.Monad.Trans.Writer
 import Control.Monad
 
 import qualified Data.Semigroup as Semigroup
-import Data.List ( nub )
-import Data.Maybe ( catMaybes )
+import Data.Foldable (toList)
 
 type Atomic = Bool
 type LlvmStatements = OrdList LlvmStatement
@@ -82,10 +81,10 @@ basicBlocksCodeGen live cmmBlocks
        -- and #11649.
        bid <- newBlockId
        (prologue, prologueTops) <- funPrologue live cmmBlocks
-       let entryBlock = BasicBlock bid (fromOL prologue)
+       let entryBlock = BasicBlock bid (toList prologue)
 
        -- Generate code
-       (blocks, topss) <- fmap unzip $ mapM basicBlockCodeGen cmmBlocks
+       (blocks, topss) <- unzip <$> traverse basicBlockCodeGen cmmBlocks
 
        -- Compose
        return (entryBlock : blocks, prologueTops ++ concat topss)
@@ -98,7 +97,7 @@ basicBlockCodeGen block
            id = entryLabel block
        (mid_instrs, top) <- stmtsToInstrs $ blockToList nodes
        (tail_instrs, top')  <- stmtToInstrs tail
-       let instrs = fromOL (mid_instrs `appOL` tail_instrs)
+       let instrs = toList (mid_instrs `appOL` tail_instrs)
        return (BasicBlock id instrs, top' ++ top)
 
 -- -----------------------------------------------------------------------------
@@ -114,7 +113,7 @@ type StmtData = (LlvmStatements, [LlvmCmmDecl])
 -- | Convert a list of CmmNode's to LlvmStatement's
 stmtsToInstrs :: [CmmNode e x] -> LlvmM StmtData
 stmtsToInstrs stmts
-   = do (instrss, topss) <- fmap unzip $ mapM stmtToInstrs stmts
+   = do (instrss, topss) <- unzip <$> traverse stmtToInstrs stmts
         return (concatOL instrss, concat topss)
 
 

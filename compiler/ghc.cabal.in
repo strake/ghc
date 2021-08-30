@@ -71,8 +71,11 @@ Library
                    hpc        == 0.6.*,
                    transformers == 0.5.*,
                    exceptions == 0.10.*,
+                   filtrable  >= 0.1.5.0 && < 0.2,
+                   ftl        >= 0.1 && < 0.2,
+                   hs-functors >= 0.2 && < 0.3,
                    microlens  == 0.4.12.*,
-                   mtl        == 2.2.2,
+                   util       >= 0.1.17.1 && < 0.2,
                    ghc-boot   == @ProjectVersionMunged@,
                    ghc-boot-th == @ProjectVersionMunged@,
                    ghc-heap   == @ProjectVersionMunged@,
@@ -162,6 +165,7 @@ Library
         MonadComprehensions
         NoImplicitPrelude
         NoMonomorphismRestriction
+        PartialTypeSignatures
         ScopedTypeVariables
 
     Exposed-Modules:
@@ -368,6 +372,8 @@ Library
         GHC.Data.Graph.Ppr
         GHC.Data.Graph.UnVar
         GHC.Data.IOEnv
+        GHC.Data.List.Infinite
+        GHC.Data.List.NonEmpty
         GHC.Data.List.SetOps
         GHC.Data.Maybe
         GHC.Data.OrdList
@@ -689,6 +695,7 @@ Library
         GHC.Utils.IO.Unsafe
         GHC.Utils.Json
         GHC.Utils.Lens.Monad
+        GHC.Utils.Lens.Monad.Zoom
         GHC.Utils.Lexeme
         GHC.Utils.Misc
         GHC.Utils.Monad

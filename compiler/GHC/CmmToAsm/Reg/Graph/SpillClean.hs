@@ -50,10 +50,9 @@ import GHC.Utils.Panic
 import GHC.Platform
 import GHC.Cmm.Dataflow.Collections
 
-import Data.List
-import Data.Maybe
 import Data.IntSet              (IntSet)
 import qualified Data.IntSet    as IntSet
+import Data.List (find, foldl1')
 
 
 -- | The identification number of a spill slot.
@@ -411,7 +410,7 @@ cleanBackward' liveSlotsOnEntry reloadedBy noReloads acc (li : instrs)
 collateJoinPoints :: CleanM ()
 collateJoinPoints
  = modify $ \s -> s
-        { sJumpValid    = mapUFM intersects (sJumpValidAcc s)
+        { sJumpValid    = fmap intersects (sJumpValidAcc s)
         , sJumpValidAcc = emptyUFM }
 
 intersects :: [Assoc Store]     -> Assoc Store

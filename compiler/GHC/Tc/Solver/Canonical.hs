@@ -49,7 +49,7 @@ import Data.List  ( zip4 )
 import GHC.Types.Basic
 
 import Data.Bifunctor ( bimap )
-import Data.Foldable ( traverse_ )
+import Data.Foldable ( toList )
 
 {-
 ************************************************************************
@@ -162,7 +162,7 @@ canClassNC ev cls tys
   -- and Note [Solving CallStack constraints] in GHC.Tc.Solver.Monad
   = do { -- First we emit a new constraint that will capture the
          -- given CallStack.
-       ; let new_loc = setCtLocOrigin loc (IPOccOrigin (HsIPName ip_name))
+       ; let new_loc = set ctLocOriginL (IPOccOrigin (HsIPName ip_name)) loc
                             -- We change the origin to IPOccOrigin so
                             -- this rule does not fire again.
                             -- See Note [Overview of implicit CallStacks]
@@ -1211,7 +1211,7 @@ zonk_eq_types = go
     tyvar swapped tv ty
       = case tcTyVarDetails tv of
           MetaTv { mtv_ref = ref }
-            -> do { cts <- readTcRef ref
+            -> do { cts <- readMutVar ref
                   ; case cts of
                       Flexi        -> give_up
                       Indirect ty' -> do { trace_indirect tv ty'
@@ -1234,7 +1234,7 @@ zonk_eq_types = go
 
     quick_zonk tv = case tcTyVarDetails tv of
       MetaTv { mtv_ref = ref }
-        -> do { cts <- readTcRef ref
+        -> do { cts <- readMutVar ref
               ; case cts of
                   Flexi        -> return (TyVarTy tv, False)
                   Indirect ty' -> do { trace_indirect tv ty'
@@ -1366,7 +1366,7 @@ can_eq_newtype_nc ev swapped ty1 ((gres, co), ty1') ty2 ps_ty2
                                      (mkTcSymCo co) (mkTcReflCo Representational ps_ty2)
        ; can_eq_nc False new_ev ReprEq ty1' ty1' ty2 ps_ty2 }
   where
-    gre_list = bagToList gres
+    gre_list = toList gres
 
 ---------
 -- ^ Decompose a type application.
@@ -1389,7 +1389,7 @@ can_eq_app ev s1 t1 s2 t2
   = do { co_s <- unifyWanted loc Nominal s1 s2
        ; let arg_loc
                | isNextArgVisible s1 = loc
-               | otherwise           = updateCtLocOrigin loc toInvisibleOrigin
+               | otherwise           = over ctLocOriginL toInvisibleOrigin loc
        ; co_t <- unifyWanted arg_loc Nominal t1 t2
        ; let co = mkAppCo co_s co_t
        ; setWantedEq dest co
@@ -1718,7 +1718,7 @@ canDecomposableTyConAppOK ev eq_rel tc tys1 tys2
                , let new_loc0 | isNamedTyConBinder bndr = toKindLoc loc
                               | otherwise               = loc
                      new_loc  | isVisibleTyConBinder bndr
-                              = updateCtLocOrigin new_loc0 toInvisibleOrigin
+                              = over ctLocOriginL toInvisibleOrigin new_loc0
                               | otherwise
                               = new_loc0 ]
                ++ repeat loc
@@ -2414,7 +2414,7 @@ rewriteEqEvidence old_ev swapped nlhs nrhs lhs_co rhs_co
       -- of recursive newtypes, where "reducing" a newtype can actually make
       -- it bigger. See Note [Newtypes can blow the stack].
     loc      = ctEvLoc old_ev
-    loc'     = bumpCtLocDepth loc
+    loc'     = over ctLocDepthL bumpSubGoalDepth loc
 
 {- Note [unifyWanted and unifyDerived]
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

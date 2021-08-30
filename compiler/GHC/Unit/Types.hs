@@ -62,14 +62,6 @@ module GHC.Unit.Types
    , mainUnitId
    , thisGhcUnitId
    , interactiveUnitId
-   , primUnitId
-   , bignumUnitId
-   , baseUnitId
-   , rtsUnitId
-   , thUnitId
-   , mainUnitId
-   , thisGhcUnitId
-   , interactiveUnitId
    , isInteractiveModule
    , wiredInUnitIds
 
@@ -95,7 +87,6 @@ import GHC.Utils.Misc
 import Control.DeepSeq
 import Data.Data
 import Data.List (sortBy )
-import Data.Function
 import Data.Bifunctor
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BS.Char8

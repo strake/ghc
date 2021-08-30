@@ -1,6 +1,9 @@
 {-# LANGUAGE NondecreasingIndentation #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE CPP #-}
+
+#include "lens.h"
 
 -- | This is the driver for the 'ghc --backpack' mode, which
 -- is a reimplementation of the "package manager" bits of
@@ -41,13 +44,13 @@ import GHC.Types.SourceError
 import GHC.Types.SourceText
 import GHC.Types.SourceFile
 import GHC.Types.Unique.FM
-import GHC.Types.Unique.DFM
 import GHC.Types.Unique.DSet
 
 import GHC.Utils.Outputable
 import GHC.Utils.Misc
 import GHC.Utils.Panic
 import GHC.Utils.Error
+import GHC.Utils.Lens.Monad
 
 import GHC.Unit
 import GHC.Unit.External
@@ -66,14 +69,14 @@ import GHC.Data.StringBuffer
 import GHC.Data.FastString
 import qualified GHC.Data.ShortText as ST
 
-import Data.List ( partition )
 import System.Exit
 import Control.Monad
 import System.FilePath
 import Data.Version
-import Lens.Micro (over, set)
 
 -- for the unification
+import Data.Foldable (toList)
+import Data.Functor.Reader.Class
 import Data.IORef
 import Data.Map (Map)
 import qualified Data.Map as Map
@@ -312,7 +315,7 @@ buildUnit session cid insts lunit = do
 
         -- Compile relevant only
         hsc_env <- getSession
-        let home_mod_infos = eltsUDFM (hsc_HPT hsc_env)
+        let home_mod_infos = toList (hsc_HPT hsc_env)
             linkables = map (expectJust "bkp link" . hm_linkable)
                       . filter ((==HsSrcFile) . mi_hsc_src . hm_iface)
                       $ home_mod_infos
@@ -442,6 +445,8 @@ data BkpEnv
         bkp_level :: Int
     }
 
+LENS_FIELD(bkp_levelL, bkp_level)
+
 -- Blah, to get rid of the default instance for IOEnv
 -- TODO: just make a proper new monad for BkpM, rather than use IOEnv
 instance {-# OVERLAPPING #-} HasDynFlags BkpM where
@@ -449,26 +454,26 @@ instance {-# OVERLAPPING #-} HasDynFlags BkpM where
 
 instance GhcMonad BkpM where
     getSession = do
-        Session s <- fmap bkp_session getEnv
+        Session s <- asks bkp_session
         readMutVar s
     setSession hsc_env = do
-        Session s <- fmap bkp_session getEnv
+        Session s <- asks bkp_session
         writeMutVar s hsc_env
 
 -- | Get the current 'BkpEnv'.
 getBkpEnv :: BkpM BkpEnv
-getBkpEnv = getEnv
+getBkpEnv = ask
 
 -- | Get the nesting level, when recursively compiling modules.
 getBkpLevel :: BkpM Int
-getBkpLevel = bkp_level `fmap` getBkpEnv
+getBkpLevel = bkp_level <$> getBkpEnv
 
 -- | Run a 'BkpM' computation, with the nesting level bumped one.
 innerBkpM :: BkpM a -> BkpM a
-innerBkpM do_this = do
+innerBkpM =
     -- NB: withTempSession mutates, so we don't have to worry
     -- about bkp_session being stale.
-    updEnv (\env -> env { bkp_level = bkp_level env + 1 }) do_this
+    locally bkp_levelL (+1)
 
 -- | Update the EPS from a 'GhcMonad'. TODO move to appropriate library spot.
 updateEpsGhc_ :: GhcMonad m => (ExternalPackageState -> ExternalPackageState) -> m ()

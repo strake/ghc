@@ -23,7 +23,7 @@ import GHC.Prelude
 
 import GHC.Hs
 import GHC.Tc.Gen.Pat
-import GHC.Core.Type ( tidyTyCoVarBinders, tidyTypes, tidyType )
+import GHC.Core.Type ( tidyTyCoVarBinders, tidyType )
 import GHC.Tc.Utils.Monad
 import GHC.Tc.Gen.Sig( emptyPragEnv, completeSigFromId )
 import GHC.Tc.Utils.Env
@@ -59,9 +59,7 @@ import GHC.Types.FieldLabel
 import GHC.Data.Bag
 import GHC.Utils.Misc
 import GHC.Utils.Error
-import Data.Maybe( mapMaybe )
 import Control.Monad ( zipWithM )
-import Data.List( partition )
 
 {-
 ************************************************************************
@@ -379,7 +377,7 @@ tcCheckPatSynDecl psb@PSB{ psb_id = lname@(L _ name), psb_args = details
 
        -- Right!  Let's check the pattern against the signature
        -- See Note [Checking against a pattern signature]
-       ; req_dicts <- newEvVars req_theta
+       ; req_dicts <- traverse newEvVar req_theta
        ; (tclvl, wanted, (lpat', (ex_tvs', prov_dicts, args'))) <-
            assertPpr (equalLength arg_names arg_tys) (ppr name $$ ppr arg_names $$ ppr arg_tys) $
            pushLevelAndCaptureConstraints   $
@@ -615,9 +613,9 @@ tc_patsyn_finish lname dir is_infix lpat'
 
        ; let (env1, univ_tvs) = tidyTyCoVarBinders emptyTidyEnv univ_tvs'
              (env2, ex_tvs)   = tidyTyCoVarBinders env1 ex_tvs'
-             req_theta  = tidyTypes env2 req_theta'
-             prov_theta = tidyTypes env2 prov_theta'
-             arg_tys    = tidyTypes env2 arg_tys'
+             req_theta  = tidyType env2 <$> req_theta'
+             prov_theta = tidyType env2 <$> prov_theta'
+             arg_tys    = tidyType env2 <$> arg_tys'
              pat_ty     = tidyType  env2 pat_ty'
 
        ; traceTc "tc_patsyn_finish {" $

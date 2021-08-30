@@ -105,3 +105,21 @@
 [submodule "libraries/microlens"]
 	path = libraries/microlens
 	url = https://github.com/monadfix/microlens
+[submodule "libraries/dual"]
+	path = libraries/dual
+	url = ./libraries/dual
+[submodule "libraries/filtrable"]
+	path = libraries/filtrable
+	url = ./libraries/filtrable
+[submodule "libraries/hs-functors"]
+	path = libraries/hs-functors
+	url = ./libraries/hs-functors
+[submodule "libraries/tagged"]
+	path = libraries/tagged
+	url = ./libraries/tagged
+[submodule "libraries/util"]
+	path = libraries/util
+	url = ./libraries/util
+[submodule "libraries/ftl"]
+	path = libraries/ftl
+	url = ./libraries/ftl

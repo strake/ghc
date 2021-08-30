@@ -57,7 +57,7 @@ needsTemplateHaskellOrQQ mg = mg_needs_th_or_qq mg
 mapMG :: (ModSummary -> ModSummary) -> ModuleGraph -> ModuleGraph
 mapMG f mg@ModuleGraph{..} = mg
   { mg_mss = map f mg_mss
-  , mg_non_boot = mapModuleEnv f mg_non_boot
+  , mg_non_boot = fmap f mg_non_boot
   }
 
 mgBootModules :: ModuleGraph -> ModuleSet

@@ -14,9 +14,9 @@ import GHC.Driver.Session
 import GHC.Driver.Backend
 import GHC.Utils.Monad ( MonadIO(..) )
 import GHC.Types.Basic ( failed )
-import GHC.Data.Bag        ( bagToList )
-import System.Environment
+import Data.Foldable ( toList )
 import Control.Monad
+import System.Environment
 import System.IO
 
 main = do

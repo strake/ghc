@@ -118,7 +118,6 @@ import System.IO
 import Data.Data
 import Data.IORef
 import Data.Char
-import Data.Semigroup as Semi
 
 import Foreign
 
@@ -208,12 +207,11 @@ instance Ord FastString where
 instance IsString FastString where
     fromString = fsLit
 
-instance Semi.Semigroup FastString where
+instance Semigroup FastString where
     (<>) = appendFS
 
 instance Monoid FastString where
     mempty = nilFS
-    mappend = (Semi.<>)
     mconcat = concatFS
 
 instance Show FastString where
@@ -558,7 +556,7 @@ consFS :: Char -> FastString -> FastString
 consFS c fs = mkFastString (c : unpackFS fs)
 
 uniqueOfFS :: FastString -> Int
-uniqueOfFS fs = uniq fs
+uniqueOfFS = uniq
 
 nilFS :: FastString
 nilFS = mkFastString ""

@@ -69,7 +69,7 @@ import GHC.Utils.Panic
 import GHC.Utils.Panic.Plain
 import GHC.Types.Unique.FM      ( pprUniqFM )
 
-import Data.List (mapAccumL)
+import Data.Foldable (toList)
 
 {-
 ************************************************************************
@@ -449,7 +449,7 @@ data FloatFlag
                 --      Do not float these bindings out of a lazy let
 
 instance Outputable LetFloats where
-  ppr (LetFloats binds ff) = ppr ff $$ ppr (fromOL binds)
+  ppr (LetFloats binds ff) = ppr ff $$ ppr (toList binds)
 
 instance Outputable FloatFlag where
   ppr FltLifted  = text "FltLifted"
@@ -465,7 +465,7 @@ andFF FltLifted  flt        = flt
 doFloatFromRhs :: TopLevelFlag -> RecFlag -> Bool -> SimplFloats -> OutExpr -> Bool
 -- If you change this function look also at FloatIn.noFloatFromRhs
 doFloatFromRhs lvl rec str (SimplFloats { sfLetFloats = LetFloats fs ff }) rhs
-  =  not (isNilOL fs) && want_to_float && can_float
+  =  not (null fs) && want_to_float && can_float
   where
      want_to_float = isTopLevel lvl || exprIsCheap rhs || exprIsExpandable rhs
                      -- See Note [Float when cheap or expandable]
@@ -557,13 +557,13 @@ addLetFloats :: SimplFloats -> LetFloats -> SimplFloats
 -- than that for env1
 addLetFloats floats let_floats@(LetFloats binds _)
   = floats { sfLetFloats = sfLetFloats floats `addLetFlts` let_floats
-           , sfInScope   = foldlOL extendInScopeSetBind
+           , sfInScope   = foldl extendInScopeSetBind
                                    (sfInScope floats) binds }
 
 addJoinFloats :: SimplFloats -> JoinFloats -> SimplFloats
 addJoinFloats floats join_floats
   = floats { sfJoinFloats = sfJoinFloats floats `addJoinFlts` join_floats
-           , sfInScope    = foldlOL extendInScopeSetBind
+           , sfInScope    = foldl extendInScopeSetBind
                                     (sfInScope floats) join_floats }
 
 extendInScopeSetBind :: InScopeSet -> CoreBind -> InScopeSet
@@ -585,7 +585,7 @@ addLetFlts (LetFloats bs1 l1) (LetFloats bs2 l2)
   = LetFloats (bs1 `appOL` bs2) (l1 `andFF` l2)
 
 letFloatBinds :: LetFloats -> [CoreBind]
-letFloatBinds (LetFloats bs _) = fromOL bs
+letFloatBinds (LetFloats bs _) = toList bs
 
 addJoinFlts :: JoinFloats -> JoinFloats -> JoinFloats
 addJoinFlts = appOL
@@ -596,23 +596,23 @@ mkRecFloats :: SimplFloats -> SimplFloats
 mkRecFloats floats@(SimplFloats { sfLetFloats  = LetFloats bs ff
                                 , sfJoinFloats = jbs
                                 , sfInScope    = in_scope })
-  = assertPpr (case ff of { FltLifted -> True; _ -> False }) (ppr (fromOL bs))
-    assertPpr (isNilOL bs || isNilOL jbs) (ppr floats)
+  = assertPpr (case ff of { FltLifted -> True; _ -> False }) (ppr (toList bs))
+    assertPpr (null bs || null jbs) (ppr floats)
     SimplFloats { sfLetFloats  = floats'
                 , sfJoinFloats = jfloats'
                 , sfInScope    = in_scope }
   where
-    floats'  | isNilOL bs  = emptyLetFloats
-             | otherwise   = unitLetFloat (Rec (flattenBinds (fromOL bs)))
-    jfloats' | isNilOL jbs = emptyJoinFloats
-             | otherwise   = unitJoinFloat (Rec (flattenBinds (fromOL jbs)))
+    floats'  | null bs  = emptyLetFloats
+             | otherwise   = unitLetFloat (Rec (flattenBinds (toList bs)))
+    jfloats' | null jbs = emptyJoinFloats
+             | otherwise   = unitJoinFloat (Rec (flattenBinds (toList jbs)))
 
 wrapFloats :: SimplFloats -> OutExpr -> OutExpr
 -- Wrap the floats around the expression; they should all
 -- satisfy the let/app invariant, so mkLets should do the job just fine
 wrapFloats (SimplFloats { sfLetFloats  = LetFloats bs _
                         , sfJoinFloats = jbs }) body
-  = foldrOL Let (wrapJoinFloats jbs body) bs
+  = foldr Let (wrapJoinFloats jbs body) bs
      -- Note: Always safe to put the joins on the inside
      -- since the values can't refer to them
 
@@ -627,17 +627,17 @@ wrapJoinFloats :: JoinFloats -> OutExpr -> OutExpr
 -- Wrap the sfJoinFloats of the env around the expression,
 -- and take them out of the SimplEnv
 wrapJoinFloats join_floats body
-  = foldrOL Let body join_floats
+  = foldr Let body join_floats
 
 getTopFloatBinds :: SimplFloats -> [CoreBind]
 getTopFloatBinds (SimplFloats { sfLetFloats  = lbs
                               , sfJoinFloats = jbs})
-  = assert (isNilOL jbs) $  -- Can't be any top-level join bindings
+  = assert (null jbs) $  -- Can't be any top-level join bindings
     letFloatBinds lbs
 
 mapLetFloats :: LetFloats -> ((Id,CoreExpr) -> (Id,CoreExpr)) -> LetFloats
 mapLetFloats (LetFloats fs ff) fun
-   = LetFloats (mapOL app fs) ff
+   = LetFloats (fmap app fs) ff
    where
     app (NonRec b e) = case fun (b,e) of (b',e') -> NonRec b' e'
     app (Rec bs)     = Rec (map fun bs)
@@ -791,7 +791,7 @@ substNonCoVarIdBndr
 -- Similar to GHC.Core.Subst.substIdBndr, except that
 --      the type of id_subst differs
 --      all fragile info is zapped
-substNonCoVarIdBndr env id = subst_id_bndr env id (\x -> x)
+substNonCoVarIdBndr env = subst_id_bndr env `flip` id
 
 subst_id_bndr :: SimplEnv
               -> InBndr    -- Env and binder to transform
@@ -920,7 +920,7 @@ adjustJoinPointType :: Type     -- New result type
 -- cannot appear in the original result type. See isValidJoinPointType.
 adjustJoinPointType new_res_ty join_id
   = assert (isJoinId join_id) $
-    setIdType join_id new_join_ty
+    set Id.idTypeL new_join_ty join_id
   where
     orig_ar = idJoinArity join_id
     orig_ty = idType join_id
@@ -973,10 +973,10 @@ getTCvSubst (SimplEnv { seInScope = in_scope, seTvSubst = tv_env
   = mkTCvSubst in_scope (tv_env, cv_env)
 
 substTy :: SimplEnv -> Type -> Type
-substTy env ty = Type.substTy (getTCvSubst env) ty
+substTy = Type.substTy . getTCvSubst
 
 substTyVar :: SimplEnv -> TyVar -> Type
-substTyVar env tv = Type.substTyVar (getTCvSubst env) tv
+substTyVar = Type.substTyVar . getTCvSubst
 
 substTyVarBndr :: SimplEnv -> TyVar -> (SimplEnv, TyVar)
 substTyVarBndr env tv
@@ -985,7 +985,7 @@ substTyVarBndr env tv
            -> (env { seInScope = in_scope', seTvSubst = tv_env', seCvSubst = cv_env' }, tv')
 
 substCoVar :: SimplEnv -> CoVar -> Coercion
-substCoVar env tv = Coercion.substCoVar (getTCvSubst env) tv
+substCoVar = Coercion.substCoVar . getTCvSubst
 
 substCoVarBndr :: SimplEnv -> CoVar -> (SimplEnv, CoVar)
 substCoVarBndr env cv
@@ -994,7 +994,7 @@ substCoVarBndr env cv
            -> (env { seInScope = in_scope', seTvSubst = tv_env', seCvSubst = cv_env' }, cv')
 
 substCo :: SimplEnv -> Coercion -> Coercion
-substCo env co = Coercion.substCo (getTCvSubst env) co
+substCo = Coercion.substCo . getTCvSubst
 
 ------------------
 substIdType :: SimplEnv -> Id -> Id
@@ -1002,7 +1002,7 @@ substIdType (SimplEnv { seInScope = in_scope, seTvSubst = tv_env, seCvSubst = cv
   |  (isEmptyVarEnv tv_env && isEmptyVarEnv cv_env)
   || noFreeVarsOfType old_ty
   = id
-  | otherwise = Id.setIdType id (Type.substTy (TCvSubst in_scope tv_env cv_env) old_ty)
+  | otherwise = set Id.idTypeL (Type.substTy (TCvSubst in_scope tv_env cv_env) old_ty) id
                 -- The tyCoVarsOfType is cheaper than it looks
                 -- because we cache the free tyvars of the type
                 -- in a Note in the id's type itself

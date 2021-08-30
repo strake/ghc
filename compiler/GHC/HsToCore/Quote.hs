@@ -37,6 +37,7 @@ import {-# SOURCE #-} GHC.HsToCore.Expr ( dsExpr )
 import GHC.HsToCore.Match.Literal
 import GHC.HsToCore.Monad
 import GHC.HsToCore.Binds
+import GHC.HsToCore.Types
 
 import qualified Language.Haskell.TH as TH
 import qualified Language.Haskell.TH.Syntax as TH
@@ -44,6 +45,7 @@ import qualified Language.Haskell.TH.Syntax as TH
 import GHC.Hs
 
 import GHC.Tc.Utils.TcType
+import GHC.Tc.Utils.Monad (getLclEnv)
 import GHC.Tc.Types.Evidence
 
 import GHC.Core.Class
@@ -85,9 +87,9 @@ import GHC.TypeLits
 import Data.Kind (Constraint)
 
 import Data.ByteString ( unpack )
-import Control.Monad
-import Data.List
-import Data.Function
+import Control.Monad hiding ( mapAndUnzipM )
+import Data.Foldable ( toList )
+import Data.List ( sort, sortBy )
 import Control.Monad.Trans.Reader
 import Control.Monad.Trans.Class
 
@@ -1213,7 +1215,7 @@ addTyClTyVarBinds :: LHsQTyVars GhcRn
 -- The 'a' in the type instance is the one bound by the instance decl
 addTyClTyVarBinds tvs m
   = do { let tv_names = hsAllLTyVarNames tvs
-       ; env <- lift $ dsGetMetaEnv
+       ; env <- lift $ dsl_meta <$> getLclEnv
        ; freshNames <- mkGenSyms (filterOut (`elemNameEnv` env) tv_names)
             -- Make fresh names for the ones that are not already in scope
             -- This makes things work for family declarations
@@ -1776,7 +1778,7 @@ rep_val_binds (ValBinds _ _ _)
  = panic "rep_val_binds: ValBinds"
 
 rep_binds :: LHsBinds GhcRn -> MetaM [(SrcSpan, Core (M TH.Dec))]
-rep_binds = mapM rep_bind . bagToList
+rep_binds = traverse rep_bind . toList
 
 rep_bind :: LHsBind GhcRn -> MetaM (SrcSpan, Core (M TH.Dec))
 -- Assumes: all the binders of the binding are already in the meta-env

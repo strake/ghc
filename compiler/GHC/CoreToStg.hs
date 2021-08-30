@@ -48,7 +48,6 @@ import GHC.Types.SrcLoc    ( mkGeneralSrcSpan )
 import GHC.Builtin.Names   ( unsafeEqualityProofName )
 
 import Data.List.NonEmpty (nonEmpty, toList)
-import Data.Maybe    (fromMaybe)
 import Control.Monad (ap)
 import qualified Data.Set as Set
 

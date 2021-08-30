@@ -57,7 +57,6 @@ import GHC.Types.TyThing
 
 import GHC.Builtin.Names ( gHC_PRIM )
 
-import GHC.Data.Maybe
 import GHC.Data.Bag
 
 import GHC.Unit.Module.Graph

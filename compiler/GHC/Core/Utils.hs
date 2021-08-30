@@ -100,8 +100,8 @@ import GHC.Types.Basic     ( Arity )
 import GHC.Utils.Misc
 import GHC.Data.Pair
 import Data.ByteString     ( ByteString )
-import Data.Function       ( on )
-import Data.List
+import Data.Foldable       ( toList )
+import Data.List           ( sort, sortBy, zipWith4 )
 import Data.Ord            ( comparing )
 import GHC.Data.OrdList
 import qualified Data.Set as Set
@@ -482,7 +482,7 @@ stripTicksE p expr = go expr
         go_a (c,bs,e)       = (c,bs, go e)
 
 stripTicksT :: (Tickish Id -> Bool) -> Expr b -> [Tickish Id]
-stripTicksT p expr = fromOL $ go expr
+stripTicksT p = toList . go
   where go (App e a)        = go e `appOL` go a
         go (Lam _ e)        = go e
         go (Let b e)        = go_bs b `appOL` go e
@@ -951,7 +951,7 @@ combineIdenticalAlts imposs_deflt_cons ((con1,bndrs1,rhs1) : rest_alts)
 
      -- See Note [Care with impossible-constructors when combining alternatives]
     imposs_deflt_cons' = imposs_deflt_cons `minusList` elim_cons
-    elim_cons = elim_con1 ++ map fstOf3 elim_rest
+    elim_cons = elim_con1 ++ map fst3 elim_rest
     elim_con1 = case con1 of     -- Don't forget con1!
                   DEFAULT -> []  -- See Note [
                   _       -> [con1]
@@ -959,7 +959,7 @@ combineIdenticalAlts imposs_deflt_cons ((con1,bndrs1,rhs1) : rest_alts)
     cheapEqTicked e1 e2 = cheapEqExpr' tickishFloatable e1 e2
     identical_to_alt1 (_con,bndrs,rhs)
       = all isDeadBinder bndrs && rhs `cheapEqTicked` rhs1
-    tickss = map (stripTicksT tickishFloatable . thdOf3) elim_rest
+    tickss = map (stripTicksT tickishFloatable . thd3) elim_rest
 
 combineIdenticalAlts imposs_cons alts
   = (False, imposs_cons, alts)

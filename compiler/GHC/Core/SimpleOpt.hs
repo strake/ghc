@@ -59,8 +59,8 @@ import GHC.Utils.Misc
 import GHC.Data.Pair
 import GHC.Data.Maybe       ( orElse )
 import GHC.Data.FastString
-import Data.List
 import qualified Data.ByteString as BS
+import Lens.Micro (_1)
 
 {-
 ************************************************************************
@@ -622,8 +622,7 @@ subst_opt_id_bndr env@(SOE { soe_subst = subst, soe_inl = inl }) old_id
   where
     Subst in_scope id_subst tv_subst cv_subst = subst
 
-    id1    = uniqAway in_scope old_id
-    id2    = setIdType id1 (substTy subst (idType old_id))
+    id2    = over idTypeL (substTy subst) $ uniqAway in_scope old_id
     new_id = zapFragileIdInfo id2
              -- Zaps rules, unfolding, and fragile OccInfo
              -- The unfolding and rules will get added back later, by add_info
@@ -1195,10 +1194,10 @@ exprIsConApp_maybe (in_scope, id_unf) expr
     succeedWith :: InScopeSet -> [FloatBind]
                 -> Maybe (DataCon, [Type], [CoreExpr])
                 -> Maybe (InScopeSet, [FloatBind], DataCon, [Type], [CoreExpr])
-    succeedWith in_scope rev_floats x
-      = do { (con, tys, args) <- x
-           ; let floats = reverse rev_floats
-           ; return (in_scope, floats, con, tys, args) }
+    succeedWith in_scope rev_floats x =
+      [ (in_scope, floats, con, tys, args)
+      | (con, tys, args) <- x
+      , let floats = reverse rev_floats ]
 
     ----------------------------
     -- Operations on the (Either InScopeSet GHC.Core.Subst)
@@ -1385,8 +1384,7 @@ pushCoArgs :: CoercionR -> [CoreArg] -> Maybe ([CoreArg], MCoercion)
 pushCoArgs co []         = return ([], MCo co)
 pushCoArgs co (arg:args) = do { (arg',  m_co1) <- pushCoArg  co  arg
                               ; case m_co1 of
-                                  MCo co1 -> do { (args', m_co2) <- pushCoArgs co1 args
-                                                 ; return (arg':args', m_co2) }
+                                  MCo co1 -> over _1 (arg':) <$> pushCoArgs co1 args
                                   MRefl  -> return (arg':args, MRefl) }
 
 pushCoArg :: CoercionR -> CoreArg -> Maybe (CoreArg, MCoercion)
@@ -1396,10 +1394,8 @@ pushCoArg :: CoercionR -> CoreArg -> Maybe (CoreArg, MCoercion)
 -- C.f. simplCast in GHC.Core.Opt.Simplify
 -- 'co' is always Representational
 -- If the returned coercion is Nothing, then it would have been reflexive
-pushCoArg co (Type ty) = do { (ty', m_co') <- pushCoTyArg co ty
-                            ; return (Type ty', m_co') }
-pushCoArg co val_arg   = do { (arg_co, m_co') <- pushCoValArg co
-                            ; return (val_arg `mkCast` arg_co, m_co') }
+pushCoArg co (Type ty) = over _1 Type <$> pushCoTyArg co ty
+pushCoArg co val_arg   = over _1 (mkCast val_arg) <$> pushCoValArg co
 
 pushCoTyArg :: CoercionR -> Type -> Maybe (Type, MCoercionR)
 -- We have (fun |> co) @ty
@@ -1483,7 +1479,7 @@ pushCoercionIntoLambda in_scope x e co
     = let (co1, co2) = decomposeFunCo Representational co
           -- Should we optimize the coercions here?
           -- Otherwise they might not match too well
-          x' = x `setIdType` t1
+          x' = set idTypeL t1 x
           in_scope' = in_scope `extendInScopeSet` x'
           subst = extendIdSubst (mkEmptySubst in_scope')
                                 x

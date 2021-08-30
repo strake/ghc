@@ -46,8 +46,8 @@ import GHC.Types.Unique
 import GHC.Types.Unique.Set
 import GHC.Types.Unique.FM
 
-import Data.List        hiding (union)
-import Data.Maybe
+import Data.List        hiding (filter, union)
+import Data.Maybe       hiding (catMaybes)
 
 -- | Lookup a node from the graph.
 lookupNode

@@ -69,7 +69,6 @@ import GHC.Types.Unique.Set
 import GHC.Utils.Outputable
 import GHC.Utils.Panic
 
-import Data.List (mapAccumL)
 import GHC.Data.FastString
 
 doStaticArgs :: UniqSupply -> CoreProgram -> CoreProgram
@@ -395,9 +394,8 @@ saTransform binder arg_staticness rhs_binders rhs_body
             -- rhs_binders_without_type_capture = [\alpha', \beta', c, n, xs]
     non_static_args = [v | (v, NotStatic) <- binders_w_staticness]
 
-    clone (bndr, NotStatic) = return bndr
-    clone (bndr, _        ) = do { uniq <- newUnique
-                                 ; return (setVarUnique bndr uniq) }
+    clone (bndr, NotStatic) = pure bndr
+    clone (bndr, _        ) = newUnique <₪> \ uniq -> set varUniqueL uniq bndr
 
     -- new_rhs = \alpha beta c n xs ->
     --           let sat_worker = \xs -> let sat_shadow = \alpha' beta' c n xs ->

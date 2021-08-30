@@ -50,10 +50,10 @@ assignMem_I64Code addrTree valueTree
         (vcat   [ text "addrTree:  " <+> ppr addrTree
                 , text "valueTree: " <+> ppr valueTree
                 , text "vcode:"
-                , vcat $ map ppr $ fromOL vcode
+                , vcat $ map ppr $ toList vcode
                 , text ""
                 , text "acode:"
-                , vcat $ map ppr $ fromOL acode ])
+                , vcat $ map ppr $ toList acode ])
        $ -}
      return code
 

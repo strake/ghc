@@ -460,7 +460,6 @@ library
                linker/LoadArchive.c
                linker/M32Alloc.c
                linker/MachO.c
-               linker/PEi386.c
                linker/SymbolExtras.c
                linker/elf_got.c
                linker/elf_plt.c
@@ -495,7 +494,8 @@ library
                -- I wish we had wildcards..., this would be:
                -- *.c hooks/**/*.c sm/**/*.c eventlog/**/*.c linker/**/*.c
     if os(windows)
-       c-sources: win32/AsyncIO.c
+       c-sources: linker/PEi386.c
+                  win32/AsyncIO.c
                   win32/AwaitEvent.c
                   win32/ConsoleHandler.c
                   win32/GetEnv.c

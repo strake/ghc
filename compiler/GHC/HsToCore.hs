@@ -62,7 +62,6 @@ import GHC.Utils.Error
 import GHC.Utils.Outputable
 import GHC.Utils.Panic.Plain
 import GHC.Utils.Misc
-import GHC.Utils.Monad
 
 import GHC.Types.Id
 import GHC.Types.Id.Info
@@ -83,7 +82,7 @@ import GHC.Unit
 import GHC.Unit.Module.ModGuts
 import GHC.Unit.Module.ModIface
 
-import Data.List
+import Data.Foldable ( toList )
 import Data.IORef
 import Control.Monad( when )
 import GHC.Driver.Plugins ( LoadedPlugin(..) )
@@ -153,7 +152,7 @@ deSugar hsc_env
                           ; core_prs <- patchMagicDefns core_prs
                           ; (spec_prs, spec_rules) <- dsImpSpecs imp_specs
                           ; (ds_fords, foreign_prs) <- dsForeigns fords
-                          ; ds_rules <- mapMaybeM dsRule rules
+                          ; ds_rules <- mapMaybeA dsRule rules
                           ; let hpc_init
                                   | gopt Opt_Hpc dflags = hpcInitCode (hsc_dflags hsc_env) mod ds_hpc_info
                                   | otherwise = empty
@@ -170,7 +169,7 @@ deSugar hsc_env
           keep_alive <- readIORef keep_var
         ; let (rules_for_locals, rules_for_imps) = partition isLocalRule all_rules
               final_prs = addExportFlagsAndRules bcknd export_set keep_alive
-                                                 rules_for_locals (fromOL all_prs)
+                                                 rules_for_locals (toList all_prs)
 
               final_pgm = combineEvBinds ds_ev_binds final_prs
         -- Notice that we put the whole lot in a big Rec, even the foreign binds
@@ -252,7 +251,7 @@ mkFileSrcSpan mod_loc
 
 dsImpSpecs :: [LTcSpecPrag] -> DsM (OrdList (Id,CoreExpr), [CoreRule])
 dsImpSpecs imp_specs
- = do { spec_prs <- mapMaybeM (dsSpec Nothing) imp_specs
+ = do { spec_prs <- mapMaybeA (dsSpec Nothing) imp_specs
       ; let (spec_binds, spec_rules) = unzip spec_prs
       ; return (concatOL spec_binds, spec_rules) }
 

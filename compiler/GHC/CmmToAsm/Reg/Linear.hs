@@ -136,7 +136,6 @@ import GHC.Utils.Panic
 import GHC.Platform
 
 import Data.Maybe
-import Data.List
 import Control.Monad
 import Control.Applicative
 
@@ -875,7 +874,7 @@ allocRegsAndSpill_spill reading keep spills alloc r rs assig spill_loc
                 let candidates' :: UniqFM VirtualReg Loc
                     candidates' =
                       flip delListFromUFM keep $
-                      filterUFM inRegOrBoth $
+                      filter inRegOrBoth $
                       assig
                       -- This is non-deterministic but we do not
                       -- currently support deterministic code-generation.

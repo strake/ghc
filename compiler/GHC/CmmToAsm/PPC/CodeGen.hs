@@ -143,7 +143,7 @@ basicBlockCodeGen block = do
   -- instruction stream into basic blocks again.  Also, we extract
   -- LDATAs here too.
   let
-        (top,other_blocks,statics) = foldrOL mkBlocks ([],[],[]) instrs
+        (top,other_blocks,statics) = foldr mkBlocks ([],[],[]) instrs
 
         mkBlocks (NEWBLOCK id) (instrs,blocks,statics)
           = ([], BasicBlock id instrs : blocks, statics)

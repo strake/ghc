@@ -23,7 +23,6 @@ import GHC.Utils.Panic
 import GHC.Platform
 
 import Data.Bits
-import Data.Maybe
 
 
 constantFoldNode :: Platform -> CmmNode e x -> CmmNode e x

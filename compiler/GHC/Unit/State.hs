@@ -95,7 +95,7 @@ import System.FilePath as FilePath
 import Control.Monad
 import Data.Graph (stronglyConnComp, SCC(..))
 import Data.Char ( toUpper )
-import Data.List as List
+import Data.List as List (intersperse, isSuffixOf, sortBy)
 import Data.Map (Map)
 import Data.Set (Set)
 import Data.Monoid (First(..))
@@ -103,6 +103,7 @@ import qualified Data.Semigroup as Semigroup
 import qualified Data.Map as Map
 import qualified Data.Map.Strict as MapStrict
 import qualified Data.Set as Set
+import Data.Foldable (toList)
 
 -- ---------------------------------------------------------------------------
 -- The Package state
@@ -525,7 +526,7 @@ getInstalledPackageDetails pkgstate uid =
 -- does not imply that the exposed-modules of the package are available
 -- (they may have been thinned or renamed).
 listUnitInfo :: PackageState -> [UnitInfo]
-listUnitInfo pkgstate = eltsUDFM pkg_map
+listUnitInfo pkgstate = toList pkg_map
   where
     UnitInfoMap pkg_map _ = unitInfoMap pkgstate
 
@@ -1673,7 +1674,7 @@ mkModuleNameProvidersMap dflags pkg_db vis_map =
 
   default_vis = Map.fromList
                   [ (mkUnit pkg, mempty)
-                  | pkg <- eltsUDFM (unUnitInfoMap pkg_db)
+                  | pkg <- toList (unUnitInfoMap pkg_db)
                   -- Exclude specific instantiations of an indefinite
                   -- package
                   , unitIsIndefinite pkg || null (unitInstantiations pkg)

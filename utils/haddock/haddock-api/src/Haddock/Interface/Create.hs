@@ -37,6 +37,7 @@ import Data.List
 import Data.Maybe
 import Control.Applicative
 import Control.Monad
+import Data.Foldable (toList)
 import Data.Traversable
 
 import GHC.Types.Avail hiding (avail)
@@ -534,7 +535,7 @@ classDecls class_ = filterDecls . collectDocs . SrcLoc.sortLocated $ decls
   where
     decls = docs ++ defs ++ sigs ++ ats
     docs  = mkDecls tcdDocs (DocD noExtField) class_
-    defs  = mkDecls (bagToList . tcdMeths) (ValD noExtField) class_
+    defs  = mkDecls (toList . tcdMeths) (ValD noExtField) class_
     sigs  = mkDecls tcdSigs (SigD noExtField) class_
     ats   = mkDecls tcdATs (TyClD noExtField . FamDecl noExtField) class_
 
@@ -568,7 +569,7 @@ ungroup group_ =
     typesigs (XValBindsLR (NValBinds _ sigs)) = filter isUserLSig sigs
     typesigs _ = error "expected ValBindsOut"
 
-    valbinds (XValBindsLR (NValBinds binds _)) = concatMap bagToList . snd . unzip $ binds
+    valbinds (XValBindsLR (NValBinds binds _)) = concatMap toList . snd . unzip $ binds
     valbinds _ = error "expected ValBindsOut"
 
 

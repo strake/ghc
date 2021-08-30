@@ -1,14 +1,12 @@
 module GHC.Utils.Ppr.Colour where
 import GHC.Prelude
 
-import Data.Maybe (fromMaybe)
 import GHC.Utils.Misc (OverridingBool(..), split)
-import Data.Semigroup as Semi
 
 -- | A colour\/style for use with 'coloured'.
 newtype PprColour = PprColour { renderColour :: String }
 
-instance Semi.Semigroup PprColour where
+instance Semigroup PprColour where
   PprColour s1 <> PprColour s2 = PprColour (s1 <> s2)
 
 -- | Allow colours to be combined (e.g. bold + red);

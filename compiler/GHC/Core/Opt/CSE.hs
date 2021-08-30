@@ -4,9 +4,11 @@
 \section{Common subexpression}
 -}
 
-
+{-# LANGUAGE CPP #-}
 {-# OPTIONS_GHC -Wno-incomplete-record-updates #-}
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns   #-}
+
+#include "lens.h"
 
 module GHC.Core.Opt.CSE (cseProgram, cseOneExpr) where
 
@@ -28,9 +30,10 @@ import GHC.Core
 import GHC.Utils.Outputable
 import GHC.Types.Basic
 import GHC.Core.Map
-import GHC.Utils.Misc   ( filterOut, equalLength )
+import GHC.Utils.Misc
 import GHC.Utils.Panic
-import Data.List        ( mapAccumL )
+
+import Control.Monad.Trans.Writer (runWriter, writer)
 
 {-
                         Simple common sub-expression
@@ -745,53 +748,45 @@ data CSEnv
             -- See Note [CSE for recursive bindings]
        }
 
+LENS_FIELD(cs_substL, cs_subst)
+LENS_FIELD(cs_mapL, cs_map)
+LENS_FIELD(cs_rec_mapL, cs_rec_map)
+
 emptyCSEnv :: CSEnv
-emptyCSEnv = CS { cs_map = emptyCoreMap, cs_rec_map = emptyCoreMap
-                , cs_subst = emptySubst }
+emptyCSEnv = CS { cs_map = emptyTM, cs_rec_map = emptyTM, cs_subst = emptySubst }
 
 lookupCSEnv :: CSEnv -> OutExpr -> Maybe OutExpr
-lookupCSEnv (CS { cs_map = csmap }) expr
-  = lookupCoreMap csmap expr
+lookupCSEnv (CS { cs_map = csmap }) = flip lookupTM csmap
 
 extendCSEnv :: CSEnv -> OutExpr -> OutExpr -> CSEnv
-extendCSEnv cse expr triv_expr
-  = cse { cs_map = extendCoreMap (cs_map cse) sexpr triv_expr }
-  where
-    sexpr = stripTicksE tickishFloatable expr
+extendCSEnv = slipl \ expr -> over cs_mapL . insertTM (stripTicksE tickishFloatable expr)
 
 extendCSRecEnv :: CSEnv -> OutId -> OutExpr -> OutExpr -> CSEnv
 -- See Note [CSE for recursive bindings]
-extendCSRecEnv cse bndr expr triv_expr
-  = cse { cs_rec_map = extendCoreMap (cs_rec_map cse) (Lam bndr expr) triv_expr }
+extendCSRecEnv = slipl4 \ bndr expr -> over cs_rec_mapL . insertTM (Lam bndr expr)
 
 lookupCSRecEnv :: CSEnv -> OutId -> OutExpr -> Maybe OutExpr
 -- See Note [CSE for recursive bindings]
 lookupCSRecEnv (CS { cs_rec_map = csmap }) bndr expr
-  = lookupCoreMap csmap (Lam bndr expr)
+  = lookupTM (Lam bndr expr) csmap
 
 csEnvSubst :: CSEnv -> Subst
 csEnvSubst = cs_subst
 
 lookupSubst :: CSEnv -> Id -> OutExpr
-lookupSubst (CS { cs_subst = sub}) x = lookupIdSubst sub x
+lookupSubst (CS { cs_subst = sub }) = lookupIdSubst sub
 
 extendCSSubst :: CSEnv -> Id  -> CoreExpr -> CSEnv
-extendCSSubst cse x rhs = cse { cs_subst = extendSubst (cs_subst cse) x rhs }
+extendCSSubst = slipl \ x -> over cs_substL . slipr extendSubst x
 
 -- | Add clones to the substitution to deal with shadowing.  See
 -- Note [Shadowing] for more details.  You should call this whenever
 -- you go under a binder.
 addBinder :: CSEnv -> Var -> (CSEnv, Var)
-addBinder cse v = (cse { cs_subst = sub' }, v')
-                where
-                  (sub', v') = substBndr (cs_subst cse) v
+addBinder = flip \ v -> runWriter . cs_substL (writer . flip substBndr v)
 
 addBinders :: CSEnv -> [Var] -> (CSEnv, [Var])
-addBinders cse vs = (cse { cs_subst = sub' }, vs')
-                where
-                  (sub', vs') = substBndrs (cs_subst cse) vs
+addBinders = flip \ vs -> runWriter . cs_substL (writer . flip substBndrs vs)
 
 addRecBinders :: CSEnv -> [Id] -> (CSEnv, [Id])
-addRecBinders cse vs = (cse { cs_subst = sub' }, vs')
-                where
-                  (sub', vs') = substRecBndrs (cs_subst cse) vs
+addRecBinders = flip \ vs -> runWriter . cs_substL (writer . flip substRecBndrs vs)

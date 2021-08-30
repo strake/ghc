@@ -31,6 +31,7 @@ import GHC.Types.SourceText
 import GHC.Unit.Module
 import GHC.Utils.Outputable
 
+import Data.Foldable (toList)
 import Data.Data hiding (Fixity)
 import qualified Data.ByteString as B
 
@@ -133,17 +134,17 @@ showAstData b a0 = blankLine $$ showAstData' a0
             bagRdrName:: Bag (Located (HsBind GhcPs)) -> SDoc
             bagRdrName bg =  braces $
                              text "Bag(Located (HsBind GhcPs)):"
-                          $$ (list . bagToList $ bg)
+                          $$ (list . toList $ bg)
 
             bagName   :: Bag (Located (HsBind GhcRn)) -> SDoc
             bagName bg  =  braces $
                            text "Bag(Located (HsBind Name)):"
-                        $$ (list . bagToList $ bg)
+                        $$ (list . toList $ bg)
 
             bagVar    :: Bag (Located (HsBind GhcTc)) -> SDoc
             bagVar bg  =  braces $
                           text "Bag(Located (HsBind Var)):"
-                       $$ (list . bagToList $ bg)
+                       $$ (list . toList $ bg)
 
             nameSet ns =  braces $
                           text "NameSet:"

@@ -38,7 +38,7 @@ import GHC.Types.Name
 import GHC.Types.Basic
 import GHC.Driver.Session ( DynFlags(..), GeneralFlag( Opt_SpecConstrKeen )
                           , gopt, hasPprDebug )
-import GHC.Data.Maybe     ( orElse, catMaybes, isJust, isNothing )
+import GHC.Data.Maybe     ( orElse, isJust, isNothing )
 import GHC.Types.Demand
 import GHC.Types.Cpr
 import GHC.Utils.Misc
@@ -52,7 +52,7 @@ import GHC.Data.FastString
 import GHC.Types.Unique.FM
 import GHC.Utils.Monad
 import Control.Monad    ( zipWithM )
-import Data.List
+import Data.List ( sortBy )
 import GHC.Builtin.Names ( specTyConName )
 import GHC.Unit.Module
 import Data.Ord( comparing )
@@ -2054,7 +2054,7 @@ callToPats env bndr_occs call@(Call _ args con_env)
                 -- The kind of a type variable may mention a kind variable
                 -- and the type of a term variable may mention a type variable
 
-              sanitise id   = id `setIdType` expandTypeSynonyms (idType id)
+              sanitise = over idTypeL expandTypeSynonyms
                 -- See Note [Free type variables of the qvar types]
 
               -- Bad coercion variables: see Note [SpecConstr and casts]

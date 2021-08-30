@@ -11,7 +11,6 @@ module GHC.Hs.Stats ( ppSourceStats ) where
 
 import GHC.Prelude
 
-import GHC.Data.Bag
 import GHC.Hs
 import GHC.Types.SrcLoc
 
@@ -20,6 +19,7 @@ import GHC.Utils.Misc
 import GHC.Utils.Panic
 
 import Data.Char
+import Data.Foldable (toList)
 
 -- | Source Statistics
 ppSourceStats :: Bool -> Located HsModule -> SDoc
@@ -146,7 +146,7 @@ ppSourceStats short (L _ (HsModule _ exports imports ldecls _ _))
     class_info decl@(ClassDecl {})
         = (classops, addpr (sum3 (map count_bind methods)))
       where
-        methods = map unLoc $ bagToList (tcdMeths decl)
+        methods = map unLoc $ toList (tcdMeths decl)
         (_, classops, _, _, _) = count_sigs (map unLoc (tcdSigs decl))
     class_info _ = (0,0)
 
@@ -162,7 +162,7 @@ ppSourceStats short (L _ (HsModule _ exports imports ldecls _ _))
                   (addpr (sum3 (map count_bind methods)),
                    ss, is, length ats, length adts)
       where
-        methods = map unLoc $ bagToList inst_meths
+        methods = map unLoc $ toList inst_meths
 
     -- TODO: use Sum monoid
     addpr :: (Int,Int,Int) -> Int

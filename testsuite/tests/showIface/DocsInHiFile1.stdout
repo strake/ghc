@@ -4,37 +4,22 @@ module header:
 '<>', ':=:', 'Bool'
 "
 declaration docs:
-  elem:
-    " '()', 'elem'."
-  D:
-    " A datatype."
-  D0:
-    " A constructor for 'D'. '"
-  D1:
-    " Another constructor"
-  P:
-    " A class"
-  p:
-    " A class method"
-  $fShowD:
-    " 'Show' instance"
-  D':
-    " Another datatype...
+  elem: " '()', 'elem'."
+  D: " A datatype."
+  D0: " A constructor for 'D'. '"
+  D1: " Another constructor"
+  P: " A class"
+  p: " A class method"
+  $fShowD: " 'Show' instance"
+  D': " Another datatype...
 
  ...with two docstrings."
-  D:R:FInt:
-    " A type family instance"
-  F:
-    " A type family"
+  D:R:FInt: " A type family instance"
+  F: " A type family"
 arg docs:
-  add:
-    0:
-      " First summand for 'add'"
-    1:
-      " Second summand"
-    2:
-      " Sum"
-  p:
-    0:
-      " An argument"
+  add: 0: " First summand for 'add'"
+       1: " Second summand"
+       2: " Sum"
+  p: 0: " An argument"
 extensible fields:
+

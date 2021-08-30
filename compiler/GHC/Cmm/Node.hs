@@ -40,7 +40,7 @@ import GHC.Cmm.Dataflow.Block
 import GHC.Cmm.Dataflow.Graph
 import GHC.Cmm.Dataflow.Collections
 import GHC.Cmm.Dataflow.Label
-import Data.Maybe
+import Data.Foldable (toList)
 import Data.List (tails,sortBy)
 import GHC.Types.Unique (nonDetCmpUnique)
 import GHC.Utils.Misc
@@ -241,7 +241,7 @@ instance NonLocal CmmNode where
   successors (CmmBranch l) = [l]
   successors (CmmCondBranch {cml_true=t, cml_false=f}) = [f, t] -- meets layout constraint
   successors (CmmSwitch _ ids) = switchTargetsToList ids
-  successors (CmmCall {cml_cont=l}) = maybeToList l
+  successors (CmmCall {cml_cont=l}) = toList l
   successors (CmmForeignCall {succ=l}) = [l]
 
 
@@ -584,7 +584,7 @@ mapCollectSuccessors f (CmmSwitch e ids)
     in ( CmmSwitch e
           (mapSwitchTargets
             (\l -> fst $ mapFindWithDefault (error "impossible") l lblMap) ids)
-          , map snd (mapElems lblMap)
+          , snd <$> toList lblMap
         )
 mapCollectSuccessors _ n = (n, [])
 

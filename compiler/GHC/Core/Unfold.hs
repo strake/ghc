@@ -58,7 +58,7 @@ import GHC.Types.Name
 import GHC.Utils.Error
 
 import qualified Data.ByteString as BS
-import Data.List
+import Data.List hiding (filter)
 
 
 -- | Unfolding options

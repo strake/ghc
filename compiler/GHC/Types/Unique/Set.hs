@@ -51,10 +51,10 @@ import GHC.Prelude
 import GHC.Types.Unique.DFM
 import GHC.Types.Unique.FM
 import GHC.Types.Unique
-import Data.Coerce
 import GHC.Utils.Outputable
+import Data.Coerce
 import Data.Data
-import qualified Data.Semigroup as Semi
+import Data.Semigroup
 
 -- Note [UniqSet invariant]
 -- ~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -64,7 +64,8 @@ import qualified Data.Semigroup as Semi
 -- both the keys and the values.
 
 newtype UniqSet a = UniqSet {getUniqSet' :: UniqFM a a}
-                  deriving (Data, Semi.Semigroup, Monoid)
+  deriving stock (Data)
+  deriving (Semigroup, Monoid) via UniqFM a (First a)
 
 emptyUniqSet :: UniqSet a
 emptyUniqSet = UniqSet emptyUFM
@@ -72,7 +73,7 @@ emptyUniqSet = UniqSet emptyUFM
 unitUniqSet :: Uniquable a => a -> UniqSet a
 unitUniqSet x = UniqSet $ unitUFM x x
 
-mkUniqSet :: Uniquable a => [a]  -> UniqSet a
+mkUniqSet :: (Uniquable a, Foldable f) => f a -> UniqSet a
 mkUniqSet = foldl' addOneToUniqSet emptyUniqSet
 
 addOneToUniqSet :: Uniquable a => UniqSet a -> a -> UniqSet a
@@ -125,13 +126,13 @@ elemUniqSet_Directly :: Unique -> UniqSet a -> Bool
 elemUniqSet_Directly a (UniqSet s) = elemUFM_Directly a s
 
 filterUniqSet :: (a -> Bool) -> UniqSet a -> UniqSet a
-filterUniqSet p (UniqSet s) = UniqSet (filterUFM p s)
+filterUniqSet p (UniqSet s) = UniqSet (filter p s)
 
 filterUniqSet_Directly :: (Unique -> elt -> Bool) -> UniqSet elt -> UniqSet elt
 filterUniqSet_Directly f (UniqSet s) = UniqSet (filterUFM_Directly f s)
 
 partitionUniqSet :: (a -> Bool) -> UniqSet a -> (UniqSet a, UniqSet a)
-partitionUniqSet p (UniqSet s) = coerce (partitionUFM p s)
+partitionUniqSet p (UniqSet s) = coerce (partition p s)
 
 uniqSetAny :: (a -> Bool) -> UniqSet a -> Bool
 uniqSetAny p (UniqSet s) = anyUFM p s

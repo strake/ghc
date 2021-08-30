@@ -54,7 +54,7 @@ import GHC.Prelude
 import GHC.Platform
 
 import GHC.Types.Id
-import GHC.Types.Var  ( EvVar, setTyVarUnique )
+import GHC.Types.Var  ( EvVar, tyVarUniqueL )
 import GHC.Types.TyThing
 import GHC.Types.Id.Info
 import GHC.Types.Demand
@@ -83,7 +83,6 @@ import GHC.Utils.Panic.Plain
 
 import GHC.Data.FastString
 
-import Data.List
 import Data.Char        ( ord )
 
 infixl 4 `mkCoreApp`, `mkCoreApps`
@@ -659,9 +658,7 @@ mkBuildExpr elt_ty mk_build_inside = do
     build_id <- lookupId buildName
     return $ Var build_id `App` Type elt_ty `App` mkLams [n_tyvar, c, n] build_inside
   where
-    newTyVar tyvar_tmpl = do
-      uniq <- getUniqueM
-      return (setTyVarUnique tyvar_tmpl uniq)
+    newTyVar tyvar_tmpl = getUniqueM <₪> \ uniq -> set tyVarUniqueL uniq tyvar_tmpl
 
 {-
 ************************************************************************

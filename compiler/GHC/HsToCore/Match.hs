@@ -64,6 +64,7 @@ import GHC.Types.Unique
 import GHC.Types.Unique.DFM
 
 import Control.Monad( unless )
+import Data.Foldable ( toList )
 import Data.List.NonEmpty (NonEmpty(..))
 import qualified Data.List.NonEmpty as NEL
 import qualified Data.Map as Map
@@ -944,7 +945,7 @@ subGroupOrd = subGroup Map.elems Map.empty Map.lookup Map.insert
 
 subGroupUniq :: Uniquable a => [(a, EquationInfo)] -> [NonEmpty EquationInfo]
 subGroupUniq =
-  subGroup eltsUDFM emptyUDFM (flip lookupUDFM) (\k v m -> addToUDFM m k v)
+  subGroup toList emptyUDFM (flip lookupUDFM) (\k v m -> addToUDFM m k v)
 
 {- Note [Pattern synonym groups]
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

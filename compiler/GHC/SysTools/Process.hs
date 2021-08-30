@@ -96,7 +96,7 @@ getGccEnv opts =
      else do env <- getEnvironment
              return (Just (mangle_paths env))
  where
-  (b_dirs, _) = partitionWith get_b_opt opts
+  (b_dirs, _) = mapEither get_b_opt opts
 
   get_b_opt (Option ('-':'B':dir)) = Left dir
   get_b_opt other = Right other

@@ -52,7 +52,6 @@ import GHC.Core.ConLike
 import GHC.Utils.Outputable
 import GHC.Utils.Panic.Plain
 import GHC.Data.List.SetOps (unionLists)
-import GHC.Data.Maybe
 import GHC.Core.Type
 import GHC.Core.TyCon
 import GHC.Types.Literal
@@ -65,10 +64,9 @@ import GHC.Builtin.Types.Prim
 import GHC.Tc.Solver.Monad (InertSet, emptyInert)
 
 import Numeric (fromRat)
-import Data.Foldable (find)
+import Data.Foldable (find, toList)
 import qualified Data.List.NonEmpty as NonEmpty
 import Data.Ratio
-import qualified Data.Semigroup as Semi
 
 -- | Literals (simple and overloaded ones) for pattern match checking.
 --
@@ -409,7 +407,7 @@ data PossibleMatches
   -- ^ No COMPLETE set for this type (yet). Think of overloaded literals.
 
 instance Outputable PossibleMatches where
-  ppr (PM cs) = ppr (NonEmpty.toList cs)
+  ppr (PM cs) = ppr (toList cs)
   ppr NoPM = text "<NoPM>"
 
 -- | Either @Indirect x@, meaning the value is represented by that of @x@, or
@@ -544,7 +542,7 @@ instance Outputable VarInfo where
 
 -- | Initial state of the term oracle.
 initTmState :: TmState
-initTmState = TmSt emptySDIE emptyCoreMap
+initTmState = TmSt emptySDIE emptyTM
 
 -- | The type oracle state. A poor man's 'GHC.Tc.Solver.Monad.InsertSet': The invariant is
 -- that all constraints in there are mutually compatible.
@@ -587,4 +585,4 @@ instance Semigroup Deltas where
   MkDeltas l <> MkDeltas r = MkDeltas (l `unionBags` r)
 
 liftDeltasM :: Monad m => (Delta -> m (Maybe Delta)) -> Deltas -> m Deltas
-liftDeltasM f (MkDeltas ds) = MkDeltas . catBagMaybes <$> (traverse f ds)
+liftDeltasM f (MkDeltas ds) = MkDeltas . catMaybes <$> traverse f ds

@@ -89,11 +89,11 @@ import Control.Monad
 import qualified Data.Set as Set
 import Data.Char (isSpace)
 import Data.IORef
-import Data.List (intercalate, isPrefixOf, isSuffixOf, nub, partition)
-import Data.Maybe
+import Data.List (intercalate, isPrefixOf, isSuffixOf)
+import Data.Maybe (fromJust, isJust)
 import Control.Concurrent.MVar
 import qualified Control.Monad.Catch as MC
-import Lens.Micro (_1, over)
+import Lens.Micro (_1)
 
 import System.FilePath
 import System.Directory
@@ -624,7 +624,7 @@ getLinkDeps hsc_env hpt pls replace_osuf span mods
             deps  = mi_deps iface
 
             pkg_deps = dep_direct_pkgs deps
-            (boot_deps, mod_deps) = flip partitionWith (dep_direct_mods deps) $
+            (boot_deps, mod_deps) = flip mapEither (dep_direct_mods deps) $
               \ (GWIB { gwib_mod = m, gwib_isBoot = is_boot }) ->
                 ( case is_boot of IsBoot -> Left; NotBoot -> Right ) m
 
@@ -1073,8 +1073,8 @@ unload_wkr hsc_env keep_linkables pls@LoaderState{..}  = do
       keep_name (n,_) = isExternalName n &&
                         nameModule n `elemModuleSet` bcos_retained
 
-      itbl_env'     = filterNameEnv keep_name itbl_env
-      closure_env'  = filterNameEnv keep_name closure_env
+      itbl_env'     = filter keep_name itbl_env
+      closure_env'  = filter keep_name closure_env
 
       !new_pls = pls { itbl_env = itbl_env',
                        closure_env = closure_env',

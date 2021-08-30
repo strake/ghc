@@ -26,7 +26,6 @@ import GHC.Utils.Panic
 import GHC.Utils.Panic.Plain
 import GHC.Types.SourceError
 import GHC.Types.SrcLoc
-import Data.List
 import GHC.Data.FastString
 import GHC.SysTools.FileCleanup
 

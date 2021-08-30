@@ -82,7 +82,7 @@ import GHC.Data.List.SetOps
 import GHC.Types.Var (VarBndr(Bndr))
 import qualified GHC.LanguageExtensions as LangExt
 
-import Data.Maybe       ( maybeToList )
+import Data.Foldable       ( toList )
 
 {-
 ************************************************************************
@@ -1252,7 +1252,7 @@ mkPrimOpId prim_op
       | otherwise                                      = topCpr
 
     info = noCafIdInfo
-           `setRuleInfo`           mkRuleInfo (maybeToList $ primOpRules name prim_op)
+           `setRuleInfo`           mkRuleInfo (toList $ primOpRules name prim_op)
            `setArityInfo`          arity
            `setStrictnessInfo`     strict_sig
            `setCprInfo`            mkCprSig arity cpr

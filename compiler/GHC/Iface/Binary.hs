@@ -62,7 +62,6 @@ import Data.Bits
 import Data.Char
 import Data.Word
 import Data.IORef
-import Data.Foldable
 import Control.Monad
 import Control.Monad.ST
 import Control.Monad.Trans.Class

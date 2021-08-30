@@ -227,7 +227,6 @@ import GHC.Data.FastString
 import GHC.Utils.Error( Validity(..), MsgDoc, isValid )
 import qualified GHC.LanguageExtensions as LangExt
 
-import Data.List  ( mapAccumL )
 -- import Data.Functor.Identity( Identity(..) )
 import Data.IORef
 import Data.List.NonEmpty( NonEmpty(..) )
@@ -724,10 +723,10 @@ promoteSkolemX tclvl subst skol
   where
     new_skol
       | tclvl < tcTyVarLevel skol
-      = setTcTyVarDetails (updateTyVarKind (substTy subst) skol)
+      = setTcTyVarDetails (over tyVarKindL (substTy subst) skol)
                           (SkolemTv tclvl (isOverlappableTyVar skol))
       | otherwise
-      = updateTyVarKind (substTy subst) skol
+      = over tyVarKindL (substTy subst) skol
     new_subst = extendTvSubstWithClone subst skol new_skol
 
 promoteSkolemsX :: TcLevel -> TCvSubst -> [TcTyVar] -> (TCvSubst, [TcTyVar])
@@ -1781,7 +1780,7 @@ mkMinimalBySCs get_pred xs = go preds_with_scs []
       -> [PredWithSCs a]   -- Accumulating result
       -> [a]
    go [] min_preds
-     = reverse (map thdOf3 min_preds)
+     = reverse (map thd3 min_preds)
        -- The 'reverse' isn't strictly necessary, but it
        -- means that the results are returned in the same
        -- order as the input, which is generally saner

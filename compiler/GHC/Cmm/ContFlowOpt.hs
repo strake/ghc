@@ -392,7 +392,7 @@ callContinuation_maybe _ = Nothing
 -- supplied LabelMap.
 replaceLabels :: LabelMap BlockId -> CmmGraph -> CmmGraph
 replaceLabels env g
-  | mapNull env = g
+  | null env = g
   | otherwise   = replace_eid $ mapGraphNodes1 txnode g
    where
      replace_eid g = g {g_entry = lookup (g_entry g)}
@@ -429,7 +429,7 @@ predMap blocks = foldr add_preds mapEmpty blocks
 -- Removing unreachable blocks
 removeUnreachableBlocksProc :: CmmDecl -> CmmDecl
 removeUnreachableBlocksProc proc@(CmmProc info lbl live g)
-   | used_blocks `lengthLessThan` mapSize (toBlockMap g)
+   | used_blocks `lengthLessThan` length (toBlockMap g)
    = CmmProc info' lbl live g'
    | otherwise
    = proc

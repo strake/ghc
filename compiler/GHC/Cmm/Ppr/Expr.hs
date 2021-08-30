@@ -199,7 +199,7 @@ pprLit :: Platform -> CmmLit -> SDoc
 pprLit platform lit = case lit of
     CmmInt i rep ->
         hcat [ (if i < 0 then parens else id)(integer i)
-             , ppUnless (rep == wordWidth platform) $
+             , munless (rep == wordWidth platform) $
                space <> dcolon <+> ppr rep ]
 
     CmmFloat f rep     -> hsep [ double (fromRat f), dcolon, ppr rep ]

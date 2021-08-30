@@ -115,8 +115,8 @@ import GHC.Driver.Session
 import qualified GHC.LanguageExtensions as LangExt
 
 import GHC.Data.Maybe
-import Data.List ( find )
-import Control.Monad
+import Data.Foldable ( find, toList )
+import Control.Monad hiding ( mapAndUnzipM )
 
 {-
         ----------------------------
@@ -1569,10 +1569,8 @@ tcTyVar mode name         -- Could be a tyvar, a tycon, or a datacon
                        promotionErr name FamDataConPE
                    ; let (_, _, _, theta, _, _) = dataConFullSig dc
                    ; traceTc "tcTyVar" (ppr dc <+> ppr theta $$ ppr (dc_theta_illegal_constraint theta))
-                   ; case dc_theta_illegal_constraint theta of
-                       Just pred -> promotionErr name $
-                                    ConstrainedDataConPE pred
-                       Nothing   -> pure ()
+                   ; for_ (dc_theta_illegal_constraint theta) $
+                     promotionErr name . ConstrainedDataConPE
                    ; let tc = promoteDataCon dc
                    ; return (mkTyConApp tc [], tyConKind tc) }
 
@@ -2144,8 +2142,8 @@ kcCheckDeclHeader_sig kisig name flav
                      --   type family T a :: Maybe j where
                      --
                      -- Here we unify   Maybe k ~ Maybe j
-                   ; whenIsJust m_res_ki $ \res_ki ->
-                      discardResult $ -- See Note [discardResult in kcCheckDeclHeader_sig]
+                   ; for_ m_res_ki $ \res_ki ->
+                      () <$ -- See Note [discardResult in kcCheckDeclHeader_sig]
                       unifyKind Nothing r_ki res_ki
 
                    ; return (invis_binders, r_ki) }
@@ -2249,7 +2247,7 @@ kcCheckDeclHeader_sig kisig name flav
         UserTyVar _ _ _ -> return ()
         KindedTyVar _ _ v v_hs_ki -> do
           v_ki <- tcLHsKindSig (TyVarBndrKindCtxt (unLoc v)) v_hs_ki
-          discardResult $ -- See Note [discardResult in kcCheckDeclHeader_sig]
+          () <$ -- See Note [discardResult in kcCheckDeclHeader_sig]
             unifyKind (Just (HsTyVar noExtField NotPromoted v))
                       (tyBinderType tb)
                       v_ki
@@ -2787,12 +2785,10 @@ tcHsQTyVarBndr _ new_tv (KindedTyVar _ _ (L _ tv_nm) lhs_kind)
        ; mb_tv <- tcLookupLcl_maybe tv_nm
        ; case mb_tv of
            Just (ATyVar _ tv)
-             -> do { discardResult $ unifyKind (Just hs_tv)
-                                        kind (tyVarKind tv)
+             -> tv <$ unifyKind (Just hs_tv) kind (tyVarKind tv)
                        -- This unify rejects:
                        --    class C (m :: * -> *) where
                        --      type F (m :: *) = ...
-                   ; return tv }
 
            _ -> new_tv tv_nm kind }
   where
@@ -2980,19 +2976,19 @@ etaExpandAlgTyCon :: [TyConBinder]
 -- It's a little trickier than you might think: see
 -- Note [TyConBinders for the result kind signature of a data type]
 -- See Note [Datatype return kinds] in GHC.Tc.TyCl
-etaExpandAlgTyCon tc_bndrs kind
-  = do  { loc     <- getSrcSpanM
-        ; uniqs   <- newUniqueSupply
-        ; rdr_env <- getLocalRdrEnv
-        ; let new_occs = [ occ
+etaExpandAlgTyCon tc_bndrs kind =
+  [ go loc new_occs new_uniqs subst [] kind
+  | loc     <- getSrcSpanM
+  , uniqs   <- newUniqueSupply
+  , rdr_env <- getLocalRdrEnv
+  , let new_occs = [ occ
                          | str <- allNameStrings
                          , let occ = mkOccName tvName str
                          , isNothing (lookupLocalRdrOcc rdr_env occ)
                          -- Note [Avoid name clashes for associated data types]
                          , not (occ `elem` lhs_occs) ]
-              new_uniqs = uniqsFromSupply uniqs
-              subst = mkEmptyTCvSubst (mkInScopeSet (mkVarSet lhs_tvs))
-        ; return (go loc new_occs new_uniqs subst [] kind) }
+        new_uniqs = toList $ uniqsFromSupply uniqs
+        subst = mkEmptyTCvSubst (mkInScopeSet (mkVarSet lhs_tvs)) ]
   where
     lhs_tvs  = map binderVar tc_bndrs
     lhs_occs = map getOccName lhs_tvs

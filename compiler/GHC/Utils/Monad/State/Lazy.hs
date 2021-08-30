@@ -1,5 +1,6 @@
-{-# LANGUAGE UnboxedTuples #-}
 {-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE UnboxedTuples #-}
 
 -- | A lazy state monad.
 module GHC.Utils.Monad.State.Lazy
@@ -20,12 +21,13 @@ import GHC.Prelude
 
 import GHC.Exts (oneShot)
 
+import Data.Functor.State.Class (IsState (..), gets)
+
 -- | A state monad which is lazy in the state.
 newtype State s a = State' { runState' :: s -> (# a, s #) }
     deriving (Functor)
 
-pattern State :: (s -> (# a, s #))
-              -> State s a
+pattern State :: (s -> (# a, s #)) -> State s a
 
 -- This pattern synonym makes the monad eta-expand,
 -- which as a very beneficial effect on compiler performance
@@ -45,18 +47,11 @@ instance Monad (State s) where
     m >>= n  = State $ \s -> case runState' m s of
                              (# r, s' #) -> runState' (n r) s'
 
-state :: (s -> (a, s)) -> State s a
-state f = State $ \s -> case f s of
-                        (r, s') -> (# r, s' #)
-
-get :: State s s
-get = State $ \s -> (# s, s #)
-
-gets :: (s -> a) -> State s a
-gets f = State $ \s -> (# f s, s #)
-
-put :: s -> State s ()
-put s' = State $ \_ -> (# (), s' #)
+instance IsState (State s) where
+    type StateType (State s) = s
+    state f = State \s -> case f s of (r, s') -> (# r, s' #)
+    get = State \s -> (# s, s #)
+    put s' = State \_ -> (# (), s' #)
 
 modify :: (s -> s) -> State s ()
 modify f = State $ \s -> (# (), f s #)

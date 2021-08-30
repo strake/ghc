@@ -56,7 +56,7 @@ import GHC.Types.ForeignStubs
 import GHC.Types.Var.Env
 import GHC.Types.Var.Set
 import GHC.Types.Var
-import GHC.Types.Id
+import GHC.Types.Id as Id
 import GHC.Types.Id.Make ( mkDictSelRhs )
 import GHC.Types.Id.Info
 import GHC.Types.Demand  ( appIsDeadEnd, isTopSig, isDeadEndSig )
@@ -78,8 +78,7 @@ import GHC.Unit.Module.Deps
 import GHC.Data.Maybe
 
 import Control.Monad
-import Data.Function
-import Data.List        ( sortBy, mapAccumL )
+import Data.List        ( sortBy )
 import Data.IORef       ( atomicModifyIORef' )
 
 {-
@@ -233,9 +232,8 @@ globaliseAndTidyBootId :: Id -> Id
 --     * unchanged details
 --     * VanillaIdInfo (makes a conservative assumption about arity)
 --     * BootUnfolding (see Note [Inlining and hs-boot files] in GHC.CoreToIface)
-globaliseAndTidyBootId id
-  = globaliseId id `setIdType`      tidyTopType (idType id)
-                   `setIdUnfolding` BootUnfolding
+globaliseAndTidyBootId
+  = flip setIdUnfolding BootUnfolding . over Id.idTypeL tidyTopType . globaliseId
 
 {-
 ************************************************************************

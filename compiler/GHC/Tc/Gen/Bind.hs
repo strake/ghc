@@ -59,7 +59,6 @@ import GHC.Types.SrcLoc
 import GHC.Data.Bag
 import GHC.Utils.Error
 import GHC.Data.Graph.Directed
-import GHC.Data.Maybe
 import GHC.Utils.Misc
 import GHC.Types.Basic
 import GHC.Utils.Outputable as Outputable
@@ -71,8 +70,8 @@ import GHC.Types.Unique.Set
 import qualified GHC.LanguageExtensions as LangExt
 import GHC.Core.ConLike
 
-import Control.Monad
-import Data.Foldable (find)
+import Control.Monad hiding (mapAndUnzipM)
+import Data.Foldable (find, toList)
 
 {-
 ************************************************************************
@@ -239,7 +238,7 @@ tcCompleteSigs sigs =
               Fixed _ tc  -> return $ mkMatch cls tc
 
           check_complete_match tc_name = do
-            ty_con <- tcLookupLocatedTyCon tc_name
+            ty_con <- addLocM tcLookupTyCon tc_name
             (_, cls) <- checkCLTypes (Fixed Nothing ty_con)
             return $ mkMatch cls ty_con
 
@@ -298,7 +297,7 @@ tcCompleteSigs sigs =
   -- For some reason I haven't investigated further, the signatures come in
   -- backwards wrt. declaration order. So we reverse them here, because it makes
   -- a difference for incomplete match suggestions.
-  in  mapMaybeM (addLocM doOne) (reverse sigs) -- process in declaration order
+  in  mapMaybeA (addLocM doOne) (reverse sigs) -- process in declaration order
 
 tcHsBootSigs :: [(RecFlag, LHsBinds GhcRn)] -> [LSig GhcRn] -> TcM [Id]
 -- A hs-boot file has only one BindGroup, and it only has type
@@ -418,18 +417,16 @@ tcBindGroups :: TopLevelFlag -> TcSigFun -> TcPragEnv
 -- meaning of a group of bindings that mention each other,
 -- ignoring type signatures (that part comes later)
 
-tcBindGroups _ _ _ [] thing_inside
-  = do  { thing <- thing_inside
-        ; return ([], thing) }
+tcBindGroups _ _ _ [] thing_inside = (,) [] <$> thing_inside
 
-tcBindGroups top_lvl sig_fn prag_fn (group : groups) thing_inside
-  = do  { -- See Note [Closed binder groups]
-          type_env <- getLclTypeEnv
-        ; let closed = isClosedBndrGroup type_env (snd group)
-        ; (group', (groups', thing))
+tcBindGroups top_lvl sig_fn prag_fn (group : groups) thing_inside =
+  [ (group' ++ groups', thing)
+  | -- See Note [Closed binder groups]
+    type_env <- getLclTypeEnv
+  , let closed = isClosedBndrGroup type_env (snd group)
+  , (group', (groups', thing))
                 <- tc_group top_lvl sig_fn prag_fn group closed $
-                   tcBindGroups top_lvl sig_fn prag_fn groups thing_inside
-        ; return (group' ++ groups', thing) }
+                   tcBindGroups top_lvl sig_fn prag_fn groups thing_inside ]
 
 -- Note [Closed binder groups]
 -- ~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -458,17 +455,16 @@ tc_group :: forall thing.
 -- We get a list of groups back, because there may
 -- be specialisations etc as well
 
-tc_group top_lvl sig_fn prag_fn (NonRecursive, binds) closed thing_inside
+tc_group top_lvl sig_fn prag_fn (NonRecursive, binds) closed thing_inside =
         -- A single non-recursive binding
         -- We want to keep non-recursive things non-recursive
         -- so that we desugar unlifted bindings correctly
-  = do { let bind = case bagToList binds of
+  [ ([(NonRecursive, bind')], thing)
+  | let bind = case toList binds of
                  [bind] -> bind
                  []     -> panic "tc_group: empty list of binds"
                  _      -> panic "tc_group: NonRecursive binds is not a singleton bag"
-       ; (bind', thing) <- tc_single top_lvl sig_fn prag_fn bind closed
-                                     thing_inside
-       ; return ( [(NonRecursive, bind')], thing) }
+  , (bind', thing) <- tc_single top_lvl sig_fn prag_fn bind closed thing_inside ]
 
 tc_group top_lvl sig_fn prag_fn (Recursive, binds) closed thing_inside
   =     -- To maximise polymorphism, we do a new
@@ -476,11 +472,11 @@ tc_group top_lvl sig_fn prag_fn (Recursive, binds) closed thing_inside
         -- any references to variables with type signatures.
         -- (This used to be optional, but isn't now.)
         -- See Note [Polymorphic recursion] in "GHC.Hs.Binds".
-    do  { traceTc "tc_group rec" (pprLHsBinds binds)
-        ; whenIsJust mbFirstPatSyn $ \lpat_syn ->
+  [ ([(Recursive, binds1)], thing)
+  | () <- traceTc "tc_group rec" (pprLHsBinds binds)
+  , () <- for_ mbFirstPatSyn \lpat_syn ->
             recursivePatSynErr (getLoc lpat_syn) binds
-        ; (binds1, thing) <- go sccs
-        ; return ([(Recursive, binds1)], thing) }
+  , (binds1, thing) <- go sccs ]
                 -- Rec them all together
   where
     mbFirstPatSyn = find (isPatSyn . unLoc) binds
@@ -491,18 +487,17 @@ tc_group top_lvl sig_fn prag_fn (Recursive, binds) closed thing_inside
     sccs = stronglyConnCompFromEdgedVerticesUniq (mkEdges sig_fn binds)
 
     go :: [SCC (LHsBind GhcRn)] -> TcM (LHsBinds GhcTc, thing)
-    go (scc:sccs) = do  { (binds1, ids1) <- tc_scc scc
-                        ; (binds2, thing) <- tcExtendLetEnv top_lvl sig_fn
+    go (scc:sccs) = [ (unionBags binds1 binds2, thing)
+                    | (binds1, ids1) <- tc_scc scc
+                    , (binds2, thing) <- tcExtendLetEnv top_lvl sig_fn
                                                             closed ids1 $
-                                             go sccs
-                        ; return (binds1 `unionBags` binds2, thing) }
-    go []         = do  { thing <- thing_inside; return (emptyBag, thing) }
+                                             go sccs ]
+    go []         = (,) emptyBag <$> thing_inside
 
     tc_scc (AcyclicSCC bind) = tc_sub_group NonRecursive [bind]
     tc_scc (CyclicSCC binds) = tc_sub_group Recursive    binds
 
-    tc_sub_group rec_tc binds =
-      tcPolyBinds sig_fn prag_fn Recursive rec_tc closed binds
+    tc_sub_group rec_tc = tcPolyBinds sig_fn prag_fn Recursive rec_tc closed
 
 recursivePatSynErr ::
      (OutputableBndrId p, CollectPass (GhcPass p))
@@ -513,7 +508,7 @@ recursivePatSynErr ::
 recursivePatSynErr loc binds
   = failAt loc $
     hang (text "Recursive pattern synonym definition with following bindings:")
-       2 (vcat $ map pprLBind . bagToList $ binds)
+       2 (vcat $ map pprLBind . toList $ binds)
   where
     pprLoc loc  = parens (text "defined at" <+> ppr loc)
     pprLBind (L loc bind) = pprWithCommas ppr (collectHsBindBinders bind)
@@ -527,17 +522,14 @@ tc_single _top_lvl sig_fn _prag_fn
           (L _ (PatSynBind _ psb@PSB{ psb_id = L _ name }))
           _ thing_inside
   = do { (aux_binds, tcg_env) <- tcPatSynDecl psb (sig_fn name)
-       ; thing <- setGblEnv tcg_env thing_inside
-       ; return (aux_binds, thing)
-       }
+       ; (,) aux_binds <$> setGblEnv tcg_env thing_inside }
 
 tc_single top_lvl sig_fn prag_fn lbind closed thing_inside
   = do { (binds1, ids) <- tcPolyBinds sig_fn prag_fn
                                       NonRecursive NonRecursive
                                       closed
                                       [lbind]
-       ; thing <- tcExtendLetEnv top_lvl sig_fn closed ids thing_inside
-       ; return (binds1, thing) }
+       ; (,) binds1 <$> tcExtendLetEnv top_lvl sig_fn closed ids thing_inside }
 
 ------------------------
 type BKey = Int -- Just number off the bindings
@@ -560,7 +552,7 @@ mkEdges sig_fn binds
     no_sig :: Name -> Bool
     no_sig n = not (hasCompleteSig sig_fn n)
 
-    keyd_binds = bagToList binds `zip` [0::BKey ..]
+    keyd_binds = toList binds `zip` [0::BKey ..]
 
     key_map :: NameEnv BKey     -- Which binding it comes from
     key_map = mkNameEnv [(bndr, key) | (L _ bind, key) <- keyd_binds
@@ -656,12 +648,10 @@ tcPolyNoGen rec_tc prag_fn tc_sig_fn bind_list
   = do { (binds', mono_infos) <- tcMonoBinds rec_tc tc_sig_fn
                                              (LetGblBndr prag_fn)
                                              bind_list
-       ; mono_ids' <- mapM tc_mono_info mono_infos
-       ; return (binds', mono_ids') }
+       ; (,) binds' <$> traverse tc_mono_info mono_infos }
   where
     tc_mono_info (MBI { mbi_poly_name = name, mbi_mono_id = mono_id })
-      = do { _specs <- tcSpecPrags mono_id (lookupPragEnv prag_fn name)
-           ; return mono_id }
+      = mono_id <$ tcSpecPrags mono_id (lookupPragEnv prag_fn name)
            -- NB: tcPrags generates error messages for
            --     specialisation pragmas for non-overloaded sigs
            -- Indeed that is why we call it here!
@@ -693,7 +683,7 @@ tcPolyCheck prag_fn
                 -- See Note [Instantiate sig with fresh variables]
 
        ; mono_name <- newNameAt (nameOccName name) nm_loc
-       ; ev_vars   <- newEvVars theta
+       ; ev_vars   <- traverse newEvVar theta
        ; let mono_id   = mkLocalId mono_name tau
              skol_info = SigSkol ctxt (idType poly_id) tv_prs
              skol_tvs  = map snd tv_prs
@@ -1375,7 +1365,7 @@ tcLhs sig_fn no_gen (PatBind { pat_lhs = pat, pat_rhs = grhss })
         ; return (TcPatBind mbis pat' grhss pat_ty) }
   where
     bndr_names = collectPatBinders pat
-    (nosig_names, sig_names) = partitionWith find_sig bndr_names
+    (nosig_names, sig_names) = mapEither find_sig bndr_names
 
     find_sig :: Name -> Either Name (Name, TcIdSigInfo)
     find_sig name = case sig_fn name of
@@ -1386,11 +1376,10 @@ tcLhs sig_fn no_gen (PatBind { pat_lhs = pat, pat_rhs = grhss })
       -- names that lack a signature, which the pattern has brought
       -- into scope.
     lookup_info :: Name -> TcM MonoBindInfo
-    lookup_info name
-      = do { mono_id <- tcLookupId name
-           ; return (MBI { mbi_poly_name = name
-                         , mbi_sig       = Nothing
-                         , mbi_mono_id   = mono_id }) }
+    lookup_info name = tcLookupId name <₪> \ mono_id -> MBI
+      { mbi_poly_name = name
+      , mbi_sig       = Nothing
+      , mbi_mono_id   = mono_id }
 
 tcLhs _ _ other_bind = pprPanic "tcLhs" (ppr other_bind)
         -- AbsBind, VarBind impossible
@@ -1406,10 +1395,10 @@ tcLhsSigId no_gen (name, sig)
 
 ------------
 newSigLetBndr :: LetBndrSpec -> Name -> TcIdSigInst -> TcM TcId
-newSigLetBndr (LetGblBndr prags) name (TISI { sig_inst_sig = id_sig })
+newSigLetBndr (LetGblBndr prags) name TISI { sig_inst_sig = id_sig }
   | CompleteSig { sig_bndr = poly_id } <- id_sig
   = addInlinePrags poly_id (lookupPragEnv prags name)
-newSigLetBndr no_gen name (TISI { sig_inst_tau = tau })
+newSigLetBndr no_gen name TISI { sig_inst_tau = tau }
   = newLetBndr no_gen name tau
 
 -------------------
@@ -1440,17 +1429,12 @@ tcRhs (TcPatBind infos pat' grhss pat_ty)
                            , pat_ticks = ([],[]) } )}
 
 tcExtendTyVarEnvForRhs :: Maybe TcIdSigInst -> TcM a -> TcM a
-tcExtendTyVarEnvForRhs Nothing thing_inside
-  = thing_inside
-tcExtendTyVarEnvForRhs (Just sig) thing_inside
-  = tcExtendTyVarEnvFromSig sig thing_inside
+tcExtendTyVarEnvForRhs = maybe id tcExtendTyVarEnvFromSig
 
 tcExtendTyVarEnvFromSig :: TcIdSigInst -> TcM a -> TcM a
-tcExtendTyVarEnvFromSig sig_inst thing_inside
-  | TISI { sig_inst_skols = skol_prs, sig_inst_wcs = wcs } <- sig_inst
-  = tcExtendNameTyVarEnv wcs $
-    tcExtendNameTyVarEnv (mapSnd binderVar skol_prs) $
-    thing_inside
+tcExtendTyVarEnvFromSig TISI { sig_inst_skols = skol_prs, sig_inst_wcs = wcs }
+  = tcExtendNameTyVarEnv wcs .
+    tcExtendNameTyVarEnv (mapSnd binderVar skol_prs)
 
 tcExtendIdBinderStackForRhs :: [MonoBindInfo] -> TcM a -> TcM a
 -- Extend the TcBinderStack for the RHS of the binding, with
@@ -1472,8 +1456,7 @@ tcExtendIdBinderStackForRhs infos thing_inside
 
 ---------------------
 getMonoBindInfo :: [Located TcMonoBind] -> [MonoBindInfo]
-getMonoBindInfo tc_binds
-  = foldr (get_info . unLoc) [] tc_binds
+getMonoBindInfo = foldr (get_info . unLoc) []
   where
     get_info (TcFunBind info _ _)    rest = info : rest
     get_info (TcPatBind infos _ _ _) rest = infos ++ rest

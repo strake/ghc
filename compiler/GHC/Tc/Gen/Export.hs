@@ -25,7 +25,6 @@ import GHC.Utils.Panic
 import GHC.Core.ConLike
 import GHC.Core.DataCon
 import GHC.Core.PatSyn
-import GHC.Data.Maybe
 import GHC.Utils.Misc (capitalise)
 import GHC.Data.FastString (fsLit)
 
@@ -42,9 +41,9 @@ import GHC.Types.TyThing
 import GHC.Types.Name.Reader
 
 import Control.Monad
+import Data.Foldable (toList)
 import GHC.Driver.Session
 import GHC.Parser.PostProcess ( setRdrNameSpace )
-import Data.Either            ( partitionEithers )
 
 {-
 ************************************************************************
@@ -277,7 +276,7 @@ exports_from_avail (Just (L _ rdr_items)) rdr_env imports this_mod
     expand_tyty_gre gre = [gre]
 
     imported_modules = [ imv_name imv
-                       | xs <- moduleEnvElts $ imp_mods imports
+                       | xs <- toList $ imp_mods imports
                        , imv <- importedByUser xs ]
 
     exports_from_item :: ExportAccum -> LIE GhcPs
@@ -419,7 +418,7 @@ exports_from_avail (Just (L _ rdr_items)) rdr_env imports this_mod
     addUsedKids parent_rdr kid_gres = addUsedGREs (pickGREs parent_rdr kid_gres)
 
 classifyGREs :: [GlobalRdrElt] -> ([Name], [FieldLabel])
-classifyGREs = partitionEithers . map classifyGRE
+classifyGREs = mapEither classifyGRE
 
 classifyGRE :: GlobalRdrElt -> Either Name FieldLabel
 classifyGRE gre = case gre_par gre of

@@ -44,7 +44,6 @@ import GHC.Utils.Misc
 import GHC.Utils.Panic
 
 import GHC.Data.Pair             ( Pair(..) )
-import Data.List        ( nubBy )
 import Data.Maybe
 import Data.Foldable    ( fold )
 
@@ -311,7 +310,7 @@ improveClsFD clas_tvs fd
                         -- eqType again, since we know for sure that /at least one/
                         -- equation in there is useful)
 
-                    meta_tvs = [ setVarType tv (substTyUnchecked subst (varType tv))
+                    meta_tvs = [ over varTypeL (substTyUnchecked subst) tv
                                | tv <- qtvs, tv `notElemTCvSubst` subst ]
                         -- meta_tvs are the quantified type variables
                         -- that have not been substituted out
@@ -408,21 +407,21 @@ checkInstCoverage be_liberal clas theta inst_taus
                       -- , text "oclose" <+> ppr (oclose theta (closeOverKinds ls_tvs))
                       -- , text "rs_tvs" <+> ppr rs_tvs
                       sep [ text "The"
-                            <+> ppWhen be_liberal (text "liberal")
+                            <+> mwhen be_liberal (text "liberal")
                             <+> text "coverage condition fails in class"
                             <+> quotes (ppr clas)
                           , nest 2 $ text "for functional dependency:"
                             <+> quotes (pprFunDep fd) ]
-                    , sep [ text "Reason: lhs type"<>plural ls <+> pprQuotedList ls
+                    , sep [ (text "Reason: lhs type"<>plural ls) <+> pprQuotedList ls
                           , nest 2 $
                             (if isSingleton ls
                              then text "does not"
                              else text "do not jointly")
-                            <+> text "determine rhs type"<>plural rs
+                            <+> (text "determine rhs type"<>plural rs)
                             <+> pprQuotedList rs ]
                     , text "Un-determined variable" <> pluralVarSet undet_set <> colon
                             <+> pprVarSet undet_set (pprWithCommas ppr)
-                    , ppWhen (not be_liberal &&
+                    , mwhen (not be_liberal &&
                               and (isEmptyVarSet <$> liberal_undet_tvs)) $
                       text "Using UndecidableInstances might help" ]
 

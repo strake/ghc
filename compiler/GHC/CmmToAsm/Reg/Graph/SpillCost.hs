@@ -34,8 +34,7 @@ import GHC.Platform
 import GHC.Utils.Monad.State.Strict
 import GHC.CmmToAsm.CFG
 
-import Data.List        (nub, minimumBy)
-import Data.Maybe
+import Data.List (minimumBy)
 import Control.Monad (join)
 
 
@@ -171,8 +170,7 @@ chooseSpill
 
 chooseSpill info graph
  = let  cost    = spillCost_length info graph
-        node    = minimumBy (\n1 n2 -> compare (cost $ nodeId n1) (cost $ nodeId n2))
-                $ nonDetEltsUFM $ graphMap graph
+        node    = minimumBy (compare `on` cost . nodeId) $ NonDetUniqFM $ graphMap graph
                 -- See Note [Unique Determinism and code generation]
 
    in   nodeId node

@@ -29,6 +29,7 @@ import GHC.Utils.Panic
 import GHC.Types.Unique
 import GHC.Types.Unique.FM
 import GHC.Types.Unique.Set
+import GHC.Types.Unique.Supply
 
 -- | For a jump instruction at the end of a block, generate fixup code so its
 --      vregs are in the correct regs for its destination.
@@ -202,7 +203,7 @@ joinToTargets_again
                 -- make a new basic block containing the fixup code.
                 --      A the end of the current block we will jump to the fixup one,
                 --      then that will jump to our original destination.
-                fixup_block_id <- mkBlockId <$> getUniqueR
+                fixup_block_id <- mkBlockId <$> getUniqueM
                 let block = BasicBlock fixup_block_id
                                 $ fixUpInstrs ++ mkJumpInstr dest
 

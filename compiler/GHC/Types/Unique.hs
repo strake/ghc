@@ -134,7 +134,7 @@ incrUnique (MkUnique i) = MkUnique (i + 1)
 stepUnique (MkUnique i) n = MkUnique (i + n)
 
 mkLocalUnique :: Int -> Unique
-mkLocalUnique i = mkUnique 'X' i
+mkLocalUnique = mkUnique 'X'
 
 minLocalUnique :: Unique
 minLocalUnique = mkLocalUnique 0
@@ -195,14 +195,14 @@ isValidKnownKeyUnique u =
 class Uniquable a where
     getUnique :: a -> Unique
 
-hasKey          :: Uniquable a => a -> Unique -> Bool
-x `hasKey` k    = getUnique x == k
+hasKey :: Uniquable a => a -> Unique -> Bool
+hasKey x k = getUnique x == k
 
 instance Uniquable FastString where
- getUnique fs = mkUniqueGrimily (uniqueOfFS fs)
+  getUnique fs = mkUniqueGrimily (uniqueOfFS fs)
 
 instance Uniquable Int where
- getUnique i = mkUniqueGrimily i
+  getUnique = mkUniqueGrimily
 
 {-
 ************************************************************************
@@ -257,7 +257,7 @@ ltUnique (MkUnique u1) (MkUnique u2) = u1 < u2
 -- See Note [No Ord for Unique]
 nonDetCmpUnique :: Unique -> Unique -> Ordering
 nonDetCmpUnique (MkUnique u1) (MkUnique u2)
-  = if u1 == u2 then EQ else if u1 < u2 then LT else GT
+  | u1 == u2 = EQ | u1 < u2 = LT | otherwise = GT
 
 {-
 Note [No Ord for Unique]
@@ -279,11 +279,10 @@ The alternatives are:
 -}
 
 instance Eq Unique where
-    a == b = eqUnique a b
-    a /= b = not (eqUnique a b)
+    (==) = eqUnique
 
 instance Uniquable Unique where
-    getUnique u = u
+    getUnique = id
 
 -- We do sometimes make strings with @Uniques@ in them:
 
@@ -304,14 +303,13 @@ pprUniqueAlways :: Unique -> SDoc
 -- It replaces the old pprUnique to remind callers that
 -- they should consider whether they want to consult
 -- Opt_SuppressUniques
-pprUniqueAlways u
-  = text (showUnique u)
+pprUniqueAlways = text . showUnique
 
 instance Outputable Unique where
     ppr = pprUniqueAlways
 
 instance Show Unique where
-    show uniq = showUnique uniq
+    show = showUnique
 
 {-
 ************************************************************************

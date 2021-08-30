@@ -20,6 +20,9 @@ Note [The Type-related module hierarchy]
 -- We expose the relevant stuff from this module via the Type module
 {-# OPTIONS_HADDOCK not-home #-}
 {-# LANGUAGE DeriveDataTypeable, MultiWayIf, PatternSynonyms, BangPatterns #-}
+{-# LANGUAGE CPP #-}
+
+#include "lens.h"
 
 module GHC.Core.TyCo.Rep (
 
@@ -38,7 +41,7 @@ module GHC.Core.TyCo.Rep (
         -- * Coercions
         Coercion(..),
         UnivCoProvenance(..),
-        CoercionHole(..), BlockSubstFlag(..), coHoleCoVar, setCoHoleCoVar,
+        CoercionHole(..), BlockSubstFlag(..), coHoleCoVar, coHoleCoVarL,
         CoercionN, CoercionR, CoercionP, KindCoercion,
         MCoercion(..), MCoercionR, MCoercionN,
 
@@ -1556,8 +1559,7 @@ data BlockSubstFlag = YesBlockSubst
 coHoleCoVar :: CoercionHole -> CoVar
 coHoleCoVar = ch_co_var
 
-setCoHoleCoVar :: CoercionHole -> CoVar -> CoercionHole
-setCoHoleCoVar h cv = h { ch_co_var = cv }
+LENS_FIELD(coHoleCoVarL, ch_co_var)
 
 instance Data.Data CoercionHole where
   -- don't traverse?
@@ -1807,47 +1809,47 @@ foldTyCo (TyCoFolder { tcf_view       = view
   where
     go_ty env ty | Just ty' <- view ty = go_ty env ty'
     go_ty env (TyVarTy tv)      = tyvar env tv
-    go_ty env (AppTy t1 t2)     = go_ty env t1 `mappend` go_ty env t2
+    go_ty env (AppTy t1 t2)     = go_ty env t1 <> go_ty env t2
     go_ty _   (LitTy {})        = mempty
-    go_ty env (CastTy ty co)    = go_ty env ty `mappend` go_co env co
+    go_ty env (CastTy ty co)    = go_ty env ty <> go_co env co
     go_ty env (CoercionTy co)   = go_co env co
-    go_ty env (FunTy _ arg res) = go_ty env arg `mappend` go_ty env res
+    go_ty env (FunTy _ arg res) = go_ty env arg <> go_ty env res
     go_ty env (TyConApp _ tys)  = go_tys env tys
     go_ty env (ForAllTy (Bndr tv vis) inner)
       = let !env' = tycobinder env tv vis  -- Avoid building a thunk here
-        in go_ty env (varType tv) `mappend` go_ty env' inner
+        in go_ty env (varType tv) <> go_ty env' inner
 
     -- Explicit recursion becuase using foldr builds a local
     -- loop (with env free) and I'm not confident it'll be
     -- lambda lifted in the end
     go_tys _   []     = mempty
-    go_tys env (t:ts) = go_ty env t `mappend` go_tys env ts
+    go_tys env (t:ts) = go_ty env t <> go_tys env ts
 
     go_cos _   []     = mempty
-    go_cos env (c:cs) = go_co env c `mappend` go_cos env cs
+    go_cos env (c:cs) = go_co env c <> go_cos env cs
 
     go_co env (Refl ty)               = go_ty env ty
     go_co env (GRefl _ ty MRefl)      = go_ty env ty
-    go_co env (GRefl _ ty (MCo co))   = go_ty env ty `mappend` go_co env co
+    go_co env (GRefl _ ty (MCo co))   = go_ty env ty <> go_co env co
     go_co env (TyConAppCo _ _ args)   = go_cos env args
-    go_co env (AppCo c1 c2)           = go_co env c1 `mappend` go_co env c2
-    go_co env (FunCo _ c1 c2)         = go_co env c1 `mappend` go_co env c2
+    go_co env (AppCo c1 c2)           = go_co env c1 <> go_co env c2
+    go_co env (FunCo _ c1 c2)         = go_co env c1 <> go_co env c2
     go_co env (CoVarCo cv)            = covar env cv
     go_co env (AxiomInstCo _ _ args)  = go_cos env args
     go_co env (HoleCo hole)           = cohole env hole
-    go_co env (UnivCo p _ t1 t2)      = go_prov env p `mappend` go_ty env t1
-                                                      `mappend` go_ty env t2
+    go_co env (UnivCo p _ t1 t2)      = go_prov env p <> go_ty env t1
+                                                      <> go_ty env t2
     go_co env (SymCo co)              = go_co env co
-    go_co env (TransCo c1 c2)         = go_co env c1 `mappend` go_co env c2
+    go_co env (TransCo c1 c2)         = go_co env c1 <> go_co env c2
     go_co env (AxiomRuleCo _ cos)     = go_cos env cos
     go_co env (NthCo _ _ co)          = go_co env co
     go_co env (LRCo _ co)             = go_co env co
-    go_co env (InstCo co arg)         = go_co env co `mappend` go_co env arg
+    go_co env (InstCo co arg)         = go_co env co <> go_co env arg
     go_co env (KindCo co)             = go_co env co
     go_co env (SubCo co)              = go_co env co
     go_co env (ForAllCo tv kind_co co)
-      = go_co env kind_co `mappend` go_ty env (varType tv)
-                          `mappend` go_co env' co
+      = go_co env kind_co <> go_ty env (varType tv)
+                          <> go_co env' co
       where
         env' = tycobinder env tv Inferred
 

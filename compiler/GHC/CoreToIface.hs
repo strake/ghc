@@ -74,8 +74,6 @@ import GHC.Core.TyCo.Tidy ( tidyCo )
 import GHC.Types.Demand ( isTopSig )
 import GHC.Types.Cpr ( topCprSig )
 
-import Data.Maybe ( catMaybes )
-
 {- Note [Avoiding space leaks in toIface*]
    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -366,10 +364,10 @@ tidyToIfaceType :: TidyEnv -> Type -> IfaceType
 tidyToIfaceType env ty = toIfaceType (tidyType env ty)
 
 tidyToIfaceTcArgs :: TidyEnv -> TyCon -> [Type] -> IfaceAppArgs
-tidyToIfaceTcArgs env tc tys = toIfaceTcArgs tc (tidyTypes env tys)
+tidyToIfaceTcArgs env tc tys = toIfaceTcArgs tc (tidyType env <$> tys)
 
 tidyToIfaceContext :: TidyEnv -> ThetaType -> IfaceContext
-tidyToIfaceContext env theta = map (tidyToIfaceType env) theta
+tidyToIfaceContext env = map (tidyToIfaceType env)
 
 {-
 ************************************************************************

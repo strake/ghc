@@ -1055,7 +1055,7 @@ tcApplicativeStmts ctxt pairs rhs_ty thing_inside
                     , arg_expr = rhs
                     , ..
                     }, pat_ty, exp_ty)
-      = setSrcSpan (combineSrcSpans (getLoc pat) (getLoc rhs)) $
+      = setSrcSpan (getLoc pat <> getLoc rhs) $
         addErrCtxt (pprStmtInCtxt ctxt (mkRnBindStmt pat rhs))   $
         do { rhs' <- tcLExprNC rhs (mkCheckExpType exp_ty)
            ; (pat', _) <- tcCheckPat (StmtCtxt ctxt) pat pat_ty $

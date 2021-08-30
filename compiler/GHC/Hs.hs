@@ -119,12 +119,11 @@ deriving instance Data HsModule
 instance Outputable HsModule where
 
     ppr (HsModule Nothing _ imports decls _ mbDoc)
-      = pp_mb mbDoc $$ pp_nonnull imports
-                    $$ pp_nonnull decls
+      = foldMap ppr mbDoc $$ pp_nonnull imports $$ pp_nonnull decls
 
     ppr (HsModule (Just name) exports imports decls deprec mbDoc)
       = vcat [
-            pp_mb mbDoc,
+            foldMap ppr mbDoc,
             case exports of
               Nothing -> pp_header (text "where")
               Just es -> vcat [
@@ -141,10 +140,6 @@ instance Outputable HsModule where
            Just d -> vcat [ pp_modname, ppr d, rest ]
 
         pp_modname = text "module" <+> ppr name
-
-pp_mb :: Outputable t => Maybe t -> SDoc
-pp_mb (Just x) = ppr x
-pp_mb Nothing  = empty
 
 pp_nonnull :: Outputable t => [t] -> SDoc
 pp_nonnull [] = empty

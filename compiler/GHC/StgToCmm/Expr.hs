@@ -54,7 +54,6 @@ import GHC.Utils.Panic.Plain
 
 import Control.Monad ( unless, void )
 import Control.Arrow ( first )
-import Data.List     ( partition )
 
 ------------------------------------------------------------------------
 --              cgExpr: the main function

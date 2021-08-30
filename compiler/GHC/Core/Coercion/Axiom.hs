@@ -49,7 +49,6 @@ import Data.Typeable ( Typeable )
 import GHC.Types.SrcLoc
 import qualified Data.Data as Data
 import Data.Array
-import Data.List ( mapAccumL )
 
 {-
 Note [Coercion axiom branches]

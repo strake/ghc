@@ -17,11 +17,9 @@ module GHC.Tc.Utils.Env(
         tcExtendGlobalEnv, tcExtendTyConEnv,
         tcExtendGlobalEnvImplicit, setGlobalTypeEnv,
         tcExtendGlobalValEnv,
-        tcLookupLocatedGlobal, tcLookupGlobal, tcLookupGlobalOnly,
+        tcLookupGlobal, tcLookupGlobalOnly,
         tcLookupTyCon, tcLookupClass,
-        tcLookupDataCon, tcLookupPatSyn, tcLookupConLike,
-        tcLookupLocatedGlobalId, tcLookupLocatedTyCon,
-        tcLookupLocatedClass, tcLookupAxiom,
+        tcLookupDataCon, tcLookupPatSyn, tcLookupConLike, tcLookupAxiom,
         lookupGlobal, ioLookupDataCon,
         addTypecheckedBinds,
 
@@ -102,6 +100,7 @@ import GHC.Utils.Outputable
 import GHC.Utils.Panic
 import GHC.Utils.Encoding
 import GHC.Utils.Error
+import GHC.Utils.Lens.Monad
 import GHC.Utils.Misc ( HasDebugCallStack )
 
 import GHC.Data.FastString
@@ -126,6 +125,7 @@ import qualified GHC.LanguageExtensions as LangExt
 import Data.IORef
 import Data.List (intercalate)
 import Control.Monad
+import Data.Functor.Reader.Class
 
 {- *********************************************************************
 *                                                                      *
@@ -136,13 +136,9 @@ import Control.Monad
 lookupGlobal :: HscEnv -> Name -> IO TyThing
 -- A variant of lookupGlobal_maybe for the clients which are not
 -- interested in recovering from lookup failure and accept panic.
-lookupGlobal hsc_env name
-  = do  {
-          mb_thing <- lookupGlobal_maybe hsc_env name
-        ; case mb_thing of
+lookupGlobal hsc_env name = lookupGlobal_maybe hsc_env name >>= \ case
             Succeeded thing -> return thing
             Failed msg      -> pprPanic "lookupGlobal" msg
-        }
 
 lookupGlobal_maybe :: HscEnv -> Name -> IO (MaybeErr MsgDoc TyThing)
 -- This may look up an Id that one has previously looked up.
@@ -165,12 +161,9 @@ lookupGlobal_maybe hsc_env name
 
 lookupImported_maybe :: HscEnv -> Name -> IO (MaybeErr MsgDoc TyThing)
 -- Returns (Failed err) if we can't find the interface file for the thing
-lookupImported_maybe hsc_env name
-  = do  { mb_thing <- lookupType hsc_env name
-        ; case mb_thing of
+lookupImported_maybe hsc_env name = lookupType hsc_env name >>= \ case
             Just thing -> return (Succeeded thing)
             Nothing    -> importDecl_maybe hsc_env name
-            }
 
 importDecl_maybe :: HscEnv -> Name -> IO (MaybeErr MsgDoc TyThing)
 importDecl_maybe hsc_env name
@@ -183,16 +176,12 @@ importDecl_maybe hsc_env name
   = initIfaceLoad hsc_env (importDecl name)
 
 ioLookupDataCon :: HscEnv -> Name -> IO DataCon
-ioLookupDataCon hsc_env name = do
-  mb_thing <- ioLookupDataCon_maybe hsc_env name
-  case mb_thing of
+ioLookupDataCon hsc_env name = ioLookupDataCon_maybe hsc_env name >>= \ case
     Succeeded thing -> return thing
     Failed msg      -> pprPanic "lookupDataConIO" msg
 
 ioLookupDataCon_maybe :: HscEnv -> Name -> IO (MaybeErr MsgDoc DataCon)
-ioLookupDataCon_maybe hsc_env name = do
-    thing <- lookupGlobal hsc_env name
-    return $ case thing of
+ioLookupDataCon_maybe hsc_env name = lookupGlobal hsc_env name <₪> \ thing -> case thing of
         AConLike (RealDataCon con) -> Succeeded con
         _                          -> Failed $
           pprTcTyThingCategory (AGlobal thing) <+> quotes (ppr name) <+>
@@ -203,9 +192,7 @@ addTypecheckedBinds tcg_env binds
   | isHsBootOrSig (tcg_src tcg_env) = tcg_env
     -- Do not add the code for record-selector bindings
     -- when compiling hs-boot files
-  | otherwise = tcg_env { tcg_binds = foldr unionBags
-                                            (tcg_binds tcg_env)
-                                            binds }
+  | otherwise = over tcg_bindsL (foldr unionBags `flip` binds) tcg_env
 
 {-
 ************************************************************************
@@ -219,11 +206,6 @@ unless you know that the SrcSpan in the monad is already set to the
 span of the Name.
 -}
 
-
-tcLookupLocatedGlobal :: Located Name -> TcM TyThing
--- c.f. GHC.IfaceToCore.tcIfaceGlobal
-tcLookupLocatedGlobal name
-  = addLocM tcLookupGlobal name
 
 tcLookupGlobal :: Name -> TcM TyThing
 -- The Name is almost always an ExternalName, but not always
@@ -244,20 +226,17 @@ tcLookupGlobal name
           else
 
            -- Try home package table and external package table
-    do  { mb_thing <- tcLookupImported_maybe name
-        ; case mb_thing of
+    tcLookupImported_maybe name >>= \ case
             Succeeded thing -> return thing
             Failed msg      -> failWithTc msg
-        }}}
+        }}
 
 -- Look up only in this module's global env't. Don't look in imports, etc.
 -- Panic if it's not there.
 tcLookupGlobalOnly :: Name -> TcM TyThing
-tcLookupGlobalOnly name
-  = do { env <- getGblEnv
-       ; return $ case lookupNameEnv (tcg_type_env env) name of
+tcLookupGlobalOnly name = getGblEnv <₪> \ env -> case lookupNameEnv (tcg_type_env env) name of
                     Just thing -> thing
-                    Nothing    -> pprPanic "tcLookupGlobalOnly" (ppr name) }
+                    Nothing    -> pprPanic "tcLookupGlobalOnly" (ppr name)
 
 tcLookupDataCon :: Name -> TcM DataCon
 tcLookupDataCon name = do
@@ -301,15 +280,6 @@ tcLookupAxiom name = do
         ACoAxiom ax -> return ax
         _           -> wrongThingErr "axiom" (AGlobal thing) name
 
-tcLookupLocatedGlobalId :: Located Name -> TcM Id
-tcLookupLocatedGlobalId = addLocM tcLookupId
-
-tcLookupLocatedClass :: Located Name -> TcM Class
-tcLookupLocatedClass = addLocM tcLookupClass
-
-tcLookupLocatedTyCon :: Located Name -> TcM TyCon
-tcLookupLocatedTyCon = addLocM tcLookupTyCon
-
 -- Find the instance that exactly matches a type class application.  The class arguments must be precisely
 -- the same as in the instance declaration (modulo renaming & casts).
 --
@@ -331,11 +301,13 @@ tcLookupInstance cls tys
 tcGetInstEnvs :: TcM InstEnvs
 -- Gets both the external-package inst-env
 -- and the home-pkg inst env (includes module being compiled)
-tcGetInstEnvs = do { eps <- getEps
-                   ; env <- getGblEnv
-                   ; return (InstEnvs { ie_global  = eps_inst_env eps
-                                      , ie_local   = tcg_inst_env env
-                                      , ie_visible = tcVisibleOrphanMods env }) }
+tcGetInstEnvs =
+  [ InstEnvs
+      { ie_global  = eps_inst_env eps
+      , ie_local   = tcg_inst_env env
+      , ie_visible = tcVisibleOrphanMods env }
+  | eps <- getEps
+  , env <- getGblEnv ]
 
 instance MonadThings (IOEnv (Env TcGblEnv TcLclEnv)) where
     lookupThing = tcLookupGlobal
@@ -352,60 +324,51 @@ setGlobalTypeEnv :: TcGblEnv -> TypeEnv -> TcM TcGblEnv
 -- Use this to update the global type env
 -- It updates both  * the normal tcg_type_env field
 --                  * the tcg_type_env_var field seen by interface files
-setGlobalTypeEnv tcg_env new_type_env
-  = do  {     -- Sync the type-envt variable seen by interface files
-           writeMutVar (tcg_type_env_var tcg_env) new_type_env
-         ; return (tcg_env { tcg_type_env = new_type_env }) }
+setGlobalTypeEnv = flip $ modifyGlobalTypeEnv . pure
 
+modifyGlobalTypeEnv :: (TypeEnv -> TypeEnv) -> TcGblEnv -> TcM TcGblEnv
+-- Use this to update the global type env
+-- It updates both  * the normal tcg_type_env field
+--                  * the tcg_type_env_var field seen by interface files
+modifyGlobalTypeEnv f tcg_env
+  = -- Sync the type-envt variable seen by interface files
+    tcg_env { tcg_type_env = new_type_env } <$ writeMutVar (tcg_type_env_var tcg_env) new_type_env
+  where
+    new_type_env = f (tcg_type_env tcg_env)
 
 tcExtendGlobalEnvImplicit :: [TyThing] -> TcM r -> TcM r
   -- Just extend the global environment with some TyThings
   -- Do not extend tcg_tcs, tcg_patsyns etc
 tcExtendGlobalEnvImplicit things thing_inside
-   = do { tcg_env <- getGblEnv
-        ; let ge'  = extendTypeEnvList (tcg_type_env tcg_env) things
-        ; tcg_env' <- setGlobalTypeEnv tcg_env ge'
-        ; setGblEnv tcg_env' thing_inside }
+  = do { tcg_env' <- modifyGlobalTypeEnv (`extendTypeEnvList` things) =<< getGblEnv
+       ; setGblEnv tcg_env' thing_inside }
 
 tcExtendGlobalEnv :: [TyThing] -> TcM r -> TcM r
   -- Given a mixture of Ids, TyCons, Classes, all defined in the
   -- module being compiled, extend the global environment
-tcExtendGlobalEnv things thing_inside
-  = do { env <- getGblEnv
-       ; let env' = env { tcg_tcs = [tc | ATyCon tc <- things] ++ tcg_tcs env,
-                          tcg_patsyns = [ps | AConLike (PatSynCon ps) <- things] ++ tcg_patsyns env }
-       ; setGblEnv env' $
-            tcExtendGlobalEnvImplicit things thing_inside
-       }
+tcExtendGlobalEnv things = tcExtendGlobalEnvImplicit things & locally env_gblL \ env -> env
+  { tcg_tcs = [tc | ATyCon tc <- things] ++ tcg_tcs env
+  , tcg_patsyns = [ps | AConLike (PatSynCon ps) <- things] ++ tcg_patsyns env }
 
 tcExtendTyConEnv :: [TyCon] -> TcM r -> TcM r
   -- Given a mixture of Ids, TyCons, Classes, all defined in the
   -- module being compiled, extend the global environment
-tcExtendTyConEnv tycons thing_inside
-  = do { env <- getGblEnv
-       ; let env' = env { tcg_tcs = tycons ++ tcg_tcs env }
-       ; setGblEnv env' $
-         tcExtendGlobalEnvImplicit (map ATyCon tycons) thing_inside
-       }
+tcExtendTyConEnv tycons =
+  locally (env_gblL . tcg_tcsL) (tycons ++) . tcExtendGlobalEnvImplicit (ATyCon <$> tycons)
 
 tcExtendGlobalValEnv :: [Id] -> TcM a -> TcM a
   -- Same deal as tcExtendGlobalEnv, but for Ids
-tcExtendGlobalValEnv ids thing_inside
-  = tcExtendGlobalEnvImplicit [AnId id | id <- ids] thing_inside
+tcExtendGlobalValEnv ids = tcExtendGlobalEnvImplicit (AnId <$> ids)
 
 tcExtendRecEnv :: [(Name,TyThing)] -> TcM r -> TcM r
 -- Extend the global environments for the type/class knot tying game
 -- Just like tcExtendGlobalEnv, except the argument is a list of pairs
-tcExtendRecEnv gbl_stuff thing_inside
- = do  { tcg_env <- getGblEnv
-       ; let ge'      = extendNameEnvList (tcg_type_env tcg_env) gbl_stuff
-             tcg_env' = tcg_env { tcg_type_env = ge' }
+tcExtendRecEnv = locally (env_gblL . tcg_type_envL) . flip extendNameEnvList
          -- No need for setGlobalTypeEnv (which side-effects the
          -- tcg_type_env_var); tcExtendRecEnv is used just
          -- when kind-check a group of type/class decls. It would
          -- in any case be wrong for an interface-file decl to end up
          -- with a TcTyCon in it!
-       ; setGblEnv tcg_env' thing_inside }
 
 {-
 ************************************************************************
@@ -419,9 +382,7 @@ tcLookupLocated :: Located Name -> TcM TcTyThing
 tcLookupLocated = addLocM tcLookup
 
 tcLookupLcl_maybe :: Name -> TcM (Maybe TcTyThing)
-tcLookupLcl_maybe name
-  = do { local_env <- getLclTypeEnv
-       ; return (lookupNameEnv local_env name) }
+tcLookupLcl_maybe name = getLclTypeEnv <₪> \ local_env -> lookupNameEnv local_env name
 
 tcLookup :: Name -> TcM TcTyThing
 tcLookup name = do
@@ -431,37 +392,29 @@ tcLookup name = do
         Nothing    -> AGlobal <$> tcLookupGlobal name
 
 tcLookupTyVar :: Name -> TcM TcTyVar
-tcLookupTyVar name
-  = do { thing <- tcLookup name
-       ; case thing of
+tcLookupTyVar name = tcLookup name >>= \ case
            ATyVar _ tv -> return tv
-           _           -> pprPanic "tcLookupTyVar" (ppr name) }
+           _           -> pprPanic "tcLookupTyVar" (ppr name)
 
 tcLookupId :: Name -> TcM Id
 -- Used when we aren't interested in the binding level, nor refinement.
 -- The "no refinement" part means that we return the un-refined Id regardless
 --
 -- The Id is never a DataCon. (Why does that matter? see GHC.Tc.Gen.Expr.tcId)
-tcLookupId name = do
-    thing <- tcLookupIdMaybe name
-    case thing of
+tcLookupId name = tcLookupIdMaybe name >>= \ case
         Just id -> return id
         _       -> pprPanic "tcLookupId" (ppr name)
 
 tcLookupIdMaybe :: Name -> TcM (Maybe Id)
-tcLookupIdMaybe name
-  = do { thing <- tcLookup name
-       ; case thing of
-           ATcId { tct_id = id} -> return $ Just id
-           AGlobal (AnId id)    -> return $ Just id
-           _                    -> return Nothing }
+tcLookupIdMaybe = tcLookup & fmap \ case
+           ATcId { tct_id = id} -> Just id
+           AGlobal (AnId id)    -> Just id
+           _                    -> Nothing
 
-tcLookupLocalIds :: [Name] -> TcM [TcId]
+tcLookupLocalIds :: Functor f => f Name -> TcM (f TcId)
 -- We expect the variables to all be bound, and all at
 -- the same level as the lookup.  Only used in one place...
-tcLookupLocalIds ns
-  = do { env <- getLclEnv
-       ; return (map (lookup (tcl_env env)) ns) }
+tcLookupLocalIds ns = getLclEnv <₪> \ env -> lookup (tcl_env env) <$> ns
   where
     lookup lenv name
         = case lookupNameEnv lenv name of
@@ -472,15 +425,12 @@ tcLookupLocalIds ns
 -- Look it up in the local environment. This is used only for tycons
 -- that we're currently type-checking, so we're sure to find a TcTyCon.
 tcLookupTcTyCon :: HasDebugCallStack => Name -> TcM TcTyCon
-tcLookupTcTyCon name = do
-    thing <- tcLookup name
-    case thing of
+tcLookupTcTyCon name = tcLookup name >>= \ case
         ATcTyCon tc -> return tc
         _           -> pprPanic "tcLookupTcTyCon" (ppr name)
 
 getInLocalScope :: TcM (Name -> Bool)
-getInLocalScope = do { lcl_env <- getLclTypeEnv
-                     ; return (`elemNameEnv` lcl_env) }
+getInLocalScope = flip elemNameEnv <$> getLclTypeEnv
 
 tcExtendKindEnvList :: [(Name, TcTyThing)] -> TcM r -> TcM r
 -- Used only during kind checking, for TcThings that are
@@ -488,32 +438,25 @@ tcExtendKindEnvList :: [(Name, TcTyThing)] -> TcM r -> TcM r
 -- No need to update the global tyvars, or tcl_th_bndrs, or tcl_rdr
 tcExtendKindEnvList things thing_inside
   = do { traceTc "tcExtendKindEnvList" (ppr things)
-       ; updLclEnv upd_env thing_inside }
-  where
-    upd_env env = env { tcl_env = extendNameEnvList (tcl_env env) things }
+       ; locally (env_lclL . tcl_envL) (`extendNameEnvList` things) thing_inside }
 
 tcExtendKindEnv :: NameEnv TcTyThing -> TcM r -> TcM r
 -- A variant of tcExtendKindEvnList
 tcExtendKindEnv extra_env thing_inside
   = do { traceTc "tcExtendKindEnv" (ppr extra_env)
-       ; updLclEnv upd_env thing_inside }
-  where
-    upd_env env = env { tcl_env = tcl_env env `plusNameEnv` extra_env }
+       ; locally (env_lclL . tcl_envL) (`plusNameEnv` extra_env) thing_inside }
 
 -----------------------
 -- Scoped type and kind variables
 tcExtendTyVarEnv :: [TyVar] -> TcM r -> TcM r
-tcExtendTyVarEnv tvs thing_inside
-  = tcExtendNameTyVarEnv (mkTyVarNamePairs tvs) thing_inside
+tcExtendTyVarEnv tvs = tcExtendNameTyVarEnv (mkTyVarNamePairs tvs)
 
 tcExtendNameTyVarEnv :: [(Name,TcTyVar)] -> TcM r -> TcM r
-tcExtendNameTyVarEnv binds thing_inside
+tcExtendNameTyVarEnv binds
   -- this should be used only for explicitly mentioned scoped variables.
   -- thus, no coercion variables
-  = do { tc_extend_local_env NotTopLevel
-                    [(name, ATyVar name tv) | (name, tv) <- binds] $
-         tcExtendBinderStack tv_binds $
-         thing_inside }
+  = tc_extend_local_env NotTopLevel [(name, ATyVar name tv) | (name, tv) <- binds] .
+    tcExtendBinderStack tv_binds
   where
     tv_binds :: [TcBinder]
     tv_binds = [TcTvBndr name tv | (name,tv) <- binds]
@@ -526,24 +469,22 @@ tcExtendRecIds :: [(Name, TcId)] -> TcM a -> TcM a
 -- Used for binding the recursive uses of Ids in a binding
 -- both top-level value bindings and nested let/where-bindings
 -- Does not extend the TcBinderStack
-tcExtendRecIds pairs thing_inside
+tcExtendRecIds pairs
   = tc_extend_local_env NotTopLevel
           [ (name, ATcId { tct_id   = let_id
                          , tct_info = NonClosedLet emptyNameSet False })
-          | (name, let_id) <- pairs ] $
-    thing_inside
+          | (name, let_id) <- pairs ]
 
 tcExtendSigIds :: TopLevelFlag -> [TcId] -> TcM a -> TcM a
 -- Used for binding the Ids that have a complete user type signature
 -- Does not extend the TcBinderStack
-tcExtendSigIds top_lvl sig_ids thing_inside
+tcExtendSigIds top_lvl sig_ids
   = tc_extend_local_env top_lvl
           [ (idName id, ATcId { tct_id   = id
                               , tct_info = info })
           | id <- sig_ids
           , let closed = isTypeClosedLetBndr id
                 info   = NonClosedLet emptyNameSet closed ]
-     thing_inside
 
 
 tcExtendLetEnv :: TopLevelFlag -> TcSigFun -> IsGroupClosed
@@ -571,23 +512,20 @@ tcExtendLetEnv top_lvl sig_fn (IsGroupClosed fvs fv_type_closed)
 tcExtendIdEnv :: [TcId] -> TcM a -> TcM a
 -- For lambda-bound and case-bound Ids
 -- Extends the TcBinderStack as well
-tcExtendIdEnv ids thing_inside
-  = tcExtendIdEnv2 [(idName id, id) | id <- ids] thing_inside
+tcExtendIdEnv ids = tcExtendIdEnv2 [(idName id, id) | id <- ids]
 
 tcExtendIdEnv1 :: Name -> TcId -> TcM a -> TcM a
 -- Exactly like tcExtendIdEnv2, but for a single (name,id) pair
-tcExtendIdEnv1 name id thing_inside
-  = tcExtendIdEnv2 [(name,id)] thing_inside
+tcExtendIdEnv1 name id = tcExtendIdEnv2 [(name,id)]
 
 tcExtendIdEnv2 :: [(Name,TcId)] -> TcM a -> TcM a
-tcExtendIdEnv2 names_w_ids thing_inside
+tcExtendIdEnv2 names_w_ids
   = tcExtendBinderStack [ TcIdBndr mono_id NotTopLevel
-                        | (_,mono_id) <- names_w_ids ] $
+                        | (_,mono_id) <- names_w_ids ] .
     tc_extend_local_env NotTopLevel
             [ (name, ATcId { tct_id = id
                            , tct_info    = NotLetBound })
             | (name,id) <- names_w_ids]
-    thing_inside
 
 tc_extend_local_env :: TopLevelFlag -> [(Name, TcTyThing)] -> TcM a -> TcM a
 tc_extend_local_env top_lvl extra_env thing_inside
@@ -605,11 +543,11 @@ tc_extend_local_env top_lvl extra_env thing_inside
 -- that are bound together with extra_env and should not be regarded
 -- as free in the types of extra_env.
   = do  { traceTc "tc_extend_local_env" (ppr extra_env)
-        ; env0 <- getLclEnv
-        ; let env1 = tcExtendLocalTypeEnv env0 extra_env
-        ; stage <- getStage
-        ; let env2 = extend_local_env (top_lvl, thLevel stage) extra_env env1
-        ; setLclEnv env2 thing_inside }
+        ; locally env_lclL (\ env0 ->
+          let env1 = over tcl_envL (flip extendNameEnvList extra_env) env0
+              stage = tcl_th_ctxt env0
+              env2 = extend_local_env (top_lvl, thLevel stage) extra_env env1
+          in env2) thing_inside }
   where
     extend_local_env :: (TopLevelFlag, ThLevel) -> [(Name, TcTyThing)] -> TcLclEnv -> TcLclEnv
     -- Extend the local LocalRdrEnv and Template Haskell staging env simultaneously
@@ -625,8 +563,7 @@ tc_extend_local_env top_lvl extra_env thing_inside
                                  [(n, thlvl) | (n, ATcId {}) <- pairs] }
 
 tcExtendLocalTypeEnv :: TcLclEnv -> [(Name, TcTyThing)] -> TcLclEnv
-tcExtendLocalTypeEnv lcl_env@(TcLclEnv { tcl_env = lcl_type_env }) tc_ty_things
-  = lcl_env { tcl_env = extendNameEnvList lcl_type_env tc_ty_things }
+tcExtendLocalTypeEnv = flip $ over tcl_envL . flip extendNameEnvList
 
 {- *********************************************************************
 *                                                                      *
@@ -637,15 +574,14 @@ tcExtendLocalTypeEnv lcl_env@(TcLclEnv { tcl_env = lcl_type_env }) tc_ty_things
 tcExtendBinderStack :: [TcBinder] -> TcM a -> TcM a
 tcExtendBinderStack bndrs thing_inside
   = do { traceTc "tcExtendBinderStack" (ppr bndrs)
-       ; updLclEnv (\env -> env { tcl_bndrs = bndrs ++ tcl_bndrs env })
-                   thing_inside }
+       ; locally (env_lclL . tcl_bndrsL) (bndrs ++) thing_inside }
 
-tcInitTidyEnv :: TcM TidyEnv
+tcInitTidyEnv :: (IsReader m, MonadIO m, EnvType m ~ Env gbl TcLclEnv) => m TidyEnv
 -- We initialise the "tidy-env", used for tidying types before printing,
 -- by building a reverse map from the in-scope type variables to the
 -- OccName that the programmer originally used for them
 tcInitTidyEnv
-  = do  { lcl_env <- getLclEnv
+  = do  { lcl_env <- env_lcl <$> ask
         ; go emptyTidyEnv (tcl_bndrs lcl_env) }
   where
     go (env, subst) []
@@ -654,7 +590,7 @@ tcInitTidyEnv
       | TcTvBndr name tyvar <- b
        = do { let (env', occ') = tidyOccName env (nameOccName name)
                   name'  = tidyNameOcc name occ'
-                  tyvar1 = setTyVarName tyvar name'
+                  tyvar1 = set tyVarNameL name' tyvar
             ; tyvar2 <- zonkTcTyVarToTyVar tyvar1
               -- Be sure to zonk here!  Tidying applies to zonked
               -- types, so if we don't zonk we may create an
@@ -665,11 +601,8 @@ tcInitTidyEnv
 
 -- | Get a 'TidyEnv' that includes mappings for all vars free in the given
 -- type. Useful when tidying open types.
-tcInitOpenTidyEnv :: [TyCoVar] -> TcM TidyEnv
-tcInitOpenTidyEnv tvs
-  = do { env1 <- tcInitTidyEnv
-       ; let env2 = tidyFreeTyCoVars env1 tvs
-       ; return env2 }
+tcInitOpenTidyEnv :: (IsReader m, MonadIO m, EnvType m ~ Env gbl TcLclEnv) => [TyCoVar] -> m TidyEnv
+tcInitOpenTidyEnv tvs = flip tidyFreeTyCoVars tvs <$> tcInitTidyEnv
 
 
 
@@ -776,16 +709,12 @@ lookup of A won't fail.
 ************************************************************************
 -}
 
-tcExtendRules :: [LRuleDecl GhcTc] -> TcM a -> TcM a
+tcExtendRules :: (IsLocal f f, EnvType f ~ Env TcGblEnv lcl) => [LRuleDecl GhcTc] -> f a -> f a
         -- Just pop the new rules into the EPS and envt resp
         -- All the rules come from an interface file, not source
         -- Nevertheless, some may be for this module, if we read
         -- its interface instead of its source code
-tcExtendRules lcl_rules thing_inside
- = do { env <- getGblEnv
-      ; let
-          env' = env { tcg_rules = lcl_rules ++ tcg_rules env }
-      ; setGblEnv env' thing_inside }
+tcExtendRules = locally (env_gblL . tcg_rulesL) . (++)
 
 {-
 ************************************************************************
@@ -836,9 +765,7 @@ tcMetaTy :: Name -> TcM Type
 -- Given the name of a Template Haskell data type,
 -- return the type
 -- E.g. given the name "Expr" return the type "Expr"
-tcMetaTy tc_name = do
-    t <- tcLookupTyCon tc_name
-    return (mkTyConTy t)
+tcMetaTy tc_name = mkTyConTy <$> tcLookupTyCon tc_name
 
 isBrackStage :: ThStage -> Bool
 isBrackStage (Brack {}) = True

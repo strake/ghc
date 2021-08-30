@@ -39,8 +39,6 @@ import GHC.Utils.Panic
 import GHC.Utils.Misc
 import GHC.Types.Var.Set
 
-import Data.Maybe ( mapMaybe )
-
 -- Note [When to lift]
 -- ~~~~~~~~~~~~~~~~~~~
 -- $when
@@ -305,14 +303,14 @@ tagSkeletonBinding is_lne body_skel body_arg_occs (StgRec pairs)
     -- calls anyway when we add them to the same top-level recursive group as
     -- the top-level binding currently being analysed.
     skel_occs_rhss' = map (uncurry tagSkeletonRhs) pairs
-    rhss_arg_occs = map sndOf3 skel_occs_rhss'
+    rhss_arg_occs = map snd3 skel_occs_rhss'
     scope_occs = unionVarSets (body_arg_occs:rhss_arg_occs)
     arg_occs = scope_occs `delVarSetList` bndrs
     -- @skel_rhss@ aren't yet wrapped in closures. We'll do that in a moment,
     -- but we also need the un-wrapped skeletons for calculating the @scope@
     -- of the group, as the outer closures don't contribute to closure growth
     -- when we lift this specific binding.
-    scope = foldr (bothSk . fstOf3) body_skel skel_occs_rhss'
+    scope = foldr (bothSk . fst3) body_skel skel_occs_rhss'
     -- Now we can build the actual Skeleton for the expression just by
     -- iterating over each bind pair.
     (bind_skels, pairs') = unzip (zipWith single_bind bndrs skel_occs_rhss')

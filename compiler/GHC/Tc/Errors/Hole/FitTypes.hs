@@ -19,8 +19,6 @@ import GHC.Types.Id
 import GHC.Utils.Outputable
 import GHC.Types.Name
 
-import Data.Function ( on )
-
 data TypedHole = TypedHole { th_relevant_cts :: Cts
                            -- ^ Any relevant Cts to the hole
                            , th_implics :: [Implication]

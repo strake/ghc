@@ -4,6 +4,7 @@
 # See #11317.
 test('prog003',
      [extra_files(['../shell.hs', 'A.hs', 'B.hs', 'C.hs', 'D1.hs', 'D2.hs']),
+      extra_hc_opts("-fno-ghci-leak-check"),
       when(opsys('mingw32'), skip),
       cmd_prefix('ghciWayFlags=' + config.ghci_way_flags)],
      ghci_script, ['prog003.script'])

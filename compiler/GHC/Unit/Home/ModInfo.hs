@@ -31,6 +31,8 @@ import GHC.Types.Unique.DFM
 
 import GHC.Utils.Outputable
 
+import Data.Foldable (toList)
+
 -- | Information about modules in the package being compiled
 data HomeModInfo = HomeModInfo
    { hm_iface    :: !ModIface
@@ -76,16 +78,16 @@ lookupHptDirectly :: HomePackageTable -> Unique -> Maybe HomeModInfo
 lookupHptDirectly = lookupUDFM_Directly
 
 eltsHpt :: HomePackageTable -> [HomeModInfo]
-eltsHpt = eltsUDFM
+eltsHpt = toList
 
 filterHpt :: (HomeModInfo -> Bool) -> HomePackageTable -> HomePackageTable
-filterHpt = filterUDFM
+filterHpt = filter
 
 allHpt :: (HomeModInfo -> Bool) -> HomePackageTable -> Bool
-allHpt = allUDFM
+allHpt = all
 
 mapHpt :: (HomeModInfo -> HomeModInfo) -> HomePackageTable -> HomePackageTable
-mapHpt = mapUDFM
+mapHpt = fmap
 
 delFromHpt :: HomePackageTable -> ModuleName -> HomePackageTable
 delFromHpt = delFromUDFM

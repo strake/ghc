@@ -222,7 +222,6 @@ import GHC.Utils.Misc
 import GHC.Types.Var.Env
 
 import Data.Bifunctor (second)
-import Data.Maybe (mapMaybe)
 import qualified Data.IntMap as IM
 
 --------------------------------------------------------------------------------
@@ -392,8 +391,7 @@ elimCase rho args bndr (MultiValAlt _) [(_, bndrs, rhs)]
              = mapTupleIdBinders bndrs args rho1
              | otherwise
              = assert (isUnboxedSumBndr bndr) $
-               if null bndrs then rho1
-                             else mapSumIdBinders bndrs args rho1
+               applyWhen (not $ null bndrs) (mapSumIdBinders bndrs args) rho1
 
        unariseExpr rho2 rhs
 
@@ -407,8 +405,7 @@ elimCase rho args bndr (MultiValAlt _) alts
                       StgVarArg v     -> StgApp v []
                       StgLitArg l     -> StgLit l
 
-       alts' <- unariseSumAlts rho1 real_args alts
-       return (StgCase scrut' tag_bndr tagAltTy alts')
+       StgCase scrut' tag_bndr tagAltTy <$> unariseSumAlts rho1 real_args alts
 
 elimCase _ args bndr alt_ty alts
   = pprPanic "elimCase - unhandled case"
@@ -444,7 +441,10 @@ unariseAlts rho (MultiValAlt _) bndr [(DEFAULT, _, rhs)]
 
 unariseAlts rho (MultiValAlt _) bndr alts
   | isUnboxedSumBndr bndr
-  = do (rho_sum_bndrs, scrt_bndrs@(tag_bndr : real_bndrs)) <- unariseConArgBinder rho bndr
+  = do (rho_sum_bndrs, scrt_bndrs) <- unariseConArgBinder rho bndr
+       let (tag_bndr, real_bndrs) = case scrt_bndrs of
+               x:xs -> (x, xs)
+               _ -> panic "unariseAlts: empty scrt_bndrs"
        alts' <- unariseSumAlts rho_sum_bndrs (map StgVarArg real_bndrs) alts
        let inner_case = StgCase (StgApp tag_bndr []) tag_bndr tagAltTy alts'
        return [ (DataAlt (tupleDataCon Unboxed (length scrt_bndrs)),
@@ -452,7 +452,7 @@ unariseAlts rho (MultiValAlt _) bndr alts
                  inner_case) ]
 
 unariseAlts rho _ _ alts
-  = mapM (\alt -> unariseAlt rho alt) alts
+  = traverse (unariseAlt rho) alts
 
 unariseAlt :: UnariseEnv -> StgAlt -> UniqSM StgAlt
 unariseAlt rho (con, xs, e)
@@ -680,9 +680,9 @@ unariseArgBinder is_con_arg rho x =
       | otherwise
       -> return (rho, [x])
 
-    reps -> do
-      xs <- mkIds (mkFastString "us") (map primRepToType reps)
-      return (extendRho rho x (MultiVal (map StgVarArg xs)), xs)
+    reps ->
+      traverse (mkId (mkFastString "us") . primRepToType) reps <₪> \ xs ->
+      (extendRho rho x (MultiVal (map StgVarArg xs)), xs)
 
 --------------------------------------------------------------------------------
 
@@ -735,9 +735,6 @@ unariseConArgBinder :: UnariseEnv -> Id -> UniqSM (UnariseEnv, [Id])
 unariseConArgBinder = unariseArgBinder True
 
 --------------------------------------------------------------------------------
-
-mkIds :: FastString -> [UnaryType] -> UniqSM [Id]
-mkIds fs tys = mapM (mkId fs) tys
 
 mkId :: FastString -> UnaryType -> UniqSM Id
 mkId = mkSysLocalM

@@ -19,7 +19,6 @@ import GHC.Cmm.Dataflow.Graph
 import GHC.Cmm.Dataflow.Label
 import GHC.Cmm.Dataflow.Collections
 import Data.Bits
-import Data.Maybe (mapMaybe)
 import qualified Data.List as List
 import Data.Word
 import qualified Data.Map as M
@@ -29,6 +28,9 @@ import qualified GHC.Data.TrieMap as TM
 import GHC.Types.Unique.FM
 import GHC.Types.Unique
 import Control.Arrow (first, second)
+import Data.Foldable (toList)
+import Data.List.NonEmpty (NonEmpty (..))
+import qualified Data.List.NonEmpty as NEL
 
 -- -----------------------------------------------------------------------------
 -- Eliminate common blocks
@@ -67,7 +69,7 @@ elimCommonBlocks g = replaceLabels env $ copyTicks env g
      -- revPostorder which drops unreachable blocks this is done in
      -- ContFlowOpt already which runs before this pass. So we use
      -- toBlockList since it is faster.
-     groups = groupByInt hash_block (toBlockList g) :: [[CmmBlock]]
+     groups = toList <$> groupByInt hash_block (toBlockList g) :: [[CmmBlock]]
      blocks_with_key = [ [ (successors b, [b]) | b <- bs] | bs <- groups]
 
 -- Invariant: The blocks in the list are pairwise distinct
@@ -79,11 +81,11 @@ type Subst = LabelMap BlockId
 -- The outer list groups by hash. We retain this grouping throughout.
 iterate :: Subst -> [[(Key, DistinctBlocks)]] -> Subst
 iterate subst blocks
-    | mapNull new_substs = subst
+    | null new_substs = subst
     | otherwise = iterate subst' updated_blocks
   where
     grouped_blocks :: [[(Key, [DistinctBlocks])]]
-    grouped_blocks = map groupByLabel blocks
+    grouped_blocks = (fmap . fmap) toList . groupByLabel <$> blocks
 
     merged_blocks :: [[(Key, DistinctBlocks)]]
     (new_substs, merged_blocks) = List.mapAccumL (List.mapAccumL go) mapEmpty grouped_blocks
@@ -283,8 +285,8 @@ eqListWith _ _        _        = False
 -- necessary.
 copyTicks :: LabelMap BlockId -> CmmGraph -> CmmGraph
 copyTicks env g
-  | mapNull env = g
-  | otherwise   = ofBlockMap (g_entry g) $ mapMap copyTo blockMap
+  | null env = g
+  | otherwise   = ofBlockMap (g_entry g) $ fmap copyTo blockMap
   where -- Reverse block merge map
         blockMap = toBlockMap g
         revEnv = mapFoldlWithKey insertRev M.empty env
@@ -302,20 +304,20 @@ copyTicks env g
 
 -- Group by [Label]
 -- See Note [Compressed TrieMap] in GHC.Core.Map about the usage of GenMap.
-groupByLabel :: [(Key, DistinctBlocks)] -> [(Key, [DistinctBlocks])]
+groupByLabel :: [(Key, DistinctBlocks)] -> [(Key, NonEmpty DistinctBlocks)]
 groupByLabel =
-  go (TM.emptyTM :: TM.ListMap (TM.GenMap LabelMap) (Key, [DistinctBlocks]))
+  go (TM.emptyTM :: TM.ListMap (TM.GenMap LabelMap) (Key, NonEmpty DistinctBlocks))
     where
-      go !m [] = TM.foldTM (:) m []
+      go !m [] = toList m
       go !m ((k,v) : entries) = go (TM.alterTM k adjust m) entries
         where --k' = map (getKey . getUnique) k
-              adjust Nothing       = Just (k,[v])
-              adjust (Just (_,vs)) = Just (k,v:vs)
+              adjust Nothing       = Just (k, pure v)
+              adjust (Just (_,vs)) = Just (k, v NEL.<| vs)
 
-groupByInt :: (a -> Int) -> [a] -> [[a]]
+groupByInt :: (a -> Int) -> [a] -> [NonEmpty a]
 groupByInt f xs = nonDetEltsUFM $ List.foldl' go emptyUFM xs
    -- See Note [Unique Determinism and code generation]
   where
     go m x = alterUFM addEntry m (f x)
       where
-        addEntry xs = Just $! maybe [x] (x:) xs
+        addEntry xs = Just $! maybe (pure x) (x NEL.<|) xs

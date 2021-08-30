@@ -51,10 +51,11 @@ import GHC.Cmm.DebugBlock
    )
 import GHC.CmmToAsm.PIC
 import GHC.CmmToAsm.Monad
-   ( NatM, getNewRegNat, getNewLabelNat, setDeltaNat
+   ( NatM, getNewRegNat, getNewLabelNat
    , getDeltaNat, getBlockIdNat, getPicBaseNat, getNewRegPairNat
    , getPicBaseMaybeNat, getDebugBlock, getFileId
-   , addImmediateSuccessorNat, updateCfgNat, getConfig, getPlatform
+   , addImmediateSuccessorNat, getConfig, getPlatform
+   , natm_cfgL, natm_deltaL
    )
 import GHC.CmmToAsm.CFG
 import GHC.CmmToAsm.Format
@@ -81,6 +82,7 @@ import GHC.Types.SrcLoc  ( srcSpanFile, srcSpanStartLine, srcSpanStartCol )
 import GHC.Types.ForeignCall ( CCallConv(..) )
 import GHC.Data.OrdList
 import GHC.Utils.Constants (debugIsOn)
+import GHC.Utils.Lens.Monad
 import GHC.Utils.Outputable
 import GHC.Utils.Panic
 import GHC.Utils.Panic.Plain
@@ -91,9 +93,9 @@ import GHC.Types.Unique.Supply ( getUniqueM )
 
 import Control.Monad
 import Data.Bits
-import Data.Foldable (fold)
+import Data.Foldable (fold, toList)
 import Data.Int
-import Data.Maybe
+import Data.Maybe (fromJust)
 import Data.Word
 
 import qualified Data.Map as M
@@ -205,14 +207,14 @@ basicBlockCodeGen block = do
   (!tail_instrs,_) <- stmtToInstrs mid_bid tail
   let instrs = loc_instrs `appOL` mid_instrs `appOL` tail_instrs
   platform <- getPlatform
-  return $! verifyBasicBlock platform (fromOL instrs)
+  return $! verifyBasicBlock platform (toList instrs)
   instrs' <- fold <$> traverse addSpUnwindings instrs
   -- code generation may introduce new basic block boundaries, which
   -- are indicated by the NEWBLOCK instruction.  We must split up the
   -- instruction stream into basic blocks again.  Also, we extract
   -- LDATAs here too.
   let
-        (top,other_blocks,statics) = foldrOL mkBlocks ([],[],[]) instrs'
+        (top,other_blocks,statics) = foldr mkBlocks ([],[],[]) instrs'
 
         mkBlocks (NEWBLOCK id) (instrs,blocks,statics)
           = ([], BasicBlock id instrs : blocks, statics)
@@ -1889,7 +1891,7 @@ genCondBranch' _ bid id false bool = do
                   JXX cond id,
                   JXX ALWAYS false
                 ]
-        updateCfgNat (\cfg -> adjustEdgeWeight cfg (+3) bid false)
+        modifying_ natm_cfgL \cfg -> adjustEdgeWeight cfg (+3) bid false
         return (cond_code `appOL` code)
 
 {-  Note [Introducing cfg edges inside basic blocks]
@@ -2070,7 +2072,7 @@ genCCall is32Bit (PrimTarget (MO_AtomicRMW width amop))
             --  with a self loop on A'.
             addImmediateSuccessorNat bid lbl1
             addImmediateSuccessorNat lbl1 lbl2
-            updateCfgNat (addWeightEdge lbl1 lbl1 0)
+            modifying_ natm_cfgL (addWeightEdge lbl1 lbl1 0)
 
             return $ (toOL
                 [ MOV format (OpAddr amode) (OpReg eax)
@@ -2107,7 +2109,7 @@ genCCall is32Bit (PrimTarget (MO_Ctz width)) [dst] [src] bid
       --  bid -> lbl1 -> lbl2
       --  We also changes edges originating at bid to start at lbl2 instead.
       dflags <- getDynFlags
-      updateCfgNat (addWeightEdge bid lbl1 110 .
+      modifying_ natm_cfgL (addWeightEdge bid lbl1 110 .
                     addWeightEdge lbl1 lbl2 110 .
                     addImmediateSuccessor dflags bid lbl2)
 
@@ -2759,8 +2761,7 @@ genCCall32' target dest_regs args = do
             push_arg  arg -- we don't need the hints on x86
               | isWord64 arg_ty = do
                 ChildCode64 code r_lo <- iselExpr64 arg
-                delta <- getDeltaNat
-                setDeltaNat (delta - 8)
+                delta <- modifying natm_deltaL (+ negate 8)
                 let r_hi = getHiVRegFromLo r_lo
                 return (       code `appOL`
                                toOL [PUSH II32 (OpReg r_hi), DELTA (delta - 4),
@@ -2770,8 +2771,7 @@ genCCall32' target dest_regs args = do
 
               | isFloatType arg_ty = do
                 (reg, code) <- getSomeReg arg
-                delta <- getDeltaNat
-                setDeltaNat (delta-size)
+                delta <- modifying natm_deltaL (+ negate size)
                 return (code `appOL`
                                 toOL [SUB II32 (OpImm (ImmInt size)) (OpReg esp),
                                       DELTA (delta-size),
@@ -2793,8 +2793,7 @@ genCCall32' target dest_regs args = do
                 -- 4-byte aligned.
                 massert ((typeWidth arg_ty) <= W32)
                 (operand, code) <- getOperand arg
-                delta <- getDeltaNat
-                setDeltaNat (delta-size)
+                delta <- modifying natm_deltaL (+ negate size)
                 return (code `snocOL`
                         PUSH II32 operand `snocOL`
                         DELTA (delta-size))
@@ -2813,8 +2812,7 @@ genCCall32' target dest_regs args = do
             tot_arg_size        = raw_arg_size + arg_pad_size - platformWordSizeInBytes platform
 
 
-        delta0 <- getDeltaNat
-        setDeltaNat (delta0 - arg_pad_size)
+        delta0 <- modifying natm_deltaL (+ negate arg_pad_size)
 
         push_codes <- mapM push_arg (reverse prom_args)
         delta <- getDeltaNat
@@ -2859,7 +2857,7 @@ genCCall32' target dest_regs args = do
                       ++
                       [DELTA delta0]
                    )
-        setDeltaNat delta0
+        setting_ natm_deltaL delta0
 
         let
             -- assign the results, if necessary
@@ -3004,8 +3002,7 @@ genCCall64' target dest_regs args = do
         push_args (arg:rest) code
            | isFloatType arg_rep = do
              (arg_reg, arg_code) <- getSomeReg arg
-             delta <- getDeltaNat
-             setDeltaNat (delta-arg_size)
+             delta <- modifying natm_deltaL (+ negate arg_size)
              let code' = code `appOL` arg_code `appOL` toOL [
                             SUB (intFormat (wordWidth platform)) (OpImm (ImmInt arg_size)) (OpReg rsp),
                             DELTA (delta-arg_size),
@@ -3018,8 +3015,7 @@ genCCall64' target dest_regs args = do
              -- 8-byte aligned.
              massert (width <= W64)
              (arg_op, arg_code) <- getOperand arg
-             delta <- getDeltaNat
-             setDeltaNat (delta-arg_size)
+             delta <- modifying natm_deltaL (+ negate arg_size)
              let code' = code `appOL` arg_code `appOL` toOL [
                                     PUSH II64 arg_op,
                                     DELTA (delta-arg_size)]
@@ -3029,8 +3025,7 @@ genCCall64' target dest_regs args = do
               width = typeWidth arg_rep
 
         leaveStackSpace n = do
-             delta <- getDeltaNat
-             setDeltaNat (delta - n * arg_size)
+             delta <- modifying natm_deltaL (+ negate (n * arg_size))
              return $ toOL [
                          SUB II64 (OpImm (ImmInt (n * platformWordSizeInBytes platform))) (OpReg rsp),
                          DELTA (delta - n * arg_size)]
@@ -3069,8 +3064,7 @@ genCCall64' target dest_regs args = do
         if (tot_arg_size + word_size) `rem` 16 == 0
             then return (tot_arg_size, nilOL)
             else do -- we need to adjust...
-                delta <- getDeltaNat
-                setDeltaNat (delta - word_size)
+                delta <- modifying natm_deltaL (+ negate word_size)
                 return (tot_arg_size + word_size, toOL [
                                 SUB II64 (OpImm (ImmInt word_size)) (OpReg rsp),
                                 DELTA (delta - word_size) ])
@@ -3119,7 +3113,7 @@ genCCall64' target dest_regs args = do
                   ++
                   [DELTA (delta + real_size)]
                )
-    setDeltaNat (delta + real_size)
+    setting_ natm_deltaL (delta + real_size)
 
     let
         -- assign the results, if necessary

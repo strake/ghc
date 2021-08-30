@@ -391,7 +391,7 @@ substInteractiveContext ictxt@InteractiveContext{ ic_tythings = tts } subst
   | otherwise             = ictxt { ic_tythings = map subst_ty tts }
   where
     subst_ty (AnId id)
-      = AnId $ updateIdType (substTyAddInScope subst) id
+      = AnId $ over idTypeL (substTyAddInScope subst) id
       -- Variables in the interactive context *can* mention free type variables
       -- because of the runtime debugger. Otherwise you'd expect all
       -- variables bound in the interactive context to be closed.

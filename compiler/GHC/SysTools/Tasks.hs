@@ -25,7 +25,7 @@ import GHC.Utils.Error
 import GHC.Utils.Outputable
 import GHC.Utils.Misc
 
-import Data.List
+import Data.List hiding (filter)
 import System.IO
 import System.Process
 

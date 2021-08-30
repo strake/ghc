@@ -201,7 +201,6 @@ But it doesn't work, for if x=empty, we would have
 -- ---------------------------------------------------------------------------
 -- Operator fixity
 
-infixl 6 <>
 infixl 6 <+>
 infixl 5 $$, $+$
 
@@ -332,6 +331,9 @@ zeroWidthText = sizedText 0
 -- in the argument list for 'sep', 'hcat', 'hsep', 'vcat', 'fcat' etc.
 empty :: Doc
 empty = Empty
+
+instance Monoid Doc where
+    mempty = Empty
 
 -- | Returns 'True' if the document is empty
 isEmpty :: Doc -> Bool
@@ -665,8 +667,8 @@ nilAboveNest g k q           | not g && k > 0      -- No newline if no overlap
 
 -- | Beside.
 -- '<>' is associative, with identity 'empty'.
-(<>) :: Doc -> Doc -> Doc
-p <>  q = beside_ p False q
+instance Semigroup Doc where
+    p <> q = beside_ p False q
 
 -- | Beside, separated by space, unless one of the arguments is 'empty'.
 -- '<+>' is associative, with identity 'empty'.

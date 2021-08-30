@@ -166,6 +166,7 @@ import GHC.Types.Unique.Set
 import GHC.Unit.Module
 
 import qualified Data.Data as Data
+import Data.Foldable (toList)
 
 {-
 -----------------------------------------------
@@ -1539,7 +1540,7 @@ primRepIsFloat  _            = Just False
 
 -- | The labels for the fields of this particular 'TyCon'
 tyConFieldLabels :: TyCon -> [FieldLabel]
-tyConFieldLabels tc = dFsEnvElts $ tyConFieldLabelEnv tc
+tyConFieldLabels = toList . tyConFieldLabelEnv
 
 -- | The labels for the fields of this particular 'TyCon'
 tyConFieldLabelEnv :: TyCon -> FieldLabelEnv

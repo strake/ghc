@@ -1,3 +1,4 @@
+{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ExistentialQuantification #-}
 
@@ -40,9 +41,8 @@ import GHC.Data.Maybe
 import GHC.Utils.FV ( fvVarList, fvVarSet, unionFV, mkFVs, FV )
 
 import Control.Arrow ( (&&&) )
-
 import Control.Monad    ( filterM, replicateM, foldM )
-import Data.List        ( partition, sort, sortOn, nubBy )
+import Data.List        ( sort, sortOn )
 import Data.Graph       ( graphFromEdges, topSort )
 
 
@@ -473,9 +473,9 @@ pprHoleFit (HFDC sWrp sWrpVars sTy sProv sMs) (HoleFit {..}) =
        holeDisp = if sMs then holeVs
                   else sep $ replicate (length hfMatches) $ text "_"
        occDisp = pprPrefixOcc name
-       tyDisp = ppWhen sTy $ dcolon <+> ppr hfType
+       tyDisp = mwhen sTy $ dcolon <+> ppr hfType
        has = not . null
-       wrapDisp = ppWhen (has hfWrap && (sWrp || sWrpVars))
+       wrapDisp = mwhen (has hfWrap && (sWrp || sWrpVars))
                    $ text "with" <+> if sWrp || not sTy
                                      then occDisp <+> tyApp
                                      else tyAppVars
@@ -484,11 +484,11 @@ pprHoleFit (HFDC sWrp sWrpVars sTy sProv sMs) (HoleFit {..}) =
                           (vcat . map text . lines . unpackHDS) d
                           <> text "-}"
                 _ -> empty
-       funcInfo = ppWhen (has hfMatches && sTy) $
+       funcInfo = mwhen (has hfMatches && sTy) $
                     text "where" <+> occDisp <+> tyDisp
        subDisp = occDisp <+> if has hfMatches then holeDisp else tyDisp
        display =  subDisp $$ nest 2 (funcInfo $+$ docs $+$ wrapDisp)
-       provenance = ppWhen sProv $ parens $
+       provenance = mwhen sProv $ parens $
              case hfCand of
                  GreHFCand gre -> pprNameProvenance gre
                  _ -> text "bound at" <+> ppr (getSrcLoc name)
@@ -561,10 +561,10 @@ findValidHoleFits tidy_env implics simples h@(Hole { hole_sort = ExprHole _
      ; let (pVDisc, limited_subs) = possiblyDiscard maxVSubs plugin_handled_subs
            vDiscards = pVDisc || searchDiscards
      ; subs_with_docs <- addDocs limited_subs
-     ; let vMsg = ppUnless (null subs_with_docs) $
+     ; let vMsg = munless (null subs_with_docs) $
                     hang (text "Valid hole fits include") 2 $
                       vcat (map (pprHoleFit hfdc) subs_with_docs)
-                        $$ ppWhen vDiscards subsDiscardMsg
+                        $$ mwhen vDiscards subsDiscardMsg
      -- Refinement hole fits. See Note [Valid refinement hole fits include ...]
      ; (tidy_env, refMsg) <- if refLevel >= Just 0 then
          do { maxRSubs <- maxRefHoleFits <$> getDynFlags
@@ -595,10 +595,10 @@ findValidHoleFits tidy_env implics simples h@(Hole { hole_sort = ExprHole _
                   rDiscards = pRDisc || any fst refDs
             ; rsubs_with_docs <- addDocs exact_last_rfits
             ; return (tidy_env,
-                ppUnless (null rsubs_with_docs) $
+                munless (null rsubs_with_docs) $
                   hang (text "Valid refinement hole fits include") 2 $
                   vcat (map (pprHoleFit hfdc) rsubs_with_docs)
-                    $$ ppWhen rDiscards refSubsDiscardMsg) }
+                    $$ mwhen rDiscards refSubsDiscardMsg) }
        else return (tidy_env, empty)
      ; traceTc "findingValidHoleFitsFor }" empty
      ; return (tidy_env, vMsg $$ refMsg) }
@@ -901,7 +901,7 @@ withoutUnification free_vars action =
      ; mapM_ restore flexis
      ; return result }
   where restore tv = do { traceTc "withoutUnification: restore flexi" (ppr tv)
-                        ; writeTcRef (metaTyVarRef tv) Flexi }
+                        ; writeMutVar (metaTyVarRef tv) Flexi }
         fuvs = fvVarList free_vars
 
 -- | Reports whether first type (ty_a) subsumes the second type (ty_b),
@@ -946,7 +946,7 @@ tcCheckHoleFit (TypedHole {..}) hole_ty ty = discardErrs $
        else do { fresh_binds <- newTcEvBinds
                 -- The relevant constraints may contain HoleDests, so we must
                 -- take care to clone them as well (to avoid #15370).
-               ; cloned_relevants <- mapBagM cloneWanted th_relevant_cts
+               ; cloned_relevants <- traverse cloneWanted th_relevant_cts
                  -- We wrap the WC in the nested implications, see
                  -- Note [Checking hole fits]
                ; let outermost_first = reverse th_implics

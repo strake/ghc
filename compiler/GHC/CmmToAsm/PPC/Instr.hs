@@ -59,7 +59,6 @@ import GHC.Types.Unique.FM (listToUFM, lookupUFM)
 import GHC.Types.Unique.Supply
 
 import Control.Monad (replicateM)
-import Data.Maybe (fromMaybe)
 
 --------------------------------------------------------------------------------
 -- Format of a PPC memory address.
@@ -704,6 +703,6 @@ makeFarBranches info_env blocks
         -- we have a few pseudo-insns that are pretty-printed as
         -- multiple instructions, and it's just not worth the effort
         -- to calculate things exactly
-        nearLimit = 7000 - mapSize info_env * maxRetInfoTableSizeW
+        nearLimit = 7000 - length info_env * maxRetInfoTableSizeW
 
         blockAddressMap = listToUFM $ zip (map blockId blocks) blockAddresses

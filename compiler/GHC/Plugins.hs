@@ -71,7 +71,7 @@ import GHC.Types.Name.Reader
 import GHC.Types.Name.Occurrence  hiding  ( varName {- conflicts with Var.varName -} )
 import GHC.Types.Name     hiding  ( varName {- reexport from OccName, conflicts with Var.varName -} )
 import GHC.Types.Var
-import GHC.Types.Id       hiding  ( lazySetIdInfo, setIdExported, setIdNotExported {- all three conflict with Var -} )
+import GHC.Types.Id       hiding  ( lazySetIdInfo, setIdExported, setIdNotExported, idTypeL {- all three conflict with Var -} )
 import GHC.Types.Id.Info
 
 -- Core
@@ -130,7 +130,6 @@ import Data.Maybe
 
 import GHC.Iface.Env    ( lookupOrigIO )
 import GHC.Prelude
-import GHC.Utils.Monad  ( mapMaybeM )
 import GHC.ThToHs       ( thRdrNameGuesses )
 import GHC.Tc.Utils.Env ( lookupGlobal )
 
@@ -160,7 +159,7 @@ instance MonadThings CoreM where
 -- will be bound to the name they represent, exactly.
 thNameToGhcName :: TH.Name -> CoreM (Maybe Name)
 thNameToGhcName th_name
-  =  do { names <- mapMaybeM lookup (thRdrNameGuesses th_name)
+  =  do { names <- mapMaybeA lookup (thRdrNameGuesses th_name)
           -- Pick the first that works
           -- E.g. reify (mkName "A") will pick the class A in preference
           -- to the data constructor A

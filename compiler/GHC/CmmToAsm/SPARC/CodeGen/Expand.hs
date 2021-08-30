@@ -23,6 +23,8 @@ import GHC.Utils.Outputable
 import GHC.Utils.Panic
 import GHC.Data.OrdList
 
+import Data.Foldable (toList)
+
 -- | Expand out synthetic instructions in this top level thing
 expandTop :: NatCmmDecl RawCmmStatics Instr -> NatCmmDecl RawCmmStatics Instr
 expandTop top@(CmmData{})
@@ -37,7 +39,7 @@ expandBlock :: NatBasicBlock Instr -> NatBasicBlock Instr
 
 expandBlock (BasicBlock label instrs)
  = let  instrs_ol       = expandBlockInstrs instrs
-        instrs'         = fromOL instrs_ol
+        instrs'         = toList instrs_ol
    in   BasicBlock label instrs'
 
 

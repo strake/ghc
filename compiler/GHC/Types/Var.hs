@@ -7,8 +7,11 @@
 
 {-# LANGUAGE FlexibleContexts, MultiWayIf, FlexibleInstances, DeriveDataTypeable,
              PatternSynonyms, BangPatterns #-}
+{-# LANGUAGE CPP #-}
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns   #-}
 {-# OPTIONS_GHC -Wno-incomplete-record-updates #-}
+
+#include "lens.h"
 
 -- |
 -- #name_types#
@@ -45,18 +48,16 @@ module GHC.Types.Var (
         OutVar, OutCoVar, OutId, OutTyVar,
 
         -- ** Taking 'Var's apart
-        varName, varUnique, varType,
+        varName, varNameL, varUnique, varUniqueL, varType, varTypeL,
 
         -- ** Modifying 'Var's
-        setVarName, setVarUnique, setVarType,
-        updateVarType, updateVarTypeM,
 
         -- ** Constructing, taking apart, modifying 'Id's
         mkGlobalVar, mkLocalVar, mkExportedLocalVar, mkCoVar,
         idInfo, idDetails,
         lazySetIdInfo, setIdDetails, globaliseId,
         setIdExported, setIdNotExported,
-        updateIdType, updateIdTypeM,
+        idTypeL,
 
         -- ** Predicates
         isId, isTyVar, isTcTyVar,
@@ -72,11 +73,11 @@ module GHC.Types.Var (
 
         -- * TyVar's
         VarBndr(..), TyCoVarBinder, TyVarBinder, InvisTVBinder,
-        binderVar, binderVars, binderArgFlag, binderType,
+        binderVar, binderVars, binderVarL, binderArgFlag, binderType,
         mkTyCoVarBinder, mkTyCoVarBinders,
         mkTyVarBinder, mkTyVarBinders,
         isTyVarBinder, tyVarSpecToBinder, tyVarSpecToBinders,
-        mapVarBndr, mapVarBndrs, lookupVarBndr,
+        lookupVarBndr,
 
         -- ** Constructing TyVar's
         mkTyVar, mkTcTyVar,
@@ -85,8 +86,7 @@ module GHC.Types.Var (
         tyVarName, tyVarKind, tcTyVarDetails, setTcTyVarDetails,
 
         -- ** Modifying 'TyVar's
-        setTyVarName, setTyVarUnique, setTyVarKind, updateTyVarKind,
-        updateTyVarKindM,
+        tyVarNameL, tyVarUniqueL, tyVarKindL,
 
         nonDetCmpVar
 
@@ -109,6 +109,9 @@ import GHC.Utils.Panic
 import GHC.Utils.Panic.Plain
 
 import Data.Data
+import Data.Maybe (listToMaybe)
+import Lens.Micro (lens)
+import Lens.Micro.Extras (view)
 
 {-
 ************************************************************************
@@ -254,6 +257,19 @@ data Var
         id_details :: IdDetails,        -- Stable, doesn't change
         id_info    :: IdInfo }          -- Unstable, updated by simplifier
 
+LENS_FIELD(varTypeL, varType)
+
+varUnique :: Var -> Unique
+varUnique = view varUniqueL
+
+varUniqueL :: Lens' Var Unique
+varUniqueL = lens (mkUniqueGrimily . realUnique) \ var uniq ->
+    var { realUnique = getKey uniq, varName = set nameUniqueL uniq (varName var) }
+
+varNameL :: Lens' Var Name
+varNameL  = lens varName \ var name ->
+    var { realUnique = getKey (getUnique name), varName = name }
+
 -- | Identifier Scope
 data IdScope    -- See Note [GlobalId/LocalId]
   = GlobalId
@@ -337,7 +353,7 @@ instance NamedThing Var where
   getName = varName
 
 instance Uniquable Var where
-  getUnique = varUnique
+  getUnique = view varUniqueL
 
 instance Eq Var where
     a == b = realUnique a == realUnique b
@@ -347,14 +363,14 @@ instance Ord Var where
     a <  b = realUnique a <  realUnique b
     a >= b = realUnique a >= realUnique b
     a >  b = realUnique a >  realUnique b
-    a `compare` b = a `nonDetCmpVar` b
+    compare = nonDetCmpVar
 
 -- | Compare Vars by their Uniques.
 -- This is what Ord Var does, provided here to make it explicit at the
 -- call-site that it can introduce non-determinism.
 -- See Note [Unique Determinism]
 nonDetCmpVar :: Var -> Var -> Ordering
-nonDetCmpVar a b = varUnique a `nonDetCmpUnique` varUnique b
+nonDetCmpVar = nonDetCmpUnique `on` view varUniqueL
 
 instance Data Var where
   -- don't traverse?
@@ -364,29 +380,6 @@ instance Data Var where
 
 instance HasOccName Var where
   occName = nameOccName . varName
-
-varUnique :: Var -> Unique
-varUnique var = mkUniqueGrimily (realUnique var)
-
-setVarUnique :: Var -> Unique -> Var
-setVarUnique var uniq
-  = var { realUnique = getKey uniq,
-          varName = setNameUnique (varName var) uniq }
-
-setVarName :: Var -> Name -> Var
-setVarName var new_name
-  = var { realUnique = getKey (getUnique new_name),
-          varName = new_name }
-
-setVarType :: Var -> Type -> Var
-setVarType id ty = id { varType = ty }
-
-updateVarType :: (Type -> Type) -> Id -> Id
-updateVarType f id = id { varType = f (varType id) }
-
-updateVarTypeM :: Monad m => (Type -> m Type) -> Id -> m Id
-updateVarTypeM f id = do { ty' <- f (varType id)
-                         ; return (id { varType = ty' }) }
 
 {- *********************************************************************
 *                                                                      *
@@ -609,6 +602,9 @@ types.  -}
 data VarBndr var argf = Bndr var argf
   deriving( Data )
 
+binderVarL :: Lens (VarBndr u argf) (VarBndr v argf) u v
+binderVarL f (Bndr u a) = flip Bndr a <$> f u
+
 -- | Variable Binder
 --
 -- A 'TyCoVarBinder' is the binder of a ForAllTy
@@ -620,17 +616,17 @@ type TyCoVarBinder     = VarBndr TyCoVar ArgFlag
 type TyVarBinder       = VarBndr TyVar ArgFlag
 type InvisTVBinder     = VarBndr TyVar Specificity
 
-tyVarSpecToBinders :: [VarBndr a Specificity] -> [VarBndr a ArgFlag]
-tyVarSpecToBinders = map tyVarSpecToBinder
+tyVarSpecToBinders :: Functor f => f (VarBndr a Specificity) -> f (VarBndr a ArgFlag)
+tyVarSpecToBinders = fmap tyVarSpecToBinder
 
-tyVarSpecToBinder :: (VarBndr a Specificity) -> (VarBndr a ArgFlag)
+tyVarSpecToBinder :: VarBndr a Specificity -> VarBndr a ArgFlag
 tyVarSpecToBinder (Bndr tv vis) = Bndr tv (Invisible vis)
 
 binderVar :: VarBndr tv argf -> tv
 binderVar (Bndr v _) = v
 
-binderVars :: [VarBndr tv argf] -> [tv]
-binderVars tvbs = map binderVar tvbs
+binderVars :: Functor f => f (VarBndr tv argf) -> f tv
+binderVars = fmap binderVar
 
 binderArgFlag :: VarBndr tv argf -> argf
 binderArgFlag (Bndr _ argf) = argf
@@ -661,16 +657,8 @@ mkTyVarBinders vis = map (mkTyVarBinder vis)
 isTyVarBinder :: TyCoVarBinder -> Bool
 isTyVarBinder (Bndr v _) = isTyVar v
 
-mapVarBndr :: (var -> var') -> (VarBndr var flag) -> (VarBndr var' flag)
-mapVarBndr f (Bndr v fl) = Bndr (f v) fl
-
-mapVarBndrs :: (var -> var') -> [VarBndr var flag] -> [VarBndr var' flag]
-mapVarBndrs f = map (mapVarBndr f)
-
 lookupVarBndr :: Eq var => var -> [VarBndr var flag] -> Maybe flag
-lookupVarBndr var bndrs = lookup var zipped_bndrs
-  where
-    zipped_bndrs = map (\(Bndr v f) -> (v,f)) bndrs
+lookupVarBndr var bndrs = listToMaybe [f | Bndr v f <- bndrs, v == var]
 
 instance Outputable tv => Outputable (VarBndr tv ArgFlag) where
   ppr (Bndr v Required)  = ppr v
@@ -702,22 +690,14 @@ tyVarName = varName
 tyVarKind :: TyVar -> Kind
 tyVarKind = varType
 
-setTyVarUnique :: TyVar -> Unique -> TyVar
-setTyVarUnique = setVarUnique
+tyVarUniqueL :: Lens' TyVar Unique
+tyVarUniqueL = varUniqueL
 
-setTyVarName :: TyVar -> Name -> TyVar
-setTyVarName   = setVarName
+tyVarNameL :: Lens' TyVar Name
+tyVarNameL   = varNameL
 
-setTyVarKind :: TyVar -> Kind -> TyVar
-setTyVarKind tv k = tv {varType = k}
-
-updateTyVarKind :: (Kind -> Kind) -> TyVar -> TyVar
-updateTyVarKind update tv = tv {varType = update (tyVarKind tv)}
-
-updateTyVarKindM :: (Monad m) => (Kind -> m Kind) -> TyVar -> m TyVar
-updateTyVarKindM update tv
-  = do { k' <- update (tyVarKind tv)
-       ; return $ tv {varType = k'} }
+tyVarKindL :: Lens' TyVar Kind
+tyVarKindL = varTypeL
 
 mkTyVar :: Name -> Kind -> TyVar
 mkTyVar name kind = TyVar { varName    = name
@@ -811,13 +791,8 @@ setIdNotExported id = assert (isLocalId id) $
                       id { idScope = LocalId NotExported }
 
 -----------------------
-updateIdType :: (Type -> Type) -> Id -> Id
-updateIdType f id = id { varType = f (varType id) }
-
-updateIdTypeM :: Monad m => (Type -> m Type) -> Id -> m Id
-updateIdTypeM f id@(Id { varType = ty })
-  = [id { varType = ty' } | !ty' <- f ty]
-updateIdTypeM _ other = pprPanic "updateIdTypeM" (ppr other)
+idTypeL :: Lens' Id Type
+idTypeL = varTypeL
 
 {-
 ************************************************************************

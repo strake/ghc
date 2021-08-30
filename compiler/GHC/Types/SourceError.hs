@@ -16,6 +16,7 @@ import GHC.Utils.Monad
 import GHC.Utils.Panic
 import GHC.Utils.Exception
 
+import Data.Foldable (toList)
 import Control.Monad.Catch as MC (MonadCatch, catch)
 
 mkSrcErr :: ErrorMessages -> SourceError
@@ -49,7 +50,7 @@ throwOneError = throwErrors . unitBag
 newtype SourceError = SourceError ErrorMessages
 
 instance Show SourceError where
-  show (SourceError msgs) = unlines . map show . bagToList $ msgs
+  show (SourceError msgs) = unlines . map show . toList $ msgs
 
 instance Exception SourceError
 

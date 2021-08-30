@@ -16,7 +16,6 @@ import GHC.Types.Unique.FM
 import GHC.Types.Unique.Set
 import GHC.Types.Unique.Supply
 
-
 -- | Do register coalescing on this top level thing
 --
 --   For Reg -> Reg moves, if the first reg dies at the same time the
@@ -33,8 +32,7 @@ regCoalesce code
         let joins       = foldl' unionBags emptyBag
                         $ map slurpJoinMovs code
 
-        let alloc       = foldl' buildAlloc emptyUFM
-                        $ bagToList joins
+        let alloc       = foldl' buildAlloc emptyUFM joins
 
         let patched     = map (patchEraseLive (sinkReg alloc)) code
 

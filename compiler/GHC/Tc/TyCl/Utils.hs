@@ -557,8 +557,8 @@ irTyCon tc
        ; unless (all (== Nominal) old_roles) $  -- also catches data families,
                                                 -- which don't want or need role inference
          irTcTyVars tc $
-         do { whenIsJust (tyConClass_maybe tc) irClass
-            ; mapM_ irDataCon (visibleDataCons $ algTyConRhs tc) }}
+         do { traverse_ irClass (tyConClass_maybe tc)
+            ; traverse_ irDataCon (visibleDataCons $ algTyConRhs tc) }}
 
   | Just ty <- synTyConRhs_maybe tc
   = irTcTyVars tc $
@@ -766,8 +766,7 @@ addTyConsToGblEnv tyclss
     do { traceTc "tcAddTyCons" $ vcat
             [ text "tycons" <+> ppr tyclss
             , text "implicits" <+> ppr implicit_things ]
-       ; gbl_env <- tcRecSelBinds (mkRecSelBinds tyclss)
-       ; return gbl_env }
+       ; tcRecSelBinds (mkRecSelBinds tyclss) }
  where
    implicit_things = concatMap implicitTyConThings tyclss
    def_meth_ids    = mkDefaultMethodIds tyclss

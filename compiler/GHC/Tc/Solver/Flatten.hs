@@ -2,6 +2,8 @@
 
 {-# OPTIONS_GHC -Wno-incomplete-record-updates #-}
 
+#include "lens.h"
+
 module GHC.Tc.Solver.Flatten(
    FlattenMode(..),
    flatten, flattenKind, flattenArgsNom,
@@ -32,7 +34,6 @@ import GHC.Tc.Solver.Monad as TcS
 import GHC.Types.Basic( SwapFlag(..) )
 
 import GHC.Utils.Misc
-import GHC.Data.Bag
 import Control.Monad
 import GHC.Utils.Monad ( zipWith3M )
 import Data.Foldable ( foldrM )
@@ -464,6 +465,8 @@ data FlattenEnv
        , fe_eq_rel  :: !EqRel             -- See Note [Flattener EqRels]
        , fe_work    :: !FlatWorkListRef } -- See Note [The flattening work list]
 
+LENS_FIELD(fe_locL, fe_loc)
+
 data FlattenMode  -- Postcondition for all three: inert wrt the type substitution
   = FM_FlattenAll          -- Postcondition: function-free
   | FM_SubstOnly           -- See Note [Flattening under a forall]
@@ -500,7 +503,7 @@ liftTcS thing_inside
 
 emitFlatWork :: Ct -> FlatM ()
 -- See Note [The flattening work list]
-emitFlatWork ct = FlatM $ \env -> updTcRef (fe_work env) (ct :)
+emitFlatWork ct = FlatM $ \env -> updMutVar (fe_work env) (ct :)
 
 -- convenient wrapper when you have a CtEvidence describing
 -- the flattening operation
@@ -513,17 +516,16 @@ runFlattenCtEv mode ev
 -- See Note [The flattening work list]
 runFlatten :: FlattenMode -> CtLoc -> CtFlavour -> EqRel -> FlatM a -> TcS a
 runFlatten mode loc flav eq_rel thing_inside
-  = do { flat_ref <- newTcRef []
+  = do { flat_ref <- newMutVar []
        ; let fmode = FE { fe_mode = mode
-                        , fe_loc  = bumpCtLocDepth loc
+                        , fe_loc  = over ctLocDepthL bumpSubGoalDepth loc
                             -- See Note [Flatten when discharging CFunEqCan]
                         , fe_flavour = flav
                         , fe_eq_rel = eq_rel
                         , fe_work = flat_ref }
        ; res <- runFlatM thing_inside fmode
-       ; new_flats <- readTcRef flat_ref
-       ; updWorkListTcS (add_flats new_flats)
-       ; return res }
+       ; new_flats <- readMutVar flat_ref
+       ; res <$ updWorkListTcS (add_flats new_flats) }
   where
     add_flats new_flats wl
       = wl { wl_funeqs = add_funeqs new_flats (wl_funeqs wl) }
@@ -602,7 +604,7 @@ bumpDepth (FlatM thing_inside)
   = FlatM $ \env -> do
       -- bumpDepth can be called a lot during flattening so we force the
       -- new env to avoid accumulating thunks.
-      { let !env' = env { fe_loc = bumpCtLocDepth (fe_loc env) }
+      { let !env' = over (fe_locL . ctLocDepthL) bumpSubGoalDepth env
       ; thing_inside env' }
 
 {-
@@ -1592,7 +1594,7 @@ flattenTyVar tv
 
            FTRNotFollowed   -- Done, but make sure the kind is zonked
                             -- Note [Flattening] invariant (F0) and (F1)
-             -> do { tv' <- liftTcS $ updateTyVarKindM zonkTcType tv
+             -> do { tv' <- liftTcS $ tyVarKindL zonkTcType tv
                    ; role <- getRole
                    ; let ty' = mkTyVarTy tv'
                    ; return (ty', mkTcReflCo role ty') } }
@@ -1757,7 +1759,7 @@ unflattenWanteds tv_eqs funeqs
       ; traceTcS "Unflattening 2" $ braces (pprCts tv_eqs)
 
           -- Step 3: fill any remaining fmvs with fresh unification variables
-      ; funeqs <- mapBagM finalise_funeq funeqs
+      ; funeqs <- traverse finalise_funeq funeqs
       ; traceTcS "Unflattening 3" $ braces (pprCts funeqs)
 
           -- Step 4: remove any tv_eqs that look like ty ~ ty

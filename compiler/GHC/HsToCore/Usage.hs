@@ -42,7 +42,7 @@ import GHC.Data.Maybe
 import qualified GHC.Data.ShortText as ST
 
 import Control.Monad (filterM)
-import Data.List
+import Data.List (sort, sortBy)
 import Data.IORef
 import Data.Map (Map)
 import qualified Data.Map as Map
@@ -109,8 +109,7 @@ mkDependencies iuid pluginModules
           trust_pkgs  = imp_trust_pkgs imports
           -- If there's a non-boot import, then it shadows the boot import
           -- coming from the dependencies
-          source_mods =
-            modDepsElts $ (imp_boot_mods imports)
+          source_mods = modDepsElts (imp_boot_mods imports)
 
           sig_mods = filter (/= (moduleName mod)) $ imp_sig_mods imports
 

@@ -66,7 +66,7 @@ import GHC.Data.FastString
 import GHC.Data.BooleanFormula
 
 import Control.Monad
-import Data.List ( mapAccumL, partition )
+import Data.Foldable ( toList )
 
 {-
 Dictionary handling
@@ -151,7 +151,7 @@ tcClassSigs clas sigs def_methods
     vanilla_sigs = [L loc (nm,ty) | L loc (ClassOpSig _ False nm ty) <- sigs]
     gen_sigs     = [L loc (nm,ty) | L loc (ClassOpSig _ True  nm ty) <- sigs]
     dm_bind_names :: [Name] -- These ones have a value binding in the class decl
-    dm_bind_names = [op | L _ (FunBind {fun_id = L _ op}) <- bagToList def_methods]
+    dm_bind_names = [op | L _ (FunBind {fun_id = L _ op}) <- toList def_methods]
 
     skol_info = TyConSkol ClassFlavour clas
 
@@ -188,7 +188,7 @@ tcClassDecl2 (L _ (ClassDecl {tcdLName = class_name, tcdSigs = sigs,
                                 tcdMeths = default_binds}))
   = recoverM (return emptyLHsBinds)     $
     setSrcSpan (getLoc class_name)      $
-    do  { clas <- tcLookupLocatedClass class_name
+    do  { clas <- addLocM tcLookupClass class_name
 
         -- We make a separate binding for each default method.
         -- At one time I used a single AbsBinds for all of them, thus
@@ -329,8 +329,8 @@ tcClassMinimalDef _clas sigs op_info
         -- However, only do this test when it's not an hsig file,
         -- since you can't write a default implementation.
         when (tcg_src tcg_env /= HsigFile) $
-            whenIsJust (isUnsatisfied (mindef `impliesAtom`) defMindef) $
-                       (\bf -> addWarnTc NoReason (warningMinimalDefIncomplete bf))
+            for_ (isUnsatisfied (mindef `impliesAtom`) defMindef) \ bf ->
+                addWarnTc NoReason (warningMinimalDefIncomplete bf)
         return mindef
   where
     -- By default require all methods without a default implementation
@@ -378,8 +378,7 @@ findMethodBind  :: Name                 -- Selector
                 -- Returns the binding, the binding
                 -- site of the method binder, and any inline or
                 -- specialisation pragmas
-findMethodBind sel_name binds prag_fn
-  = foldl' mplus Nothing (mapBag f binds)
+findMethodBind sel_name binds prag_fn = asum (f <$> binds)
   where
     prags    = lookupPragEnv prag_fn sel_name
 
@@ -539,7 +538,7 @@ tcATDefault loc inst_subst defined_ats (ATI fam_tc defs)
       | otherwise
       = (extendTvSubst subst tc_tv ty', ty')
       where
-        ty' = mkTyVarTy (updateTyVarKind (substTyUnchecked subst) tc_tv)
+        ty' = mkTyVarTy (over tyVarKindL (substTyUnchecked subst) tc_tv)
 
 warnMissingAT :: Name -> TcM ()
 warnMissingAT name

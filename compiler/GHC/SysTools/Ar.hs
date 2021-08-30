@@ -35,8 +35,7 @@ module GHC.SysTools.Ar
 
 import GHC.Prelude
 
-import Data.List (mapAccumL, isPrefixOf)
-import Data.Monoid ((<>))
+import Data.List (isPrefixOf)
 import Data.Binary.Get
 import Data.Binary.Put
 import Control.Monad

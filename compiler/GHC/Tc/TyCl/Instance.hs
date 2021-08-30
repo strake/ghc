@@ -80,10 +80,9 @@ import GHC.Data.BooleanFormula ( isUnsatisfied, pprBooleanFormulaNice )
 import qualified GHC.LanguageExtensions as LangExt
 
 import Control.Monad
+import Data.Foldable (toList)
 import Data.Tuple
 import GHC.Data.Maybe
-import Data.List( mapAccumL )
-
 
 {-
 Typechecking instance declarations is done in two passes. The first
@@ -411,9 +410,9 @@ tcInstDeclsDeriv deriv_infos derivds
   = do th_stage <- getStage -- See Note [Deriving inside TH brackets]
        if isBrackStage th_stage
        then do { gbl_env <- getGblEnv
-               ; return (gbl_env, bagToList emptyBag, emptyValBindsOut) }
+               ; return (gbl_env, toList emptyBag, emptyValBindsOut) }
        else do { (tcg_env, info_bag, valbinds) <- tcDeriving deriv_infos derivds
-               ; return (tcg_env, bagToList info_bag, valbinds) }
+               ; return (tcg_env, toList info_bag, valbinds) }
 
 addClsInsts :: [InstInfo GhcRn] -> TcM a -> TcM a
 addClsInsts infos thing_inside
@@ -465,7 +464,7 @@ tcLocalInstDecl (L loc (TyFamInstD { tfid_inst = decl }))
 
 tcLocalInstDecl (L loc (DataFamInstD { dfid_inst = decl }))
   = do { (fam_inst, m_deriv_info) <- tcDataFamInstDecl NotAssociated emptyVarEnv (L loc decl)
-       ; return ([], [fam_inst], maybeToList m_deriv_info) }
+       ; return ([], [fam_inst], toList m_deriv_info) }
 
 tcLocalInstDecl (L loc (ClsInstD { cid_inst = decl }))
   = do { (insts, fam_insts, deriv_infos) <- tcClsInstDecl (L loc decl)
@@ -570,7 +569,7 @@ tcTyFamInstDecl mb_clsinfo (L loc decl@(TyFamInstDecl { tfid_eqn = eqn }))
   = setSrcSpan loc           $
     tcAddTyFamInstCtxt decl  $
     do { let fam_lname = feqn_tycon (hsib_body eqn)
-       ; fam_tc <- tcLookupLocatedTyCon fam_lname
+       ; fam_tc <- addLocM tcLookupTyCon fam_lname
        ; tcFamInstDeclChecks mb_clsinfo fam_tc
 
          -- (0) Check it's an open type family
@@ -665,7 +664,7 @@ tcDataFamInstDecl mb_clsinfo tv_skol_env
                                         , dd_derivs  = derivs } }}}))
   = setSrcSpan loc             $
     tcAddDataFamInstCtxt decl  $
-    do { fam_tc <- tcLookupLocatedTyCon lfam_name
+    do { fam_tc <- addLocM tcLookupTyCon lfam_name
 
        ; tcFamInstDeclChecks mb_clsinfo fam_tc
 
@@ -796,7 +795,7 @@ tcDataFamInstDecl mb_clsinfo tv_skol_env
       | Just tv <- getTyVar_maybe pat
       , not (tv `elemVarSet` fvs_to_the_left)
       = go pats (Bndr tv tcb_vis : etad_tvs)
-    go pats etad_tvs = (reverse (map fstOf3 pats), etad_tvs)
+    go pats etad_tvs = (reverse (map fst3 pats), etad_tvs)
 
     -- Create a Name-TyVar mapping to bring into scope when typechecking any
     -- deriving clauses this data family instance may have.
@@ -1073,7 +1072,7 @@ tcInstDecl2 (InstInfo { iSpec = ispec, iBinds = ibinds })
     addErrCtxt (instDeclCtxt2 (idType dfun_id)) $
     do {  -- Instantiate the instance decl with skolem constants
        ; (inst_tyvars, dfun_theta, inst_head) <- tcSkolDFunType dfun_id
-       ; dfun_ev_vars <- newEvVars dfun_theta
+       ; dfun_ev_vars <- traverse newEvVar dfun_theta
                      -- We instantiate the dfun_id with superSkolems.
                      -- See Note [Subtle interaction of recursion and overlap]
                      -- and Note [Binding when looking up instances]
@@ -1621,8 +1620,8 @@ tcMethods dfun_id clas tyvars dfun_ev_vars inst_tys
     ----------------------
     -- Check if one of the minimal complete definitions is satisfied
     checkMinimalDefinition
-      = whenIsJust (isUnsatisfied methodExists (classMinimalDef clas)) $
-        warnUnsatisfiedMinimalDefinition
+      = warnUnsatisfiedMinimalDefinition `traverse_`
+        isUnsatisfied methodExists (classMinimalDef clas)
 
     methodExists meth = isJust (findMethodBind meth binds prag_fn)
 
@@ -1630,10 +1629,10 @@ tcMethods dfun_id clas tyvars dfun_ev_vars inst_tys
     -- Check if any method bindings do not correspond to the class.
     -- See Note [Mismatched class methods and associated type families].
     checkMethBindMembership
-      = mapM_ (addErrTc . badMethodErr clas) mismatched_meths
+      = traverse_ (addErrTc . badMethodErr clas) mismatched_meths
       where
-        bind_nms         = map unLoc $ collectMethodBinders binds
-        cls_meth_nms     = map (idName . fst) op_items
+        bind_nms         = unLoc <$> collectMethodBinders binds
+        cls_meth_nms     = idName . fst <$> op_items
         mismatched_meths = bind_nms `minusList` cls_meth_nms
 
 {-
@@ -1778,9 +1777,8 @@ tcMethodBodyHelp hs_sig_fn sel_id local_meth_id meth_bind
                                 --           checking instance-sig <= class-meth-sig
                                 -- The instance-sig is the focus here; the class-meth-sig
                                 -- is fixed (#18036)
-                   ; hs_wrap <- addErrCtxtM (methSigCtxt sel_name sig_ty local_meth_ty) $
-                                tcSubType_NC ctxt sig_ty local_meth_ty
-                   ; return (sig_ty, hs_wrap) }
+                   ; (,) sig_ty <$> methSigCtxt sel_name sig_ty local_meth_ty `addErrCtxtM`
+                     tcSubType_NC ctxt sig_ty local_meth_ty }
 
        ; inner_meth_name <- newName (nameOccName sel_name)
        ; let ctxt = FunSigCtxt sel_name True
@@ -1818,8 +1816,7 @@ tcMethodBodyHelp hs_sig_fn sel_id local_meth_id meth_bind
               --      instance C [c] where { op = <rhs> }
               -- In <rhs>, 'c' is scope but 'b' is not!
 
-       ; (tc_bind, _) <- tcPolyCheck no_prag_fn tc_sig meth_bind
-       ; return tc_bind }
+       ; fst <$> tcPolyCheck no_prag_fn tc_sig meth_bind }
 
   where
     sel_name   = idName sel_id

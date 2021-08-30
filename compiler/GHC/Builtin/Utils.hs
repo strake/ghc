@@ -80,7 +80,7 @@ import GHC.Unit.Module.ModIface (IfaceExport)
 import Control.Applicative ((<|>))
 import Data.List        ( intercalate , find )
 import Data.Array
-import Data.Maybe
+import Data.Maybe ( isJust )
 import qualified Data.Map as Map
 
 {-
@@ -183,7 +183,7 @@ knownKeyNamesOkay all_names
   where
     namesEnv      = foldl' (\m n -> extendNameEnv_Acc (:) singleton m n n)
                            emptyUFM all_names
-    badNamesEnv   = filterNameEnv (\ns -> ns `lengthExceeds` 1) namesEnv
+    badNamesEnv   = filter (`lengthExceeds` 1) namesEnv
     badNamesPairs = nonDetUFMToList badNamesEnv
       -- It's OK to use nonDetUFMToList here because the ordering only affects
       -- the message when we get a panic

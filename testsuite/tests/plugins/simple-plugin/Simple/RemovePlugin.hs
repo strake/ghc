@@ -1,7 +1,9 @@
 {-# LANGUAGE TypeFamilies, FlexibleContexts #-}
 module Simple.RemovePlugin where
 
+import Prelude hiding (filter)
 import Control.Monad.IO.Class
+import Data.Filtrable (filter)
 import Data.List (intercalate)
 import GHC.Driver.Plugins
 import GHC.Plugins
@@ -44,7 +46,7 @@ removeParsedBinding name (L l m)
 typecheckPlugin :: [CommandLineOption] -> ModSummary -> TcGblEnv -> TcM TcGblEnv
 typecheckPlugin [name, "typecheck"] _ tc
   = return $ tc { tcg_exports = filter (availNotNamedAs name) (tcg_exports tc)
-                , tcg_binds = filterBag (notNamedAs name) (tcg_binds tc)
+                , tcg_binds = filter (notNamedAs name) (tcg_binds tc)
                 }
   where notNamedAs name (L _ FunBind { fun_id = L _ fid })
           = occNameString (getOccName fid) /= name

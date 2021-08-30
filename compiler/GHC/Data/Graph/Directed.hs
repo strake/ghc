@@ -48,7 +48,7 @@ import GHC.Utils.Panic
 import GHC.Data.Maybe ( expectJust )
 
 -- std interfaces
-import Data.Maybe
+import Data.Maybe hiding (mapMaybe)
 import Data.Array
 import Data.List hiding (transpose)
 import qualified Data.Map as Map

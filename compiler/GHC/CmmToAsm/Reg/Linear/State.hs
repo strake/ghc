@@ -30,7 +30,6 @@ module GHC.CmmToAsm.Reg.Linear.State (
         setDeltaR,
         getDeltaR,
 
-        getUniqueR,
         getConfig,
         getPlatform,
 
@@ -173,11 +172,12 @@ setDeltaR n = RegM $ \ s ->
 getDeltaR :: RegM freeRegs Int
 getDeltaR = RegM $ \s -> RA_Result s (ra_delta s)
 
-getUniqueR :: RegM freeRegs Unique
-getUniqueR = RegM $ \s ->
-  case takeUniqFromSupply (ra_us s) of
-    (uniq, us) -> RA_Result s{ra_us = us} uniq
+instance MonadUnique (RegM freeRegs) where
+  getUniqueSupplyM = RegM $ \s -> RA_Result s (ra_us s)
 
+  getUniqueM = RegM $ \s ->
+    case takeUniqFromSupply (ra_us s) of
+      (uniq, us) -> RA_Result s{ra_us = us} uniq
 
 -- | Record that a spill instruction was inserted, for profiling.
 recordSpill :: SpillReason -> RegM freeRegs ()

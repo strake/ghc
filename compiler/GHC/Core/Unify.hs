@@ -625,7 +625,7 @@ niFixTCvSubst :: TvSubstEnv -> TCvSubst
 --   see Note [Finding the substitution fixpoint]
 -- ToDo: use laziness instead of iteration?
 niFixTCvSubst tenv
-  | not_fixpoint = niFixTCvSubst (mapVarEnv (substTy subst) tenv)
+  | not_fixpoint = niFixTCvSubst (substTy subst <$> tenv)
   | otherwise    = subst
   where
     range_fvs :: FV
@@ -651,7 +651,7 @@ niFixTCvSubst tenv
     add_free_tv subst tv
       = extendTvSubst subst tv (mkTyVarTy tv')
      where
-        tv' = updateTyVarKind (substTy subst) tv
+        tv' = over tyVarKindL (substTy subst) tv
 
 niSubstTvSet :: TvSubstEnv -> TyCoVarSet -> TyCoVarSet
 -- Apply the non-idempotent substitution to a set of type variables,
@@ -1506,7 +1506,7 @@ ty_co_match menv subst ty co lkco rkco
                                   (substed_co_r `mkTransCo` rkco)
 
   | SymCo co' <- co
-  = swapLiftCoEnv <$> ty_co_match menv (swapLiftCoEnv subst) ty co' rkco lkco
+  = fmap mkSymCo <$> ty_co_match menv (mkSymCo <$> subst) ty co' rkco lkco
 
   -- Match a type variable against a non-refl coercion
 ty_co_match menv subst (TyVarTy tv1) co lkco rkco

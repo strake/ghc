@@ -118,7 +118,6 @@ import GHC.Unit.Home.ModInfo
 
 import System.Directory
 import Data.Dynamic
-import Data.Either
 import qualified Data.IntMap as IntMap
 import Data.List (find,intercalate)
 import Data.Map (Map)
@@ -129,7 +128,7 @@ import Control.Monad.Catch as MC
 import Data.Array
 import GHC.Utils.Exception
 import Unsafe.Coerce ( unsafeCoerce )
-import Lens.Micro (over, set)
+import Data.Foldable (toList)
 
 import GHC.Tc.Module ( runTcInteractive, tcRnType, loadUnqualIfaces )
 import GHC.Tc.Utils.Zonk ( ZonkFlexi (SkolemiseFlexi) )
@@ -593,8 +592,8 @@ bindLocalsAtBreakpoint hsc_env apStack_fhv (Just BreakInfo{..}) = do
      -- we have here, *and* make them all RuntimeUnk tyvars
    newTyVars us tvs
      = mkTvSubstPrs [ (tv, mkTyVarTy (mkRuntimeUnkTyVar name (tyVarKind tv)))
-                    | (tv, uniq) <- tvs `zip` uniqsFromSupply us
-                    , let name = setNameUnique (tyVarName tv) uniq ]
+                    | (tv, uniq) <- tvs `zip` toList (uniqsFromSupply us)
+                    , let name = set nameUniqueL uniq (tyVarName tv) ]
 
    isPointer id | [rep] <- typePrimRep (idType id)
                 , isGcPtrRep rep                   = True
@@ -1147,8 +1146,8 @@ checkForExistence clsInst mb_inst_tys = do
   -- which otherwise appear as opaque type variables. (See #18262).
   WC { wc_simple = simples, wc_impl = impls } <- simplifyWantedsTcM wanteds
 
-  if allBag allowedSimple simples && solvedImplics impls
-  then return . Just $ substInstArgs tys (bagToList (mapBag ctPred simples)) clsInst
+  if all allowedSimple simples && solvedImplics impls
+  then return . Just $ substInstArgs tys (toList (ctPred <$> simples)) clsInst
   else return Nothing
 
   where
@@ -1156,7 +1155,7 @@ checkForExistence clsInst mb_inst_tys = do
   allowedSimple ct = isSatisfiablePred (ctPred ct)
 
   solvedImplics :: Bag Implication -> Bool
-  solvedImplics impls = allBag (isSolvedStatus . ic_status) impls
+  solvedImplics impls = all (isSolvedStatus . ic_status) impls
 
   -- Stricter version of isTyVarClassPred that requires all TyConApps to have at least
   -- one argument or for the head to be a TyVar. The reason is that we want to ensure

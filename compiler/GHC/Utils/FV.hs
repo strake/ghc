@@ -163,20 +163,17 @@ unionFV fv1 fv2 fv_cand in_scope acc =
 
 -- | Mark the variable as not free by putting it in scope.
 delFV :: Var -> FV -> FV
-delFV var fv fv_cand !in_scope acc =
-  fv fv_cand (extendVarSet in_scope var) acc
+delFV var fv fv_cand !in_scope = fv fv_cand (extendVarSet in_scope var)
 {-# INLINE delFV #-}
 
 -- | Mark many free variables as not free.
 delFVs :: VarSet -> FV -> FV
-delFVs vars fv fv_cand !in_scope acc =
-  fv fv_cand (in_scope `unionVarSet` vars) acc
+delFVs vars fv fv_cand !in_scope = fv fv_cand (in_scope `unionVarSet` vars)
 {-# INLINE delFVs #-}
 
 -- | Filter a free variable computation.
 filterFV :: InterestingVarFun -> FV -> FV
-filterFV fv_cand2 fv fv_cand1 in_scope acc =
-  fv (\v -> fv_cand1 v && fv_cand2 v) in_scope acc
+filterFV fv_cand2 fv fv_cand1 = fv \v -> fv_cand1 v && fv_cand2 v
 {-# INLINE filterFV #-}
 
 -- | Map a free variable computation over a list and union the results.
@@ -188,12 +185,11 @@ mapUnionFV f (a:as) fv_cand in_scope acc =
 
 -- | Union many free variable computations.
 unionsFV :: [FV] -> FV
-unionsFV fvs fv_cand in_scope acc = mapUnionFV id fvs fv_cand in_scope acc
+unionsFV = mapUnionFV id
 {-# INLINE unionsFV #-}
 
 -- | Add multiple variables - when free, to the returned free variables.
 -- Ignores duplicates and respects the filtering function.
 mkFVs :: [Var] -> FV
-mkFVs vars fv_cand in_scope acc =
-  mapUnionFV unitFV vars fv_cand in_scope acc
+mkFVs = mapUnionFV unitFV
 {-# INLINE mkFVs #-}

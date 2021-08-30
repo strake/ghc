@@ -208,8 +208,8 @@ import qualified GHC.Data.Stream as Stream
 import GHC.Data.Stream (Stream)
 
 import Data.Data hiding (Fixity, TyCon)
-import Data.Maybe       ( fromJust, fromMaybe )
-import Data.List        ( nub, isPrefixOf, partition )
+import Data.Maybe       ( fromJust )
+import Data.List        ( isPrefixOf )
 import Control.Monad
 import Data.IORef
 import System.FilePath as FilePath
@@ -221,7 +221,6 @@ import Data.Set (Set)
 import Data.Functor
 import Control.DeepSeq (force)
 import Data.Bifunctor (first)
-import Lens.Micro (over)
 
 {- **********************************************************************
 %*                                                                      *
@@ -1098,7 +1097,7 @@ checkSafeImports tcg_env
         clearWarnings
 
         -- Check safe imports are correct
-        safePkgs <- S.fromList <$> mapMaybeM checkSafe safeImps
+        safePkgs <- S.fromList <$> mapMaybeA checkSafe safeImps
         safeErrs <- getWarnings
         clearWarnings
 
@@ -1106,7 +1105,7 @@ checkSafeImports tcg_env
         -- See the Note [Safe Haskell Inference]
         (infErrs, infPkgs) <- case (safeInferOn dflags) of
           False -> return (emptyBag, S.empty)
-          True -> do infPkgs <- S.fromList <$> mapMaybeM checkSafe regImps
+          True -> do infPkgs <- S.fromList <$> mapMaybeA checkSafe regImps
                      infErrs <- getWarnings
                      clearWarnings
                      return (infErrs, infPkgs)

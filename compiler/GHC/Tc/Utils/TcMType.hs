@@ -5,6 +5,7 @@
 -}
 
 {-# LANGUAGE TupleSections, MultiWayIf #-}
+{-# LANGUAGE TypeFamilies #-}
 
 {-# OPTIONS_GHC -Wno-incomplete-record-updates #-}
 
@@ -40,7 +41,7 @@ module GHC.Tc.Utils.TcMType (
 
   --------------------------------
   -- Creating new evidence variables
-  newEvVar, newEvVars, newDict,
+  newEvVar, newDict,
   newWanted, newWanteds, cloneWanted, cloneWC,
   emitWanted, emitWantedEq, emitWantedEvVar, emitWantedEvVars,
   emitDerivedEqs,
@@ -126,17 +127,15 @@ import GHC.Utils.Panic.Plain
 import GHC.Utils.Constants (debugIsOn)
 import GHC.Data.FastString
 import GHC.Data.Bag
-import GHC.Data.Pair
+import GHC.Data.Pair hiding (swap)
 import GHC.Types.Unique.Set
 import GHC.Driver.Session
 import qualified GHC.LanguageExtensions as LangExt
 import GHC.Types.Basic ( TypeOrKind(..) )
+import GHC.Data.Maybe
 
 import Control.Monad
-import GHC.Data.Maybe
-import Data.List        ( mapAccumL )
-import Control.Arrow    ( second )
-import qualified Data.Semigroup as Semi
+import Data.Functor.Reader.Class
 
 {-
 ************************************************************************
@@ -154,12 +153,12 @@ kind_var_occ :: OccName -- Just one for all MetaKindVars
 kind_var_occ = mkOccName tvName "k"
 
 newMetaKindVar :: TcM TcKind
-newMetaKindVar
-  = do { details <- newMetaDetails TauTv
-       ; uniq <- newUnique
-       ; let kv = mkTcTyVar (mkKindName uniq) liftedTypeKind details
-       ; traceTc "newMetaKindVar" (ppr kv)
-       ; return (mkTyVarTy kv) }
+newMetaKindVar =
+  [ mkTyVarTy kv
+  | details <- newMetaDetails TauTv
+  , uniq <- newUnique
+  , let kv = mkTcTyVar (mkKindName uniq) liftedTypeKind details
+  , () <- traceTc "newMetaKindVar" (ppr kv) ]
 
 newMetaKindVars :: Int -> TcM [TcKind]
 newMetaKindVars n = replicateM n newMetaKindVar
@@ -171,11 +170,6 @@ newMetaKindVars n = replicateM n newMetaKindVar
 *                                                                      *
 ************************************************************************
 -}
-
-newEvVars :: TcThetaType -> TcM [EvVar]
-newEvVars theta = mapM newEvVar theta
-
---------------
 
 newEvVar :: TcPredType -> TcRnIf gbl lcl EvVar
 -- Creates new *rigid* variables for predicates
@@ -202,11 +196,11 @@ newWanteds orig = mapM (newWanted orig Nothing)
 
 cloneWanted :: Ct -> TcM Ct
 cloneWanted ct
-  | ev@(CtWanted { ctev_dest = HoleDest old_hole, ctev_pred = pty }) <- ctEvidence ct
-  = do { co_hole <- newCoercionHole (ch_blocker old_hole) pty
-       ; return (mkNonCanonical (ev { ctev_dest = HoleDest co_hole })) }
+  | ev@(CtWanted { ctev_dest = HoleDest old_hole, ctev_pred = pty }) <- ctEvidence ct =
+  [ mkNonCanonical ev { ctev_dest = HoleDest co_hole }
+  | co_hole <- newCoercionHole (ch_blocker old_hole) pty ]
   | otherwise
-  = return ct
+  = pure ct
 
 cloneWC :: WantedConstraints -> TcM WantedConstraints
 -- Clone all the evidence bindings in
@@ -214,16 +208,16 @@ cloneWC :: WantedConstraints -> TcM WantedConstraints
 --   b) the CoercionHoles of any wanted constraints
 -- so that solving the WantedConstraints will not have any visible side
 -- effect, /except/ from causing unifications
-cloneWC wc@(WC { wc_simple = simples, wc_impl = implics })
-  = do { simples' <- mapBagM cloneWanted simples
-       ; implics' <- mapBagM cloneImplication implics
-       ; return (wc { wc_simple = simples', wc_impl = implics' }) }
+cloneWC wc@(WC { wc_simple = simples, wc_impl = implics }) =
+  [ wc { wc_simple = simples', wc_impl = implics' }
+  | simples' <- traverse cloneWanted simples
+  , implics' <- traverse cloneImplication implics ]
 
 cloneImplication :: Implication -> TcM Implication
-cloneImplication implic@(Implic { ic_binds = binds, ic_wanted = inner_wanted })
-  = do { binds'        <- cloneEvBindsVar binds
-       ; inner_wanted' <- cloneWC inner_wanted
-       ; return (implic { ic_binds = binds', ic_wanted = inner_wanted' }) }
+cloneImplication implic@(Implic { ic_binds = binds, ic_wanted = inner_wanted }) =
+  [ implic { ic_binds = binds', ic_wanted = inner_wanted' }
+  | binds'        <- cloneEvBindsVar binds
+  , inner_wanted' <- cloneWC inner_wanted ]
 
 ----------------------------------------------
 -- Emitting constraints
@@ -341,15 +335,15 @@ newCoercionHole blocker pred_ty
 fillCoercionHole :: CoercionHole -> Coercion -> TcM ()
 fillCoercionHole (CoercionHole { ch_ref = ref, ch_co_var = cv }) co = do
   when debugIsOn $ do
-    cts <- readTcRef ref
-    whenIsJust cts $ \old_co ->
+    cts <- readMutVar ref
+    for_ cts $ \old_co ->
       pprPanic "Filling a filled coercion hole" (ppr cv $$ ppr co $$ ppr old_co)
   traceTc "Filling coercion hole" (ppr cv <+> text ":=" <+> ppr co)
-  writeTcRef ref (Just co)
+  writeMutVar ref (Just co)
 
 -- | Is a coercion hole filled in?
 isFilledCoercionHole :: CoercionHole -> TcM Bool
-isFilledCoercionHole (CoercionHole { ch_ref = ref }) = isJust <$> readTcRef ref
+isFilledCoercionHole (CoercionHole { ch_ref = ref }) = isJust <$> readMutVar ref
 
 -- | Retrieve the contents of a coercion hole. Panics if the hole
 -- is unfilled
@@ -362,25 +356,24 @@ unpackCoercionHole hole
 
 -- | Retrieve the contents of a coercion hole, if it is filled
 unpackCoercionHole_maybe :: CoercionHole -> TcM (Maybe Coercion)
-unpackCoercionHole_maybe (CoercionHole { ch_ref = ref }) = readTcRef ref
+unpackCoercionHole_maybe (CoercionHole { ch_ref = ref }) = readMutVar ref
 
 -- | Check that a coercion is appropriate for filling a hole. (The hole
 -- itself is needed only for printing.
 -- Always returns the checked coercion, but this return value is necessary
 -- so that the input coercion is forced only when the output is forced.
-checkCoercionHole :: CoVar -> Coercion -> TcM Coercion
+checkCoercionHole :: MonadIO m => CoVar -> Coercion -> m Coercion
 checkCoercionHole cv co
   | debugIsOn
-  = do { cv_ty <- zonkTcType (varType cv)
+  = zonkTcType (varType cv) <₪> \ cv_ty ->
                   -- co is already zonked, but cv might not be
-       ; return $
          assertPpr (ok cv_ty)
                    (text "Bad coercion hole" <+>
                     ppr cv <> colon <+> vcat [ ppr t1, ppr t2, ppr role
                                              , ppr cv_ty ])
-         co }
+         co
   | otherwise
-  = return co
+  = pure co
 
   where
     (Pair t1 t2, role) = coercionKindRole co
@@ -443,13 +436,12 @@ test gadt/gadt-escape1.
 -- actual data definition is in GHC.Tc.Utils.TcType
 
 newInferExpType :: TcM ExpType
-newInferExpType
-  = do { u <- newUnique
-       ; tclvl <- getTcLevel
-       ; traceTc "newInferExpType" (ppr u <+> ppr tclvl)
-       ; ref <- newMutVar Nothing
-       ; return (Infer (IR { ir_uniq = u, ir_lvl = tclvl
-                           , ir_ref = ref })) }
+newInferExpType =
+  [ Infer IR { ir_uniq = u, ir_lvl = tclvl, ir_ref = ref }
+  | u <- newUnique
+  , tclvl <- getTcLevel
+  , () <- traceTc "newInferExpType" (ppr u <+> ppr tclvl)
+  , ref <- newMutVar Nothing ]
 
 -- | Extract a type out of an ExpType, if one exists. But one should always
 -- exist. Unless you're quite sure you know what you're doing.
@@ -459,11 +451,9 @@ readExpType_maybe (Infer (IR { ir_ref = ref})) = readMutVar ref
 
 -- | Extract a type out of an ExpType. Otherwise, panics.
 readExpType :: ExpType -> TcM TcType
-readExpType exp_ty
-  = do { mb_ty <- readExpType_maybe exp_ty
-       ; case mb_ty of
-           Just ty -> return ty
-           Nothing -> pprPanic "Unknown expected type" (ppr exp_ty) }
+readExpType exp_ty = readExpType_maybe exp_ty >>= \ case
+    Just ty -> pure ty
+    Nothing -> pprPanic "Unknown expected type" (ppr exp_ty)
 
 -- | Returns the expected type when in checking mode.
 checkingExpType_maybe :: ExpType -> Maybe TcType
@@ -480,8 +470,7 @@ tauifyExpType :: ExpType -> TcM ExpType
 -- ^ Turn a (Infer hole) type into a (Check alpha),
 -- where alpha is a fresh unification variable
 tauifyExpType (Check ty)      = return (Check ty)  -- No-op for (Check ty)
-tauifyExpType (Infer inf_res) = do { ty <- inferResultToType inf_res
-                                   ; return (Check ty) }
+tauifyExpType (Infer inf_res) = Check <$> inferResultToType inf_res
 
 -- | Extracts the expected type if there is one, or generates a new
 -- TauTv if there isn't.
@@ -763,88 +752,83 @@ newNamedAnonMetaTyVar tyvar_name meta_info kind
 
 -- makes a new skolem tv
 newSkolemTyVar :: Name -> Kind -> TcM TcTyVar
-newSkolemTyVar name kind
-  = do { lvl <- getTcLevel
-       ; return (mkTcTyVar name kind (SkolemTv lvl False)) }
+newSkolemTyVar name kind = getTcLevel <₪> \ lvl -> mkTcTyVar name kind (SkolemTv lvl False)
 
 newTyVarTyVar :: Name -> Kind -> TcM TcTyVar
 -- See Note [TyVarTv]
 -- Does not clone a fresh unique
-newTyVarTyVar name kind
-  = do { details <- newMetaDetails TyVarTv
-       ; let tyvar = mkTcTyVar name kind details
-       ; traceTc "newTyVarTyVar" (ppr tyvar)
-       ; return tyvar }
+newTyVarTyVar name kind =
+  [ tyvar
+  | details <- newMetaDetails TyVarTv
+  , let tyvar = mkTcTyVar name kind details
+  , () <- traceTc "newTyVarTyVar" (ppr tyvar) ]
 
 cloneTyVarTyVar :: Name -> Kind -> TcM TcTyVar
 -- See Note [TyVarTv]
 -- Clones a fresh unique
-cloneTyVarTyVar name kind
-  = do { details <- newMetaDetails TyVarTv
-       ; uniq <- newUnique
-       ; let name' = name `setNameUnique` uniq
-             tyvar = mkTcTyVar name' kind details
-         -- Don't use cloneMetaTyVar, which makes a SystemName
-         -- We want to keep the original more user-friendly Name
-         -- In practical terms that means that in error messages,
-         -- when the Name is tidied we get 'a' rather than 'a0'
-       ; traceTc "cloneTyVarTyVar" (ppr tyvar)
-       ; return tyvar }
+cloneTyVarTyVar name kind =
+  [ tyvar
+  | details <- newMetaDetails TyVarTv
+  , uniq <- newUnique
+  , let name' = set nameUniqueL uniq name
+        tyvar = mkTcTyVar name' kind details
+    -- Don't use cloneMetaTyVar, which makes a SystemName
+    -- We want to keep the original more user-friendly Name
+    -- In practical terms that means that in error messages,
+    -- when the Name is tidied we get 'a' rather than 'a0'
+  , () <- traceTc "cloneTyVarTyVar" (ppr tyvar) ]
 
 newPatSigTyVar :: Name -> Kind -> TcM TcTyVar
-newPatSigTyVar name kind
-  = do { details <- newMetaDetails TauTv
-       ; uniq <- newUnique
-       ; let name' = name `setNameUnique` uniq
-             tyvar = mkTcTyVar name' kind details
-         -- Don't use cloneMetaTyVar;
-         -- same reasoning as in newTyVarTyVar
-       ; traceTc "newPatSigTyVar" (ppr tyvar)
-       ; return tyvar }
+newPatSigTyVar name kind =
+  [ tyvar
+  | details <- newMetaDetails TauTv
+  , uniq <- newUnique
+  , let name' = set nameUniqueL uniq name
+        tyvar = mkTcTyVar name' kind details
+    -- Don't use cloneMetaTyVar;
+    -- same reasoning as in newTyVarTyVar
+  , () <- traceTc "newPatSigTyVar" (ppr tyvar) ]
 
 cloneAnonMetaTyVar :: MetaInfo -> TyVar -> TcKind -> TcM TcTyVar
 -- Make a fresh MetaTyVar, basing the name
 -- on that of the supplied TyVar
-cloneAnonMetaTyVar info tv kind
-  = do  { details <- newMetaDetails info
-        ; name    <- cloneMetaTyVarName (tyVarName tv)
-        ; let tyvar = mkTcTyVar name kind details
-        ; traceTc "cloneAnonMetaTyVar" (ppr tyvar <+> dcolon <+> ppr (tyVarKind tyvar))
-        ; return tyvar }
+cloneAnonMetaTyVar info tv kind =
+  [ tyvar
+  | details <- newMetaDetails info
+  , name    <- cloneMetaTyVarName (tyVarName tv)
+  , let tyvar = mkTcTyVar name kind details
+  , () <- traceTc "cloneAnonMetaTyVar" (ppr tyvar <+> dcolon <+> ppr (tyVarKind tyvar)) ]
 
 newFskTyVar :: TcType -> TcM TcTyVar
-newFskTyVar fam_ty
-  = do { details <- newMetaDetails FlatSkolTv
-       ; name <- newMetaTyVarName (fsLit "fsk")
-       ; return (mkTcTyVar name (tcTypeKind fam_ty) details) }
+newFskTyVar fam_ty =
+  [ mkTcTyVar name (tcTypeKind fam_ty) details
+  | details <- newMetaDetails FlatSkolTv
+  , name <- newMetaTyVarName (fsLit "fsk") ]
 
 newFmvTyVar :: TcType -> TcM TcTyVar
 -- Very like newMetaTyVar, except sets mtv_tclvl to one less
 -- so that the fmv is untouchable.
-newFmvTyVar fam_ty
-  = do { details <- newMetaDetails FlatMetaTv
-       ; name <- newMetaTyVarName (fsLit "s")
-       ; return (mkTcTyVar name (tcTypeKind fam_ty) details) }
+newFmvTyVar fam_ty =
+  [ mkTcTyVar name (tcTypeKind fam_ty) details
+  | details <- newMetaDetails FlatMetaTv
+  , name <- newMetaTyVarName (fsLit "s") ]
 
 newMetaDetails :: MetaInfo -> TcM TcTyVarDetails
-newMetaDetails info
-  = do { ref <- newMutVar Flexi
-       ; tclvl <- getTcLevel
-       ; return (MetaTv { mtv_info = info
-                        , mtv_ref = ref
-                        , mtv_tclvl = tclvl }) }
+newMetaDetails info =
+  [ MetaTv { mtv_info = info, mtv_ref = ref, mtv_tclvl = tclvl }
+  | ref <- newMutVar Flexi
+  , tclvl <- getTcLevel ]
 
 cloneMetaTyVar :: TcTyVar -> TcM TcTyVar
-cloneMetaTyVar tv
-  = assert (isTcTyVar tv) $
-    do  { ref  <- newMutVar Flexi
-        ; name' <- cloneMetaTyVarName (tyVarName tv)
-        ; let details' = case tcTyVarDetails tv of
-                           details@(MetaTv {}) -> details { mtv_ref = ref }
-                           _ -> pprPanic "cloneMetaTyVar" (ppr tv)
-              tyvar = mkTcTyVar name' (tyVarKind tv) details'
-        ; traceTc "cloneMetaTyVar" (ppr tyvar)
-        ; return tyvar }
+cloneMetaTyVar tv = assert (isTcTyVar tv)
+  [ tyvar
+  | ref  <- newMutVar Flexi
+  , name' <- cloneMetaTyVarName (tyVarName tv)
+  , let details' = case tcTyVarDetails tv of
+            details@(MetaTv {}) -> details { mtv_ref = ref }
+            _ -> pprPanic "cloneMetaTyVar" (ppr tv)
+        tyvar = mkTcTyVar name' (tyVarKind tv) details'
+  , () <- traceTc "cloneMetaTyVar" (ppr tyvar) ]
 
 -- Works for both type and kind variables
 readMetaTyVar :: TyVar -> TcM MetaDetails
@@ -853,13 +837,12 @@ readMetaTyVar tyvar = assertPpr (isMetaTyVar tyvar) (ppr tyvar) $
 
 isFilledMetaTyVar_maybe :: TcTyVar -> TcM (Maybe Type)
 isFilledMetaTyVar_maybe tv
- | MetaTv { mtv_ref = ref } <- tcTyVarDetails tv
- = do { cts <- readTcRef ref
-      ; case cts of
-          Indirect ty -> return (Just ty)
-          Flexi       -> return Nothing }
- | otherwise
- = return Nothing
+  | MetaTv { mtv_ref = ref } <- tcTyVarDetails tv
+  = readMutVar ref <₪> \ case
+        Indirect ty -> Just ty
+        Flexi       -> Nothing
+  | otherwise
+  = return Nothing
 
 isFilledMetaTyVar :: TyVar -> TcM Bool
 -- True of a filled-in (Indirect) meta type variable
@@ -870,8 +853,7 @@ isUnfilledMetaTyVar :: TyVar -> TcM Bool
 -- NB: Not the opposite of isFilledMetaTyVar
 isUnfilledMetaTyVar tv
   | MetaTv { mtv_ref = ref } <- tcTyVarDetails tv
-  = do  { details <- readMutVar ref
-        ; return (isFlexi details) }
+  = isFlexi <$> readMutVar ref
   | otherwise = return False
 
 --------------------
@@ -901,7 +883,7 @@ writeMetaTyVarRef tyvar ref ty
   | not debugIsOn
   = do { traceTc "writeMetaTyVar" (ppr tyvar <+> dcolon <+> ppr (tyVarKind tyvar)
                                    <+> text ":=" <+> ppr ty)
-       ; writeTcRef ref (Indirect ty) }
+       ; writeMutVar ref (Indirect ty) }
 
   -- Everything from here on only happens if DEBUG is on
   | otherwise
@@ -1231,7 +1213,7 @@ data CandidatesQTvs
          -- look at covars' kinds in accumulator. Not used by quantifyTyVars.
     }
 
-instance Semi.Semigroup CandidatesQTvs where
+instance Semigroup CandidatesQTvs where
    (DV { dv_kvs = kv1, dv_tvs = tv1, dv_cvs = cv1 })
      <> (DV { dv_kvs = kv2, dv_tvs = tv2, dv_cvs = cv2 })
           = DV { dv_kvs = kv1 `unionDVarSet` kv2
@@ -1240,7 +1222,6 @@ instance Semi.Semigroup CandidatesQTvs where
 
 instance Monoid CandidatesQTvs where
    mempty = DV { dv_kvs = emptyDVarSet, dv_tvs = emptyDVarSet, dv_cvs = emptyVarSet }
-   mappend = (Semi.<>)
 
 instance Outputable CandidatesQTvs where
   ppr (DV {dv_kvs = kvs, dv_tvs = tvs, dv_cvs = cvs })
@@ -1378,7 +1359,7 @@ collect_cand_qtvs orig_ty is_dep bound dvs ty
                       ; naughtyQuantification orig_ty tv escapees }
 
                 |  otherwise
-                -> do { let tv' = tv `setTyVarKind` tv_kind
+                -> do { let tv' = set tyVarKindL tv_kind tv
                             dv' | is_dep    = dv { dv_kvs = kvs `extendDVarSet` tv' }
                                 | otherwise = dv { dv_tvs = tvs `extendDVarSet` tv' }
                                 -- See Note [Order of accumulation]
@@ -1619,8 +1600,8 @@ quantifyTyVars dvs@(DV{ dv_kvs = dep_tkvs, dv_tvs = nondep_tkvs })
              -- may make quantifyTyVars return a shorter list
              -- than it was passed, but that's ok
        ; poly_kinds  <- xoptM LangExt.PolyKinds
-       ; dep_kvs'    <- mapMaybeM (zonk_quant (not poly_kinds)) dep_kvs
-       ; nondep_tvs' <- mapMaybeM (zonk_quant False)            nondep_tvs
+       ; dep_kvs'    <- mapMaybeA (zonk_quant (not poly_kinds)) dep_kvs
+       ; nondep_tvs' <- mapMaybeA (zonk_quant False)            nondep_tvs
        ; let final_qtvs = dep_kvs' ++ nondep_tvs'
            -- Because of the order, any kind variables
            -- mentioned in the kinds of the nondep_tvs'
@@ -1699,8 +1680,7 @@ skolemiseQuantifiedTyVar :: TcTyVar -> TcM TcTyVar
 
 skolemiseQuantifiedTyVar tv
   = case tcTyVarDetails tv of
-      SkolemTv {} -> do { kind <- zonkTcType (tyVarKind tv)
-                        ; return (setTyVarKind tv kind) }
+      SkolemTv {} -> tyVarKindL zonkTcType tv
         -- It might be a skolem type variable,
         -- for example from a user type signature
 
@@ -1727,8 +1707,7 @@ defaultTyVar default_kind tv
   | isRuntimeRepVar tv  -- Do not quantify over a RuntimeRep var
                         -- unless it is a TyVarTv, handled earlier
   = do { traceTc "Defaulting a RuntimeRep var to LiftedRep" (ppr tv)
-       ; writeMetaTyVar tv liftedRepTy
-       ; return True }
+       ; True <$ writeMetaTyVar tv liftedRepTy }
 
   | default_kind            -- -XNoPolyKinds and this is a kind var
   = default_kind_var tv     -- so default it to * if possible
@@ -1960,7 +1939,7 @@ a \/\a in the final result but all the occurrences of a will be zonked to ()
 
 -}
 
-zonkTcTypeAndFV :: TcType -> TcM DTyCoVarSet
+zonkTcTypeAndFV :: MonadIO m => TcType -> m DTyCoVarSet
 -- Zonk a type and take its free variables
 -- With kind polymorphism it can be essential to zonk *first*
 -- so that we find the right set of free variables.  Eg
@@ -1970,7 +1949,7 @@ zonkTcTypeAndFV :: TcType -> TcM DTyCoVarSet
 zonkTcTypeAndFV ty
   = tyCoVarsOfTypeDSet <$> zonkTcType ty
 
-zonkTyCoVar :: TyCoVar -> TcM TcType
+zonkTyCoVar :: MonadIO m => TyCoVar -> m TcType
 -- Works on TyVars and TcTyVars
 zonkTyCoVar tv | isTcTyVar tv = zonkTcTyVar tv
                | isTyVar   tv = mkTyVarTy <$> zonkTyCoVarKind tv
@@ -1981,34 +1960,32 @@ zonkTyCoVar tv | isTcTyVar tv = zonkTcTyVar tv
    -- GHC.Tc.Gen.HsType.bindTyClTyVars, but it seems
    -- painful to make them into TcTyVars there
 
-zonkTyCoVarsAndFV :: TyCoVarSet -> TcM TyCoVarSet
+zonkTyCoVarsAndFV :: MonadIO m => TyCoVarSet -> m TyCoVarSet
 zonkTyCoVarsAndFV tycovars
-  = tyCoVarsOfTypes <$> mapM zonkTyCoVar (nonDetEltsUniqSet tycovars)
+  = tyCoVarsOfTypes <$> traverse zonkTyCoVar (nonDetEltsUniqSet tycovars)
   -- It's OK to use nonDetEltsUniqSet here because we immediately forget about
   -- the ordering by turning it into a nondeterministic set and the order
   -- of zonking doesn't matter for determinism.
 
-zonkDTyCoVarSetAndFV :: DTyCoVarSet -> TcM DTyCoVarSet
+zonkDTyCoVarSetAndFV :: MonadIO m => DTyCoVarSet -> m DTyCoVarSet
 zonkDTyCoVarSetAndFV tycovars
-  = mkDVarSet <$> (zonkTyCoVarsAndFVList $ dVarSetElems tycovars)
+  = mkDVarSet <$> zonkTyCoVarsAndFVList (dVarSetElems tycovars)
 
 -- Takes a list of TyCoVars, zonks them and returns a
 -- deterministically ordered list of their free variables.
-zonkTyCoVarsAndFVList :: [TyCoVar] -> TcM [TyCoVar]
+zonkTyCoVarsAndFVList :: MonadIO m => [TyCoVar] -> m [TyCoVar]
 zonkTyCoVarsAndFVList tycovars
-  = tyCoVarsOfTypesList <$> mapM zonkTyCoVar tycovars
+  = tyCoVarsOfTypesList <$> traverse zonkTyCoVar tycovars
 
-zonkTcTyVars :: [TcTyVar] -> TcM [TcType]
-zonkTcTyVars tyvars = mapM zonkTcTyVar tyvars
+zonkTcTyVars :: (MonadIO m, Traversable t) => t TcTyVar -> m (t TcType)
+zonkTcTyVars = traverse zonkTcTyVar
 
 -----------------  Types
-zonkTyCoVarKind :: TyCoVar -> TcM TyCoVar
-zonkTyCoVarKind tv = do { kind' <- zonkTcType (tyVarKind tv)
-                        ; return (setTyVarKind tv kind') }
+zonkTyCoVarKind :: MonadIO m => TyCoVar -> m TyCoVar
+zonkTyCoVarKind = tyVarKindL zonkTcType
 
-zonkTyCoVarKindBinder :: (VarBndr TyCoVar fl) -> TcM (VarBndr TyCoVar fl)
-zonkTyCoVarKindBinder (Bndr tv fl) = do { kind' <- zonkTcType (tyVarKind tv)
-                                        ; return $ Bndr (setTyVarKind tv kind') fl }
+zonkTyCoVarKindBinder :: MonadIO m => VarBndr TyCoVar fl -> m (VarBndr TyCoVar fl)
+zonkTyCoVarKindBinder = (binderVarL . tyVarKindL) zonkTcType
 
 {-
 ************************************************************************
@@ -2018,44 +1995,37 @@ zonkTyCoVarKindBinder (Bndr tv fl) = do { kind' <- zonkTcType (tyVarKind tv)
 ************************************************************************
 -}
 
-zonkImplication :: Implication -> TcM Implication
+zonkImplication :: (MonadIO m, HasDynFlags m, IsReader m, EnvType m ~ Env TcGblEnv TcLclEnv) => Implication -> m Implication
 zonkImplication implic@(Implic { ic_skols  = skols
                                , ic_given  = given
                                , ic_wanted = wanted
-                               , ic_info   = info })
-  = do { skols'  <- mapM zonkTyCoVarKind skols  -- Need to zonk their kinds!
-                                                -- as #7230 showed
-       ; given'  <- mapM zonkEvVar given
-       ; info'   <- zonkSkolemInfo info
-       ; wanted' <- zonkWCRec wanted
-       ; return (implic { ic_skols  = skols'
-                        , ic_given  = given'
-                        , ic_wanted = wanted'
-                        , ic_info   = info' }) }
+                               , ic_info   = info }) =
+  [ implic { ic_skols = skols', ic_given = given', ic_wanted = wanted', ic_info = info' }
+  | skols'  <- traverse zonkTyCoVarKind skols  -- Need to zonk their kinds! as #7230 showed
+  , given'  <- traverse zonkEvVar given
+  , info'   <- zonkSkolemInfo info
+  , wanted' <- zonkWCRec wanted ]
 
-zonkEvVar :: EvVar -> TcM EvVar
-zonkEvVar var = updateIdTypeM zonkTcType var
+zonkEvVar :: MonadIO m => EvVar -> m EvVar
+zonkEvVar = Id.idTypeL zonkTcType
 
+zonkWC, zonkWCRec :: (MonadIO m, HasDynFlags m, IsReader m, EnvType m ~ Env TcGblEnv TcLclEnv) => WantedConstraints -> m WantedConstraints
+zonkWC = zonkWCRec
 
-zonkWC :: WantedConstraints -> TcM WantedConstraints
-zonkWC wc = zonkWCRec wc
+zonkWCRec (WC { wc_simple = simple, wc_impl = implic, wc_holes = holes }) =
+  [ WC { wc_simple = simple', wc_impl = implic', wc_holes = holes' }
+  | simple' <- zonkSimples simple
+  , implic' <- traverse zonkImplication implic
+  , holes'  <- traverse zonkHole holes ]
 
-zonkWCRec :: WantedConstraints -> TcM WantedConstraints
-zonkWCRec (WC { wc_simple = simple, wc_impl = implic, wc_holes = holes })
-  = do { simple' <- zonkSimples simple
-       ; implic' <- mapBagM zonkImplication implic
-       ; holes'  <- mapBagM zonkHole holes
-       ; return (WC { wc_simple = simple', wc_impl = implic', wc_holes = holes' }) }
+zonkSimples :: (Traversable t, Outputable (t Ct), MonadIO m, HasDynFlags m, IsReader m, EnvType m ~ Env TcGblEnv TcLclEnv) => t Ct -> m (t Ct)
+zonkSimples cts =
+  [ cts'
+  | cts' <- traverse zonkCt cts
+  , () <- traceTc "zonkSimples done:" (ppr cts') ]
 
-zonkSimples :: Cts -> TcM Cts
-zonkSimples cts = do { cts' <- mapBagM zonkCt cts
-                     ; traceTc "zonkSimples done:" (ppr cts')
-                     ; return cts' }
-
-zonkHole :: Hole -> TcM Hole
-zonkHole hole@(Hole { hole_ty = ty })
-  = do { ty' <- zonkTcType ty
-       ; return (hole { hole_ty = ty' }) }
+zonkHole :: MonadIO m => Hole -> m Hole
+zonkHole = hole_tyL zonkTcType
   -- No need to zonk the Id in any ExprHole because we never look at it
   -- until after the final zonk and desugaring
 
@@ -2088,50 +2058,42 @@ are actually in the inert set carry all the guarantees. So it is okay if zonkCt
 creates e.g. a CDictCan where the cc_tyars are /not/ function free.
 -}
 
-zonkCt :: Ct -> TcM Ct
+zonkCt :: MonadIO m => Ct -> m Ct
 -- See Note [zonkCt behaviour]
-zonkCt ct@(CDictCan { cc_ev = ev, cc_tyargs = args })
-  = do { ev'   <- zonkCtEvidence ev
-       ; args' <- mapM zonkTcType args
-       ; return $ ct { cc_ev = ev', cc_tyargs = args' } }
+zonkCt ct@(CDictCan { cc_ev = ev, cc_tyargs = args }) =
+  [ ct { cc_ev = ev', cc_tyargs = args' }
+  | ev'   <- zonkCtEvidence ev
+  , args' <- traverse zonkTcType args ]
 
 zonkCt (CTyEqCan { cc_ev = ev })
   = mkNonCanonical <$> zonkCtEvidence ev
 
 zonkCt ct@(CIrredCan { cc_ev = ev }) -- Preserve the cc_status flag
-  = do { ev' <- zonkCtEvidence ev
-       ; return (ct { cc_ev = ev' }) }
+  = [ ct { cc_ev = ev' } | ev' <- zonkCtEvidence ev ]
 
 zonkCt ct
   = assert (not (isCFunEqCan ct))
   -- We do not expect to see any CFunEqCans, because zonkCt is only called on
   -- unflattened constraints.
-    do { fl' <- zonkCtEvidence (ctEvidence ct)
-       ; return (mkNonCanonical fl') }
+    mkNonCanonical <$> zonkCtEvidence (ctEvidence ct)
 
-zonkCtEvidence :: CtEvidence -> TcM CtEvidence
+zonkCtEvidence :: MonadIO m => CtEvidence -> m CtEvidence
 zonkCtEvidence ctev@(CtGiven { ctev_pred = pred })
-  = do { pred' <- zonkTcType pred
-       ; return (ctev { ctev_pred = pred'}) }
-zonkCtEvidence ctev@(CtWanted { ctev_pred = pred, ctev_dest = dest })
-  = do { pred' <- zonkTcType pred
-       ; let dest' = case dest of
-                       EvVarDest ev -> EvVarDest $ setVarType ev pred'
+  = [ ctev { ctev_pred = pred'} | pred' <- zonkTcType pred ]
+zonkCtEvidence ctev@(CtWanted { ctev_pred = pred, ctev_dest = dest }) =
+  [ ctev { ctev_pred = pred', ctev_dest = dest' }
+  | pred' <- zonkTcType pred
+  , let dest' = case dest of
+                       EvVarDest ev -> EvVarDest $ set varTypeL pred' ev
                          -- necessary in simplifyInfer
-                       HoleDest h   -> HoleDest h
-       ; return (ctev { ctev_pred = pred', ctev_dest = dest' }) }
+                       HoleDest h   -> HoleDest h ]
 zonkCtEvidence ctev@(CtDerived { ctev_pred = pred })
-  = do { pred' <- zonkTcType pred
-       ; return (ctev { ctev_pred = pred' }) }
+  = [ ctev { ctev_pred = pred' } | pred' <- zonkTcType pred ]
 
-zonkSkolemInfo :: SkolemInfo -> TcM SkolemInfo
-zonkSkolemInfo (SigSkol cx ty tv_prs)  = do { ty' <- zonkTcType ty
-                                            ; return (SigSkol cx ty' tv_prs) }
-zonkSkolemInfo (InferSkol ntys) = do { ntys' <- mapM do_one ntys
-                                     ; return (InferSkol ntys') }
-  where
-    do_one (n, ty) = do { ty' <- zonkTcType ty; return (n, ty') }
-zonkSkolemInfo skol_info = return skol_info
+zonkSkolemInfo :: MonadIO m => SkolemInfo -> m SkolemInfo
+zonkSkolemInfo (SigSkol cx ty tv_prs)  = [ SigSkol cx ty' tv_prs | ty' <- zonkTcType ty ]
+zonkSkolemInfo (InferSkol ntys) = InferSkol <$> (traverse . traverse) zonkTcType ntys
+zonkSkolemInfo skol_info = pure skol_info
 
 {-
 %************************************************************************
@@ -2147,16 +2109,16 @@ zonkSkolemInfo skol_info = return skol_info
 -- For unbound, mutable tyvars, zonkType uses the function given to it
 -- For tyvars bound at a for-all, zonkType zonks them to an immutable
 --      type variable and zonks the kind too
-zonkTcType  :: TcType -> TcM TcType
-zonkTcTypes :: [TcType] -> TcM [TcType]
-zonkCo      :: Coercion -> TcM Coercion
+zonkTcType  :: MonadIO m => TcType -> m TcType
+zonkCo      :: MonadIO m => Coercion -> m Coercion
+(zonkTcType, _, zonkCo, _) = mapTyCo zonkTcTypeMapper
 
-(zonkTcType, zonkTcTypes, zonkCo, _)
-  = mapTyCo zonkTcTypeMapper
+zonkTcTypes :: (MonadIO m, Traversable t) => t TcType -> m (t TcType)
+zonkTcTypes = traverse zonkTcType
 
 -- | A suitable TyCoMapper for zonking a type during type-checking,
 -- before all metavars are filled in.
-zonkTcTypeMapper :: TyCoMapper () TcM
+zonkTcTypeMapper :: MonadIO m => TyCoMapper () m
 zonkTcTypeMapper = TyCoMapper
   { tcm_tyvar = const zonkTcTyVar
   , tcm_covar = const (\cv -> mkCoVarCo <$> zonkTyCoVarKind cv)
@@ -2164,71 +2126,57 @@ zonkTcTypeMapper = TyCoMapper
   , tcm_tycobinder = \_env tv _vis -> ((), ) <$> zonkTyCoVarKind tv
   , tcm_tycon      = zonkTcTyCon }
   where
-    hole :: () -> CoercionHole -> TcM Coercion
-    hole _ hole@(CoercionHole { ch_ref = ref, ch_co_var = cv })
-      = do { contents <- readTcRef ref
-           ; case contents of
+    hole :: MonadIO m => () -> CoercionHole -> m Coercion
+    hole _ hole@CoercionHole { ch_ref = ref, ch_co_var = cv } = readMutVar ref >>= \ case
                Just co -> do { co' <- zonkCo co
                              ; checkCoercionHole cv co' }
-               Nothing -> do { cv' <- zonkCoVar cv
-                             ; return $ HoleCo (hole { ch_co_var = cv' }) } }
+               Nothing -> [ HoleCo hole { ch_co_var = cv' } | cv' <- zonkCoVar cv ]
 
-zonkTcTyCon :: TcTyCon -> TcM TcTyCon
+zonkTcTyCon :: MonadIO m => TcTyCon -> m TcTyCon
 -- Only called on TcTyCons
 -- A non-poly TcTyCon may have unification
 -- variables that need zonking, but poly ones cannot
 zonkTcTyCon tc
- | tcTyConIsPoly tc = return tc
- | otherwise        = do { tck' <- zonkTcType (tyConKind tc)
-                         ; return (setTcTyConKind tc tck') }
+ | tcTyConIsPoly tc = pure tc
+ | otherwise        = setTcTyConKind tc <$> zonkTcType (tyConKind tc)
 
-zonkTcTyVar :: TcTyVar -> TcM TcType
+zonkTcTyVar :: MonadIO m => TcTyVar -> m TcType
 -- Simply look through all Flexis
 zonkTcTyVar tv
   | isTcTyVar tv
   = case tcTyVarDetails tv of
       SkolemTv {}   -> zonk_kind_and_return
       RuntimeUnk {} -> zonk_kind_and_return
-      MetaTv { mtv_ref = ref }
-         -> do { cts <- readMutVar ref
-               ; case cts of
+      MetaTv { mtv_ref = ref } -> readMutVar ref >>= \ case
                     Flexi       -> zonk_kind_and_return
                     Indirect ty -> do { zty <- zonkTcType ty
-                                      ; writeTcRef ref (Indirect zty)
-                                        -- See Note [Sharing in zonking]
-                                      ; return zty } }
+                                      ; zty <$ writeMutVar ref (Indirect zty)
+                                        {- See Note [Sharing in zonking] -} }
 
   | otherwise -- coercion variable
   = zonk_kind_and_return
   where
-    zonk_kind_and_return = do { z_tv <- zonkTyCoVarKind tv
-                              ; return (mkTyVarTy z_tv) }
+    zonk_kind_and_return = mkTyVarTy <$> zonkTyCoVarKind tv
 
 -- Variant that assumes that any result of zonking is still a TyVar.
 -- Should be used only on skolems and TyVarTvs
-zonkTcTyVarToTyVar :: HasDebugCallStack => TcTyVar -> TcM TcTyVar
-zonkTcTyVarToTyVar tv
-  = do { ty <- zonkTcTyVar tv
-       ; let tv' = case tcGetTyVar_maybe ty of
+zonkTcTyVarToTyVar :: (MonadIO m, HasDebugCallStack) => TcTyVar -> m TcTyVar
+zonkTcTyVarToTyVar tv =
+  [ tv'
+  |  ty <- zonkTcTyVar tv
+  , let tv' = case tcGetTyVar_maybe ty of
                      Just tv' -> tv'
                      Nothing  -> pprPanic "zonkTcTyVarToTyVar"
-                                          (ppr tv $$ ppr ty)
-       ; return tv' }
+                                          (ppr tv $$ ppr ty) ]
 
-zonkTyVarTyVarPairs :: [(Name,VarBndr TcTyVar Specificity)] -> TcM [(Name,VarBndr TcTyVar Specificity)]
-zonkTyVarTyVarPairs prs
-  = mapM do_one prs
-  where
-    do_one (nm, Bndr tv spec) = do { tv' <- zonkTcTyVarToTyVar tv
-                                   ; return (nm, Bndr tv' spec) }
+zonkTyVarTyVarPairs :: (Traversable s, Traversable t, MonadIO m) => s (t (VarBndr TcTyVar Specificity)) -> m (s (t (VarBndr TcTyVar Specificity)))
+zonkTyVarTyVarPairs = (traverse . traverse . binderVarL) zonkTcTyVarToTyVar
 
 -- zonkId is used *during* typechecking just to zonk the Id's type
-zonkId :: TcId -> TcM TcId
-zonkId id
-  = do { ty' <- zonkTcType (idType id)
-       ; return (Id.setIdType id ty') }
+zonkId :: MonadIO m => TcId -> m TcId
+zonkId = Id.idTypeL zonkTcType
 
-zonkCoVar :: CoVar -> TcM CoVar
+zonkCoVar :: MonadIO m => CoVar -> m CoVar
 zonkCoVar = zonkId
 
 {- Note [Sharing in zonking]
@@ -2283,7 +2231,7 @@ zonkTidyOrigin env orig@(TypeEqOrigin { uo_actual   = act
 zonkTidyOrigin env (KindEqOrigin ty1 m_ty2 orig t_or_k)
   = do { (env1, ty1')   <- zonkTidyTcType env  ty1
        ; (env2, m_ty2') <- case m_ty2 of
-                             Just ty2 -> second Just <$> zonkTidyTcType env1 ty2
+                             Just ty2 -> fmap Just <$> zonkTidyTcType env1 ty2
                              Nothing  -> return (env1, Nothing)
        ; (env3, orig')  <- zonkTidyOrigin env2 orig
        ; return (env3, KindEqOrigin ty1' m_ty2' orig' t_or_k) }
@@ -2301,20 +2249,16 @@ zonkTidyOrigin env orig = return (env, orig)
 ----------------
 tidyCt :: TidyEnv -> Ct -> Ct
 -- Used only in error reporting
-tidyCt env ct
-  = ct { cc_ev = tidy_ev (ctEvidence ct) }
-  where
-    tidy_ev :: CtEvidence -> CtEvidence
+tidyCt = over (ctEvidenceL . ctEvPredL) . tidyType
      -- NB: we do not tidy the ctev_evar field because we don't
      --     show it in error messages
-    tidy_ev ctev = ctev { ctev_pred = tidyType env (ctev_pred ctev) }
 
 tidyHole :: TidyEnv -> Hole -> Hole
-tidyHole env h@(Hole { hole_ty = ty }) = h { hole_ty = tidyType env ty }
+tidyHole = over hole_tyL . tidyType
 
 ----------------
 tidyEvVar :: TidyEnv -> EvVar -> EvVar
-tidyEvVar env var = updateVarType (tidyType env) var
+tidyEvVar = over varTypeL . tidyType
 
 ----------------
 tidySkolemInfo :: TidyEnv -> SkolemInfo -> SkolemInfo

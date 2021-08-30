@@ -17,7 +17,6 @@ import GHC.Utils.Exception as Exception
 import GHC.Driver.Phases
 
 import Control.Monad
-import Data.List
 import qualified Data.Set as Set
 import qualified Data.Map as Map
 import Data.IORef

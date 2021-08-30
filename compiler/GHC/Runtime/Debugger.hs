@@ -38,7 +38,7 @@ import GHC.Utils.Error
 import GHC.Utils.Monad
 import GHC.Utils.Exception
 
-import GHC.Types.Id
+import GHC.Types.Id as Id
 import GHC.Types.Name
 import GHC.Types.Var hiding ( varName )
 import GHC.Types.Var.Set
@@ -49,9 +49,7 @@ import GHC.Types.TyThing
 import Control.Monad
 import Control.Monad.Catch as MC
 import Data.List ( (\\) )
-import Data.Maybe
 import Data.IORef
-import Lens.Micro (over)
 
 -------------------------------------
 -- | The :print & friends commands
@@ -82,8 +80,7 @@ pprintClosureCommand bindThings force str = do
    -- Do the obtainTerm--bindSuspensions-computeSubstitution dance
    go :: GhcMonad m => TCvSubst -> Id -> m (TCvSubst, Term)
    go subst id = do
-       let id_ty' = substTy subst (idType id)
-           id'    = id `setIdType` id_ty'
+       let (id_ty', id') = Id.idTypeL ((,) <*> substTy subst) id
        term_    <- GHC.obtainTermFromId maxBound force id'
        term     <- tidyTermTyVars term_
        term'    <- if bindThings

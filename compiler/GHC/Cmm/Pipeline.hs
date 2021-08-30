@@ -29,7 +29,6 @@ import GHC.Driver.Env
 import Control.Monad
 import GHC.Utils.Outputable
 import GHC.Platform
-import Data.Either (partitionEithers)
 
 -----------------------------------------------------------------------------
 -- | Top level driver for C-- pipeline
@@ -345,9 +344,7 @@ generator later.
 -}
 
 runUniqSM :: UniqSM a -> IO a
-runUniqSM m = do
-  us <- mkSplitUniqSupply 'u'
-  return (initUs_ us m)
+runUniqSM m = mkSplitUniqSupply 'u' <₪> \ us -> initUs_ us m
 
 
 dumpGraph :: DynFlags -> DumpFlag -> String -> CmmGraph -> IO ()
@@ -356,11 +353,8 @@ dumpGraph dflags flag name g = do
   dumpWith dflags flag name FormatCMM (pdoc platform g)
  where
   platform = targetPlatform dflags
-  do_lint g = case cmmLintGraph platform g of
-                 Just err -> do { fatalErrorMsg dflags err
-                                ; ghcExit dflags 1
-                                }
-                 Nothing  -> return ()
+  do_lint g = cmmLintGraph platform g `for_` \ err ->
+      do { fatalErrorMsg dflags err; ghcExit dflags 1 }
 
 dumpWith :: DynFlags -> DumpFlag -> String -> DumpFormat -> SDoc -> IO ()
 dumpWith dflags flag txt fmt sdoc = do

@@ -60,9 +60,8 @@ import GHC.Types.Var
 import GHC.Types.SrcLoc
 import GHC.Data.FastString
 import Control.Monad
-import Data.List( mapAccumL )
+import Data.Foldable( toList )
 import Data.Array( Array, assocs )
-import Lens.Micro (over)
 
 import GHC.Utils.Misc
 import GHC.Utils.Outputable
@@ -391,7 +390,7 @@ emptyFamInstEnv :: FamInstEnv
 emptyFamInstEnv = emptyUDFM
 
 famInstEnvElts :: FamInstEnv -> [FamInst]
-famInstEnvElts fi = [elt | FamIE elts <- eltsUDFM fi, elt <- elts]
+famInstEnvElts fi = [elt | FamIE elts <- toList fi, elt <- elts]
   -- See Note [FamInstEnv determinism]
 
 famInstEnvSize :: FamInstEnv -> Int
@@ -667,7 +666,7 @@ mkCoAxBranch tvs eta_tvs cvs ax_tc lhs rhs roles loc
     CoAxBranch { cab_tvs     = tvs'
                , cab_eta_tvs = eta_tvs'
                , cab_cvs     = cvs'
-               , cab_lhs     = tidyTypes env lhs
+               , cab_lhs     = tidyType env <$> lhs
                , cab_roles   = roles
                , cab_rhs     = tidyType env rhs
                , cab_loc     = loc
@@ -1443,7 +1442,7 @@ normalise_type ty
     go (ForAllTy (Bndr tcvar vis) ty)
       = do { (lc', tv', h, ki') <- normalise_var_bndr tcvar
            ; (co, nty)          <- withLC lc' $ normalise_type ty
-           ; let tv2 = setTyVarKind tv' ki'
+           ; let tv2 = set tyVarKindL ki' tv'
            ; return (mkForAllCo tv' h co, ForAllTy (Bndr tv2 vis) nty) }
     go (TyVarTy tv)    = normalise_tyvar tv
     go (CastTy ty co)
@@ -1729,7 +1728,7 @@ LENS_FIELD(fe_in_scopeL, fe_in_scope)
 
 emptyFlattenEnv :: InScopeSet -> FlattenEnv
 emptyFlattenEnv in_scope
-  = FlattenEnv { fe_type_map = emptyTypeMap
+  = FlattenEnv { fe_type_map = emptyTM
                , fe_in_scope = in_scope }
 
 flattenTys :: InScopeSet -> [Type] -> [Type]
@@ -1754,7 +1753,7 @@ coreFlattenTy subst = go
     go env (TyVarTy tv)
       | Just ty <- lookupVarEnv subst tv = (env, ty)
       | otherwise                        = let (env', ki) = go env (tyVarKind tv) in
-                                           (env', mkTyVarTy $ setTyVarKind tv ki)
+                                           (env', mkTyVarTy $ set tyVarKindL ki tv)
     go env (AppTy ty1 ty2) = let (env1, ty1') = go env  ty1
                                  (env2, ty2') = go env1 ty2 in
                              (env2, AppTy ty1' ty2')
@@ -1810,7 +1809,7 @@ coreFlattenVarBndr subst env tv
     -- See Note [Flattening], wrinkle 2B.
     kind          = varType tv
     (env1, kind') = coreFlattenTy subst env kind
-    tv'           = uniqAway (fe_in_scope env1) (setVarType tv kind')
+    tv'           = uniqAway (fe_in_scope env1) (set varTypeL kind' tv)
     subst'        = extendVarEnv subst tv (mkTyVarTy tv')
     env2          = over fe_in_scopeL (flip extendInScopeSet tv') env1
 
@@ -1819,14 +1818,14 @@ coreFlattenTyFamApp :: TvSubstEnv -> FlattenEnv
                     -> [Type]        -- args, already flattened
                     -> (FlattenEnv, Type)
 coreFlattenTyFamApp tv_subst env fam_tc fam_args
-  = case lookupTypeMap type_map fam_ty of
+  = case lookupTM fam_ty type_map of
       Just tv -> (env', mkAppTys (mkTyVarTy tv) leftover_args')
       Nothing -> let tyvar_name = mkFlattenFreshTyName fam_tc
                      tv         = uniqAway in_scope $
                                   mkTyVar tyvar_name (typeKind fam_ty)
 
                      ty'   = mkAppTys (mkTyVarTy tv) leftover_args'
-                     env'' = env' { fe_type_map = extendTypeMap type_map fam_ty tv
+                     env'' = env' { fe_type_map = insertTM fam_ty tv type_map
                                   , fe_in_scope = extendInScopeSet in_scope tv }
                  in (env'', ty')
   where

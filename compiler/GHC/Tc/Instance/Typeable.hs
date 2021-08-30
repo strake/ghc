@@ -335,8 +335,7 @@ mkPrimTypeableTodos
                                             ghcPrimTypeableTyCons
                    ; return ( gbl_env' , [todo1, todo2])
                    }
-           else do gbl_env <- getGblEnv
-                   return (gbl_env, [])
+           else flip (,) [] <$> getGblEnv
        }
 
 -- | This is the list of primitive 'TyCon's for which we must generate bindings
@@ -472,11 +471,11 @@ builtInKindReps =
     star = liftedTypeKind
 
 initialKindRepEnv :: TcRn KindRepEnv
-initialKindRepEnv = foldlM add_kind_rep emptyTypeMap builtInKindReps
+initialKindRepEnv = foldlM add_kind_rep emptyTM builtInKindReps
   where
     add_kind_rep acc (k,n) = do
         id <- tcLookupId n
-        return $! extendTypeMap acc k (id, Nothing)
+        return $! insertTM k (id, Nothing) acc
 
 -- | Performed while compiling "GHC.Types" to generate the built-in 'KindRep's.
 mkExportedKindReps :: TypeableStuff
@@ -505,7 +504,7 @@ runKindRepM :: KindRepM a -> TcRn (TcGblEnv, a)
 runKindRepM (KindRepM action) = do
     kindRepEnv <- initialKindRepEnv
     (res, reps_env) <- runStateT action kindRepEnv
-    let rep_binds = foldTypeMap to_bind_pair [] reps_env
+    let rep_binds = foldr to_bind_pair [] reps_env
         to_bind_pair (bndr, Just rhs) rest = (bndr, rhs) : rest
         to_bind_pair (_, Nothing) rest = rest
     tcg_env <- tcExtendGlobalValEnv (map fst rep_binds) getGblEnv

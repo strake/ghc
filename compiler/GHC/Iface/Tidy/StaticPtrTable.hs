@@ -150,8 +150,8 @@ import GHC.Types.TyThing
 
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.State.Strict
-import Data.List
-import Data.Maybe
+import Data.Foldable (toList)
+import Data.List (intercalate)
 import GHC.Fingerprint
 import qualified GHC.LanguageExtensions as LangExt
 
@@ -194,10 +194,10 @@ sptCreateStaticBinds hsc_env this_mod binds
     replaceStaticBind :: CoreBind
                       -> StateT Int IO ([SptEntry], CoreBind)
     replaceStaticBind (NonRec b e) = do (mfp, (b', e')) <- replaceStatic b e
-                                        return (maybeToList mfp, NonRec b' e')
-    replaceStaticBind (Rec rbs) = do
-      (mfps, rbs') <- unzip <$> mapM (uncurry replaceStatic) rbs
-      return (catMaybes mfps, Rec rbs')
+                                        return (toList mfp, NonRec b' e')
+    replaceStaticBind (Rec rbs) =
+      [ (catMaybes mfps, Rec rbs')
+      | (mfps, rbs') <- unzip <$> traverse (uncurry replaceStatic) rbs ]
 
     replaceStatic :: Id -> CoreExpr
                   -> StateT Int IO (Maybe SptEntry, (Id, CoreExpr))

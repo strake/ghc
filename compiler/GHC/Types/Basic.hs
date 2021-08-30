@@ -16,7 +16,10 @@ types that
 
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE CPP #-}
 {-# OPTIONS_GHC -Wno-incomplete-record-updates #-}
+
+#include "lens.h"
 
 module GHC.Types.Basic (
         LeftOrRight(..),
@@ -40,6 +43,7 @@ module GHC.Types.Basic (
 
         OverlapFlag(..), OverlapMode(..), setOverlapModeMaybe,
         hasOverlappingFlag, hasOverlappableFlag, hasIncoherentFlag,
+        overlapModeL, isSafeOverlapL,
 
         Boxity(..), isBoxed,
 
@@ -109,7 +113,6 @@ import GHC.Utils.Binary
 import GHC.Types.SourceText
 import Data.Data
 import Data.Bits
-import qualified Data.Semigroup as Semi
 
 {-
 ************************************************************************
@@ -134,10 +137,9 @@ instance Binary LeftOrRight where
    put_ bh CLeft  = putByte bh 0
    put_ bh CRight = putByte bh 1
 
-   get bh = do { h <- getByte bh
-               ; case h of
-                   0 -> return CLeft
-                   _ -> return CRight }
+   get bh = getByte bh <₪> \ case
+                   0 -> CLeft
+                   _ -> CRight
 
 
 {-
@@ -578,6 +580,9 @@ data OverlapFlag = OverlapFlag
   , isSafeOverlap :: Bool
   } deriving (Eq, Data)
 
+LENS_FIELD(overlapModeL, overlapMode)
+LENS_FIELD(isSafeOverlapL, isSafeOverlap)
+
 setOverlapModeMaybe :: OverlapFlag -> Maybe OverlapMode -> OverlapFlag
 setOverlapModeMaybe f Nothing  = f
 setOverlapModeMaybe f (Just m) = f { overlapMode = m }
@@ -970,13 +975,12 @@ data InterestingCxt
 
 -- | If there is any 'interesting' identifier occurrence, then the
 -- aggregated occurrence info of that identifier is considered interesting.
-instance Semi.Semigroup InterestingCxt where
+instance Semigroup InterestingCxt where
   NotInteresting <> x = x
   IsInteresting  <> _ = IsInteresting
 
 instance Monoid InterestingCxt where
   mempty = NotInteresting
-  mappend = (Semi.<>)
 
 -----------------
 -- | Inside Lambda
@@ -990,13 +994,12 @@ data InsideLam
 
 -- | If any occurrence of an identifier is inside a lambda, then the
 -- occurrence info of that identifier marks it as occurring inside a lambda
-instance Semi.Semigroup InsideLam where
+instance Semigroup InsideLam where
   NotInsideLam <> x = x
   IsInsideLam  <> _ = IsInsideLam
 
 instance Monoid InsideLam where
   mempty = NotInsideLam
-  mappend = (Semi.<>)
 
 -----------------
 data OneBranch

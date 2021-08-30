@@ -60,13 +60,8 @@ import GHC.Unit.Module.Warnings
 import GHC.Unit.Module.Deps
 
 import Control.Monad
-import Data.Function
 import Data.List (sortBy, sort)
 import qualified Data.Map as Map
-
---Qualified import so we can define a Semigroup instance
--- but it doesn't clash with Outputable.<>
-import qualified Data.Semigroup
 
 {-
   -----------------------------------------------
@@ -274,24 +269,20 @@ checkPlugins :: HscEnv -> ModIface -> IfG RecompileRequired
 checkPlugins hsc_env iface = liftIO $ do
   new_fingerprint <- fingerprintPlugins hsc_env
   let old_fingerprint = mi_plugin_hash (mi_final_exts iface)
-  pr <- mconcat <$> mapM pluginRecompile' (plugins hsc_env)
-  return $
-    pluginRecompileToRecompileRequired old_fingerprint new_fingerprint pr
+  pluginRecompileToRecompileRequired old_fingerprint new_fingerprint . mconcat <$> traverse pluginRecompile' (plugins hsc_env)
 
 fingerprintPlugins :: HscEnv -> IO Fingerprint
-fingerprintPlugins hsc_env = do
-  fingerprintPlugins' $ plugins hsc_env
+fingerprintPlugins = fingerprintPlugins' . plugins
 
 fingerprintPlugins' :: [PluginWithArgs] -> IO Fingerprint
-fingerprintPlugins' plugins = do
-  res <- mconcat <$> mapM pluginRecompile' plugins
-  return $ case res of
+fingerprintPlugins' plugins =
+  traverse pluginRecompile' plugins <₪> mconcat & \ case
       NoForceRecompile -> fingerprintString "NoForceRecompile"
       ForceRecompile   -> fingerprintString "ForceRecompile"
       -- is the chance of collision worth worrying about?
       -- An alternative is to fingerprintFingerprints [fingerprintString
       -- "maybeRecompile", fp]
-      (MaybeRecompile fp) -> fp
+      MaybeRecompile fp -> fp
 
 
 pluginRecompileToRecompileRequired

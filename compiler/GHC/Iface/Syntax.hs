@@ -666,7 +666,7 @@ pprAxBranch pp_tc idx (IfaceAxBranch { ifaxbTyVars = tvs
           text "{-" <+> (text "#" <> ppr idx) <+> text "-}"
     maybe_incomps
       = ppWhenOption sdocPrintAxiomIncomps $
-          ppWhen (notNull incomps) $
+          mwhen (notNull incomps) $
             text "--" <+> text "incompatible with:"
             <+> pprWithCommas (\incomp -> text "#" <> ppr incomp) incomps
 
@@ -825,9 +825,9 @@ pprIfaceDecl ss (IfaceData { ifName = tycon, ifCType = ctype, ifResKind = kind,
     forall_bndrs = [Bndr (binderVar tc_bndr) Specified | tc_bndr <- binders]
 
     cons       = visibleIfConDecls condecls
-    pp_where   = ppWhen (gadt && not (null cons)) $ text "where"
+    pp_where   = mwhen (gadt && not (null cons)) $ text "where"
     pp_cons    = ppr_trim (map show_con cons) :: [SDoc]
-    pp_kind    = ppUnless (if ki_sig_printable
+    pp_kind    = munless (if ki_sig_printable
                               then isIfaceTauType kind
                                       -- Even in the presence of a standalone kind signature, a non-tau
                                       -- result kind annotation cannot be discarded as it determines the arity.
@@ -858,7 +858,7 @@ pprIfaceDecl ss (IfaceData { ifName = tycon, ifCType = ctype, ifResKind = kind,
       -- data instance.
       not is_data_instance
 
-    pp_ki_sig = ppWhen ki_sig_printable $
+    pp_ki_sig = mwhen ki_sig_printable $
                 pprStandaloneKindSig name_doc (mkIfaceTyConKind binders kind)
 
     -- See Note [Suppressing binder signatures] in GHC.Iface.Type
@@ -910,7 +910,7 @@ pprIfaceDecl ss (IfaceClass { ifName  = clas
          , nest 2 (vcat [ vcat asocs, vcat dsigs
                         , ppShowAllSubs ss (pprMinDef minDef)])]
     where
-      pp_where = ppShowRhs ss $ ppUnless (null sigs && null ats) (text "where")
+      pp_where = ppShowRhs ss $ munless (null sigs && null ats) (text "where")
 
       asocs = ppr_trim $ map maybeShowAssoc ats
       dsigs = ppr_trim $ map maybeShowSig sigs
@@ -926,7 +926,7 @@ pprIfaceDecl ss (IfaceClass { ifName  = clas
         | otherwise     = Nothing
 
       pprMinDef :: BooleanFormula IfLclName -> SDoc
-      pprMinDef minDef = ppUnless (isTrue minDef) $ -- hide empty definitions
+      pprMinDef minDef = munless (isTrue minDef) $ -- hide empty definitions
         text "{-# MINIMAL" <+>
         pprBooleanFormula
           (\_ def -> cparen (isLexSym def) (ppr def)) 0 minDef <+>
@@ -942,7 +942,7 @@ pprIfaceDecl ss (IfaceSynonym { ifName    = tc
   = vcat [ pprStandaloneKindSig name_doc (mkIfaceTyConKind binders res_kind)
          , hang (text "type" <+> pprIfaceDeclHead suppress_bndr_sig [] ss tc binders <+> equals)
            2 (sep [ pprIfaceForAll tvs, pprIfaceContextArr theta, ppr tau
-                  , ppUnless (isIfaceLiftedTypeKind res_kind) (dcolon <+> ppr res_kind) ])
+                  , munless (isIfaceLiftedTypeKind res_kind) (dcolon <+> ppr res_kind) ])
          ]
   where
     (tvs, theta, tau) = splitIfaceSigmaTy mono_ty
@@ -1019,7 +1019,7 @@ pprIfaceDecl _ (IfacePatSyn { ifName = name,
       = hang (text "pattern" <+> pprPrefixOcc name)
            2 (dcolon <+> sep [univ_msg
                              , pprIfaceContextArr req_ctxt
-                             , ppWhen insert_empty_ctxt $ parens empty <+> darrow
+                             , mwhen insert_empty_ctxt $ parens empty <+> darrow
                              , ex_msg
                              , pprIfaceContextArr prov_ctxt
                              , pprIfaceType $ foldr (IfaceFunTy VisArg) pat_ty arg_tys ])
@@ -1053,7 +1053,7 @@ pprRoles :: (Role -> Bool) -> SDoc -> [IfaceTyConBinder]
 pprRoles suppress_if tyCon bndrs roles
   = sdocOption sdocPrintExplicitKinds $ \print_kinds ->
       let froles = suppressIfaceInvisibles (PrintExplicitKinds print_kinds) bndrs roles
-      in ppUnless (all suppress_if froles || null froles) $
+      in munless (all suppress_if froles || null froles) $
          text "type role" <+> tyCon <+> hsep (map ppr froles)
 
 pprStandaloneKindSig :: SDoc -> IfaceType -> SDoc
@@ -1277,7 +1277,7 @@ instance Outputable IfaceRule where
           , nest 2 (sep [ppr fn <+> sep (map pprParendIfaceExpr args),
                         text "=" <+> ppr rhs]) ]
     where
-      pp_foralls = ppUnless (null bndrs) $ forAllLit <+> pprIfaceBndrs bndrs <> dot
+      pp_foralls = munless (null bndrs) $ forAllLit <+> pprIfaceBndrs bndrs <> dot
 
 instance Outputable IfaceClsInst where
   ppr (IfaceClsInst { ifDFun = dfun_id, ifOFlag = flag
@@ -1439,7 +1439,7 @@ instance Outputable IfaceIdDetails where
 
 instance Outputable IfaceInfoItem where
   ppr (HsUnfold lb unf)     = text "Unfolding"
-                              <> ppWhen lb (text "(loop-breaker)")
+                              <> mwhen lb (text "(loop-breaker)")
                               <> colon <+> ppr unf
   ppr (HsInline prag)       = text "Inline:" <+> ppr prag
   ppr (HsArity arity)       = text "Arity:" <+> int arity

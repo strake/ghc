@@ -1,4 +1,3 @@
-
 -- | When there aren't enough registers to hold all the vregs we have to spill
 --   some of those vregs to slots on the stack. This module is used modify the
 --   code to use those slots.
@@ -27,10 +26,9 @@ import GHC.Utils.Outputable
 import GHC.Utils.Panic
 import GHC.Platform
 
-import Data.List
-import Data.Maybe
 import Data.IntSet              (IntSet)
 import qualified Data.IntSet    as IntSet
+import Data.List ((\\), intersect)
 
 
 -- | Spill all these virtual regs to stack slots.
@@ -203,9 +201,9 @@ regSpill_instr platform regSlotMap
         let rsModify            = intersect rsRead_ rsWritten_
 
         -- work out if any of the regs being used are currently being spilled.
-        let rsSpillRead         = filter (\r -> elemUFM r regSlotMap) rsRead
-        let rsSpillWritten      = filter (\r -> elemUFM r regSlotMap) rsWritten
-        let rsSpillModify       = filter (\r -> elemUFM r regSlotMap) rsModify
+        let rsSpillRead         = filter (`elemUFM` regSlotMap) rsRead
+        let rsSpillWritten      = filter (`elemUFM` regSlotMap) rsWritten
+        let rsSpillModify       = filter (`elemUFM` regSlotMap) rsModify
 
         -- rewrite the instr and work out spill code.
         (instr1, prepost1)      <- mapAccumLM (spillRead   regSlotMap) instr  rsSpillRead

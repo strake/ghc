@@ -66,9 +66,9 @@ import GHC.Data.Maybe
 import GHC.Data.Bag
 import GHC.Utils.Constants
 import GHC.Utils.Misc
-import Data.List
+import Data.List hiding (filter)
 import Data.Ord
-import Control.Monad    ( guard )
+import Data.Foldable ( toList )
 
 {-
 Note [Overall plumbing for rules]
@@ -1171,7 +1171,7 @@ ruleCheckProgram ropts phase rule_pat rules binds
   | otherwise
   = vcat [text "Rule check results:",
           line,
-          vcat [ p $$ line | p <- bagToList results ]
+          vcat [ p $$ line | p <- toList results ]
          ]
   where
     env = RuleCheckEnv { rc_is_active = isActive phase

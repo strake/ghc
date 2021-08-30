@@ -41,6 +41,8 @@ import GHC.Types.Unique.Supply
 import GHC.Utils.Panic
 import GHC.Utils.Constants (debugIsOn)
 
+import Data.Foldable (toList)
+
 
 -----------------------------------------------------------------------------
 -- Building Graphs
@@ -89,7 +91,7 @@ flattenCmmAGraph id (stmts_t, tscope) =
   flatten :: Label -> CmmAGraph -> CmmTickScope -> [Block CmmNode C C]
           -> [Block CmmNode C C]
   flatten id g tscope blocks
-      = flatten1 (fromOL g) block' blocks
+      = flatten1 (toList g) block' blocks
       where !block' = blockJoinHead (CmmEntry id tscope) emptyBlock
   --
   -- flatten0: we are outside a block at this point: any code before

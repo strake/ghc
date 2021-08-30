@@ -56,6 +56,7 @@ import GHC.IfaceToCore     ( typecheckIface )
 import GHC.Data.Bag        ( unitBag, listToBag, unionManyBags, isEmptyBag )
 import GHC.Data.Graph.Directed
 import GHC.Data.FastString
+import qualified GHC.Data.FiniteMap as Map ( insertListWith )
 import GHC.Data.Maybe      ( expectJust )
 import GHC.Data.StringBuffer
 import qualified GHC.LanguageExtensions as LangExt
@@ -90,12 +91,6 @@ import GHC.Unit.Module.ModDetails
 import GHC.Unit.Module.Graph
 import GHC.Unit.Home.ModInfo
 
-import Data.Either ( rights, partitionEithers )
-import qualified Data.Map as Map
-import Data.Map (Map)
-import qualified Data.Set as Set
-import qualified GHC.Data.FiniteMap as Map ( insertListWith )
-
 import Control.Concurrent ( forkIOWithUnmask, killThread )
 import qualified GHC.Conc as CC
 import Control.Concurrent.MVar
@@ -103,14 +98,17 @@ import Control.Concurrent.QSem
 import Control.Monad
 import Control.Monad.Trans.Except ( ExceptT(..), runExceptT, throwE )
 import qualified Control.Monad.Catch as MC
+import Data.Either ( rights )
 import Data.IORef
-import Data.List
+import Data.List ( sort, sortBy )
 import qualified Data.List as List
 import Data.Foldable (toList)
-import Data.Maybe
+import Data.Map (Map)
+import qualified Data.Map as Map
+import Data.Maybe ( isJust, isNothing, listToMaybe )
 import Data.Ord ( comparing )
 import Data.Time
-import Lens.Micro (over, set)
+import qualified Data.Set as Set
 import System.Directory
 import System.FilePath
 import System.IO        ( fixIO )
@@ -1032,7 +1030,7 @@ parUpsweep n_jobs mHscMessage old_hpt stable_mods cleanup sccs = do
     -- The list of all loops in the compilation graph.
     -- NB: For convenience, the last module of each loop (aka the module that
     -- finishes the loop) is prepended to the beginning of the loop.
-    let graph = map fstOf3 (reverse comp_graph)
+    let graph = map fst3 (reverse comp_graph)
         boot_modules = mkModuleSet [ms_mod ms | ms <- graph, isBootSummary ms == IsBoot]
         comp_graph_loops = go graph boot_modules
           where
@@ -1451,7 +1449,7 @@ upsweep mHscMessage old_hpt stable_mods cleanup sccs = do
      (AcyclicSCC mod:mods) mod_index nmods uids_to_check done_holes
    = do -- putStrLn ("UPSWEEP_MOD: hpt = " ++
         --           show (map (moduleUserString.moduleName.mi_module.hm_iface)
-        --                     (moduleEnvElts (hsc_HPT hsc_env)))
+        --                     (toList (hsc_HPT hsc_env)))
         let logger _mod = defaultWarnErrLogger
 
         hsc_env <- getSession

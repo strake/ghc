@@ -52,11 +52,9 @@ setUnions [] = setEmpty
 setUnions sets = foldl1' setUnion sets
 
 
-class IsMap map where
+class (Filtrable map, Foldable map, Functor map) => IsMap map where
   type KeyOf map
 
-  mapNull :: map a -> Bool
-  mapSize :: map a -> Int
   mapMember :: KeyOf map -> map a -> Bool
   mapLookup :: KeyOf map -> map a -> Maybe a
   mapFindWithDefault :: a -> KeyOf map -> map a -> a
@@ -75,17 +73,11 @@ class IsMap map where
   mapIntersection :: map a -> map a -> map a
   mapIsSubmapOf :: Eq a => map a -> map a -> Bool
 
-  mapMap :: (a -> b) -> map a -> map b
   mapMapWithKey :: (KeyOf map -> a -> b) -> map a -> map b
-  mapFoldl :: (b -> a -> b) -> b -> map a -> b
-  mapFoldr :: (a -> b -> b) -> b -> map a -> b
   mapFoldlWithKey :: (b -> KeyOf map -> a -> b) -> b -> map a -> b
   mapFoldMapWithKey :: Monoid m => (KeyOf map -> a -> m) -> map a -> m
-  mapFilter :: (a -> Bool) -> map a -> map a
   mapFilterWithKey :: (KeyOf map -> a -> Bool) -> map a -> map a
 
-
-  mapElems :: map a -> [a]
   mapKeys :: map a -> [KeyOf map]
   mapToList :: map a -> [(KeyOf map, a)]
   mapFromList :: [(KeyOf map, a)] -> map a
@@ -132,14 +124,16 @@ instance IsSet UniqueSet where
   setElems (US s) = S.elems s
   setFromList ks = US (S.fromList ks)
 
-newtype UniqueMap v = UM (M.IntMap v)
+newtype UniqueMap v = UM { unUM :: M.IntMap v }
   deriving (Eq, Ord, Show, Functor, Foldable, Traversable)
+
+instance Filtrable UniqueMap where
+  filter f = UM . M.filter f . unUM
+  mapMaybe f = UM . M.mapMaybe f . unUM
 
 instance IsMap UniqueMap where
   type KeyOf UniqueMap = Int
 
-  mapNull (UM m) = M.null m
-  mapSize (UM m) = M.size m
   mapMember k (UM m) = M.member k m
   mapLookup k (UM m) = M.lookup k m
   mapFindWithDefault def k (UM m) = M.findWithDefault def k m
@@ -158,18 +152,12 @@ instance IsMap UniqueMap where
   mapIntersection (UM x) (UM y) = UM (M.intersection x y)
   mapIsSubmapOf (UM x) (UM y) = M.isSubmapOf x y
 
-  mapMap f (UM m) = UM (M.map f m)
   mapMapWithKey f (UM m) = UM (M.mapWithKey f m)
-  mapFoldl k z (UM m) = M.foldl' k z m
-  mapFoldr k z (UM m) = M.foldr k z m
   mapFoldlWithKey k z (UM m) = M.foldlWithKey' k z m
   mapFoldMapWithKey f (UM m) = M.foldMapWithKey f m
-  {-# INLINEABLE mapFilter #-}
-  mapFilter f (UM m) = UM (M.filter f m)
   {-# INLINEABLE mapFilterWithKey #-}
   mapFilterWithKey f (UM m) = UM (M.filterWithKey f m)
 
-  mapElems (UM m) = M.elems m
   mapKeys (UM m) = M.keys m
   {-# INLINEABLE mapToList #-}
   mapToList (UM m) = M.toList m

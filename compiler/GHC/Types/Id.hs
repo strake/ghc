@@ -46,8 +46,7 @@ module GHC.Types.Id (
         recordSelectorTyCon,
 
         -- ** Modifying an Id
-        setIdName, setIdUnique, GHC.Types.Id.setIdType,
-        updateIdType, updateIdTypeM,
+        idNameL, idUniqueL, GHC.Types.Id.idTypeL,
         setIdExported, setIdNotExported,
         globaliseId, localiseId,
         setIdInfo, lazySetIdInfo, modifyIdInfo, maybeModifyIdInfo,
@@ -130,8 +129,7 @@ import GHC.Types.Var( Id, CoVar, JoinId,
             InId,  InVar,
             OutId, OutVar,
             idInfo, idDetails, setIdDetails, globaliseId,
-            isId, isLocalId, isGlobalId, isExportedId,
-            updateIdType, updateIdTypeM)
+            isId, isLocalId, isGlobalId, isExportedId)
 import qualified GHC.Types.Var as Var
 
 import GHC.Core.Type
@@ -157,6 +155,9 @@ import GHC.Utils.Outputable.Ppr
 import GHC.Utils.Panic
 import GHC.Utils.Panic.Plain
 import GHC.Utils.GlobalVars
+
+import Lens.Micro (lens)
+import Lens.Micro.Extras (view)
 
 -- infixl so you can say (id `set` a `set` b)
 infixl  1 `setIdUnfolding`,
@@ -188,22 +189,22 @@ infixl  1 `setIdUnfolding`,
 idName   :: Id -> Name
 idName    = Var.varName
 
-idUnique :: Id -> Unique
-idUnique  = Var.varUnique
-
 idType   :: Id -> Kind
 idType    = Var.varType
 
-setIdName :: Id -> Name -> Id
-setIdName = Var.setVarName
+idUnique :: Id -> Unique
+idUnique  = view idUniqueL
 
-setIdUnique :: Id -> Unique -> Id
-setIdUnique = Var.setVarUnique
+idNameL :: Lens' Id Name
+idNameL = Var.varNameL
+
+idUniqueL :: Lens' Id Unique
+idUniqueL = Var.varUniqueL
 
 -- | Not only does this set the 'Id' 'Type', it also evaluates the type to try and
 -- reduce space usage
-setIdType :: Id -> Type -> Id
-setIdType id ty = seqType ty `seq` Var.setVarType id ty
+idTypeL :: Lens' Id Type
+idTypeL = lens varType (\ id ty -> seqType ty `seq` set Var.varTypeL ty id)
 
 setIdExported :: Id -> Id
 setIdExported = Var.setIdExported

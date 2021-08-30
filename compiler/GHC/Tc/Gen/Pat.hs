@@ -59,9 +59,9 @@ import GHC.Utils.Outputable as Outputable
 import GHC.Utils.Panic
 import GHC.Utils.Panic.Plain
 import qualified GHC.LanguageExtensions as LangExt
-import Control.Arrow  ( second )
-import Control.Monad  ( when )
 import GHC.Data.List.SetOps ( getNth )
+import Control.Arrow  ( first )
+import Control.Monad  ( when )
 
 {-
 ************************************************************************
@@ -245,15 +245,14 @@ newLetBndr :: LetBndrSpec -> Name -> TcType -> TcM TcId
 --    (plan NoGen, no_gen = LetGblBndr) there is no AbsBinds,
 --    and we use the original name directly
 newLetBndr LetLclBndr name ty
-  = do { mono_name <- cloneLocalName name
-       ; return (mkLocalId mono_name ty) }
+  = [ mkLocalId mono_name ty | mono_name <- cloneLocalName name ]
 newLetBndr (LetGblBndr prags) name ty
   = addInlinePrags (mkLocalId name ty) (lookupPragEnv prags name)
 
 tc_sub_type :: PatEnv -> ExpSigmaType -> TcSigmaType -> TcM HsWrapper
 -- tcSubTypeET with the UserTypeCtxt specialised to GenSigCtxt
 -- Used during typechecking patterns
-tc_sub_type penv t1 t2 = tcSubTypePat (pe_orig penv) GenSigCtxt t1 t2
+tc_sub_type penv = tcSubTypePat (pe_orig penv) GenSigCtxt
 
 {- Note [Subsumption check at pattern variables]
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -301,19 +300,12 @@ type Checker inp out =  forall r.
 tcMultiple :: Checker inp out -> Checker [inp] [out]
 tcMultiple tc_pat penv args thing_inside
   = do  { err_ctxt <- getErrCtxt
-        ; let loop _ []
-                = do { res <- thing_inside
-                     ; return ([], res) }
+        ; let loop _ [] = (,) [] <$> thing_inside
 
-              loop penv (arg:args)
-                = do { (p', (ps', res))
-                                <- tc_pat penv arg $
-                                   setErrCtxt err_ctxt $
-                                   loop penv args
+              loop penv (arg:args) = (\ (p', (ps', res)) -> (p':ps', res)) <$>
+                  (tc_pat penv arg $ setErrCtxt err_ctxt $ loop penv args)
                 -- setErrCtxt: restore context before doing the next pattern
                 -- See note [Nesting] above
-
-                     ; return (p':ps', res) }
 
         ; loop penv args }
 
@@ -322,9 +314,7 @@ tc_lpat :: ExpSigmaType
         -> Checker (LPat GhcRn) (LPat GhcTc)
 tc_lpat pat_ty penv (L span pat) thing_inside
   = setSrcSpan span $
-    do  { (pat', res) <- maybeWrapPatCtxt pat (tc_pat pat_ty penv pat)
-                                          thing_inside
-        ; return (L span pat', res) }
+    first (L span) <$> maybeWrapPatCtxt pat (tc_pat pat_ty penv pat) thing_inside
 
 tc_lpats :: [ExpSigmaType]
          -> Checker [LPat GhcRn] [LPat GhcTc]
@@ -559,13 +549,12 @@ tc_pat pat_ty penv ps_pat thing_inside = case ps_pat of
                  Nothing  -> (, Nothing) <$> new_over_lit neg_lit_ty
                  Just neg -> -- Negative literal
                              -- The 'negate' is re-mappable syntax
-                   second Just <$>
-                   (tcSyntaxOp orig neg [SynRho] (mkCheckExpType neg_lit_ty) $
-                    \ [lit_ty] -> new_over_lit lit_ty)
+                   fmap Just <$>
+                   tcSyntaxOp orig neg [SynRho] (mkCheckExpType neg_lit_ty)
+                    \ [lit_ty] -> new_over_lit lit_ty
 
-        ; res <- thing_inside
-        ; pat_ty <- readExpType pat_ty
-        ; return (NPat pat_ty (L l lit') mb_neg' eq', res) }
+        ; flip (,) <$> thing_inside <*>
+          [ NPat pat_ty' (L l lit') mb_neg' eq' | pat_ty' <- readExpType pat_ty ] }
 
 -- HsSpliced is an annotation produced by 'GHC.Rename.Splice.rnSplicePat'.
 -- Here we get rid of it and add the finalizers to the global environment.
@@ -618,32 +607,25 @@ tcPatSig :: Bool                    -- True <=> pattern binding
                  [(Name,TcTyVar)],  -- The wildcards
                  HsWrapper)         -- Coercion due to unification with actual ty
                                     -- Of shape:  res_ty ~ sig_ty
-tcPatSig in_pat_bind sig res_ty
- = do  { (sig_wcs, sig_tvs, sig_ty) <- tcHsPatSigType PatSigCtxt sig
-        -- sig_tvs are the type variables free in 'sig',
-        -- and not already in scope. These are the ones
-        -- that should be brought into scope
+tcPatSig in_pat_bind sig res_ty = do
+  { (sig_wcs, sig_tvs, sig_ty) <- tcHsPatSigType PatSigCtxt sig
+    -- sig_tvs are the type variables free in 'sig',
+    -- and not already in scope. These are the ones
+    -- that should be brought into scope
+  ; bool
+      [ (sig_ty, sig_tvs, sig_wcs, wrap)
+      | -- Type signature binds at least one scoped type variable
 
-        ; if null sig_tvs then do {
-                -- Just do the subsumption check and return
-                  wrap <- addErrCtxtM (mk_msg sig_ty) $
-                          tcSubTypePat PatSigOrigin PatSigCtxt res_ty sig_ty
-                ; return (sig_ty, [], sig_wcs, wrap)
-        } else do
-                -- Type signature binds at least one scoped type variable
-
-                -- A pattern binding cannot bind scoped type variables
-                -- It is more convenient to make the test here
-                -- than in the renamer
-        { when in_pat_bind (addErr (patBindSigErr sig_tvs))
+        -- A pattern binding cannot bind scoped type variables
+        -- It is more convenient to make the test here than in the renamer
+        () <- when in_pat_bind $ addErr (patBindSigErr sig_tvs)
 
         -- Now do a subsumption check of the pattern signature against res_ty
-        ; wrap <- addErrCtxtM (mk_msg sig_ty) $
-                  tcSubTypePat PatSigOrigin PatSigCtxt res_ty sig_ty
-
-        -- Phew!
-        ; return (sig_ty, sig_tvs, sig_wcs, wrap)
-        } }
+      , wrap <- addErrCtxtM (mk_msg sig_ty) $ tcSubTypePat PatSigOrigin PatSigCtxt res_ty sig_ty ]
+      [ (sig_ty, [], sig_wcs, wrap)
+      | -- Just do the subsumption check and return
+        wrap <- addErrCtxtM (mk_msg sig_ty) $ tcSubTypePat PatSigOrigin PatSigCtxt res_ty sig_ty ]
+  $ null sig_tvs }
   where
     mk_msg sig_ty tidy_env
        = do { (tidy_env, sig_ty) <- zonkTidyTcType tidy_env sig_ty
@@ -657,7 +639,7 @@ tcPatSig in_pat_bind sig res_ty
 
 patBindSigErr :: [(Name,TcTyVar)] -> SDoc
 patBindSigErr sig_tvs
-  = hang (text "You cannot bind scoped type variable" <> plural sig_tvs
+  = hang ((text "You cannot bind scoped type variable" <> plural sig_tvs)
           <+> pprQuotedList (map fst sig_tvs))
        2 (text "in a pattern binding signature")
 
@@ -821,7 +803,7 @@ tcDataConPat penv (L con_span con_name) data_con pat_ty
                   -- should require the GADT language flag.
                   -- Re TypeFamilies see also #7156
 
-        ; given <- newEvVars theta'
+        ; given <- traverse newEvVar theta'
         ; (ev_binds, (arg_pats', res))
              <- checkConstraints skol_info ex_tvs' given $
                 tcConArgs (RealDataCon data_con) arg_tys' penv arg_pats thing_inside
@@ -866,7 +848,7 @@ tcPatSynPat penv (L con_span _) pat_syn pat_ty arg_pats thing_inside
                                  ppr req_theta' $$
                                  ppr arg_tys')
 
-        ; prov_dicts' <- newEvVars prov_theta'
+        ; prov_dicts' <- traverse newEvVar prov_theta'
 
         ; let skol_info = case pe_ctxt penv of
                             LamPat mc -> PatSkol (PatSynCon pat_syn) mc

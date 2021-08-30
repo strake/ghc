@@ -53,7 +53,7 @@ calcDeps modName libdir =
   defaultErrorHandler defaultFatalMessager defaultFlushOut $ runGhc (Just libdir) $ do
       df <- getSessionDynFlags
       (df, _, _) <- parseDynamicFlags df [noLoc "-package=ghc"]
-      setSessionDynFlags df
+      _ <- setSessionDynFlags df
       env <- getSession
       loop env Map.empty [mkModuleName modName]
   where

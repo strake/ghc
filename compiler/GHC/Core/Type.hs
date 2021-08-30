@@ -202,7 +202,7 @@ module GHC.Core.Type (
         cloneTyVarBndr, cloneTyVarBndrs, lookupTyVar,
 
         -- * Tidying type related things up for printing
-        tidyType,      tidyTypes,
+        tidyType,
         tidyOpenType,  tidyOpenTypes,
         tidyOpenKind,
         tidyVarBndr, tidyVarBndrs, tidyFreeTyCoVars,
@@ -268,7 +268,6 @@ import GHC.Types.Unique ( nonDetCmpUnique )
 
 import GHC.Data.Maybe   ( orElse )
 import Data.Maybe       ( isJust )
-import Control.Monad    ( guard )
 
 -- $type_classification
 -- #type_classification#
@@ -516,9 +515,7 @@ expandTypeSynonyms ty
 -- @kindRep * = LiftedRep@; Panics if this is not possible.
 -- Treats * and Constraint as the same
 kindRep :: HasDebugCallStack => Kind -> Type
-kindRep k = case kindRep_maybe k of
-              Just r  -> r
-              Nothing -> pprPanic "kindRep" (ppr k)
+kindRep k = kindRep_maybe k `orElse` pprPanic "kindRep" (ppr k)
 
 -- | Given a kind (TYPE rr), extract its RuntimeRep classifier rr.
 -- For example, @kindRep_maybe * = Just LiftedRep@
@@ -534,10 +531,7 @@ kindRep_maybe kind
 -- if the argument is equivalent to Type/Constraint and False otherwise.
 -- See Note [Kind Constraint and kind Type]
 isLiftedTypeKind :: Kind -> Bool
-isLiftedTypeKind kind
-  = case kindRep_maybe kind of
-      Just rep -> isLiftedRuntimeRep rep
-      Nothing  -> False
+isLiftedTypeKind = any isLiftedRuntimeRep . kindRep_maybe
 
 isLiftedRuntimeRep :: Type -> Bool
 -- isLiftedRuntimeRep is true of LiftedRep :: RuntimeRep
@@ -552,10 +546,7 @@ isLiftedRuntimeRep rep
 -- Note that this returns False for levity-polymorphic kinds, which may
 -- be specialized to a kind that classifies unlifted types.
 isUnliftedTypeKind :: Kind -> Bool
-isUnliftedTypeKind kind
-  = case kindRep_maybe kind of
-      Just rep -> isUnliftedRuntimeRep rep
-      Nothing  -> False
+isUnliftedTypeKind = any isUnliftedRuntimeRep . kindRep_maybe
 
 isUnliftedRuntimeRep :: Type -> Bool
 -- True of definitely-unlifted RuntimeReps
@@ -669,8 +660,7 @@ mapTyCoX (TyCoMapper { tcm_tyvar = tyvar
                      , tcm_hole = cohole })
   = (go_ty, go_tys, go_co, go_cos)
   where
-    go_tys _   []       = return []
-    go_tys env (ty:tys) = (:) <$> go_ty env ty <*> go_tys env tys
+    go_tys = traverse . go_ty
 
     go_ty env (TyVarTy tv)    = tyvar env tv
     go_ty env (AppTy t1 t2)   = mkAppTy <$> go_ty env t1 <*> go_ty env t2
@@ -679,8 +669,7 @@ mapTyCoX (TyCoMapper { tcm_tyvar = tyvar
     go_ty env (CoercionTy co) = CoercionTy <$> go_co env co
 
     go_ty env ty@(FunTy _ arg res)
-      = do { arg' <- go_ty env arg; res' <- go_ty env res
-           ; return (ty { ft_arg = arg', ft_res = res' }) }
+      = [ ty { ft_arg = arg', ft_res = res' } | arg' <- go_ty env arg, res' <- go_ty env res ]
 
     go_ty env ty@(TyConApp tc tys)
       | isTcTyCon tc
@@ -696,11 +685,9 @@ mapTyCoX (TyCoMapper { tcm_tyvar = tyvar
 
     go_ty env (ForAllTy (Bndr tv vis) inner)
       = do { (env', tv') <- tycobinder env tv vis
-           ; inner' <- go_ty env' inner
-           ; return $ ForAllTy (Bndr tv' vis) inner' }
+           ; ForAllTy (Bndr tv' vis) <$> go_ty env' inner }
 
-    go_cos _   []       = return []
-    go_cos env (co:cos) = (:) <$> go_co env co <*> go_cos env cos
+    go_cos = traverse . go_co
 
     go_mco _   MRefl    = return MRefl
     go_mco env (MCo co) = MCo <$> (go_co env co)
@@ -736,8 +723,7 @@ mapTyCoX (TyCoMapper { tcm_tyvar = tyvar
     go_co env (ForAllCo tv kind_co co)
       = do { kind_co' <- go_co env kind_co
            ; (env', tv') <- tycobinder env tv Inferred
-           ; co' <- go_co env' co
-           ; return $ mkForAllCo tv' kind_co' co' }
+           ; mkForAllCo tv' kind_co' <$> go_co env' co }
         -- See Note [Efficiency for ForAllCo case of mapTyCoX]
 
     go_prov env (PhantomProv co)    = PhantomProv <$> go_co env co
@@ -761,9 +747,7 @@ mapTyCoX (TyCoMapper { tcm_tyvar = tyvar
 -- | Attempts to obtain the type variable underlying a 'Type', and panics with the
 -- given message if this is not a type variable type. See also 'getTyVar_maybe'
 getTyVar :: String -> Type -> TyVar
-getTyVar msg ty = case getTyVar_maybe ty of
-                    Just tv -> tv
-                    Nothing -> panic ("getTyVar: " ++ msg)
+getTyVar msg ty = getTyVar_maybe ty `orElse` panic ("getTyVar: " ++ msg)
 
 isTyVarTy :: Type -> Bool
 isTyVarTy ty = isJust (getTyVar_maybe ty)
@@ -906,9 +890,7 @@ tcRepSplitAppTy_maybe _other = Nothing
 splitAppTy :: Type -> (Type, Type)
 -- ^ Attempts to take a type application apart, as in 'splitAppTy_maybe',
 -- and panics if this is not possible
-splitAppTy ty = case splitAppTy_maybe ty of
-                Just pr -> pr
-                Nothing -> panic "splitAppTy"
+splitAppTy ty = splitAppTy_maybe ty `orElse` panic "splitAppTy"
 
 -------------
 splitAppTys :: Type -> (Type, [Type])
@@ -1097,9 +1079,7 @@ funArgTy ty
 -- Try not to iterate 'piResultTy', because it's inefficient to substitute
 -- one variable at a time; instead use 'piResultTys"
 piResultTy :: HasDebugCallStack => Type -> Type ->  Type
-piResultTy ty arg = case piResultTy_maybe ty arg of
-                      Just res -> res
-                      Nothing  -> pprPanic "piResultTy" (ppr ty $$ ppr arg)
+piResultTy ty arg = piResultTy_maybe ty arg `orElse` pprPanic "piResultTy" (ppr ty $$ ppr arg)
 
 piResultTy_maybe :: Type -> Type -> Maybe Type
 -- We don't need a 'tc' version, because
@@ -1270,9 +1250,7 @@ tyConAppArgN n ty
 -- of a number of arguments to that constructor. Panics if that is not possible.
 -- See also 'splitTyConApp_maybe'
 splitTyConApp :: Type -> (TyCon, [Type])
-splitTyConApp ty = case splitTyConApp_maybe ty of
-                   Just stuff -> stuff
-                   Nothing    -> pprPanic "splitTyConApp" (ppr ty)
+splitTyConApp ty = splitTyConApp_maybe ty `orElse` pprPanic "splitTyConApp" (ppr ty)
 
 -- | Attempts to tease a type apart into a type constructor and the application
 -- of a number of arguments to that constructor
@@ -1712,7 +1690,7 @@ partitionInvisibleTypes tc tys =
 -- | Given a list of things paired with their visibilities, partition the
 -- things into (invisible things, visible things).
 partitionInvisibles :: [(a, ArgFlag)] -> ([a], [a])
-partitionInvisibles = partitionWith pick_invis
+partitionInvisibles = mapEither pick_invis
   where
     pick_invis :: (a, ArgFlag) -> Either a a
     pick_invis (thing, vis) | isInvisibleArgFlag vis = Left thing
@@ -1937,10 +1915,7 @@ isUnliftedType ty
 -- * 'False' if the type is /guaranteed/ lifted or
 -- * 'True' if it is unlifted, OR we aren't sure (e.g. in a levity-polymorphic case)
 mightBeUnliftedType :: Type -> Bool
-mightBeUnliftedType ty
-  = case isLiftedType_maybe ty of
-      Just is_lifted -> not is_lifted
-      Nothing -> True
+mightBeUnliftedType = all not . isLiftedType_maybe
 
 -- | Is this a type of kind RuntimeRep? (e.g. LiftedRep)
 isRuntimeRepKindedTy :: Type -> Bool
@@ -1965,10 +1940,8 @@ getRuntimeRep_maybe = kindRep_maybe . typeKind
 -- | Extract the RuntimeRep classifier of a type. For instance,
 -- @getRuntimeRep_maybe Int = LiftedRep@. Panics if this is not possible.
 getRuntimeRep :: HasDebugCallStack => Type -> Type
-getRuntimeRep ty
-  = case getRuntimeRep_maybe ty of
-      Just r  -> r
-      Nothing -> pprPanic "getRuntimeRep" (ppr ty <+> dcolon <+> ppr (typeKind ty))
+getRuntimeRep ty = getRuntimeRep_maybe ty `orElse`
+    pprPanic "getRuntimeRep" (ppr ty <+> dcolon <+> ppr (typeKind ty))
 
 isUnboxedTupleType :: Type -> Bool
 isUnboxedTupleType ty
@@ -2414,12 +2387,11 @@ typeKind (AppTy fun arg)
     go fun             args = piResultTys (typeKind fun) args
 
 typeKind ty@(ForAllTy {})
-  = case occCheckExpand tvs body_kind of
+  = occCheckExpand tvs body_kind `orElse`
       -- We must make sure tv does not occur in kind
       -- As it is already out of scope!
       -- See Note [Phantom type variables in kinds]
-      Just k' -> k'
-      Nothing -> pprPanic "typeKind"
+    pprPanic "typeKind"
                   (ppr ty $$ ppr tvs $$ ppr body <+> dcolon <+> ppr body_kind)
   where
     (tvs, body) = splitTyVarForAllTys ty
@@ -2459,12 +2431,11 @@ tcTypeKind ty@(ForAllTy {})
   = constraintKind
 
   | otherwise
-  = case occCheckExpand tvs body_kind of
+  = occCheckExpand tvs body_kind `orElse`
       -- We must make sure tv does not occur in kind
       -- As it is already out of scope!
       -- See Note [Phantom type variables in kinds]
-      Just k' -> k'
-      Nothing -> pprPanic "tcTypeKind"
+    pprPanic "tcTypeKind"
                   (ppr ty $$ ppr tvs $$ ppr body <+> dcolon <+> ppr body_kind)
   where
     (tvs, body) = splitTyVarForAllTys ty
@@ -2615,7 +2586,7 @@ occCheckExpand vs_to_avoid ty
             ; return (ty { ft_arg = ty1', ft_res = ty2' }) }
     go cxt@(as, env) (ForAllTy (Bndr tv vis) body_ty)
        = do { ki' <- go cxt (varType tv)
-            ; let tv' = setVarType tv ki'
+            ; let tv' = set varTypeL ki' tv
                   env' = extendVarEnv env tv tv'
                   as'  = as `delVarSet` tv
             ; body' <- go (as', env') body_ty
@@ -2632,14 +2603,11 @@ occCheckExpand vs_to_avoid ty
                   | otherwise             -> Nothing
                       -- Failing that, try to expand a synonym
 
-    go cxt (CastTy ty co) =  do { ty' <- go cxt ty
-                                ; co' <- go_co cxt co
-                                ; return (mkCastTy ty' co') }
-    go cxt (CoercionTy co) = do { co' <- go_co cxt co
-                                ; return (mkCoercionTy co') }
+    go cxt (CastTy ty co) =  mkCastTy <$> go cxt ty <*> go_co cxt co
+    go cxt (CoercionTy co) = mkCoercionTy <$> go_co cxt co
 
     ------------------
-    go_var cxt v = updateVarTypeM (go cxt) v
+    go_var = varTypeL . go
            -- Works for TyVar and CoVar
            -- See Note [Occurrence checking: look inside kinds]
 
@@ -2648,59 +2616,34 @@ occCheckExpand vs_to_avoid ty
     go_mco ctx (MCo co) = MCo <$> go_co ctx co
 
     ------------------
-    go_co cxt (Refl ty)                 = do { ty' <- go cxt ty
-                                             ; return (mkNomReflCo ty') }
-    go_co cxt (GRefl r ty mco)          = do { mco' <- go_mco cxt mco
-                                             ; ty' <- go cxt ty
-                                             ; return (mkGReflCo r ty' mco') }
+    go_co cxt (Refl ty)                 = mkNomReflCo <$> go cxt ty
+    go_co cxt (GRefl r ty mco)          = flip (mkGReflCo r) <$> go_mco cxt mco <*> go cxt ty
       -- Note: Coercions do not contain type synonyms
-    go_co cxt (TyConAppCo r tc args)    = do { args' <- mapM (go_co cxt) args
-                                             ; return (mkTyConAppCo r tc args') }
-    go_co cxt (AppCo co arg)            = do { co' <- go_co cxt co
-                                             ; arg' <- go_co cxt arg
-                                             ; return (mkAppCo co' arg') }
+    go_co cxt (TyConAppCo r tc args)    = mkTyConAppCo r tc <$> traverse (go_co cxt) args
+    go_co cxt (AppCo co arg)            = mkAppCo <$> go_co cxt co <*> go_co cxt arg
     go_co cxt@(as, env) (ForAllCo tv kind_co body_co)
       = do { kind_co' <- go_co cxt kind_co
-           ; let tv' = setVarType tv $
-                       coercionLKind kind_co'
+           ; let tv' = set varTypeL (coercionLKind kind_co') tv
                  env' = extendVarEnv env tv tv'
                  as'  = as `delVarSet` tv
-           ; body' <- go_co (as', env') body_co
-           ; return (ForAllCo tv' kind_co' body') }
-    go_co cxt (FunCo r co1 co2)         = do { co1' <- go_co cxt co1
-                                             ; co2' <- go_co cxt co2
-                                             ; return (mkFunCo r co1' co2') }
+           ; ForAllCo tv' kind_co' <$> go_co (as', env') body_co }
+    go_co cxt (FunCo r co1 co2)         = mkFunCo r <$> go_co cxt co1 <*> go_co cxt co2
     go_co cxt@(as,env) (CoVarCo c)
       | c `elemVarSet` as               = Nothing
       | Just c' <- lookupVarEnv env c   = return (mkCoVarCo c')
-      | otherwise                       = do { c' <- go_var cxt c
-                                             ; return (mkCoVarCo c') }
-    go_co cxt (HoleCo h)                = do { c' <- go_var cxt (ch_co_var h)
-                                             ; return (HoleCo (h { ch_co_var = c' })) }
-    go_co cxt (AxiomInstCo ax ind args) = do { args' <- mapM (go_co cxt) args
-                                             ; return (mkAxiomInstCo ax ind args') }
+      | otherwise                       = mkCoVarCo <$> go_var cxt c
+    go_co cxt (HoleCo h)                = HoleCo <$> coHoleCoVarL (go_var cxt) h
+    go_co cxt (AxiomInstCo ax ind args) = mkAxiomInstCo ax ind <$> traverse (go_co cxt) args
     go_co cxt (UnivCo p r ty1 ty2)      = do { p' <- go_prov cxt p
-                                             ; ty1' <- go cxt ty1
-                                             ; ty2' <- go cxt ty2
-                                             ; return (mkUnivCo p' r ty1' ty2') }
-    go_co cxt (SymCo co)                = do { co' <- go_co cxt co
-                                             ; return (mkSymCo co') }
-    go_co cxt (TransCo co1 co2)         = do { co1' <- go_co cxt co1
-                                             ; co2' <- go_co cxt co2
-                                             ; return (mkTransCo co1' co2') }
-    go_co cxt (NthCo r n co)            = do { co' <- go_co cxt co
-                                             ; return (mkNthCo r n co') }
-    go_co cxt (LRCo lr co)              = do { co' <- go_co cxt co
-                                             ; return (mkLRCo lr co') }
-    go_co cxt (InstCo co arg)           = do { co' <- go_co cxt co
-                                             ; arg' <- go_co cxt arg
-                                             ; return (mkInstCo co' arg') }
-    go_co cxt (KindCo co)               = do { co' <- go_co cxt co
-                                             ; return (mkKindCo co') }
-    go_co cxt (SubCo co)                = do { co' <- go_co cxt co
-                                             ; return (mkSubCo co') }
-    go_co cxt (AxiomRuleCo ax cs)       = do { cs' <- mapM (go_co cxt) cs
-                                             ; return (mkAxiomRuleCo ax cs') }
+                                             ; mkUnivCo p' r <$> go cxt ty1 <*> go cxt ty2 }
+    go_co cxt (SymCo co)                = mkSymCo <$> go_co cxt co
+    go_co cxt (TransCo co1 co2)         = mkTransCo <$> go_co cxt co1 <*> go_co cxt co2
+    go_co cxt (NthCo r n co)            = mkNthCo r n <$> go_co cxt co
+    go_co cxt (LRCo lr co)              = mkLRCo lr <$> go_co cxt co
+    go_co cxt (InstCo co arg)           = mkInstCo <$> go_co cxt co <*> go_co cxt arg
+    go_co cxt (KindCo co)               = mkKindCo <$> go_co cxt co
+    go_co cxt (SubCo co)                = mkSubCo <$> go_co cxt co
+    go_co cxt (AxiomRuleCo ax cs)       = mkAxiomRuleCo ax <$> traverse (go_co cxt) cs
 
     ------------------
     go_prov cxt (PhantomProv co)    = PhantomProv <$> go_co cxt co

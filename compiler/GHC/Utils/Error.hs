@@ -5,7 +5,6 @@
 -}
 
 {-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE RankNTypes #-}
 
 module GHC.Utils.Error (
@@ -37,7 +36,7 @@ module GHC.Utils.Error (
         mkLongWarnMsg,
 
         -- * Utilities
-        doIfSet, doIfSet_dyn,
+        doIfSet_dyn,
         getCaretDiagnostic,
 
         -- * Dump files
@@ -51,7 +50,7 @@ module GHC.Utils.Error (
         putMsg, printInfoForUser, printOutputForUser,
         logInfo, logOutput,
         errorMsg, warningMsg,
-        fatalErrorMsg, fatalErrorMsg'',
+        fatalErrorMsg,
         compilationProgressMsg,
         showPass,
         withTiming, withTimingSilent, withTimingD, withTimingSilentD,
@@ -71,6 +70,7 @@ import qualified GHC.Driver.Ppr as Driver.Ppr
 import qualified GHC.Driver.CmdLine as CmdLine
 
 import GHC.Data.Bag
+import GHC.Data.Maybe ( orElse )
 import GHC.Utils.Exception
 import GHC.Utils.Outputable as Outputable
 import GHC.Utils.Outputable.Ppr
@@ -82,13 +82,13 @@ import GHC.Types.SrcLoc as SrcLoc
 import System.Directory
 import System.Exit      ( ExitCode(..), exitWith )
 import System.FilePath  ( takeDirectory, (</>) )
-import Data.List
+import Data.Foldable ( toList )
+import Data.List hiding (filter)
 import qualified Data.Set as Set
 import Data.IORef
-import Data.Maybe       ( fromMaybe )
-import Data.Function
 import Data.Time
 import Debug.Trace
+import Control.Applicative ((<|>))
 import Control.Monad
 import Control.Monad.IO.Class
 import Control.Monad.Catch as MC (handle)
@@ -112,8 +112,7 @@ andValid v _       = v
 
 -- | If they aren't all valid, return the first
 allValid :: [Validity] -> Validity
-allValid []       = IsValid
-allValid (v : vs) = v `andValid` allValid vs
+allValid = foldr andValid IsValid
 
 getInvalids :: [Validity] -> [MsgDoc]
 getInvalids vs = [d | NotValid d <- vs]
@@ -163,7 +162,7 @@ errorsFound _dflags (_warns, errs) = not (isEmptyBag errs)
 
 warningsToMessages :: DynFlags -> WarningMessages -> Messages
 warningsToMessages dflags =
-  partitionBagWith $ \warn ->
+  mapEither $ \warn ->
     case isWarnMsgFatal dflags warn of
       Nothing -> Left warn
       Just err_reason ->
@@ -204,11 +203,11 @@ pprLocErrMsg (ErrMsg { errMsgSpan      = s
     withErrStyle unqual $ mkLocMessage sev s (formatErrDoc ctx doc)
 
 sortMsgBag :: Maybe DynFlags -> Bag ErrMsg -> [ErrMsg]
-sortMsgBag dflags = maybeLimit . sortBy (cmp `on` errMsgSpan) . bagToList
+sortMsgBag dflags = maybeLimit . sortBy (cmp `on` errMsgSpan) . toList
   where cmp
-          | fromMaybe False (fmap reverseErrors dflags) = SrcLoc.rightmost_smallest
-          | otherwise                                   = SrcLoc.leftmost_smallest
-        maybeLimit = case join (fmap maxErrors dflags) of
+          | maybe False reverseErrors dflags = SrcLoc.rightmost_smallest
+          | otherwise                        = SrcLoc.leftmost_smallest
+        maybeLimit = case maxErrors =<< dflags of
           Nothing        -> id
           Just err_limit -> take err_limit
 
@@ -218,21 +217,14 @@ ghcExit dflags val
   | otherwise = do errorMsg dflags (text "\nCompilation had errors\n\n")
                    exitWith (ExitFailure val)
 
-doIfSet :: Bool -> IO () -> IO ()
-doIfSet flag action | flag      = action
-                    | otherwise = return ()
-
 doIfSet_dyn :: DynFlags -> GeneralFlag -> IO () -> IO()
-doIfSet_dyn dflags flag action | gopt flag dflags = action
-                               | otherwise        = return ()
+doIfSet_dyn dflags flag = when (gopt flag dflags)
 
 -- -----------------------------------------------------------------------------
 -- Dumping
 
 dumpIfSet :: DynFlags -> Bool -> String -> SDoc -> IO ()
-dumpIfSet dflags flag hdr doc
-  | not flag   = return ()
-  | otherwise  = doDump dflags hdr doc
+dumpIfSet dflags flag hdr doc = when flag $ doDump dflags hdr doc
 {-# INLINE dumpIfSet #-}  -- see Note [INLINE conditional tracing utilities]
 
 -- | This is a helper for 'dumpIfSet' to ensure that it's not duplicated
@@ -283,9 +275,7 @@ touchDumpFile dflags dumpOpt = withDumpFileHandle dflags dumpOpt (const (return 
 -- | Run an action with the handle of a 'DumpFlag' if we are outputting to a
 -- file, otherwise 'Nothing'.
 withDumpFileHandle :: DynFlags -> DumpOptions -> (Maybe Handle -> IO ()) -> IO ()
-withDumpFileHandle dflags dumpOpt action = do
-    let mFile = chooseDumpFile dflags dumpOpt
-    case mFile of
+withDumpFileHandle dflags dumpOpt action = case chooseDumpFile dflags dumpOpt of
       Just fileName -> do
         let gdref = generatedDumps dflags
         gd <- readIORef gdref
@@ -349,17 +339,13 @@ chooseDumpFile dflags dumpOpt
         | otherwise
         = Nothing
 
-        where getPrefix
+        where getPrefix =
                  -- dump file location is being forced
                  --      by the --ddump-file-prefix flag.
-               | Just prefix <- dumpPrefixForce dflags
-                  = Just prefix
+                 dumpPrefixForce dflags <|>
                  -- dump file location chosen by GHC.Driver.Pipeline.runPipeline
-               | Just prefix <- dumpPrefix dflags
-                  = Just prefix
+                 dumpPrefix dflags
                  -- we haven't got a place to put a dump file.
-               | otherwise
-                  = Nothing
               setDir f = case dumpDir dflags of
                          Just d  -> d </> f
                          Nothing ->       f
@@ -393,10 +379,8 @@ dumpOptionsFromFlag flag =
       }                           -- e.g. -ddump-asm => ".dump-asm"
    where
       str  = show flag
-      suff = case stripPrefix "Opt_D_" str of
-             Just x  -> x
-             Nothing -> panic ("Bad flag name: " ++ str)
-      suffix = map (\c -> if c == '_' then '-' else c) suff
+      suff = stripPrefix "Opt_D_" str `orElse` panic ("Bad flag name: " ++ str)
+      suffix = fmap (\ case '_' -> '-'; c -> c) suff
 
 
 -- -----------------------------------------------------------------------------
@@ -408,9 +392,7 @@ dumpOptionsFromFlag flag =
 -- output and do something else with them.
 
 ifVerbose :: DynFlags -> Int -> IO () -> IO ()
-ifVerbose dflags val act
-  | verbosity dflags >= val = act
-  | otherwise               = return ()
+ifVerbose dflags val = when (verbosity dflags >= val)
 {-# INLINE ifVerbose #-}  -- see Note [INLINE conditional tracing utilities]
 
 errorMsg :: DynFlags -> MsgDoc -> IO ()
@@ -424,9 +406,6 @@ warningMsg dflags msg
 fatalErrorMsg :: DynFlags -> MsgDoc -> IO ()
 fatalErrorMsg dflags msg =
     putLogMsg dflags NoReason SevFatal noSrcSpan $ withPprStyle defaultErrStyle msg
-
-fatalErrorMsg'' :: FatalMessager -> String -> IO ()
-fatalErrorMsg'' fm msg = fm msg
 
 compilationProgressMsg :: DynFlags -> SDoc -> IO ()
 compilationProgressMsg dflags msg = do
@@ -474,8 +453,8 @@ withTiming :: MonadIO m
                            -- (often either @const ()@ or 'rnf')
            -> m a          -- ^ The body of the phase to be timed
            -> m a
-withTiming dflags what force action =
-  withTiming' dflags what force PrintTimings action
+withTiming dflags what force =
+  withTiming' dflags what force PrintTimings
 
 -- | Like withTiming but get DynFlags from the Monad.
 withTimingD :: (MonadIO m, HasDynFlags m)
@@ -501,8 +480,8 @@ withTimingSilent
                 -- (often either @const ()@ or 'rnf')
   -> m a        -- ^ The body of the phase to be timed
   -> m a
-withTimingSilent dflags what force action =
-  withTiming' dflags what force DontPrintTimings action
+withTimingSilent dflags what force =
+  withTiming' dflags what force DontPrintTimings
 
 -- | Same as 'withTiming', but doesn't print timings in the
 --   console (when given @-vN@, @N >= 2@ or @-ddump-timings@)
@@ -597,13 +576,13 @@ printOutputForUser dflags print_unqual msg
   = logOutput dflags (withUserStyle print_unqual AllTheWay msg)
 
 logInfo :: DynFlags -> MsgDoc -> IO ()
-logInfo dflags msg
-  = putLogMsg dflags NoReason SevInfo noSrcSpan msg
+logInfo dflags
+  = putLogMsg dflags NoReason SevInfo noSrcSpan
 
 -- | Like 'logInfo' but with 'SevOutput' rather then 'SevInfo'
 logOutput :: DynFlags -> MsgDoc -> IO ()
-logOutput dflags msg
-  = putLogMsg dflags NoReason SevOutput noSrcSpan msg
+logOutput dflags
+  = putLogMsg dflags NoReason SevOutput noSrcSpan
 
 prettyPrintGhcErrors :: ExceptionMonad m => DynFlags -> m a -> m a
 prettyPrintGhcErrors dflags
@@ -622,13 +601,9 @@ prettyPrintGhcErrors dflags
 -- | Checks if given 'WarnMsg' is a fatal warning.
 isWarnMsgFatal :: DynFlags -> WarnMsg -> Maybe (Maybe WarningFlag)
 isWarnMsgFatal dflags ErrMsg{errMsgReason = Reason wflag}
-  = if wopt_fatal wflag dflags
-      then Just (Just wflag)
-      else Nothing
+  = Just wflag <$ guard (wopt_fatal wflag dflags)
 isWarnMsgFatal dflags _
-  = if gopt Opt_WarnIsError dflags
-      then Just Nothing
-      else Nothing
+  = Nothing <$ guard (gopt Opt_WarnIsError dflags)
 
 traceCmd :: DynFlags -> String -> String -> IO a -> IO a
 -- trace the command (at two levels of verbosity)
@@ -771,12 +746,12 @@ type TraceAction = forall a. DynFlags -> String -> SDoc -> a -> a
 
 -- | Default action for 'dumpAction' hook
 defaultDumpAction :: DumpAction
-defaultDumpAction dflags sty dumpOpt title _fmt doc = do
-   dumpSDocWithStyle sty dflags dumpOpt title doc
+defaultDumpAction dflags sty dumpOpt title _fmt =
+   dumpSDocWithStyle sty dflags dumpOpt title
 
 -- | Default action for 'traceAction' hook
 defaultTraceAction :: TraceAction
-defaultTraceAction dflags title doc = Driver.Ppr.pprTraceWithFlags dflags title doc
+defaultTraceAction = Driver.Ppr.pprTraceWithFlags
 
 -- | Helper for `dump_action`
 dumpAction :: DumpAction
@@ -812,7 +787,7 @@ shouldPrintWarning _ _
 printOrThrowWarnings :: DynFlags -> Bag WarnMsg -> IO ()
 printOrThrowWarnings dflags warns = do
   let (make_error, warns') =
-        mapAccumBagL
+        mapAccumL
           (\make_err warn ->
             case isWarnMsgFatal dflags warn of
               Nothing ->

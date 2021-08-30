@@ -92,9 +92,8 @@ import GHC.Utils.Panic
 import GHC.Utils.Constants (debugIsOn)
 import GHC.Data.Pair (Pair (..))
 
-import Lens.Micro (over, set)
 import Control.Monad
-import Data.List
+import Data.Foldable (toList)
 import Data.Tuple (swap)
 
 
@@ -723,7 +722,7 @@ getCmm :: FCode () -> FCode CmmGroup
 getCmm code
   = do  { state1 <- get
         ; ((), state2) <- withState code (state1 { cgs_tops = nilOL })
-        ; fromOL (cgs_tops state2) <$ put state2 { cgs_tops = cgs_tops state1 } }
+        ; toList (cgs_tops state2) <$ put state2 { cgs_tops = cgs_tops state1 } }
 
 
 mkCmmIfThenElse :: CmmExpr -> CmmAGraph -> CmmAGraph -> FCode CmmAGraph

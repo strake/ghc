@@ -30,7 +30,6 @@ llvmFixupAsm dflags f1 f2 = {-# SCC "llvm_mangler" #-}
         go r w
         hClose r
         hClose w
-        return ()
   where
     go :: Handle -> Handle -> IO ()
     go r w = do
@@ -57,18 +56,13 @@ rewriteLine dflags rewrites l
   | isSubsectionsViaSymbols l =
     (B.pack "## no .subsection_via_symbols for ghc. We need our info tables!")
   | otherwise =
-    case firstJust $ map (\rewrite -> rewrite dflags rest) rewrites of
+    case asum [rewrite dflags rest | rewrite <- rewrites] of
       Nothing        -> l
-      Just rewritten -> B.concat $ [symbol, B.pack "\t", rewritten]
+      Just rewritten -> B.concat [symbol, B.pack "\t", rewritten]
   where
     isSubsectionsViaSymbols = B.isPrefixOf (B.pack ".subsections_via_symbols")
 
     (symbol, rest) = splitLine l
-
-    firstJust :: [Maybe a] -> Maybe a
-    firstJust (Just x:_) = Just x
-    firstJust []         = Nothing
-    firstJust (_:rest)   = firstJust rest
 
 -- | This rewrites @.type@ annotations of function symbols to @%object@.
 -- This is done as the linker can relocate @%functions@ through the

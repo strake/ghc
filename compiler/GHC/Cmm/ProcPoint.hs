@@ -266,7 +266,7 @@ splitAtProcPoints platform entry_label callPPs procPoints procMap
                          regSetToList $
                          expectJust "ppLiveness" $ mapLookup pp liveness
 
-     graphEnv <- return $ foldlGraphBlocks add_block mapEmpty g
+     let graphEnv = foldlGraphBlocks add_block mapEmpty g
 
      -- Build a map from proc point BlockId to pairs of:
      --  * Labels for their new procedures
@@ -303,7 +303,7 @@ splitAtProcPoints platform entry_label callPPs procPoints procMap
              -> UniqSM (LabelMap CmmGraph)
          add_jumps newGraphEnv (ppId, blockEnv) =
            do let needed_jumps = -- find which procpoints we currently branch to
-                    mapFoldr add_if_branch_to_pp [] blockEnv
+                    foldr add_if_branch_to_pp [] blockEnv
                   add_if_branch_to_pp :: CmmBlock -> [(BlockId, CLabel)] -> [(BlockId, CLabel)]
                   add_if_branch_to_pp block rst =
                     case lastNode block of
@@ -392,7 +392,7 @@ splitAtProcPoints _ _ _ _ _ t@(CmmData _ _) = return [t]
 replaceBranches :: LabelMap BlockId -> CmmGraph -> CmmGraph
 replaceBranches env cmmg
   = {-# SCC "replaceBranches" #-}
-    ofBlockMap (g_entry cmmg) $ mapMap f $ toBlockMap cmmg
+    ofBlockMap (g_entry cmmg) $ f <$> toBlockMap cmmg
   where
     f block = replaceLastNode block $ last (lastNode block)
 

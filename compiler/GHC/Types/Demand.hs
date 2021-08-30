@@ -99,7 +99,7 @@ mkJointDmd :: s -> u -> JointDmd s u
 mkJointDmd s u = JD { sd = s, ud = u }
 
 mkJointDmds :: [s] -> [u] -> [JointDmd s u]
-mkJointDmds ss as = zipWithEqual "mkJointDmds" mkJointDmd ss as
+mkJointDmds = zipWithEqual "mkJointDmds" mkJointDmd
 
 
 {-
@@ -796,7 +796,7 @@ splitFVs is_thunk rhs_fvs
                 -- It's OK to use a non-deterministic fold because we
                 -- immediately forget the ordering by putting the elements
                 -- in the envs again
-  | otherwise = partitionVarEnv isWeakDmd rhs_fvs
+  | otherwise = partition isWeakDmd rhs_fvs
   where
     add uniq dmd@(JD { sd = s, ud = u }) (lazy_fv :*: sig_fv)
       | Lazy <- s = addToUFM_Directly lazy_fv uniq dmd :*: sig_fv
@@ -1336,14 +1336,13 @@ postProcessDmdEnv ds@(JD { sd = ss, ud = us }) env
     -- match postProcessDmd (see #13977).
   | Str _ <- ss
   , Use One _ <- us = env
-  | otherwise       = mapVarEnv (postProcessDmd ds) env
+  | otherwise       = postProcessDmd ds <$> env
   -- For the Absent case just discard all usage information
   -- We only processed the thing at all to analyse the body
   -- See Note [Always analyse in virgin pass]
 
 reuseEnv :: DmdEnv -> DmdEnv
-reuseEnv = mapVarEnv (postProcessDmd
-                        (JD { sd = Str (), ud = Use Many () }))
+reuseEnv = fmap $ postProcessDmd JD { sd = Str (), ud = Use Many () }
 
 postProcessUnsat :: DmdShell -> DmdType -> DmdType
 postProcessUnsat ds@(JD { sd = ss }) (DmdType fv args res_ty)

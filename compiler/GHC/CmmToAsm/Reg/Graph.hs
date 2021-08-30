@@ -33,9 +33,8 @@ import GHC.Types.Unique.Supply
 import GHC.Utils.Misc (seqList)
 import GHC.CmmToAsm.CFG
 
-import Data.Maybe
+import Data.Foldable (toList)
 import Control.Monad
-
 
 -- | The maximum number of build\/spill cycles we'll allow.
 --
@@ -240,7 +239,7 @@ regAlloc_spin config spinCount triv regsFree slotsFree slotsCount debug_codeGrap
                 --   .. but make sure to drop them on the floor if they're not
                 --      needed, otherwise we'll get a space leak.
                 let statList =
-                        if dump then [stat] ++ maybeToList stat1 ++ debug_codeGraphs
+                        if dump then [stat] ++ toList stat1 ++ debug_codeGraphs
                                 else []
 
                 -- Ensure all the statistics are evaluated, to avoid space leaks.
@@ -288,7 +287,7 @@ regAlloc_spin config spinCount triv regsFree slotsFree slotsCount debug_codeGrap
                 --      needed, otherwise we'll get a space leak.
                 let statList =
                         if dump
-                                then [stat] ++ maybeToList stat1 ++ debug_codeGraphs
+                                then [stat] ++ toList stat1 ++ debug_codeGraphs
                                 else []
 
                 -- Ensure all the statistics are evaluated, to avoid space leaks.

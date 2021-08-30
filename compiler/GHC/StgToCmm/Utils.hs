@@ -78,10 +78,10 @@ import GHC.Types.CostCentre
 
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as BS8
-import qualified Data.Map as M
 import Data.Char
-import Data.List
+import Data.List (sortBy)
 import Data.Ord
+import qualified Data.Map as M
 
 
 -------------------------------------------------------------------------

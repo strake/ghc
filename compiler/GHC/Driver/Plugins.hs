@@ -68,10 +68,6 @@ import GHC.Utils.Outputable (Outputable(..), text, (<+>))
 
 import Data.List (sort)
 
---Qualified import so we can define a Semigroup instance
--- but it doesn't clash with Outputable.<>
-import qualified Data.Semigroup
-
 import Control.Monad
 
 -- | Command line options gathered from the -PModule.Name:stuff syntax

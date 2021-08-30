@@ -1,4 +1,7 @@
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE CPP #-}
+
+#include "lens.h"
 
 {-|
 Note [CSE for Stg]
@@ -100,10 +103,9 @@ import GHC.Utils.Panic
 import GHC.Types.Basic (isWeakLoopBreaker)
 import GHC.Types.Var.Env
 import GHC.Core (AltCon(..))
-import Data.List (mapAccumL)
-import Data.Maybe (fromMaybe)
 import GHC.Core.Map
 import GHC.Types.Name.Env
+import Control.Category( (>>>) )
 import Control.Monad( (>=>) )
 
 --------------
@@ -117,29 +119,30 @@ data StgArgMap a = SAM
     { sam_var :: DVarEnv a
     , sam_lit :: LiteralMap a
     }
+  deriving (Foldable, Functor)
+
+LENS_FIELD(sam_varL, sam_var)
+LENS_FIELD(sam_litL, sam_lit)
 
 instance TrieMap StgArgMap where
     type Key StgArgMap = StgArg
     emptyTM  = SAM { sam_var = emptyTM
                    , sam_lit = emptyTM }
-    lookupTM (StgVarArg var) = sam_var >.> lkDFreeVar var
-    lookupTM (StgLitArg lit) = sam_lit >.> lookupTM lit
-    alterTM  (StgVarArg var) f m = m { sam_var = sam_var m |> xtDFreeVar var f }
-    alterTM  (StgLitArg lit) f m = m { sam_lit = sam_lit m |> alterTM lit f }
-    foldTM k m = foldTM k (sam_var m) . foldTM k (sam_lit m)
-    mapTM f (SAM {sam_var = varm, sam_lit = litm}) =
-        SAM { sam_var = mapTM f varm, sam_lit = mapTM f litm }
+    lookupTM (StgVarArg var) = sam_var >>> lkDFreeVar var
+    lookupTM (StgLitArg lit) = sam_lit >>> lookupTM lit
+    alterTM  (StgVarArg var) f = over sam_varL $ xtDFreeVar var f
+    alterTM  (StgLitArg lit) f = over sam_litL $ alterTM lit f
 
 newtype ConAppMap a = CAM { un_cam :: DNameEnv (ListMap StgArgMap a) }
+  deriving (Foldable, Functor)
+
+LENS_FIELD(un_camL, un_cam)
 
 instance TrieMap ConAppMap where
     type Key ConAppMap = (DataCon, [StgArg])
     emptyTM  = CAM emptyTM
-    lookupTM (dataCon, args) = un_cam >.> lkDNamed dataCon >=> lookupTM args
-    alterTM  (dataCon, args) f m =
-        m { un_cam = un_cam m |> xtDNamed dataCon |>> alterTM args f }
-    foldTM k = un_cam >.> foldTM (foldTM k)
-    mapTM f  = un_cam >.> mapTM (mapTM f) >.> CAM
+    lookupTM (dataCon, args) = un_cam >>> lkDNamed dataCon >=> lookupTM args
+    alterTM  (dataCon, args) f = over un_camL $ xtDNamed dataCon |>> alterTM args f
 
 -----------------
 -- The CSE Env --
@@ -169,6 +172,11 @@ data CseEnv = CseEnv
         -- ^ The third component is an in-scope set, to rename away any
         --   shadowing binders
     }
+
+LENS_FIELD(ce_conAppMapL, ce_conAppMap)
+LENS_FIELD(ce_substL, ce_subst)
+LENS_FIELD(ce_bndrMapL, ce_bndrMap)
+LENS_FIELD(ce_in_scopeL, ce_in_scope)
 
 {-|
 Note [CseEnv Example]
@@ -209,32 +217,25 @@ envLookup dataCon args env = lookupTM (dataCon, args') (ce_conAppMap env)
 
 addDataCon :: OutId -> DataCon -> [OutStgArg] -> CseEnv -> CseEnv
 -- do not bother with nullary data constructors, they are static anyways
-addDataCon _ _ [] env = env
-addDataCon bndr dataCon args env = env { ce_conAppMap = new_env }
-  where
-    new_env = insertTM (dataCon, args) bndr (ce_conAppMap env)
+addDataCon _ _ [] = id
+addDataCon bndr dataCon args = over ce_conAppMapL $ insertTM (dataCon, args) bndr
 
 forgetCse :: CseEnv -> CseEnv
-forgetCse env = env { ce_conAppMap = emptyTM }
+forgetCse = set ce_conAppMapL emptyTM
     -- See note [Free variables of an StgClosure]
 
 addSubst :: OutId -> OutId -> CseEnv -> CseEnv
-addSubst from to env
-    = env { ce_subst = extendVarEnv (ce_subst env) from to }
+addSubst from to = over ce_substL $ extendVarEnv `flip` from `flip` to
 
 addTrivCaseBndr :: OutId -> OutId -> CseEnv -> CseEnv
-addTrivCaseBndr from to env
-    = env { ce_bndrMap = extendVarEnv (ce_bndrMap env) from to }
-
-substArgs :: CseEnv -> [InStgArg] -> [OutStgArg]
-substArgs env = map (substArg env)
+addTrivCaseBndr from to = over ce_bndrMapL $ extendVarEnv `flip` from `flip` to
 
 substArg :: CseEnv -> InStgArg -> OutStgArg
 substArg env (StgVarArg from) = StgVarArg (substVar env from)
 substArg _   (StgLitArg lit)  = StgLitArg lit
 
 substVar :: CseEnv -> InId -> OutId
-substVar env id = fromMaybe id $ lookupVarEnv (ce_subst env) id
+substVar env = fromMaybe <*> lookupVarEnv (ce_subst env)
 
 -- Functions to enter binders
 
@@ -245,17 +246,16 @@ substVar env id = fromMaybe id $ lookupVarEnv (ce_subst env) id
 -- Therefore, no special treatment for a recursive group is required.
 
 substBndr :: CseEnv -> InId -> (CseEnv, OutId)
-substBndr env old_id
-  = (new_env, new_id)
+substBndr env old_id = (new_env, new_id)
   where
     new_id = uniqAway (ce_in_scope env) old_id
     no_change = new_id == old_id
-    env' = env { ce_in_scope = ce_in_scope env `extendInScopeSet` new_id }
+    env' = over ce_in_scopeL (`extendInScopeSet` new_id) env
     new_env | no_change = env'
-            | otherwise = env' { ce_subst = extendVarEnv (ce_subst env) old_id new_id }
+            | otherwise = over ce_substL (extendVarEnv `flip` old_id `flip` new_id) env'
 
 substBndrs :: CseEnv -> [InVar] -> (CseEnv, [OutVar])
-substBndrs env bndrs = mapAccumL substBndr env bndrs
+substBndrs = mapAccumL substBndr
 
 substPairs :: CseEnv -> [(InVar, a)] -> (CseEnv, [(OutVar, a)])
 substPairs env bndrs = mapAccumL go env bndrs
@@ -302,12 +302,12 @@ stgCseExpr :: CseEnv -> InStgExpr -> OutStgExpr
 stgCseExpr env (StgApp fun args)
     = StgApp fun' args'
   where fun' = substVar env fun
-        args' = substArgs env args
+        args' = substArg env <$> args
 stgCseExpr _ (StgLit lit)
     = StgLit lit
 stgCseExpr env (StgOpApp op args tys)
     = StgOpApp op args' tys
-  where args' = substArgs env args
+  where args' = substArg env <$> args
 stgCseExpr _ (StgLam _ _)
     = pprPanic "stgCseExp" (text "StgLam")
 stgCseExpr env (StgTick tick body)
@@ -331,7 +331,7 @@ stgCseExpr env (StgConApp dataCon args tys)
     = StgApp bndr' []
     | otherwise
     = StgConApp dataCon args' tys
-  where args' = substArgs env args
+  where args' = substArg env <$> args
 
 -- Let bindings
 -- The binding might be removed due to CSE (we do not want trivial bindings on
@@ -340,11 +340,11 @@ stgCseExpr env (StgConApp dataCon args tys)
 stgCseExpr env (StgLet ext binds body)
     = let (binds', env') = stgCseBind env binds
           body' = stgCseExpr env' body
-      in mkStgLet (StgLet ext) binds' body'
+      in maybe id (StgLet ext) binds' body'
 stgCseExpr env (StgLetNoEscape ext binds body)
     = let (binds', env') = stgCseBind env binds
           body' = stgCseExpr env' body
-      in mkStgLet (StgLetNoEscape ext) binds' body'
+      in maybe id (StgLetNoEscape ext) binds' body'
 
 -- Case alternatives
 -- Extend the CSE environment
@@ -388,9 +388,7 @@ stgCsePairs env [] = ([], env)
 stgCsePairs env0 ((b,e):pairs)
   = let (pairMB, env1) = stgCseRhs env0 b e
         (pairs', env2) = stgCsePairs env1 pairs
-    in (pairMB `mbCons` pairs', env2)
-  where
-    mbCons = maybe id (:)
+    in (maybe id (:) pairMB pairs', env2)
 
 -- The RHS of a binding.
 -- If it is a constructor application, either short-cut it or extend the environment
@@ -405,7 +403,7 @@ stgCseRhs env bndr (StgRhsCon ccs dataCon args)
             -- see note [Case 1: CSEing allocated closures]
           pair = (bndr, StgRhsCon ccs dataCon args')
       in (Just pair, env')
-  where args' = substArgs env args
+  where args' = substArg env <$> args
 
 stgCseRhs env bndr (StgRhsClosure ext ccs upd args body)
     = let (env1, args') = substBndrs env args
@@ -438,14 +436,6 @@ I think this bug will only show up if the loop-breaker-ness is done
 wrongly (itself a bug), but it still seems better to do the right
 thing regardless.
 -}
-
--- Utilities
-
--- | This function short-cuts let-bindings that are now obsolete
-mkStgLet :: (a -> b -> b) -> Maybe a -> b -> b
-mkStgLet _      Nothing      body = body
-mkStgLet stgLet (Just binds) body = stgLet binds body
-
 
 {-
 Note [All alternatives are the binder]

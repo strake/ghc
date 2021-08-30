@@ -583,10 +583,7 @@ pprPat (XPat ext) = case ghcPass @p of
   GhcPs -> noExtCon ext
   GhcRn -> noExtCon ext
 #endif
-  GhcTc -> pprHsWrapper co $ \parens ->
-      if parens
-      then pprParendPat appPrec pat
-      else pprPat pat
+  GhcTc -> pprHsWrapper co $ bool pprPat (pprParendPat appPrec) `flip` pat
     where CoPat co pat _ = ext
 
 pprUserCon :: (OutputableBndr con, OutputableBndrId p)
@@ -614,7 +611,7 @@ instance (Outputable p, Outputable arg)
       => Outputable (HsRecField' p arg) where
   ppr (HsRecField { hsRecFieldLbl = f, hsRecFieldArg = arg,
                     hsRecPun = pun })
-    = ppr f <+> (ppUnless pun $ equals <+> ppr arg)
+    = ppr f <+> (munless pun $ equals <+> ppr arg)
 
 
 {-
@@ -696,7 +693,7 @@ looksLazyPatBind :: HsBind (GhcPass p) -> Bool
 looksLazyPatBind (PatBind { pat_lhs = p })
   = looksLazyLPat p
 looksLazyPatBind (AbsBinds { abs_binds = binds })
-  = anyBag (looksLazyPatBind . unLoc) binds
+  = any (looksLazyPatBind . unLoc) binds
 looksLazyPatBind _
   = False
 

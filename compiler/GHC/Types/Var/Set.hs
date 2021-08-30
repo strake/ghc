@@ -53,7 +53,7 @@ import GHC.Types.Name     ( Name )
 import GHC.Types.Unique.Set
 import GHC.Types.Unique.DSet
 import GHC.Types.Unique.FM( disjointUFM, pluralUFM, pprUFM )
-import GHC.Types.Unique.DFM( disjointUDFM, udfmToUfm, anyUDFM, allUDFM )
+import GHC.Types.Unique.DFM( disjointUDFM, udfmToUfm )
 import GHC.Utils.Outputable (SDoc)
 
 -- | A non-deterministic Variable Set
@@ -299,10 +299,10 @@ nonDetStrictFoldDVarSet :: (Var -> a -> a) -> a -> DVarSet -> a
 nonDetStrictFoldDVarSet = nonDetStrictFoldUniqDSet
 
 anyDVarSet :: (Var -> Bool) -> DVarSet -> Bool
-anyDVarSet p = anyUDFM p . getUniqDSet
+anyDVarSet p = any p . getUniqDSet
 
 allDVarSet :: (Var -> Bool) -> DVarSet -> Bool
-allDVarSet p = allUDFM p . getUniqDSet
+allDVarSet p = all p . getUniqDSet
 
 mapDVarSet :: Uniquable b => (a -> b) -> UniqDSet a -> UniqDSet b
 mapDVarSet = mapUniqDSet

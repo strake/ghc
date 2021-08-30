@@ -206,8 +206,4 @@ instance Binary Serialized where
     put_ bh (Serialized the_type bytes) = do
         put_ bh the_type
         put_ bh bytes
-    get bh = do
-        the_type <- get bh
-        bytes <- get bh
-        return (Serialized the_type bytes)
-
+    get bh = Serialized <$> get bh <*> get bh

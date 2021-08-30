@@ -75,7 +75,7 @@ instance Show PlainGhcException where
 
 -- | The name of this GHC.
 progName :: String
-progName = unsafePerformIO (getProgName)
+progName = unsafePerformIO getProgName
 {-# NOINLINE progName #-}
 
 -- | Short usage information to display when we are given the wrong cmd line arguments.

@@ -124,14 +124,14 @@ import GHC.Types.ForeignCall
 import GHC.Types.TyThing( TyThing (..) )
 import GHC.Types.SrcLoc
 import GHC.Types.Unique ( hasKey )
-import GHC.Data.OrdList ( OrdList, fromOL )
+import GHC.Data.OrdList ( OrdList )
 import GHC.Data.Bag     ( emptyBag, consBag )
 import GHC.Utils.Outputable as Outputable
 import GHC.Data.FastString
 import GHC.Data.Maybe
 import GHC.Utils.Misc
 import GHC.Parser.Annotation
-import Data.List
+import Data.List (findIndex)
 import GHC.Driver.Session ( WarningFlag(..), DynFlags )
 import GHC.Utils.Error ( Messages )
 import GHC.Utils.Panic
@@ -143,6 +143,7 @@ import Data.Char
 import qualified Data.Monoid as Monoid
 import Data.Data       ( dataTypeOf, fromConstr, dataTypeConstrs )
 import Data.Kind       ( Type )
+import Data.Foldable   ( toList )
 
 
 {- **********************************************************************
@@ -417,7 +418,7 @@ fromSpecTyVarBndr bndr = case bndr of
 
 --  | Groups together bindings for a single function
 cvTopDecls :: OrdList (LHsDecl GhcPs) -> [LHsDecl GhcPs]
-cvTopDecls decls = go (fromOL decls)
+cvTopDecls = go . toList
   where
     go :: [LHsDecl GhcPs] -> [LHsDecl GhcPs]
     go []                     = []
@@ -440,7 +441,7 @@ cvBindsAndSigs :: OrdList (LHsDecl GhcPs)
 -- Input decls contain just value bindings and signatures
 -- and in case of class or instance declarations also
 -- associated type declarations. They might also contain Haddock comments.
-cvBindsAndSigs fb = go (fromOL fb)
+cvBindsAndSigs = go . toList
   where
     go []              = return (emptyBag, [], [], [], [], [])
     go ((L l (ValD _ b)) : ds)
@@ -620,9 +621,9 @@ mkPatSynMatchGroup :: Located RdrName
                    -> Located (OrdList (LHsDecl GhcPs))
                    -> P (MatchGroup GhcPs (LHsExpr GhcPs))
 mkPatSynMatchGroup (L loc patsyn_name) (L _ decls) =
-    do { matches <- mapM fromDecl (fromOL decls)
-       ; when (null matches) (wrongNumberErr loc)
-       ; return $ mkMatchGroup FromSource matches }
+  [ mkMatchGroup FromSource matches
+  | matches <- traverse fromDecl (toList decls)
+  , () <- null matches `when` wrongNumberErr loc ]
   where
     fromDecl (L loc decl@(ValD _ (PatBind _
                          pat@(L _ (ConPat NoExtField ln@(L _ name) details))
@@ -1294,9 +1295,10 @@ checkDoAndIfThenElse guardExpr semiThen thenExpr semiElse elseExpr
  | otherwise            = return ()
     where pprOptSemi True  = semi
           pprOptSemi False = empty
-          expr = text "if"   <+> ppr guardExpr <> pprOptSemi semiThen <+>
-                 text "then" <+> ppr thenExpr  <> pprOptSemi semiElse <+>
-                 text "else" <+> ppr elseExpr
+          expr = hsep
+            [ text "if", ppr guardExpr <> pprOptSemi semiThen
+            , text "then", ppr thenExpr <> pprOptSemi semiElse
+            , text "else", ppr elseExpr ]
 
 isFunLhs :: Located (PatBuilder GhcPs)
       -> P (Maybe (Located RdrName, LexicalFixity, [Located (PatBuilder GhcPs)],[AddAnn]))
@@ -1407,7 +1409,7 @@ mergeOps :: [Located TyEl] -> P (LHsType GhcPs)
 mergeOps ((L l1 (TyElOpd t)) : xs)
   | (_, t', addAnns, xs') <- pBangTy (L l1 t) xs
   , null xs' -- We accept a BangTy only when there are no preceding TyEl.
-  = addAnns >> return t'
+  = t' <$ addAnns
 mergeOps all_xs = go (0 :: Int) [] id all_xs
   where
     -- NB. When modifying clauses in 'go', make sure that the reasoning in
@@ -1446,7 +1448,7 @@ mergeOps all_xs = go (0 :: Int) [] id all_xs
     -- something for its rhs, and there must be something left
     -- to build its lhs.
     go k acc ops_acc ((L l (TyElOpr op)):xs) =
-      if null acc || null (filter isTyElOpd xs)
+      if null acc || not (any isTyElOpd xs)
         then failOpFewArgs (L l op)
         else do { acc' <- eitherToP (mergeOpsAcc acc)
                 ; go (k + 1) [] (\c -> mkLHsOpTy c (L l op) (ops_acc acc')) xs }
@@ -1990,7 +1992,7 @@ instance DisambECP (HsExpr GhcPs) where
   mkHsWildCardPV l = return $ L l hsHoleExpr
   mkHsTySigPV l a sig = return $ L l (ExprWithTySig noExtField a (mkLHsSigWcType sig))
   mkHsExplicitListPV l xs = return $ L l (ExplicitList noExtField Nothing xs)
-  mkHsSplicePV sp = return $ mapLoc (HsSpliceE noExtField) sp
+  mkHsSplicePV sp = return $ fmap (HsSpliceE noExtField) sp
   mkHsRecordPV l lrec a (fbinds, ddLoc) = do
     r <- mkRecConstrOrUpdate a lrec (fbinds, ddLoc)
     checkRecordSyntax (L l r)
@@ -2803,7 +2805,7 @@ mkModuleImpExp (L l specname) subs =
     ieNameFromSpec (ImpExpQcType ln)  = IEType ln
     ieNameFromSpec (ImpExpQcWildcard) = panic "ieName got wildcard"
 
-    wrapped = map (mapLoc ieNameFromSpec)
+    wrapped = map (fmap ieNameFromSpec)
 
 mkTypeImpExp :: Located RdrName   -- TcCls or Var name space
              -> P (Located RdrName)
@@ -3093,7 +3095,7 @@ mkSumOrTupleExpr l boxity (Tuple es) =
     return $ L l (ExplicitTuple noExtField (map toTupArg es) boxity)
   where
     toTupArg :: Located (Maybe (LHsExpr GhcPs)) -> LHsTupArg GhcPs
-    toTupArg = mapLoc (maybe missingTupArg (Present noExtField))
+    toTupArg = fmap (maybe missingTupArg (Present noExtField))
 
 -- Sum
 mkSumOrTupleExpr l Unboxed (Sum alt arity e) =
@@ -3105,9 +3107,8 @@ mkSumOrTupleExpr l Boxed a@Sum{} =
 mkSumOrTuplePat :: SrcSpan -> Boxity -> SumOrTuple (PatBuilder GhcPs) -> PV (Located (PatBuilder GhcPs))
 
 -- Tuple
-mkSumOrTuplePat l boxity (Tuple ps) = do
-  ps' <- traverse toTupPat ps
-  return $ L l (PatBuilderPat (TuplePat noExtField ps' boxity))
+mkSumOrTuplePat l boxity (Tuple ps) =
+  traverse toTupPat ps <₪> \ ps' -> L l (PatBuilderPat (TuplePat noExtField ps' boxity))
   where
     toTupPat :: Located (Maybe (Located (PatBuilder GhcPs))) -> PV (LPat GhcPs)
     toTupPat (L l p) = case p of
@@ -3115,25 +3116,24 @@ mkSumOrTuplePat l boxity (Tuple ps) = do
       Just p' -> checkLPat p'
 
 -- Sum
-mkSumOrTuplePat l Unboxed (Sum alt arity p) = do
-   p' <- checkLPat p
-   return $ L l (PatBuilderPat (SumPat noExtField p' alt arity))
+mkSumOrTuplePat l Unboxed (Sum alt arity p) =
+   checkLPat p <₪> \ p' -> L l (PatBuilderPat (SumPat noExtField p' alt arity))
 mkSumOrTuplePat l Boxed a@Sum{} =
     addFatalError l (hang (text "Boxed sums not supported:") 2
                       (pprSumOrTuple Boxed a))
 
 mkLHsOpTy :: LHsType GhcPs -> Located RdrName -> LHsType GhcPs -> LHsType GhcPs
 mkLHsOpTy x op y =
-  let loc = getLoc x `combineSrcSpans` getLoc op `combineSrcSpans` getLoc y
+  let loc = getLoc x <> getLoc op <> getLoc y
   in L loc (mkHsOpTy x op y)
 
 mkLHsDocTy :: LHsType GhcPs -> LHsDocString -> LHsType GhcPs
 mkLHsDocTy t doc =
-  let loc = getLoc t `combineSrcSpans` getLoc doc
+  let loc = getLoc t <> getLoc doc
   in L loc (HsDocTy noExtField t doc)
 
 mkLHsDocTyMaybe :: LHsType GhcPs -> Maybe LHsDocString -> LHsType GhcPs
-mkLHsDocTyMaybe t = maybe t (mkLHsDocTy t)
+mkLHsDocTyMaybe = maybe <*> mkLHsDocTy
 
 -----------------------------------------------------------------------------
 -- Token symbols

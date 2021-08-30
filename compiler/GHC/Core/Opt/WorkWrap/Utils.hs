@@ -38,6 +38,7 @@ import GHC.Types.Basic       ( Boxity(..) )
 import GHC.Core.TyCon
 import GHC.Types.Unique.Supply
 import GHC.Types.Unique
+import GHC.Data.List.Infinite
 import GHC.Data.Maybe
 import GHC.Utils.Misc
 import GHC.Utils.Outputable
@@ -46,6 +47,10 @@ import GHC.Driver.Ppr
 import GHC.Data.FastString
 import GHC.Data.List.SetOps
 import GHC.Utils.Outputable.Ppr hiding (showSDoc)
+
+import Control.Comonad.Cofree (Cofree (..))
+import Data.Foldable (toList)
+import Data.Functor.Identity (Identity (..))
 
 {-
 ************************************************************************
@@ -632,10 +637,10 @@ unbox_one dflags fam_envs arg cs
           DataConAppContext { dcac_dc = data_con, dcac_tys = inst_tys
                             , dcac_arg_tys = inst_con_arg_tys
                             , dcac_co = co }
-  = do { (uniq1:uniqs) <- getUniquesM
+  = do { Cofree uniq1 (Identity uniqs) <- getUniquesM
         ; let   -- See Note [Add demands for strict constructors]
                 cs'       = addDataConStrictness data_con cs
-                unpk_args = zipWith3 mk_ww_arg uniqs inst_con_arg_tys cs'
+                unpk_args = zipWith3 mk_ww_arg (toList uniqs) inst_con_arg_tys cs'
                 unbox_fn  = mkUnpackCase (Var arg) co uniq1
                                          data_con unpk_args
                 arg_no_unf = zapStableUnfolding arg
@@ -1088,7 +1093,7 @@ mkWWcpr_help (DataConAppContext { dcac_dc = data_con, dcac_tys = inst_tys
         --
         -- Wrapper:     case (..call worker..) of x -> C x
         -- Worker:      case (   ..body..    ) of C x -> x
-  = do { (work_uniq : arg_uniq : _) <- getUniquesM
+  = do { Cofree work_uniq (Identity (Cofree arg_uniq _)) <- getUniquesM
        ; let arg       = mk_ww_local arg_uniq arg1
              con_app   = mkConApp2 data_con inst_tys [arg] `mkCast` mkSymCo co
 
@@ -1102,9 +1107,9 @@ mkWWcpr_help (DataConAppContext { dcac_dc = data_con, dcac_tys = inst_tys
   | otherwise   -- The general case
         -- Wrapper: case (..call worker..) of (# a, b #) -> C a b
         -- Worker:  case (   ...body...  ) of C a b -> (# a, b #)
-  = do { (work_uniq : wild_uniq : uniqs) <- getUniquesM
+  = do { Cofree work_uniq (Identity (Cofree wild_uniq (Identity uniqs))) <- getUniquesM
        ; let wrap_wild   = mk_ww_local wild_uniq (ubx_tup_ty,MarkedStrict)
-             args        = zipWith mk_ww_local uniqs arg_tys
+             args        = zipWith mk_ww_local (toList uniqs) arg_tys
              ubx_tup_ty  = exprType ubx_tup_app
              ubx_tup_app = mkCoreUbxTup (map fst arg_tys) (map varToCoreExpr args)
              con_app     = mkConApp2 data_con inst_tys args `mkCast` mkSymCo co

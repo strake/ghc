@@ -69,7 +69,6 @@ import qualified Data.ByteString as BS
 import Data.Int
 import Data.Ratio
 import Data.Word
-import Data.Maybe (fromMaybe)
 
 {-
 Note [Constant folding]

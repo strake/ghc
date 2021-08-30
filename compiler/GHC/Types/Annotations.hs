@@ -27,7 +27,6 @@ import GHC.Utils.Outputable
 import GHC.Serialized
 
 import Control.Monad
-import Data.Maybe
 import Data.Typeable
 import Data.Word        ( Word8 )
 
@@ -132,8 +131,8 @@ findAnnPayloads env target =
 --   the [a] can also be empty (the UniqFM is not filtered).
 deserializeAnns :: Typeable a => ([Word8] -> a) -> AnnEnv -> (ModuleEnv [a], NameEnv [a])
 deserializeAnns deserialize env
-  = ( mapModuleEnv deserAnns (ann_mod_env env)
-    , mapNameEnv deserAnns (ann_name_env env)
+  = ( fmap deserAnns (ann_mod_env env)
+    , deserAnns <$> ann_name_env env
     )
   where deserAnns = mapMaybe (fromSerialized deserialize)
 

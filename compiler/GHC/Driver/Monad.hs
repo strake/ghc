@@ -145,11 +145,11 @@ instance GhcMonad Ghc where
 -- >       reflectGhc (ghcFunc i) s
 --
 reflectGhc :: Ghc a -> Session -> IO a
-reflectGhc m = unGhc m
+reflectGhc = unGhc
 
 -- > Dual to 'reflectGhc'.  See its documentation.
 reifyGhc :: (Session -> IO a) -> Ghc a
-reifyGhc act = Ghc $ act
+reifyGhc = Ghc
 
 -- -----------------------------------------------------------------------------
 -- | A monad transformer to add GHC specific features to another monad.
@@ -181,6 +181,4 @@ printException err = do
 type WarnErrLogger = forall m. GhcMonad m => Maybe SourceError -> m ()
 
 defaultWarnErrLogger :: WarnErrLogger
-defaultWarnErrLogger Nothing  = return ()
-defaultWarnErrLogger (Just e) = printException e
-
+defaultWarnErrLogger = traverse_ printException

@@ -8,5 +8,6 @@ test('T7918',
 test('T14028',
      [req_interp, req_rts_linker,
       only_ways([config.ghc_th_way]),
-      unless(config.have_ext_interp, skip)],
+      unless(config.have_ext_interp, skip),
+      fragile(0)],
      makefile_test, ['T14028'])

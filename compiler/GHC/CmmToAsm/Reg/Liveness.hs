@@ -64,9 +64,9 @@ import GHC.Types.Unique.Supply
 import GHC.Data.Bag
 import GHC.Utils.Monad.State.Strict
 
-import Data.List
-import Data.Maybe
-import Data.IntSet              (IntSet)
+import Data.IntSet (IntSet)
+import Data.List (groupBy)
+import Data.Maybe (isNothing)
 
 -----------------------------------------------------------------------------
 type RegSet = UniqSet Reg
@@ -594,7 +594,7 @@ eraseDeltasLive cmm
  where
         eraseBlock (BasicBlock id lis)
                 = BasicBlock id
-                $ filter (\(LiveInstr i _) -> not $ isJust $ takeDeltaInstr i)
+                $ filter (\(LiveInstr i _) -> isNothing $ takeDeltaInstr i)
                 $ lis
 
 
@@ -616,7 +616,7 @@ patchEraseLive patchF cmm
          = let
                 patchRegSet set = mkUniqSet $ map patchF $ nonDetEltsUFM set
                   -- See Note [Unique Determinism and code generation]
-                blockMap'       = mapMap (patchRegSet . getUniqSet) blockMap
+                blockMap'       = fmap (patchRegSet . getUniqSet) blockMap
 
                 info'           = LiveInfo static id blockMap' mLiveSlots
            in   CmmProc info' label live $ map patchSCC sccs

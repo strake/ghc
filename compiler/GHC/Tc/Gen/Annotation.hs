@@ -32,20 +32,16 @@ import Control.Monad ( when )
 -- Some platforms don't support the interpreter, and compilation on those
 -- platforms shouldn't fail just due to annotations
 tcAnnotations :: [LAnnDecl GhcRn] -> TcM [Annotation]
-tcAnnotations anns = do
-  hsc_env <- getTopEnv
-  case hsc_interp hsc_env of
-    Just _  -> mapM tcAnnotation anns
-    Nothing -> warnAnns anns
+tcAnnotations anns = hsc_interp <$> getTopEnv >>= \ case
+    Just _  -> traverse tcAnnotation anns
+    Nothing -> [] <$ warnAnns anns
 
-warnAnns :: [LAnnDecl GhcRn] -> TcM [Annotation]
+warnAnns :: [LAnnDecl GhcRn] -> TcM ()
 --- No GHCI; emit a warning (not an error) and ignore. cf #4268
-warnAnns [] = return []
-warnAnns anns@(L loc _ : _)
-  = do { setSrcSpan loc $ addWarnTc NoReason $
+warnAnns [] = pure ()
+warnAnns anns@(L loc _ : _) = setSrcSpan loc $ addWarnTc NoReason $
              (text "Ignoring ANN annotation" <> plural anns <> comma
              <+> text "because this is a stage-1 compiler without -fexternal-interpreter or doesn't support GHCi")
-       ; return [] }
 
 tcAnnotation :: LAnnDecl GhcRn -> TcM Annotation
 tcAnnotation (L loc ann@(HsAnnotation _ _ provenance expr)) = do

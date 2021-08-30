@@ -59,7 +59,7 @@ module GHC.Cmm.Utils(
         modifyGraph,
 
         ofBlockMap, toBlockMap,
-        ofBlockList, toBlockList, bodyToBlockList,
+        ofBlockList, toBlockList,
         toBlockListEntryFirst, toBlockListEntryFirstFalseFallthrough,
         foldlGraphBlocks, mapGraphNodes, revPostorder, mapGraphNodes1,
 
@@ -85,6 +85,7 @@ import GHC.Platform.Regs
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import Data.Bits
+import Data.Foldable (toList)
 import GHC.Cmm.Dataflow.Graph
 import GHC.Cmm.Dataflow.Label
 import GHC.Cmm.Dataflow.Block
@@ -524,18 +525,18 @@ ofBlockMap :: BlockId -> LabelMap CmmBlock -> CmmGraph
 ofBlockMap entry bodyMap = CmmGraph {g_entry=entry, g_graph=GMany NothingO bodyMap NothingO}
 
 toBlockList :: CmmGraph -> [CmmBlock]
-toBlockList g = mapElems $ toBlockMap g
+toBlockList = toList . toBlockMap
 
 -- | like 'toBlockList', but the entry block always comes first
 toBlockListEntryFirst :: CmmGraph -> [CmmBlock]
 toBlockListEntryFirst g
-  | mapNull m  = []
+  | null m = []
   | otherwise  = entry_block : others
   where
     m = toBlockMap g
     entry_id = g_entry g
     Just entry_block = mapLookup entry_id m
-    others = filter ((/= entry_id) . entryLabel) (mapElems m)
+    others = filter ((/= entry_id) . entryLabel) (toList m)
 
 -- | Like 'toBlockListEntryFirst', but we strive to ensure that we order blocks
 -- so that the false case of a conditional jumps to the next block in the output
@@ -547,7 +548,7 @@ toBlockListEntryFirst g
 -- defined in "GHC.Cmm.Node". -GBM
 toBlockListEntryFirstFalseFallthrough :: CmmGraph -> [CmmBlock]
 toBlockListEntryFirstFalseFallthrough g
-  | mapNull m  = []
+  | null m = []
   | otherwise  = dfs setEmpty [entry_block]
   where
     m = toBlockMap g
@@ -570,23 +571,20 @@ ofBlockList entry blocks = CmmGraph { g_entry = entry
                                     , g_graph = GMany NothingO body NothingO }
   where body = foldr addBlock emptyBody blocks
 
-bodyToBlockList :: Body CmmNode -> [CmmBlock]
-bodyToBlockList body = mapElems body
-
 mapGraphNodes :: ( CmmNode C O -> CmmNode C O
                  , CmmNode O O -> CmmNode O O
                  , CmmNode O C -> CmmNode O C)
               -> CmmGraph -> CmmGraph
 mapGraphNodes funs@(mf,_,_) g =
   ofBlockMap (entryLabel $ mf $ CmmEntry (g_entry g) GlobalScope) $
-  mapMap (mapBlock3' funs) $ toBlockMap g
+  mapBlock3' funs <$> toBlockMap g
 
 mapGraphNodes1 :: (forall e x. CmmNode e x -> CmmNode e x) -> CmmGraph -> CmmGraph
 mapGraphNodes1 f = modifyGraph (mapGraph f)
 
 
 foldlGraphBlocks :: (a -> CmmBlock -> a) -> a -> CmmGraph -> a
-foldlGraphBlocks k z g = mapFoldl k z $ toBlockMap g
+foldlGraphBlocks k z = foldl k z . toBlockMap
 
 revPostorder :: CmmGraph -> [CmmBlock]
 revPostorder g = {-# SCC "revPostorder" #-}

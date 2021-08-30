@@ -1,4 +1,6 @@
 {-# LANGUAGE DerivingVia #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE TypeFamilies #-}
 --
 -- (c) The University of Glasgow 2002-2006
 --
@@ -18,9 +20,6 @@ module GHC.Data.IOEnv (
         -- Errors
         failM, failWithM,
         IOEnvFailure(..),
-
-        -- Getting at the environment
-        getEnv, setEnv, updEnv,
 
         runIOEnv, unsafeInterleaveM, uninterruptibleMaskM_,
         tryM, tryAllM, tryMostM, fixM,
@@ -43,10 +42,11 @@ import Data.IORef       ( IORef, newIORef, readIORef, writeIORef, modifyIORef,
 import System.IO.Unsafe ( unsafeInterleaveIO )
 import System.IO        ( fixIO )
 import Control.Monad
-import Control.Monad.Trans.Reader
 import Control.Monad.Catch (MonadCatch, MonadMask, MonadThrow)
+import Control.Monad.Trans.Reader (ReaderT (..))
 import GHC.Utils.Monad
 import Control.Applicative (Alternative(..))
+import Data.Functor.Reader.Class
 
 ----------------------------------------------------------------------
 -- Defining the monad type
@@ -55,16 +55,23 @@ import Control.Applicative (Alternative(..))
 
 newtype IOEnv env a = IOEnv { unIOEnv :: env -> IO a }
   deriving (Functor)
-  deriving (Applicative, Monad, MonadThrow, MonadCatch, MonadMask, MonadIO) via (ReaderT env IO)
+  deriving (Applicative, Alternative, Monad, MonadThrow, MonadCatch, MonadMask, MonadIO, MonadPlus) via (ReaderT env IO)
+
+instance IsReader (IOEnv env) where
+    type EnvType (IOEnv env) = env
+    ask = IOEnv pure
+
+instance IsLocal (IOEnv x) (IOEnv y) where
+    local f = IOEnv . (. f) . unIOEnv
 
 instance MonadFail (IOEnv m) where
     fail _ = failM -- Ignore the string
 
-failM :: IOEnv env a
-failM = IOEnv (\ _ -> throwIO IOEnvFailure)
+failM :: MonadIO m => m a
+failM = liftIO $ throwIO IOEnvFailure
 
-failWithM :: String -> IOEnv env a
-failWithM s = IOEnv (\ _ -> ioError (userError s))
+failWithM :: MonadIO m => String -> m a
+failWithM s = liftIO $ ioError (userError s)
 
 data IOEnvFailure = IOEnvFailure
 
@@ -74,16 +81,15 @@ instance Show IOEnvFailure where
 instance Exception IOEnvFailure
 
 instance ContainsDynFlags env => HasDynFlags (IOEnv env) where
-    getDynFlags = do env <- getEnv
+    getDynFlags = do env <- ask
                      return $! extractDynFlags env
 
 instance ContainsHooks env => HasHooks (IOEnv env) where
-    getHooks = do env <- getEnv
+    getHooks = do env <- ask
                   return $! extractHooks env
 
 instance ContainsModule env => HasModule (IOEnv env) where
-    getModule = do env <- getEnv
-                   return $ extractModule env
+    getModule = asks extractModule
 
 ----------------------------------------------------------------------
 -- Fundamental combinators specific to the monad
@@ -139,54 +145,26 @@ uninterruptibleMaskM_ :: IOEnv env a -> IOEnv env a
 uninterruptibleMaskM_ (IOEnv m) = IOEnv (\ env -> uninterruptibleMask_ (m env))
 
 ----------------------------------------------------------------------
--- Alternative/MonadPlus
-----------------------------------------------------------------------
-
-instance Alternative (IOEnv env) where
-    empty   = IOEnv (const empty)
-    m <|> n = IOEnv (\env -> unIOEnv m env <|> unIOEnv n env)
-
-instance MonadPlus (IOEnv env)
-
-----------------------------------------------------------------------
 -- Accessing input/output
 ----------------------------------------------------------------------
 
-newMutVar :: a -> IOEnv env (IORef a)
+newMutVar :: MonadIO m => a -> m (IORef a)
 newMutVar val = liftIO (newIORef val)
 
-writeMutVar :: IORef a -> a -> IOEnv env ()
+writeMutVar :: MonadIO m => IORef a -> a -> m ()
 writeMutVar var val = liftIO (writeIORef var val)
 
-readMutVar :: IORef a -> IOEnv env a
+readMutVar :: MonadIO m => IORef a -> m a
 readMutVar var = liftIO (readIORef var)
 
-updMutVar :: IORef a -> (a -> a) -> IOEnv env ()
+updMutVar :: MonadIO m => IORef a -> (a -> a) -> m ()
 updMutVar var upd = liftIO (modifyIORef var upd)
 
 -- | Atomically update the reference.  Does not force the evaluation of the
 -- new variable contents.  For strict update, use 'atomicUpdMutVar''.
-atomicUpdMutVar :: IORef a -> (a -> (a, b)) -> IOEnv env b
+atomicUpdMutVar :: MonadIO m => IORef a -> (a -> (a, b)) -> m b
 atomicUpdMutVar var upd = liftIO (atomicModifyIORef var upd)
 
 -- | Strict variant of 'atomicUpdMutVar'.
-atomicUpdMutVar' :: IORef a -> (a -> (a, b)) -> IOEnv env b
+atomicUpdMutVar' :: MonadIO m => IORef a -> (a -> (a, b)) -> m b
 atomicUpdMutVar' var upd = liftIO (atomicModifyIORef' var upd)
-
-----------------------------------------------------------------------
--- Accessing the environment
-----------------------------------------------------------------------
-
-getEnv :: IOEnv env env
-{-# INLINE getEnv #-}
-getEnv = IOEnv (\ env -> return env)
-
--- | Perform a computation with a different environment
-setEnv :: env' -> IOEnv env' a -> IOEnv env a
-{-# INLINE setEnv #-}
-setEnv new_env (IOEnv m) = IOEnv (\ _ -> m new_env)
-
--- | Perform a computation with an altered environment
-updEnv :: (env -> env') -> IOEnv env' a -> IOEnv env a
-{-# INLINE updEnv #-}
-updEnv upd (IOEnv m) = IOEnv (\ env -> m (upd env))

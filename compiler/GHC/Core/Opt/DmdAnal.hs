@@ -22,7 +22,6 @@ import GHC.Core
 import GHC.Utils.Outputable
 import GHC.Types.Var.Env
 import GHC.Types.Basic
-import Data.List        ( mapAccumL )
 import GHC.Core.DataCon
 import GHC.Types.ForeignCall ( isSafeForeignCall )
 import GHC.Types.Id
@@ -862,7 +861,7 @@ dmdFix top_lvl env let_dmd orig_pairs
       where (lazy_fv, pairs') = step True (zapIdStrictness orig_pairs)
             -- Note [Lazy and unleashable free variables]
             non_lazy_fvs = plusVarEnvList $ map (strictSigDmdEnv . idStrictness . fst) pairs'
-            lazy_fv'     = lazy_fv `plusVarEnv` mapVarEnv (const topDmd) non_lazy_fvs
+            lazy_fv'     = plusVarEnv lazy_fv (topDmd <$ non_lazy_fvs)
             zapped_pairs = zapIdStrictness pairs'
 
     -- The fixed-point varies the idStrictness field of the binders, and terminates if that
@@ -981,7 +980,7 @@ unitDmdType :: DmdEnv -> DmdType
 unitDmdType dmd_env = DmdType dmd_env [] topDiv
 
 coercionDmdEnv :: Coercion -> DmdEnv
-coercionDmdEnv co = mapVarEnv (const topDmd) (getUniqSet $ coVarsOfCo co)
+coercionDmdEnv co = topDmd <$ getUniqSet (coVarsOfCo co)
                     -- The VarSet from coVarsOfCo is really a VarEnv Var
 
 addVarDmd :: DmdType -> Var -> Demand -> DmdType

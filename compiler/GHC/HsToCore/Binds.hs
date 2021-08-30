@@ -74,9 +74,10 @@ import GHC.Driver.Config
 import GHC.Data.FastString
 import GHC.Utils.Misc
 import GHC.Types.Unique.Set( nonDetEltsUniqSet )
-import GHC.Utils.Monad
 import qualified GHC.LanguageExtensions as LangExt
 import Control.Monad
+import Data.Bifunctor ( bimap )
+import Data.Foldable ( toList )
 import Data.List.NonEmpty ( nonEmpty )
 
 {-**********************************************************************
@@ -91,22 +92,21 @@ dsTopLHsBinds :: LHsBinds GhcTc -> DsM (OrdList (Id,CoreExpr))
 dsTopLHsBinds binds
      -- see Note [Strict binds checks]
   | not (isEmptyBag unlifted_binds) || not (isEmptyBag bang_binds)
-  = do { mapBagM_ (top_level_err "bindings for unlifted types") unlifted_binds
-       ; mapBagM_ (top_level_err "strict bindings")             bang_binds
-       ; return nilOL }
+  = nilOL <$
+    do { traverse_ (top_level_err "bindings for unlifted types") unlifted_binds
+       ; traverse_ (top_level_err "strict bindings")             bang_binds }
 
   | otherwise
   = do { (force_vars, prs) <- dsLHsBinds binds
-       ; when debugIsOn $
+       ; toOL prs <$
+         when debugIsOn
          do { xstrict <- xoptM LangExt.Strict
             ; massertPpr (null force_vars || xstrict) (ppr binds $$ ppr force_vars) }
-              -- with -XStrict, even top-level vars are listed as force vars.
-
-       ; return (toOL prs) }
+              {- with -XStrict, even top-level vars are listed as force vars. -} }
 
   where
-    unlifted_binds = filterBag (isUnliftedHsBind . unLoc) binds
-    bang_binds     = filterBag (isBangedHsBind   . unLoc) binds
+    unlifted_binds = filter (isUnliftedHsBind . unLoc) binds
+    bang_binds     = filter (isBangedHsBind   . unLoc) binds
 
     top_level_err desc (L loc bind)
       = putSrcSpanDs loc $
@@ -118,9 +118,7 @@ dsTopLHsBinds binds
 -- later be forced in the binding group body, see Note [Desugar Strict binds]
 dsLHsBinds :: LHsBinds GhcTc -> DsM ([Id], [(Id,CoreExpr)])
 dsLHsBinds binds
-  = do { ds_bs <- mapBagM dsLHsBind binds
-       ; return (foldBag (\(a, a') (b, b') -> (a ++ b, a' ++ b'))
-                         id ([], []) ds_bs) }
+  = foldBag (\(a, a') (b, b') -> (a ++ b, a' ++ b')) id ([], []) <$> traverse dsLHsBind binds
 
 ------------------------
 dsLHsBind :: LHsBind GhcTc
@@ -138,20 +136,19 @@ dsHsBind :: DynFlags
 
 dsHsBind dflags (VarBind { var_id = var
                          , var_rhs = expr })
-  = do  { core_expr <- dsLExpr expr
+  = dsLExpr expr <₪> \ core_expr ->
                 -- Dictionary bindings are always VarBinds,
                 -- so we only need do this here
-        ; let core_bind@(id,_) = makeCorePair dflags var False 0 core_expr
-              force_var = if xopt LangExt.Strict dflags
-                          then [id]
-                          else []
-        ; return (force_var, [core_bind]) }
+          let core_bind@(id,_) = makeCorePair dflags var False 0 core_expr
+              force_var = id <$ guard (xopt LangExt.Strict dflags)
+          in (force_var, [core_bind])
 
 dsHsBind dflags b@(FunBind { fun_id = L loc fun
                            , fun_matches = matches
                            , fun_ext = co_fn
-                           , fun_tick = tick })
- = do   { (args, body) <- addTyCsDs FromSource (hsWrapDictBinders co_fn) $
+                           , fun_tick = tick }) =
+  [ (force_var, [core_binds])
+  |       (args, body) <- addTyCsDs FromSource (hsWrapDictBinders co_fn) $
                           -- FromSource might not be accurate (we don't have any
                           -- origin annotations for things in this module), but at
                           -- worst we do superfluous calls to the pattern match
@@ -162,8 +159,8 @@ dsHsBind dflags b@(FunBind { fun_id = L loc fun
                           matchWrapper
                            (mkPrefixFunRhs (L loc (idName fun)))
                            Nothing matches
-        ; core_wrap <- dsHsWrapper co_fn
-        ; let body' = mkOptTickBox tick body
+  ,       core_wrap <- dsHsWrapper co_fn
+  ,       let body' = mkOptTickBox tick body
               rhs   = core_wrap (mkLams args body')
               core_binds@(id,_) = makeCorePair dflags fun False 0 rhs
               force_var
@@ -175,25 +172,23 @@ dsHsBind dflags b@(FunBind { fun_id = L loc fun
                 = [id]
                 | otherwise
                 = []
-        ; --pprTrace "dsHsBind" (vcat [ ppr fun <+> ppr (idInlinePragma fun)
+          --pprTrace "dsHsBind" (vcat [ ppr fun <+> ppr (idInlinePragma fun)
           --                          , ppr (mg_alts matches)
           --                          , ppr args, ppr core_binds]) $
-          return (force_var, [core_binds]) }
+  ]
 
 dsHsBind dflags (PatBind { pat_lhs = pat, pat_rhs = grhss
                          , pat_ext = NPatBindTc _ ty
-                         , pat_ticks = (rhs_tick, var_ticks) })
-  = do  { rhss_deltas <- checkGuardMatches PatBindGuards grhss
-        ; body_expr <- dsGuarded grhss ty (nonEmpty rhss_deltas)
-        ; let body' = mkOptTickBox rhs_tick body_expr
+                         , pat_ticks = (rhs_tick, var_ticks) }) =
+  [ (force_var <$ guard (isBangedLPat pat'), sel_binds)
+  |       rhss_deltas <- checkGuardMatches PatBindGuards grhss
+  ,       body_expr <- dsGuarded grhss ty (nonEmpty rhss_deltas)
+  ,       let body' = mkOptTickBox rhs_tick body_expr
               pat'  = decideBangHood dflags pat
-        ; (force_var,sel_binds) <- mkSelectorBinds var_ticks pat body'
+  ,       (force_var,sel_binds) <- mkSelectorBinds var_ticks pat body'
           -- We silently ignore inline pragmas; no makeCorePair
           -- Not so cool, but really doesn't matter
-        ; let force_var' = if isBangedLPat pat'
-                           then [force_var]
-                           else []
-        ; return (force_var', sel_binds) }
+  ]
 
 dsHsBind dflags (AbsBinds { abs_tvs = tyvars, abs_ev_vars = dicts
                           , abs_exports = exports
@@ -251,7 +246,7 @@ dsAbsBinds dflags tyvars dicts exports
                                        (isDefaultMethod prags)
                                        (dictArity dicts) rhs
 
-       ; return (force_vars', main_bind : fromOL spec_binds) }
+       ; return (force_vars', main_bind : toList spec_binds) }
 
     -- Another common case: no tyvars, no dicts
     -- In this case we can have a much simpler desugaring
@@ -308,7 +303,7 @@ dsAbsBinds dflags tyvars dicts exports
                            -- Kill the INLINE pragma because it applies to
                            -- the user written (local) function.  The global
                            -- Id is just the selector.  Hmm.
-                     ; return ((global', rhs) : fromOL spec_binds) }
+                     ; return ((global', rhs) : toList spec_binds) }
 
        ; export_binds_s <- mapM mk_bind (exports ++ extra_exports)
 
@@ -649,9 +644,7 @@ dsSpecs :: CoreExpr     -- Its rhs
 -- See Note [Handling SPECIALISE pragmas] in GHC.Tc.Gen.Bind
 dsSpecs _ IsDefaultMethod = return (nilOL, [])
 dsSpecs poly_rhs (SpecPrags sps)
-  = do { pairs <- mapMaybeM (dsSpec (Just poly_rhs)) sps
-       ; let (spec_binds_s, rules) = unzip pairs
-       ; return (concatOL spec_binds_s, rules) }
+  = bimap concatOL id . unzip <$> mapMaybeA (dsSpec (Just poly_rhs)) sps
 
 dsSpec :: Maybe CoreExpr        -- Just rhs => RULE is for a local binding
                                 -- Nothing => RULE is for an imported Id
@@ -661,17 +654,17 @@ dsSpec :: Maybe CoreExpr        -- Just rhs => RULE is for a local binding
 dsSpec mb_poly_rhs (L loc (SpecPrag poly_id spec_co spec_inl))
   | isJust (isClassOpId_maybe poly_id)
   = putSrcSpanDs loc $
-    do { warnDs NoReason (text "Ignoring useless SPECIALISE pragma for class method selector"
+    Nothing <$ warnDs NoReason (text "Ignoring useless SPECIALISE pragma for class method selector"
                           <+> quotes (ppr poly_id))
-       ; return Nothing  }  -- There is no point in trying to specialise a class op
+                            -- There is no point in trying to specialise a class op
                             -- Moreover, classops don't (currently) have an inl_sat arity set
                             -- (it would be Just 0) and that in turn makes makeCorePair bleat
 
   | no_act_spec && isNeverActive rule_act
   = putSrcSpanDs loc $
-    do { warnDs NoReason (text "Ignoring useless SPECIALISE pragma for NOINLINE function:"
+    Nothing <$ warnDs NoReason (text "Ignoring useless SPECIALISE pragma for NOINLINE function:"
                           <+> quotes (ppr poly_id))
-       ; return Nothing  }  -- Function is NOINLINE, and the specialisation inherits that
+                            -- Function is NOINLINE, and the specialisation inherits that
                             -- See Note [Activation pragmas for SPECIALISE]
 
   | otherwise
@@ -695,7 +688,7 @@ dsSpec mb_poly_rhs (L loc (SpecPrag poly_id spec_co spec_inl))
          --                         , text "ds_rhs:" <+> ppr ds_lhs ]) $
          dflags <- getDynFlags
        ; case decomposeRuleLhs dflags spec_bndrs ds_lhs of {
-           Left msg -> do { warnDs NoReason msg; return Nothing } ;
+           Left msg -> Nothing <$ warnDs NoReason msg ;
            Right (rule_bndrs, _fn, rule_lhs_args) -> do
 
        { this_mod <- getModule
@@ -764,9 +757,8 @@ dsMkUserRule :: Module -> Bool -> RuleName -> Activation
 dsMkUserRule this_mod is_local name act fn bndrs args rhs = do
     let rule = mkRule this_mod False is_local name act fn bndrs args rhs
     dflags <- getDynFlags
-    when (isOrphan (ru_orphan rule) && wopt Opt_WarnOrphans dflags) $
+    rule <$ (isOrphan (ru_orphan rule) && wopt Opt_WarnOrphans dflags) `when`
         warnDs (Reason Opt_WarnOrphans) (ruleOrphWarn rule)
-    return rule
 
 ruleOrphWarn :: CoreRule -> SDoc
 ruleOrphWarn rule = text "Orphan rule:" <+> ppr rule
@@ -1115,15 +1107,12 @@ So for now, we ban them altogether as requested by #13290. See also #7398.
 -}
 
 dsHsWrapper :: HsWrapper -> DsM (CoreExpr -> CoreExpr)
-dsHsWrapper WpHole            = return $ \e -> e
+dsHsWrapper WpHole            = return $ id
 dsHsWrapper (WpTyApp ty)      = return $ \e -> App e (Type ty)
 dsHsWrapper (WpEvLam ev)      = return $ Lam ev
 dsHsWrapper (WpTyLam tv)      = return $ Lam tv
-dsHsWrapper (WpLet ev_binds)  = do { bs <- dsTcEvBinds ev_binds
-                                   ; return (mkCoreLets bs) }
-dsHsWrapper (WpCompose c1 c2) = do { w1 <- dsHsWrapper c1
-                                   ; w2 <- dsHsWrapper c2
-                                   ; return (w1 . w2) }
+dsHsWrapper (WpLet ev_binds)  = mkCoreLets <$> dsTcEvBinds ev_binds
+dsHsWrapper (WpCompose c1 c2) = (.) <$> dsHsWrapper c1 <*> dsHsWrapper c2
  -- See comments on WpFun in GHC.Tc.Types.Evidence for an explanation of what
  -- the specification of this clause is
 dsHsWrapper (WpFun c1 c2 t1 doc)
@@ -1132,14 +1121,10 @@ dsHsWrapper (WpFun c1 c2 t1 doc)
                                    ; w2 <- dsHsWrapper c2
                                    ; let app f a = mkCoreAppDs (text "dsHsWrapper") f a
                                          arg     = w1 (Var x)
-                                   ; (_, ok) <- askNoErrsDs $ dsNoLevPolyExpr arg doc
-                                   ; if ok
-                                     then return (\e -> (Lam x (w2 (app e arg))))
-                                     else return id }  -- this return is irrelevant
+                                   ; bool {- this return is irrelevant -} id (\e -> (Lam x (w2 (app e arg)))) . snd <$> askNoErrsDs (dsNoLevPolyExpr arg doc) }
 dsHsWrapper (WpCast co)       = assert (coercionRole co == Representational) $
                                 return $ \e -> mkCastDs e co
-dsHsWrapper (WpEvApp tm)      = do { core_tm <- dsEvTerm tm
-                                   ; return (\e -> App e core_tm) }
+dsHsWrapper (WpEvApp tm)      = flip App <$> dsEvTerm tm
 
 --------------------------------------
 dsTcEvBinds_s :: [TcEvBinds] -> DsM [CoreBind]
@@ -1152,9 +1137,7 @@ dsTcEvBinds (TcEvBinds {}) = panic "dsEvBinds"    -- Zonker has got rid of this
 dsTcEvBinds (EvBinds bs)   = dsEvBinds bs
 
 dsEvBinds :: Bag EvBind -> DsM [CoreBind]
-dsEvBinds bs
-  = do { ds_bs <- mapBagM dsEvBind bs
-       ; return (mk_ev_binds ds_bs) }
+dsEvBinds bs = mk_ev_binds <$> traverse dsEvBind bs
 
 mk_ev_binds :: Bag (Id,CoreExpr) -> [CoreBind]
 -- We do SCC analysis of the evidence bindings, /after/ desugaring
@@ -1182,7 +1165,7 @@ mk_ev_binds ds_binds
     ds_scc (CyclicSCC prs)    = Rec prs
 
 dsEvBind :: EvBind -> DsM (Id, CoreExpr)
-dsEvBind (EvBind { eb_lhs = v, eb_rhs = r}) = liftM ((,) v) (dsEvTerm r)
+dsEvBind (EvBind { eb_lhs = v, eb_rhs = r }) = (,) v <$> dsEvTerm r
 
 
 {-**********************************************************************
@@ -1196,10 +1179,8 @@ dsEvTerm (EvExpr e)          = return e
 dsEvTerm (EvTypeable ty ev)  = dsEvTypeable ty ev
 dsEvTerm (EvFun { et_tvs = tvs, et_given = given
                 , et_binds = ev_binds, et_body = wanted_id })
-  = do { ds_ev_binds <- dsTcEvBinds ev_binds
-       ; return $ (mkLams (tvs ++ given) $
-                   mkCoreLets ds_ev_binds $
-                   Var wanted_id) }
+  = dsTcEvBinds ev_binds <₪> \ ds_ev_binds ->
+    mkLams (tvs ++ given) $ mkCoreLets ds_ev_binds $ Var wanted_id
 
 
 {-**********************************************************************
@@ -1319,7 +1300,6 @@ tyConRep :: TyCon -> DsM CoreExpr
 -- Returns CoreExpr :: TyCon
 tyConRep tc
   | Just tc_rep_nm <- tyConRepName_maybe tc
-  = do { tc_rep_id <- dsLookupGlobalId tc_rep_nm
-       ; return (Var tc_rep_id) }
+  = Var <$> dsLookupGlobalId tc_rep_nm
   | otherwise
   = pprPanic "tyConRep" (ppr tc)

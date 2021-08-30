@@ -54,7 +54,7 @@ import GHC.Utils.Panic
 import qualified Data.ByteString as BS
 import Control.Monad( unless, ap )
 
-import Data.Maybe( catMaybes, isNothing )
+import Data.Maybe( isNothing )
 import Language.Haskell.TH as TH hiding (sigP)
 import Language.Haskell.TH.Syntax as TH
 import Foreign.ForeignPtr
@@ -470,11 +470,11 @@ cvt_ci_decs :: MsgDoc -> [TH.Dec]
 -- ie signatures, bindings, and associated types
 cvt_ci_decs doc decs
   = do  { decs' <- cvtDecs decs
-        ; let (ats', bind_sig_decs') = partitionWith is_tyfam_inst decs'
-        ; let (adts', no_ats')       = partitionWith is_datafam_inst bind_sig_decs'
-        ; let (sigs', prob_binds')   = partitionWith is_sig no_ats'
-        ; let (binds', prob_fams')   = partitionWith is_bind prob_binds'
-        ; let (fams', bads)          = partitionWith is_fam_decl prob_fams'
+        ; let (ats', bind_sig_decs') = mapEither is_tyfam_inst decs'
+        ; let (adts', no_ats')       = mapEither is_datafam_inst bind_sig_decs'
+        ; let (sigs', prob_binds')   = mapEither is_sig no_ats'
+        ; let (binds', prob_fams')   = mapEither is_bind prob_binds'
+        ; let (fams', bads)          = mapEither is_fam_decl prob_fams'
         ; unless (null bads) (failWith (mkBadDecMsg doc bads))
         ; return (listToBag binds', sigs', fams', ats', adts') }
 
@@ -859,12 +859,12 @@ cvtRuleBndr (TypedRuleVar n ty)
 
 cvtLocalDecs :: MsgDoc -> [TH.Dec] -> CvtM (HsLocalBinds GhcPs)
 cvtLocalDecs doc ds
-  = case partitionWith is_ip_bind ds of
+  = case mapEither is_ip_bind ds of
       ([], []) -> return (EmptyLocalBinds noExtField)
       ([], _) -> do
         ds' <- cvtDecs ds
-        let (binds, prob_sigs) = partitionWith is_bind ds'
-        let (sigs, bads) = partitionWith is_sig prob_sigs
+        let (binds, prob_sigs) = mapEither is_bind ds'
+        let (sigs, bads) = mapEither is_sig prob_sigs
         unless (null bads) (failWith (mkBadDecMsg doc bads))
         return (HsValBinds noExtField (ValBinds noExtField (listToBag binds) sigs))
       (ip_binds, []) -> do

@@ -5,9 +5,9 @@ module GHC.Unit.Module.Env
    , elemModuleEnv, extendModuleEnv, extendModuleEnvList
    , extendModuleEnvList_C, plusModuleEnv_C
    , delModuleEnvList, delModuleEnv, plusModuleEnv, lookupModuleEnv
-   , lookupWithDefaultModuleEnv, mapModuleEnv, mkModuleEnv, emptyModuleEnv
-   , moduleEnvKeys, moduleEnvElts, moduleEnvToList
-   , unitModuleEnv, isEmptyModuleEnv
+   , lookupWithDefaultModuleEnv, mkModuleEnv, emptyModuleEnv
+   , moduleEnvKeys, moduleEnvToList
+   , unitModuleEnv
    , extendModuleEnvWith, filterModuleEnv
 
      -- * ModuleName mappings
@@ -50,6 +50,7 @@ import qualified GHC.Data.FiniteMap as Map
 
 -- | A map keyed off of 'Module's
 newtype ModuleEnv elt = ModuleEnv (Map NDModule elt)
+  deriving (Foldable, Functor, Traversable)
 
 {-
 Note [ModuleEnv performance and determinism]
@@ -122,9 +123,6 @@ lookupWithDefaultModuleEnv :: ModuleEnv a -> a -> Module -> a
 lookupWithDefaultModuleEnv (ModuleEnv e) x m =
   Map.findWithDefault x (NDModule m) e
 
-mapModuleEnv :: (a -> b) -> ModuleEnv a -> ModuleEnv b
-mapModuleEnv f (ModuleEnv e) = ModuleEnv (Map.mapWithKey (\_ v -> f v) e)
-
 mkModuleEnv :: [(Module, a)] -> ModuleEnv a
 mkModuleEnv xs = ModuleEnv (Map.fromList [(NDModule k, v) | (k,v) <- xs])
 
@@ -135,10 +133,6 @@ moduleEnvKeys :: ModuleEnv a -> [Module]
 moduleEnvKeys (ModuleEnv e) = sort $ map unNDModule $ Map.keys e
   -- See Note [ModuleEnv performance and determinism]
 
-moduleEnvElts :: ModuleEnv a -> [a]
-moduleEnvElts e = map snd $ moduleEnvToList e
-  -- See Note [ModuleEnv performance and determinism]
-
 moduleEnvToList :: ModuleEnv a -> [(Module, a)]
 moduleEnvToList (ModuleEnv e) =
   sortBy (comparing fst) [(m, v) | (NDModule m, v) <- Map.toList e]
@@ -146,9 +140,6 @@ moduleEnvToList (ModuleEnv e) =
 
 unitModuleEnv :: Module -> a -> ModuleEnv a
 unitModuleEnv m x = ModuleEnv (Map.singleton (NDModule m) x)
-
-isEmptyModuleEnv :: ModuleEnv a -> Bool
-isEmptyModuleEnv (ModuleEnv e) = Map.null e
 
 -- | A set of 'Module's
 type ModuleSet = Set NDModule

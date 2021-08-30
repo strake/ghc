@@ -45,6 +45,7 @@ import GHC.Types.Unique
 
 import Data.Coerce
 import Data.Data
+import Data.Foldable (toList)
 
 -- See Note [UniqSet invariant] in GHC.Types.Unique.Set for why we want a newtype here.
 -- Beyond preserving invariants, we may also want to 'override' typeclass
@@ -106,22 +107,22 @@ elementOfUniqDSet :: Uniquable a => a -> UniqDSet a -> Bool
 elementOfUniqDSet k = elemUDFM k . getUniqDSet
 
 filterUniqDSet :: (a -> Bool) -> UniqDSet a -> UniqDSet a
-filterUniqDSet p (UniqDSet s) = UniqDSet (filterUDFM p s)
+filterUniqDSet p (UniqDSet s) = UniqDSet (filter p s)
 
 sizeUniqDSet :: UniqDSet a -> Int
-sizeUniqDSet = sizeUDFM . getUniqDSet
+sizeUniqDSet = length . getUniqDSet
 
 isEmptyUniqDSet :: UniqDSet a -> Bool
-isEmptyUniqDSet = isNullUDFM . getUniqDSet
+isEmptyUniqDSet = null . getUniqDSet
 
 lookupUniqDSet :: Uniquable a => UniqDSet a -> a -> Maybe a
 lookupUniqDSet = lookupUDFM . getUniqDSet
 
 uniqDSetToList :: UniqDSet a -> [a]
-uniqDSetToList = eltsUDFM . getUniqDSet
+uniqDSetToList = toList . getUniqDSet
 
 partitionUniqDSet :: (a -> Bool) -> UniqDSet a -> (UniqDSet a, UniqDSet a)
-partitionUniqDSet p = coerce . partitionUDFM p . getUniqDSet
+partitionUniqDSet p = coerce . partition p . getUniqDSet
 
 -- See Note [UniqSet invariant] in GHC.Types.Unique.Set
 mapUniqDSet :: Uniquable b => (a -> b) -> UniqDSet a -> UniqDSet b

@@ -55,7 +55,6 @@ import qualified GHC.LanguageExtensions as LangExt
 import Control.Monad
 import System.IO
 import System.IO.Unsafe
-import Data.List
 
 ------------------------------------------------------------------------------
 
@@ -255,7 +254,7 @@ getOptions' dflags toks
               , ITclose_prag       <- unLoc close
               = case toArgs str of
                   Left _err -> optionsParseError str dflags $   -- #15053
-                                 combineSrcSpans (getLoc open) (getLoc close)
+                                 getLoc open <> getLoc close
                   Right args -> map (L (getLoc open)) args ++ parseToks xs
           parseToks (open:close:xs)
               | ITinclude_prag str <- unLoc open

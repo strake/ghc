@@ -12,7 +12,7 @@ module GHC.Core.Coercion (
         -- * Main data type
         Coercion, CoercionN, CoercionR, CoercionP, MCoercion(..), MCoercionR,
         UnivCoProvenance, CoercionHole(..), BlockSubstFlag(..),
-        coHoleCoVar, setCoHoleCoVar,
+        coHoleCoVar, coHoleCoVarL,
         LeftOrRight(..),
         Var, CoVar, TyCoVar,
         Role(..), ltRole,
@@ -20,7 +20,7 @@ module GHC.Core.Coercion (
         -- ** Functions over coercions
         coVarTypes, coVarKind, coVarKindsTypesRole, coVarRole,
         coercionType, mkCoercionType,
-        coercionKind, coercionLKind, coercionRKind,coercionKinds,
+        coercionKind, coercionLKind, coercionRKind,
         coercionRole, coercionKindRole,
 
         -- ** Constructing coercions
@@ -67,7 +67,7 @@ module GHC.Core.Coercion (
         isReflCoVar_maybe, isGReflMCo, coToMCo,
 
         -- ** Coercion variables
-        mkCoVar, isCoVar, coVarName, setCoVarName, setCoVarUnique,
+        mkCoVar, isCoVar, coVarName, coVarNameL, coVarUniqueL,
         isCoVar_maybe,
 
         -- ** Free variables
@@ -91,7 +91,7 @@ module GHC.Core.Coercion (
         substForAllCoBndrUsingLC, lcTCvSubst, lcInScopeSet,
 
         LiftCoEnv, LiftingContext(..), liftEnvSubstLeft, liftEnvSubstRight,
-        substRightCo, substLeftCo, swapLiftCoEnv, lcSubstLeft, lcSubstRight,
+        substRightCo, substLeftCo, lcSubstLeft, lcSubstRight,
 
         -- ** Comparison
         eqCoercion, eqCoercionX,
@@ -149,9 +149,9 @@ import GHC.Utils.Misc
 import GHC.Utils.Outputable
 import GHC.Utils.Panic
 
-import Control.Monad (foldM, zipWithM)
-import Data.Function ( on )
+import Control.Monad (zipWithM)
 import Data.Char( isDigit )
+import Data.Foldable (foldlM)
 import qualified Data.Monoid as Monoid
 
 {-
@@ -170,11 +170,11 @@ import qualified Data.Monoid as Monoid
 coVarName :: CoVar -> Name
 coVarName = varName
 
-setCoVarUnique :: CoVar -> Unique -> CoVar
-setCoVarUnique = setVarUnique
+coVarUniqueL :: Lens' CoVar Unique
+coVarUniqueL = varUniqueL
 
-setCoVarName :: CoVar -> Name -> CoVar
-setCoVarName   = setVarName
+coVarNameL :: Lens' CoVar Name
+coVarNameL = varNameL
 
 {-
 %************************************************************************
@@ -274,8 +274,7 @@ tidyCoAxBndrsForUser init_env tcvs
       where
         (env', bndr') = tidyVarBndr env bndr
         env_wild = (occ_env, extendVarEnv subst bndr wild_bndr)
-        wild_bndr = setVarName bndr $
-                    tidyNameOcc (varName bndr) (mkTyVarOcc "_")
+        wild_bndr = set varNameL (tidyNameOcc (varName bndr) (mkTyVarOcc "_")) bndr
                     -- Tidy the binder to "_"
 
     is_wildcard :: Var -> Bool
@@ -1465,7 +1464,7 @@ instCoercion (Pair lty rty) g w
 instCoercions :: CoercionN -> [Coercion] -> Maybe CoercionN
 instCoercions g ws
   = let arg_ty_pairs = map coercionKind ws in
-    snd <$> foldM go (coercionKind g, g) (zip arg_ty_pairs ws)
+    snd <$> foldlM go (coercionKind g, g) (zip arg_ty_pairs ws)
   where
     go :: (Pair Type, Coercion) -> (Pair Type, Coercion)
        -> Maybe (Pair Type, Coercion)
@@ -2005,7 +2004,7 @@ liftCoSubstTyVarBndrUsing fun lc@(LC subst cenv) old_var
     old_kind     = tyVarKind old_var
     (eta, stuff) = fun lc old_kind
     k1           = coercionLKind eta
-    new_var      = uniqAway (getTCvInScope subst) (setVarType old_var k1)
+    new_var      = uniqAway (getTCvInScope subst) (set varTypeL k1 old_var)
 
     lifted   = mkGReflRightCo Nominal (TyVarTy new_var) eta
                -- :: new_var ~ new_var |> eta
@@ -2023,7 +2022,7 @@ liftCoSubstCoVarBndrUsing fun lc@(LC subst cenv) old_var
     old_kind     = coVarKind old_var
     (eta, stuff) = fun lc old_kind
     k1           = coercionLKind eta
-    new_var      = uniqAway (getTCvInScope subst) (setVarType old_var k1)
+    new_var      = uniqAway (getTCvInScope subst) (set varTypeL k1 old_var)
 
     -- old_var :: s1  ~r s2
     -- eta     :: (s1' ~r s2') ~N (t1 ~r t2)
@@ -2055,17 +2054,11 @@ isMappedByLC tv (LC _ env) = tv `elemVarEnv` env
 -- If [a |-> g] is in the substitution and g :: t1 ~ t2, substitute a for t1
 -- If [a |-> (g1, g2)] is in the substitution, substitute a for g1
 substLeftCo :: LiftingContext -> Coercion -> Coercion
-substLeftCo lc co
-  = substCo (lcSubstLeft lc) co
+substLeftCo = substCo . lcSubstLeft
 
 -- Ditto, but for t2 and g2
 substRightCo :: LiftingContext -> Coercion -> Coercion
-substRightCo lc co
-  = substCo (lcSubstRight lc) co
-
--- | Apply "sym" to all coercions in a 'LiftCoEnv'
-swapLiftCoEnv :: LiftCoEnv -> LiftCoEnv
-swapLiftCoEnv = mapVarEnv mkSymCo
+substRightCo = substCo . lcSubstRight
 
 lcSubstLeft :: LiftingContext -> TCvSubst
 lcSubstLeft (LC subst lc_env) = liftEnvSubstLeft subst lc_env
@@ -2087,7 +2080,7 @@ liftEnvSubst selector subst lc_env
                        -- It's OK to use nonDetUFMToList here because we
                        -- immediately forget the ordering by creating
                        -- a VarEnv
-    (tpairs, cpairs) = partitionWith ty_or_co pairs
+    (tpairs, cpairs) = mapEither ty_or_co pairs
     tenv             = mkVarEnv_Directly tpairs
     cenv             = mkVarEnv_Directly cpairs
 
@@ -2158,10 +2151,6 @@ seqCos (co:cos) = seqCo co `seq` seqCos cos
 %*                                                                      *
 %************************************************************************
 -}
-
--- | Apply 'coercionKind' to multiple 'Coercion's
-coercionKinds :: [Coercion] -> Pair [Type]
-coercionKinds tys = sequenceA $ map coercionKind tys
 
 -- | Get a coercion's kind and role.
 coercionKindRole :: Coercion -> (Pair Type, Role)
@@ -2290,7 +2279,7 @@ coercionRKind co
       = mkInfForAllTy tv2 (go_forall subst' co)
       where
         k2  = coercionRKind k_co
-        tv2 = setTyVarKind tv1 (substTy subst k2)
+        tv2 = set tyVarKindL (substTy subst k2) tv1
         subst' | isGReflCo k_co = extendTCvInScope subst tv1
                  -- kind_co always has kind @Type@, thus @isGReflCo@
                | otherwise      = extendTvSubst (extendTCvInScope subst tv2) tv1 $
@@ -2314,7 +2303,7 @@ coercionRKind co
         -- eta2 :: t2 ~r s2
         -- n_subst  = (eta1 ; cv2 ; sym eta2) :: t1 ~r t2
 
-        cv2     = setVarType cv1 (substTy subst k2)
+        cv2     = set varTypeL (substTy subst k2) cv1
         n_subst = eta1 `mkTransCo` (mkCoVarCo cv2) `mkTransCo` (mkSymCo eta2)
         subst'  | isReflCo k_co = extendTCvInScope subst cv1
                 | otherwise     = extendCvSubst (extendTCvInScope subst cv2)

@@ -88,7 +88,6 @@ import GHC.Utils.Misc
 import GHC.Utils.Panic
 
 import Data.Maybe( isJust )
-import qualified Data.Semigroup as Semi
 import Control.DeepSeq
 
 {-
@@ -220,13 +219,13 @@ data IfaceAppArgs
 
            IfaceAppArgs -- The rest of the arguments
 
-instance Semi.Semigroup IfaceAppArgs where
+instance Semigroup IfaceAppArgs where
   IA_Nil <> xs              = xs
-  IA_Arg ty argf rest <> xs = IA_Arg ty argf (rest Semi.<> xs)
+  IA_Arg ty argf rest <> xs = IA_Arg ty argf (rest <> xs)
 
 instance Monoid IfaceAppArgs where
   mempty = IA_Nil
-  mappend = (Semi.<>)
+  mappend = (<>)
 
 -- Encodes type constructors, kind constructors,
 -- coercion constructors, the lot.
@@ -1157,7 +1156,7 @@ pprUserIfaceForAll :: [IfaceForAllBndr] -> SDoc
 pprUserIfaceForAll tvs
    = sdocOption sdocPrintExplicitForalls $ \print_foralls ->
      -- See Note [When to print foralls] in this module.
-     ppWhen (any tv_has_kind_var tvs
+     mwhen (any tv_has_kind_var tvs
              || any tv_is_required tvs
              || print_foralls) $
      pprIfaceForAll tvs

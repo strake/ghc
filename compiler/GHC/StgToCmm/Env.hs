@@ -43,7 +43,7 @@ import GHC.Types.Unique.FM
 import GHC.Types.Var.Env
 
 import GHC.Utils.Lens.Monad
-import GHC.Utils.Monad.RS.Lazy 
+import GHC.Utils.Monad.RS.Lazy
 import GHC.Utils.Outputable
 import GHC.Utils.Panic
 import GHC.Utils.Panic.Plain

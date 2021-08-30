@@ -45,8 +45,8 @@ import GHC.Utils.Outputable
 import GHC.Utils.Panic
 
 import Data.Data hiding ( Fixity )
+import Data.Foldable ( toList )
 import Data.List hiding ( foldr )
-import Data.Function
 
 {-
 ************************************************************************
@@ -643,7 +643,7 @@ pprLHsBinds :: (OutputableBndrId idL, OutputableBndrId idR)
             => LHsBindsLR (GhcPass idL) (GhcPass idR) -> SDoc
 pprLHsBinds binds
   | isEmptyLHsBinds binds = empty
-  | otherwise = pprDeclList (map ppr (bagToList binds))
+  | otherwise = pprDeclList (map ppr (toList binds))
 
 pprLHsBindsForUser :: (OutputableBndrId idL,
                        OutputableBndrId idR,
@@ -661,7 +661,7 @@ pprLHsBindsForUser binds sigs
 
     decls :: [(SrcSpan, SDoc)]
     decls = [(loc, ppr sig)  | L loc sig <- sigs] ++
-            [(loc, ppr bind) | L loc bind <- bagToList binds]
+            [(loc, ppr bind) | L loc bind <- toList binds]
 
     sort_by_loc decls = sortBy (SrcLoc.leftmost_smallest `on` fst) decls
 
@@ -674,7 +674,7 @@ pprDeclList :: [SDoc] -> SDoc   -- Braces with a space
 --    using vcat
 -- At the moment we chose the latter
 -- Also we do the 'pprDeeperList' thing.
-pprDeclList ds = pprDeeperList vcat ds
+pprDeclList = pprDeeperList vcat
 
 ------------
 emptyLocalBinds :: HsLocalBindsLR (GhcPass a) (GhcPass b)
@@ -711,7 +711,7 @@ plusHsValBinds _ _
 
 instance (OutputableBndrId pl, OutputableBndrId pr)
          => Outputable (HsBindLR (GhcPass pl) (GhcPass pr)) where
-    ppr mbind = ppr_monobind mbind
+    ppr = ppr_monobind
 
 ppr_monobind :: forall idL idR.
                 (OutputableBndrId idL, OutputableBndrId idR)
@@ -785,9 +785,7 @@ pprTicks :: SDoc -> SDoc -> SDoc
 pprTicks pp_no_debug pp_when_debug
   = getPprStyle $ \sty ->
     getPprDebug $ \debug ->
-      if debug || dumpStyle sty
-         then pp_when_debug
-         else pp_no_debug
+    bool pp_no_debug pp_when_debug $ debug || dumpStyle sty
 
 {-
 ************************************************************************

@@ -28,10 +28,7 @@ module GHC.HsToCore.Monad (
         dsLookupDataCon, dsLookupConLike,
         getCCIndexDsM,
 
-        DsMetaEnv, DsMetaVal(..), dsGetMetaEnv, dsLookupMetaEnv, dsExtendMetaEnv,
-
-        -- Getting and setting pattern match oracle states
-        getPmDeltas, updPmDeltas,
+        DsMetaEnv, DsMetaVal(..), dsLookupMetaEnv, dsExtendMetaEnv,
 
         -- Get COMPLETE sets of a TyCon
         dsGetCompleteMatches,
@@ -104,6 +101,7 @@ import GHC.Types.TyThing
 import GHC.Utils.Outputable
 import GHC.Utils.Error
 import GHC.Utils.Panic
+import GHC.Utils.Lens.Monad
 import qualified GHC.Data.Strict as Strict
 
 import Data.IORef
@@ -291,8 +289,7 @@ initTcDsForSolver thing_inside
              DsLclEnv { dsl_loc = loc }                  = lcl
 
        ; liftIO $ initTc hsc_env HsSrcFile False mod loc $
-         updGblEnv (\tc_gbl -> tc_gbl { tcg_fam_inst_env = fam_inst_env }) $
-         thing_inside }
+         locally (env_gblL . tcg_fam_inst_envL) (pure fam_inst_env) thing_inside }
 
 mkDsEnvs :: DynFlags -> Module -> GlobalRdrEnv -> TypeEnv -> FamInstEnv
          -> IORef Messages -> IORef CostCentreState -> [CompleteMatch]
@@ -377,16 +374,14 @@ newUniqueId :: Id -> Type -> DsM Id
 newUniqueId id = mk_local (occNameFS (nameOccName (idName id)))
 
 duplicateLocalDs :: Id -> DsM Id
-duplicateLocalDs old_local
-  = do  { uniq <- newUnique
-        ; return (setIdUnique old_local uniq) }
+duplicateLocalDs old_local = set idUniqueL `flip` old_local <$> newUnique
 
 newPredVarDs :: PredType -> DsM Var
 newPredVarDs
  = mkSysLocalOrCoVarM (fsLit "ds")  -- like newSysLocalDs, but we allow covars
 
 newSysLocalDsNoLP, newSysLocalDs, newFailLocalDs :: Type -> DsM Id
-newSysLocalDsNoLP  = mk_local (fsLit "ds")
+newSysLocalDsNoLP = mk_local (fsLit "ds")
 
 -- this variant should be used when the caller can be sure that the variable type
 -- is not levity-polymorphic. It is necessary when the type is knot-tied because
@@ -412,26 +407,14 @@ the @SrcSpan@ being carried around.
 -}
 
 getGhcModeDs :: DsM GhcMode
-getGhcModeDs =  getDynFlags >>= return . ghcMode
-
--- | Get the current pattern match oracle state. See 'dsl_deltas'.
-getPmDeltas :: DsM Deltas
-getPmDeltas = do { env <- getLclEnv; return (dsl_deltas env) }
-
--- | Set the pattern match oracle state within the scope of the given action.
--- See 'dsl_deltas'.
-updPmDeltas :: Deltas -> DsM a -> DsM a
-updPmDeltas delta = updLclEnv (\env -> env { dsl_deltas = delta })
+getGhcModeDs = ghcMode <$> getDynFlags
 
 getSrcSpanDs :: DsM SrcSpan
-getSrcSpanDs = do { env <- getLclEnv
-                  ; return (RealSrcSpan (dsl_loc env) Strict.Nothing) }
+getSrcSpanDs = getLclEnv <₪> \ env -> RealSrcSpan (dsl_loc env) Strict.Nothing
 
 putSrcSpanDs :: SrcSpan -> DsM a -> DsM a
-putSrcSpanDs (UnhelpfulSpan {}) thing_inside
-  = thing_inside
-putSrcSpanDs (RealSrcSpan real_span _) thing_inside
-  = updLclEnv (\ env -> env {dsl_loc = real_span}) thing_inside
+putSrcSpanDs (UnhelpfulSpan {}) = id
+putSrcSpanDs (RealSrcSpan real_span _) = locally (env_lclL . dsl_locL) (pure real_span)
 
 -- | Emit a warning for the current source location
 -- NB: Warns whether or not -Wxyz is set
@@ -461,14 +444,10 @@ errDs err
 -- | Issue an error, but return the expression for (), so that we can continue
 -- reporting errors.
 errDsCoreExpr :: SDoc -> DsM CoreExpr
-errDsCoreExpr err
-  = do { errDs err
-       ; return unitExpr }
+errDsCoreExpr err = unitExpr <$ errDs err
 
 failWithDs :: SDoc -> DsM a
-failWithDs err
-  = do  { errDs err
-        ; failM }
+failWithDs err = do { errDs err; failM }
 
 failDs :: DsM a
 failDs = failM
@@ -490,8 +469,7 @@ askNoErrsDs thing_inside
       ; mb_res <- tryM $  -- Be careful to catch exceptions
                           -- so that we propagate errors correctly
                           -- (#13642)
-                  setGblEnv (env { ds_msgs = errs_var }) $
-                  thing_inside
+                  locally (env_gblL . ds_msgsL) (pure errs_var) thing_inside
 
       -- Propagate errors
       ; msgs@(warns, errs) <- readMutVar errs_var
@@ -500,9 +478,7 @@ askNoErrsDs thing_inside
       -- And return
       ; case mb_res of
            Left _    -> failM
-           Right res -> do { dflags <- getDynFlags
-                           ; let errs_found = errorsFound dflags msgs
-                           ; return (res, not errs_found) } }
+           Right res -> getDynFlags <₪> \ dflags -> (res, not $ errorsFound dflags msgs) }
 
 mkPrintUnqualifiedDs :: DsM PrintUnqualified
 mkPrintUnqualifiedDs = ds_unqual <$> getGblEnv
@@ -537,46 +513,38 @@ dsLookupConLike name
 dsGetFamInstEnvs :: DsM FamInstEnvs
 -- Gets both the external-package inst-env
 -- and the home-pkg inst env (includes module being compiled)
-dsGetFamInstEnvs
-  = do { eps <- getEps; env <- getGblEnv
-       ; return (eps_fam_inst_env eps, ds_fam_inst_env env) }
-
-dsGetMetaEnv :: DsM (NameEnv DsMetaVal)
-dsGetMetaEnv = do { env <- getLclEnv; return (dsl_meta env) }
+dsGetFamInstEnvs =
+    liftA2 (,) (eps_fam_inst_env <$> getEps) (ds_fam_inst_env <$> getGblEnv)
 
 -- | The @COMPLETE@ pragmas provided by the user for a given `TyCon`.
 dsGetCompleteMatches :: TyCon -> DsM [CompleteMatch]
-dsGetCompleteMatches tc = do
-  eps <- getEps
-  env <- getGblEnv
-      -- We index into a UniqFM from Name -> elt, for tyCon it holds that
-      -- getUnique (tyConName tc) == getUnique tc. So we lookup using the
-      -- unique directly instead.
-  let lookup_completes ufm = lookupWithDefaultUFM_Directly ufm [] (getUnique tc)
-      eps_matches_list = lookup_completes $ eps_complete_matches eps
-      env_matches_list = lookup_completes $ ds_complete_matches env
-  return $ eps_matches_list ++ env_matches_list
+dsGetCompleteMatches tc =
+  [ eps_matches_list ++ env_matches_list
+  | eps <- getEps
+  , env <- getGblEnv
+        -- We index into a UniqFM from Name -> elt, for tyCon it holds that
+        -- getUnique (tyConName tc) == getUnique tc. So we lookup using the
+        -- unique directly instead.
+  , let lookup_completes ufm = lookupWithDefaultUFM_Directly ufm [] (getUnique tc)
+        eps_matches_list = lookup_completes $ eps_complete_matches eps
+        env_matches_list = lookup_completes $ ds_complete_matches env
+  ]
 
 dsLookupMetaEnv :: Name -> DsM (Maybe DsMetaVal)
-dsLookupMetaEnv name = do { env <- getLclEnv; return (lookupNameEnv (dsl_meta env) name) }
+dsLookupMetaEnv name = getLclEnv <₪> \ env -> lookupNameEnv (dsl_meta env) name
 
 dsExtendMetaEnv :: DsMetaEnv -> DsM a -> DsM a
-dsExtendMetaEnv menv thing_inside
-  = updLclEnv (\env -> env { dsl_meta = dsl_meta env `plusNameEnv` menv }) thing_inside
+dsExtendMetaEnv = locally (env_lclL . dsl_metaL) . flip plusNameEnv
 
 discardWarningsDs :: DsM a -> DsM a
 -- Ignore warnings inside the thing inside;
 -- used to ignore inaccessible cases etc. inside generated code
 discardWarningsDs thing_inside
   = do  { env <- getGblEnv
-        ; old_msgs <- readTcRef (ds_msgs env)
-
-        ; result <- thing_inside
+        ; old_msgs <- readMutVar (ds_msgs env)
 
         -- Revert messages to old_msgs
-        ; writeTcRef (ds_msgs env) old_msgs
-
-        ; return result }
+        ; thing_inside <* writeMutVar (ds_msgs env) old_msgs }
 
 -- | Fail with an error message if the type is levity polymorphic.
 dsNoLevPoly :: Type -> SDoc -> DsM ()

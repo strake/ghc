@@ -151,9 +151,8 @@ skipBOM h size offset =
 
 newUTF8StringBuffer :: ForeignPtr Word8 -> Ptr Word8 -> Int -> IO StringBuffer
 newUTF8StringBuffer buf ptr size = do
-  pokeArray (ptr `plusPtr` size :: Ptr Word8) [0,0,0]
+  StringBuffer buf size 0 <$ pokeArray (ptr `plusPtr` size :: Ptr Word8) [0,0,0]
   -- sentinels for UTF-8 decoding
-  return $ StringBuffer buf size 0
 
 appendStringBuffers :: StringBuffer -> StringBuffer -> IO StringBuffer
 appendStringBuffers sb1 sb2
@@ -161,10 +160,10 @@ appendStringBuffers sb1 sb2
          withForeignPtr newBuf $ \ptr ->
           withForeignPtr (buf sb1) $ \sb1Ptr ->
            withForeignPtr (buf sb2) $ \sb2Ptr ->
+             StringBuffer newBuf size 0 <$
              do copyArray ptr (sb1Ptr `advancePtr` cur sb1) sb1_len
                 copyArray (ptr `advancePtr` sb1_len) (sb2Ptr `advancePtr` cur sb2) sb2_len
                 pokeArray (ptr `advancePtr` size) [0,0,0]
-                return (StringBuffer newBuf size 0)
     where sb1_len = calcLen sb1
           sb2_len = calcLen sb2
           calcLen sb = len sb - cur sb
@@ -177,11 +176,10 @@ stringToStringBuffer str =
  unsafePerformIO $ do
   let size = utf8EncodedLength str
   buf <- mallocForeignPtrArray (size+3)
-  withForeignPtr buf $ \ptr -> do
+  StringBuffer buf size 0 <$ withForeignPtr buf \ptr -> do
     utf8EncodeString ptr str
     pokeArray (ptr `plusPtr` size :: Ptr Word8) [0,0,0]
     -- sentinels for UTF-8 decoding
-  return (StringBuffer buf size 0)
 
 -- -----------------------------------------------------------------------------
 -- Grab a character

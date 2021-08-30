@@ -37,7 +37,6 @@ import GHC.SysTools ( figureLlvmVersion )
 import qualified GHC.Data.Stream as Stream
 
 import Control.Monad ( when, forM_ )
-import Data.Maybe ( fromMaybe, catMaybes )
 import System.IO
 
 -- -----------------------------------------------------------------------------

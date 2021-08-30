@@ -406,7 +406,6 @@ import System.FilePath
 import Control.Concurrent
 import Control.Applicative ((<|>))
 import Control.Monad.Catch as MC
-import Lens.Micro (over, set)
 
 import GHC.Data.Maybe
 import System.IO.Error  ( isDoesNotExistError )
@@ -433,20 +432,16 @@ defaultErrorHandler fm (FlushOut flushOut) inner =
            flushOut
            case fromException exception of
                 -- an IO exception probably isn't our fault, so don't panic
-                Just (ioe :: IOException) ->
-                  fatalErrorMsg'' fm (show ioe)
+                Just (ioe :: IOException) -> fm (show ioe)
                 _ -> case fromException exception of
                      Just UserInterrupt ->
                          -- Important to let this one propagate out so our
                          -- calling process knows we were interrupted by ^C
                          liftIO $ throwIO UserInterrupt
-                     Just StackOverflow ->
-                         fatalErrorMsg'' fm "stack overflow: use +RTS -K<size> to increase it"
+                     Just StackOverflow -> fm "stack overflow: use +RTS -K<size> to increase it"
                      _ -> case fromException exception of
                           Just (ex :: ExitCode) -> liftIO $ throwIO ex
-                          _ ->
-                              fatalErrorMsg'' fm
-                                  (show (Panic (show exception)))
+                          _ -> fm (show (Panic (show exception)))
            exitWith (ExitFailure 1)
          ) $
 
@@ -456,7 +451,7 @@ defaultErrorHandler fm (FlushOut flushOut) inner =
                 flushOut
                 case ge of
                      Signal _ -> exitWith (ExitFailure 1)
-                     _ -> do fatalErrorMsg'' fm (show ge)
+                     _ -> do fm (show ge)
                              exitWith (ExitFailure 1)
             ) $
   inner

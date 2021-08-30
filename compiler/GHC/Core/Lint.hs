@@ -41,7 +41,7 @@ import GHC.Types.Var.Env
 import GHC.Types.Var.Set
 import GHC.Types.Unique.Set( nonDetEltsUniqSet )
 import GHC.Types.Name
-import GHC.Types.Id
+import GHC.Types.Id as Id
 import GHC.Types.Id.Info
 import GHC.Core.Ppr
 import GHC.Utils.Error
@@ -77,7 +77,6 @@ import Control.Monad
 import GHC.Utils.Monad
 import Data.Foldable      ( toList )
 import Data.List.NonEmpty ( NonEmpty )
-import Data.List          ( partition )
 import Data.Maybe
 import GHC.Data.Pair
 import qualified GHC.LanguageExtensions as LangExt
@@ -321,7 +320,7 @@ dumpPassResult dflags unqual mb_flag hdr extra_info binds rules
                      , size_doc
                      , blankLine
                      , pprCoreBindingsWithSize binds
-                     , ppUnless (null rules) pp_rules ]
+                     , munless (null rules) pp_rules ]
     pp_rules = vcat [ blankLine
                     , text "------ Local rules for imported ids --------"
                     , pprRules rules ]
@@ -391,7 +390,7 @@ displayLintResults dflags pass warns errs binds
   -- stdout (#13342)
   = putLogMsg dflags NoReason Err.SevInfo noSrcSpan
       $ withPprStyle defaultDumpStyle
-        (lint_banner "warnings" (ppr pass) $$ Err.pprMessageBag (mapBag ($$ blankLine) warns))
+        (lint_banner "warnings" (ppr pass) $$ Err.pprMessageBag (fmap ($$ blankLine) warns))
 
   | otherwise = return ()
   where
@@ -593,8 +592,7 @@ lintRecBindings top_lvl pairs thing_inside
 lintLetBody :: [LintedId] -> CoreExpr -> LintM LintedType
 lintLetBody bndrs body
   = do { body_ty <- addLoc (BodyOfLetRec bndrs) (lintCoreExpr body)
-       ; mapM_ (lintJoinBndrType body_ty) bndrs
-       ; return body_ty }
+       ; body_ty <$ traverse_ (lintJoinBndrType body_ty) bndrs }
 
 lintLetBind :: TopLevelFlag -> RecFlag -> LintedId
               -> CoreExpr -> LintedType -> LintM ()
@@ -636,9 +634,8 @@ lintLetBind top_lvl rec_flag binder rhs rhs_ty
 
          -- Check that a join-point binder has a valid type
          -- NB: lintIdBinder has checked that it is not top-level bound
-       ; case isJoinId_maybe binder of
-            Nothing    -> return ()
-            Just arity ->  checkL (isValidJoinPointType arity binder_ty)
+       ; isJoinId_maybe binder `for_` \ arity ->
+                           checkL (isValidJoinPointType arity binder_ty)
                                   (mkInvalidJoinPointMsg binder binder_ty)
 
        ; when (lf_check_inline_loop_breakers flags
@@ -1422,7 +1419,7 @@ lintTyCoBndr tcv thing_inside
   = do { subst <- getTCvSubst
        ; kind' <- lintType (varType tcv)
        ; let tcv' = uniqAway (getTCvInScope subst) $
-                    setVarType tcv kind'
+                    set varTypeL kind' tcv
              subst' = extendTCvSubstWithClone subst tcv tcv'
        ; when (isCoVar tcv) $
          lintL (isCoVarType kind')
@@ -1478,7 +1475,7 @@ lintIdBndr top_lvl bind_site id thing_inside
        ; linted_ty <- addLoc (IdTy id) (lintValueType id_ty)
 
        ; addInScopeId id linted_ty $
-         thing_inside (setIdType id linted_ty) }
+         thing_inside (set Id.idTypeL linted_ty id) }
   where
     id_ty = idType id
 
@@ -2178,11 +2175,8 @@ lintCoercion co@(AxiomInstCo con ind cos)
        ; _ <- foldlM check_ki (empty_subst, empty_subst)
                               (zip3 (ktvs ++ cvs) roles cos')
        ; let fam_tc = coAxiomTyCon con
-       ; case checkAxInstCo co of
-           Just bad_branch -> bad_ax $ text "inconsistent with" <+>
-                                       pprCoAxBranch fam_tc bad_branch
-           Nothing -> return ()
-       ; return (AxiomInstCo con ind cos') }
+       ; AxiomInstCo con ind cos' <$ checkAxInstCo co `for_` \ bad_branch ->
+         bad_ax $ text "inconsistent with" <+> pprCoAxBranch fam_tc bad_branch }
   where
     bad_ax what = addErrL (hang (text  "Bad axiom application" <+> parens what)
                         2 (ppr co))
@@ -2202,16 +2196,14 @@ lintCoercion co@(AxiomInstCo con ind cos)
                      extendTCvSubst subst_r ktv t') }
 
 lintCoercion (KindCo co)
-  = do { co' <- lintCoercion co
-       ; return (KindCo co') }
+  = KindCo <$> lintCoercion co
 
 lintCoercion (SubCo co')
   = do { co' <- lintCoercion co'
-       ; lintRole co' Nominal (coercionRole co')
-       ; return (SubCo co') }
+       ; SubCo co' <$ lintRole co' Nominal (coercionRole co') }
 
 lintCoercion this@(AxiomRuleCo ax cos)
-  = do { cos' <- mapM lintCoercion cos
+  = do { cos' <- traverse lintCoercion cos
        ; lint_roles 0 (coaxrAsmpRoles ax) cos'
        ; case coaxrProves ax (map coercionKind cos') of
            Nothing -> err "Malformed use of AxiomRuleCo" [ ppr this ]
@@ -2576,17 +2568,13 @@ lookupIdInScope id_occ
 lookupJoinId :: Id -> LintM (Maybe JoinArity)
 -- Look up an Id which should be a join point, valid here
 -- If so, return its arity, if not return Nothing
-lookupJoinId id
-  = do { join_set <- getValidJoins
-       ; case lookupVarSet join_set id of
-            Just id' -> return (isJoinId_maybe id')
-            Nothing  -> return Nothing }
+lookupJoinId id = getValidJoins <₪> \ join_set -> isJoinId_maybe =<< lookupVarSet join_set id
 
 ensureEqTys :: LintedType -> LintedType -> MsgDoc -> LintM ()
 -- check ty2 is subtype of ty1 (ie, has same structure but usage
 -- annotations need only be consistent, not equal)
 -- Assumes ty1,ty2 are have already had the substitution applied
-ensureEqTys ty1 ty2 msg = lintL (ty1 `eqType` ty2) msg
+ensureEqTys ty1 ty2 = lintL (ty1 `eqType` ty2)
 
 lintRole :: Outputable thing
           => thing     -- where the role appeared

@@ -7,6 +7,10 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE CPP #-}
+
+#include "lens.h"
+
 module GHC.Data.TrieMap(
    -- * Maps over 'Maybe' values
    MaybeMap,
@@ -18,11 +22,10 @@ module GHC.Data.TrieMap(
    TrieMap(..), insertTM, deleteTM,
 
    -- * Things helpful for adding additional Instances.
-   (>.>), (|>), (|>>), XT,
-   foldMaybe,
+   (|>>), XT,
    -- * Map for leaf compression
    GenMap,
-   lkG, xtG, mapG, fdG,
+   lkG, xtG,
    xtList, lkList
 
  ) where
@@ -36,7 +39,9 @@ import GHC.Types.Unique( Uniquable )
 import qualified Data.Map    as Map
 import qualified Data.IntMap as IntMap
 import GHC.Utils.Outputable
+import Control.Category ( (>>>) )
 import Control.Monad( (>=>) )
+import Data.Foldable( toList )
 import Data.Kind( Type )
 
 {-
@@ -63,47 +68,30 @@ Structures", Section 10.3.2
 type XT a = Maybe a -> Maybe a  -- How to alter a non-existent elt (Nothing)
                                 --               or an existing elt (Just)
 
-class TrieMap m where
+class (Functor m, Foldable m) => TrieMap m where
    type Key m :: Type
    emptyTM  :: m a
    lookupTM :: forall b. Key m -> m b -> Maybe b
    alterTM  :: forall b. Key m -> XT b -> m b -> m b
-   mapTM    :: (a->b) -> m a -> m b
-
-   foldTM   :: (a -> b -> b) -> m a -> b -> b
-      -- The unusual argument order here makes
-      -- it easy to compose calls to foldTM;
-      -- see for example fdE below
 
 insertTM :: TrieMap m => Key m -> a -> m a -> m a
-insertTM k v m = alterTM k (\_ -> Just v) m
+insertTM k v = alterTM k (\_ -> Just v)
 
 deleteTM :: TrieMap m => Key m -> m a -> m a
-deleteTM k m = alterTM k (\_ -> Nothing) m
+deleteTM k = alterTM k (\_ -> Nothing)
 
 ----------------------
 -- Recall that
 --   Control.Monad.(>=>) :: (a -> Maybe b) -> (b -> Maybe c) -> a -> Maybe c
 
-(>.>) :: (a -> b) -> (b -> c) -> a -> c
--- Reverse function composition (do f first, then g)
-infixr 1 >.>
-(f >.> g) x = g (f x)
-infixr 1 |>, |>>
-
-(|>) :: a -> (a->b) -> b     -- Reverse application
-x |> f = f x
+infixr 1 |>>
 
 ----------------------
 (|>>) :: TrieMap m2
-      => (XT (m2 a) -> m1 (m2 a) -> m1 (m2 a))
+      => (XT (m2 a) -> b)
       -> (m2 a -> m2 a)
-      -> m1 (m2 a) -> m1 (m2 a)
-(|>>) f g = f (Just . g . deMaybe)
-
-deMaybe :: TrieMap m => Maybe (m a) -> m a
-deMaybe Nothing  = emptyTM
-deMaybe (Just m) = m
+      -> b
+f |>> g = f (Just . g . fromMaybe emptyTM)
 
 {-
 ************************************************************************
@@ -117,20 +105,13 @@ instance TrieMap IntMap.IntMap where
   type Key IntMap.IntMap = Int
   emptyTM = IntMap.empty
   lookupTM k m = IntMap.lookup k m
-  alterTM = xtInt
-  foldTM k m z = IntMap.foldr k z m
-  mapTM f m = IntMap.map f m
-
-xtInt :: Int -> XT a -> IntMap.IntMap a -> IntMap.IntMap a
-xtInt k f m = IntMap.alter f k m
+  alterTM = flip IntMap.alter
 
 instance Ord k => TrieMap (Map.Map k) where
   type Key (Map.Map k) = k
   emptyTM = Map.empty
   lookupTM = Map.lookup
-  alterTM k f m = Map.alter f k m
-  foldTM k m z = Map.foldr k z m
-  mapTM f m = Map.map f m
+  alterTM = flip Map.alter
 
 
 {-
@@ -205,8 +186,6 @@ instance forall key. Uniquable key => TrieMap (UniqDFM key) where
   emptyTM = emptyUDFM
   lookupTM k m = lookupUDFM m k
   alterTM k f m = alterUDFM f m k
-  foldTM k m z = foldUDFM k z m
-  mapTM f m = mapUDFM f m
 
 {-
 ************************************************************************
@@ -220,32 +199,20 @@ then (MaybeMap m) is a map from (Maybe k) -> val
 -}
 
 data MaybeMap m a = MM { mm_nothing  :: Maybe a, mm_just :: m a }
+   deriving (Foldable, Functor, Traversable)
+
+LENS_FIELD(mm_nothingL, mm_nothing)
+LENS_FIELD(mm_justL, mm_just)
 
 instance TrieMap m => TrieMap (MaybeMap m) where
    type Key (MaybeMap m) = Maybe (Key m)
    emptyTM  = MM { mm_nothing = Nothing, mm_just = emptyTM }
-   lookupTM = lkMaybe lookupTM
-   alterTM  = xtMaybe alterTM
-   foldTM   = fdMaybe
-   mapTM    = mapMb
-
-mapMb :: TrieMap m => (a->b) -> MaybeMap m a -> MaybeMap m b
-mapMb f (MM { mm_nothing = mn, mm_just = mj })
-  = MM { mm_nothing = fmap f mn, mm_just = mapTM f mj }
-
-lkMaybe :: (forall b. k -> m b -> Maybe b)
-        -> Maybe k -> MaybeMap m a -> Maybe a
-lkMaybe _  Nothing  = mm_nothing
-lkMaybe lk (Just x) = mm_just >.> lk x
-
-xtMaybe :: (forall b. k -> XT b -> m b -> m b)
-        -> Maybe k -> XT a -> MaybeMap m a -> MaybeMap m a
-xtMaybe _  Nothing  f m = m { mm_nothing  = f (mm_nothing m) }
-xtMaybe tr (Just x) f m = m { mm_just = mm_just m |> tr x f }
-
-fdMaybe :: TrieMap m => (a -> b -> b) -> MaybeMap m a -> b -> b
-fdMaybe k m = foldMaybe k (mm_nothing m)
-            . foldTM k (mm_just m)
+   lookupTM = \ case
+       Nothing -> mm_nothing
+       Just x -> lookupTM x . mm_just
+   alterTM = \ case
+       Nothing -> over mm_nothingL
+       Just x -> over mm_justL . alterTM x
 
 {-
 ************************************************************************
@@ -258,40 +225,29 @@ fdMaybe k m = foldMaybe k (mm_nothing m)
 data ListMap m a
   = LM { lm_nil  :: Maybe a
        , lm_cons :: m (ListMap m a) }
+  deriving (Foldable, Functor, Traversable)
+
+LENS_FIELD(lm_nilL, lm_nil)
+LENS_FIELD(lm_consL, lm_cons)
 
 instance TrieMap m => TrieMap (ListMap m) where
    type Key (ListMap m) = [Key m]
    emptyTM  = LM { lm_nil = Nothing, lm_cons = emptyTM }
    lookupTM = lkList lookupTM
    alterTM  = xtList alterTM
-   foldTM   = fdList
-   mapTM    = mapList
 
 instance (TrieMap m, Outputable a) => Outputable (ListMap m a) where
-  ppr m = text "List elts" <+> ppr (foldTM (:) m [])
-
-mapList :: TrieMap m => (a->b) -> ListMap m a -> ListMap m b
-mapList f (LM { lm_nil = mnil, lm_cons = mcons })
-  = LM { lm_nil = fmap f mnil, lm_cons = mapTM (mapTM f) mcons }
+  ppr m = text "List elts" <+> ppr (toList m)
 
 lkList :: TrieMap m => (forall b. k -> m b -> Maybe b)
         -> [k] -> ListMap m a -> Maybe a
 lkList _  []     = lm_nil
-lkList lk (x:xs) = lm_cons >.> lk x >=> lkList lk xs
+lkList lk (x:xs) = lm_cons >>> lk x >=> lkList lk xs
 
 xtList :: TrieMap m => (forall b. k -> XT b -> m b -> m b)
         -> [k] -> XT a -> ListMap m a -> ListMap m a
-xtList _  []     f m = m { lm_nil  = f (lm_nil m) }
-xtList tr (x:xs) f m = m { lm_cons = lm_cons m |> tr x |>> xtList tr xs f }
-
-fdList :: forall m a b. TrieMap m
-       => (a -> b -> b) -> ListMap m a -> b -> b
-fdList k m = foldMaybe k          (lm_nil m)
-           . foldTM    (fdList k) (lm_cons m)
-
-foldMaybe :: (a -> b -> b) -> Maybe a -> b -> b
-foldMaybe _ Nothing  b = b
-foldMaybe k (Just a) b = k a b
+xtList _  []     f = over lm_nilL f
+xtList tr (x:xs) f = over lm_consL $ tr x |>> xtList tr xs f
 
 {-
 ************************************************************************
@@ -339,6 +295,7 @@ data GenMap m a
    = EmptyMap
    | SingletonMap (Key m) a
    | MultiMap (m a)
+  deriving (Foldable, Functor, Traversable)
 
 instance (Outputable a, Outputable (m a)) => Outputable (GenMap m a) where
   ppr EmptyMap = text "Empty map"
@@ -351,8 +308,6 @@ instance (Eq (Key m), TrieMap m) => TrieMap (GenMap m) where
    emptyTM  = EmptyMap
    lookupTM = lkG
    alterTM  = xtG
-   foldTM   = fdG
-   mapTM    = mapG
 
 --We want to be able to specialize these functions when defining eg
 --tries over (GenMap CoreExpr) which requires INLINEABLE
@@ -360,8 +315,7 @@ instance (Eq (Key m), TrieMap m) => TrieMap (GenMap m) where
 {-# INLINEABLE lkG #-}
 lkG :: (Eq (Key m), TrieMap m) => Key m -> GenMap m a -> Maybe a
 lkG _ EmptyMap                         = Nothing
-lkG k (SingletonMap k' v') | k == k'   = Just v'
-                           | otherwise = Nothing
+lkG k (SingletonMap k' v')             = v' <$ guard (k == k')
 lkG k (MultiMap m)                     = lookupTM k m
 
 {-# INLINEABLE xtG #-}
@@ -386,19 +340,7 @@ xtG k f m@(SingletonMap k' v')
     -- map of type @m a@.
     = case f Nothing of
         Nothing  -> m
-        Just v   -> emptyTM |> alterTM k' (const (Just v'))
-                           >.> alterTM k  (const (Just v))
-                           >.> MultiMap
+        Just v   -> (alterTM k' (const (Just v'))
+                           >>> alterTM k  (const (Just v))
+                           >>> MultiMap) emptyTM
 xtG k f (MultiMap m) = MultiMap (alterTM k f m)
-
-{-# INLINEABLE mapG #-}
-mapG :: TrieMap m => (a -> b) -> GenMap m a -> GenMap m b
-mapG _ EmptyMap = EmptyMap
-mapG f (SingletonMap k v) = SingletonMap k (f v)
-mapG f (MultiMap m) = MultiMap (mapTM f m)
-
-{-# INLINEABLE fdG #-}
-fdG :: TrieMap m => (a -> b -> b) -> GenMap m a -> b -> b
-fdG _ EmptyMap = \z -> z
-fdG k (SingletonMap _ v) = \z -> k v z
-fdG k (MultiMap m) = foldTM k m

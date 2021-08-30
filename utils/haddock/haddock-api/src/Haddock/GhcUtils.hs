@@ -34,7 +34,7 @@ import GHC.Core.Class
 import GHC.Driver.Ppr ( showPpr )
 import GHC.Driver.Session
 import GHC.Types.SrcLoc  ( advanceSrcLoc )
-import GHC.Types.Var     ( VarBndr(..), TyVarBinder, tyVarKind, updateTyVarKind,
+import GHC.Types.Var     ( VarBndr(..), TyVarBinder, tyVarKind, tyVarKindL,
                            isInvisibleArgFlag )
 import GHC.Types.Var.Set ( VarSet, emptyVarSet )
 import GHC.Types.Var.Env ( TyVarEnv, extendVarEnv, elemVarEnv, emptyVarEnv )
@@ -48,6 +48,7 @@ import qualified GHC.Data.StringBuffer             as S
 import           Data.ByteString ( ByteString )
 import qualified Data.ByteString          as BS
 import qualified Data.ByteString.Internal as BS
+import           Lens.Micro (over)
 
 moduleString :: Module -> String
 moduleString = moduleNameString . moduleName
@@ -661,14 +662,14 @@ defaultRuntimeRepVars = go emptyVarEnv
       = let subs' = extendVarEnv subs var ()
         in go subs' ty
       | otherwise
-      = ForAllTy (Bndr (updateTyVarKind (go subs) var) flg)
+      = ForAllTy (Bndr (over tyVarKindL (go subs) var) flg)
                  (go subs ty)
 
     go subs (TyVarTy tv)
       | tv `elemVarEnv` subs
       = TyConApp liftedRepDataConTyCon []
       | otherwise
-      = TyVarTy (updateTyVarKind (go subs) tv)
+      = TyVarTy (over tyVarKindL (go subs) tv)
 
     go subs (TyConApp tc tc_args)
       = TyConApp tc (map (go subs) tc_args)

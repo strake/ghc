@@ -1355,9 +1355,9 @@ emitCond (e1 `BoolAnd` e2) then_id likely = do
 -- proceed with parsing. This allows debugging tools to reason about
 -- locations in Cmm code.
 withSourceNote :: Located a -> Located b -> CmmParse c -> CmmParse c
-withSourceNote a b parse = do
+withSourceNote (L a _) (L b _) parse = do
   name <- getName
-  case combineSrcSpans (getLoc a) (getLoc b) of
+  case a <> b of
     RealSrcSpan span _ -> code (emitTick (SourceNote span name)) >> parse
     _other           -> parse
 
@@ -1378,10 +1378,7 @@ doSwitch :: Maybe (Integer,Integer)
 doSwitch mb_range scrut arms deflt
    = do
         -- Compile code for the default branch
-        dflt_entry <-
-                case deflt of
-                  Nothing -> return Nothing
-                  Just e  -> do b <- forkLabelledCode e; return (Just b)
+        dflt_entry <- traverse forkLabelledCode deflt
 
         -- Compile each case branch
         table_entries <- mapM emitArm arms
@@ -1396,16 +1393,14 @@ doSwitch mb_range scrut arms deflt
    where
         emitArm :: ([Integer],Either BlockId (CmmParse ())) -> CmmParse [(Integer,BlockId)]
         emitArm (ints,Left blockid) = return [ (i,blockid) | i <- ints ]
-        emitArm (ints,Right code) = do
-           blockid <- forkLabelledCode code
-           return [ (i,blockid) | i <- ints ]
+        emitArm (ints,Right code) = forkLabelledCode code <₪> \ blockid ->
+            [ (i,blockid) | i <- ints ]
 
 forkLabelledCode :: CmmParse () -> CmmParse BlockId
 forkLabelledCode p = do
   (_,ag) <- getCodeScoped p
   l <- newBlockId
-  emitOutOfLine l ag
-  return l
+  l <$ emitOutOfLine l ag
 
 -- -----------------------------------------------------------------------------
 -- Putting it all together
@@ -1438,9 +1433,7 @@ parseCmmFile dflags filename = withTiming dflags (text "ParseCmm"<+>brackets (te
         let fcode = getCmm $ unEC code "global" (initEnv (targetProfile dflags)) [] >> return ()
             (cmm,_) = runC dflags no_module st fcode
         let ms = getMessages pst dflags
-        if (errorsFound dflags ms)
-         then return (ms, Nothing)
-         else return (ms, Just cmm)
+        pure (ms, cmm <$ guard (not $ errorsFound dflags ms))
   where
         no_module = panic "parseCmmFile: no module"
 }

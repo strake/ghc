@@ -1,5 +1,8 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE CPP #-}
+
+#include "lens.h"
 
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns   #-}
 {-# OPTIONS_GHC -Wno-incomplete-record-updates #-}
@@ -67,13 +70,10 @@ import qualified GHC.Data.Strict as Strict
 
 import Control.Monad    ( when )
 import Data.Foldable    ( toList )
-import Data.List        ( partition, mapAccumL, nub, sortBy, unfoldr )
+import Data.List        ( sortBy, unfoldr )
+import Lens.Micro.Extras( view )
 
 import {-# SOURCE #-} GHC.Tc.Errors.Hole ( findValidHoleFits )
-
--- import Data.Semigroup   ( Semigroup )
-import qualified Data.Semigroup as Semigroup
-
 
 {-
 ************************************************************************
@@ -278,7 +278,7 @@ instance Semigroup Report where
 
 instance Monoid Report where
     mempty = Report [] [] []
-    mappend = (Semigroup.<>)
+    mappend = (<>)
 
 -- | Put a doc into the important msgs block.
 important :: SDoc -> Report
@@ -343,6 +343,8 @@ data ReportErrCtxt
                                     --          don't issue any more errors/warnings
                                     -- See Note [Suppressing error messages]
       }
+
+LENS_FIELD(cec_tidyL, cec_tidy)
 
 instance Outputable ReportErrCtxt where
   ppr (CEC { cec_binds              = bvar
@@ -561,14 +563,14 @@ reportWanteds ctxt tc_lvl (WC { wc_simple = simples, wc_impl = implics
             -- to report unsolved Derived goals as errors
             -- See Note [Do not report derived but soluble errors]
 
-     ; mapBagM_ (reportImplic ctxt2) implics }
+     ; traverse_ (reportImplic ctxt2) implics }
             -- NB ctxt2: don't suppress inner insolubles if there's only a
             -- wanted insoluble here; but do suppress inner insolubles
             -- if there's a *given* insoluble here (= inaccessible code)
  where
     env = cec_tidy ctxt
-    tidy_cts   = bagToList (mapBag (tidyCt env)   simples)
-    tidy_holes = bagToList (mapBag (tidyHole env) holes)
+    tidy_cts   = toList (tidyCt   env <$> simples)
+    tidy_holes = toList (tidyHole env <$> holes)
 
     -- report1: ones that should *not* be suppressed by
     --          an insoluble somewhere else in the tree
@@ -742,7 +744,7 @@ mkGivenErrorReporter ctxt cts
        ; dflags <- getDynFlags
        ; let (implic:_) = cec_encl ctxt
                  -- Always non-empty when mkGivenErrorReporter is called
-             ct' = setCtLoc ct (setCtLocEnv (ctLoc ct) (ic_env implic))
+             ct' = set (ctLocL . ctLocEnvL) (ic_env implic) ct
                    -- For given constraints we overwrite the env (and hence src-loc)
                    -- with one from the immediately-enclosing implication.
                    -- See Note [Inaccessible code]
@@ -824,7 +826,7 @@ eq_lhs_type ct1 ct2
        _ -> pprPanic "mkSkolReporter" (ppr ct1 $$ ppr ct2)
 
 cmp_loc :: Ct -> Ct -> Ordering
-cmp_loc ct1 ct2 = ctLocSpan (ctLoc ct1) `compare` ctLocSpan (ctLoc ct2)
+cmp_loc = compare `on` view (ctLocL . ctLocSpanL)
 
 reportGroup :: (ReportErrCtxt -> [Ct] -> TcM ErrMsg) -> Reporter
 reportGroup mk_err ctxt cts =
@@ -1016,8 +1018,7 @@ pprWithArising (ct:cts)
                      2 (pprCtLoc (ctLoc ct'))
 
 mkErrorMsgFromCt :: ReportErrCtxt -> Ct -> Report -> TcM ErrMsg
-mkErrorMsgFromCt ctxt ct report
-  = mkErrorReport ctxt (ctLocEnv (ctLoc ct)) report
+mkErrorMsgFromCt ctxt = mkErrorReport ctxt . view (ctLocL . ctLocEnvL)
 
 mkErrorReport :: ReportErrCtxt -> TcLclEnv -> Report -> TcM ErrMsg
 mkErrorReport ctxt tcl_env (Report important relevant_bindings valid_subs)
@@ -1203,7 +1204,7 @@ mkHoleError tidy_simples ctxt hole@(Hole { hole_occ = occ
       | otherwise
       = pprType hole_ty <+> dcolon <+> pprKind hole_kind
 
-    tyvars_msg = ppUnless (null tyvars) $
+    tyvars_msg = munless (null tyvars) $
                  text "Where:" <+> (vcat (map loc_msg other_tvs)
                                     $$ pprSkols ctxt skol_tvs)
        where
@@ -1264,7 +1265,7 @@ givenConstraintsMsg ctxt =
         pprConstraint (constraint, loc) =
           ppr constraint <+> nest 2 (parens (text "from" <+> ppr loc))
 
-    in ppUnless (null constraints) $
+    in munless (null constraints) $
          hang (text "Constraints include")
             2 (vcat $ map pprConstraint constraints)
 
@@ -1401,7 +1402,7 @@ mkEqErr1 ctxt ct   -- Wanted or derived;
               msg2 = case sub_o of
                        TypeEqOrigin {}
                          | Just cty2 <- mb_cty2 ->
-                         thdOf3 (mkExpectedActualMsg cty1 cty2 sub_o sub_t_or_k
+                         thd3 (mkExpectedActualMsg cty1 cty2 sub_o sub_t_or_k
                                                      expandSyns)
                        _ -> empty
           _ -> (True, Nothing, empty)
@@ -1463,7 +1464,7 @@ mkCoercibleExplanation rdr_env fam_envs ty1 ty2
 -- actually helpful.
 mkRoleSigs :: Type -> Type -> SDoc
 mkRoleSigs ty1 ty2
-  = ppUnless (null role_sigs) $
+  = munless (null role_sigs) $
     hang (text "Relevant role signatures:")
        2 (vcat role_sigs)
   where
@@ -1542,7 +1543,7 @@ mkTyVarEqErr' dflags ctxt report ct oriented tv1 ty2
                                   fvVarList $
                                   tyCoFVsOfType ty1 `unionFV` tyCoFVsOfType ty2
              extra3 = mk_relevant_bindings $
-                      ppWhen (not (null interesting_tyvars)) $
+                      mwhen (not (null interesting_tyvars)) $
                       hang (text "Type variable kinds:") 2 $
                       vcat (map (tyvar_binding . tidyTyCoVarOcc (cec_tidy ctxt))
                                 interesting_tyvars)
@@ -1580,18 +1581,16 @@ mkTyVarEqErr' dflags ctxt report ct oriented tv1 ty2
   , let esc_skols = filter (`elemVarSet` (tyCoVarsOfType ty2)) skols
   , not (null esc_skols)
   = do { let msg = important $ misMatchMsg ct oriented ty1 ty2
-             esc_doc = sep [ text "because" <+> what <+> text "variable" <> plural esc_skols
+             esc_doc = sep [ text "because" <+> what <+> (text "variable" <> plural esc_skols)
                              <+> pprQuotedList esc_skols
-                           , text "would escape" <+>
-                             if isSingleton esc_skols then text "its scope"
-                                                      else text "their scope" ]
+                           , text "would escape" <+> itsOrTheir esc_skols <+> text "scope" ]
              tv_extra = important $
                         vcat [ nest 2 $ esc_doc
-                             , sep [ (if isSingleton esc_skols
-                                      then text "This (rigid, skolem)" <+>
-                                           what <+> text "variable is"
-                                      else text "These (rigid, skolem)" <+>
-                                           what <+> text "variables are")
+                             , sep [ (case esc_skols of
+                                 [_] -> text "This (rigid, skolem)" <+>
+                                        what <+> text "variable is"
+                                 _   -> text "These (rigid, skolem)" <+>
+                                        what <+> text "variables are")
                                <+> text "bound by"
                              , nest 2 $ ppr skol_info
                              , nest 2 $ text "at" <+>
@@ -1988,7 +1987,7 @@ mkExpectedActualMsg ty1 ty2 ct@(TypeEqOrigin { uo_actual = act
     count_args ty = count isVisibleBinder $ fst $ splitPiTys ty
 
     expandedTys =
-      ppUnless (expTy1 `pickyEqType` exp && expTy2 `pickyEqType` act) $ vcat
+      munless (expTy1 `pickyEqType` exp && expTy2 `pickyEqType` act) $ vcat
         [ text "Type synonyms expanded:"
         , text "Expected type:" <+> ppr expTy1
         , text "  Actual type:" <+> ppr expTy2
@@ -2191,7 +2190,7 @@ sameOccExtra ty1 ty2
       | otherwise  -- Imported things have an UnhelpfulSrcSpan
       = hang (quotes (ppr nm))
            2 (sep [ text "is defined in" <+> quotes (ppr (moduleName mod))
-                  , ppUnless (same_pkg || pkg == mainUnitId) $
+                  , munless (same_pkg || pkg == mainUnitId) $
                     nest 4 $ text "in package" <+> quotes (ppr pkg) ])
        where
          pkg = moduleUnit mod
@@ -2344,15 +2343,15 @@ mk_dict_err ctxt@(CEC {cec_encl = implics}) (ct, (matches, unifiers, unsafe_over
              , nest 2 extra_note
              , vcat (pp_givens useful_givens)
              , mb_patsyn_prov `orElse` empty
-             , ppWhen (has_ambig_tvs && not (null unifiers && null useful_givens))
-               (vcat [ ppUnless lead_with_ambig ambig_msg, binds_msg, potential_msg ])
+             , mwhen (has_ambig_tvs && not (null unifiers && null useful_givens))
+               (vcat [ munless lead_with_ambig ambig_msg, binds_msg, potential_msg ])
 
-             , ppWhen (isNothing mb_patsyn_prov) $
+             , mwhen (isNothing mb_patsyn_prov) $
                    -- Don't suggest fixes for the provided context of a pattern
                    -- synonym; the right fix is to bind more in the pattern
                show_fixes (ctxtFixes has_ambig_tvs pred implics
                            ++ drv_fixes)
-             , ppWhen (not (null candidate_insts))
+             , mwhen (not (null candidate_insts))
                (hang (text "There are instances for similar types:")
                    2 (vcat (map ppr candidate_insts))) ]
                    -- See Note [Report candidate instances]
@@ -2380,17 +2379,16 @@ mk_dict_err ctxt@(CEC {cec_encl = implics}) (ct, (matches, unifiers, unsafe_over
             <+> pprParendType pred
 
         potential_msg
-          = ppWhen (not (null unifiers) && want_potential orig) $
+          = mwhen (not (null unifiers) && want_potential orig) $
             sdocOption sdocPrintPotentialInstances $ \print_insts ->
             getPprStyle $ \sty ->
             pprPotentials (PrintPotentialInstances print_insts) sty potential_hdr unifiers
 
         potential_hdr
-          = vcat [ ppWhen lead_with_ambig $
+          = vcat [ mwhen lead_with_ambig $
                      text "Probable fix: use a type annotation to specify what"
                      <+> pprQuotedList ambig_tvs <+> text "should be."
-                 , text "These potential instance" <> plural unifiers
-                   <+> text "exist:"]
+                 , (text "These potential instance" <> plural unifiers) <+> text "exist:"]
 
         mb_patsyn_prov :: Maybe SDoc
         mb_patsyn_prov
@@ -2438,7 +2436,7 @@ mk_dict_err ctxt@(CEC {cec_encl = implics}) (ct, (matches, unifiers, unsafe_over
         vcat [  addArising orig (text "Overlapping instances for"
                                 <+> pprType (mkClassPred clas tys))
 
-             ,  ppUnless (null matching_givens) $
+             ,  munless (null matching_givens) $
                   sep [text "Matching givens (or their superclasses):"
                       , nest 2 (vcat matching_givens)]
 
@@ -2447,7 +2445,7 @@ mk_dict_err ctxt@(CEC {cec_encl = implics}) (ct, (matches, unifiers, unsafe_over
                 pprPotentials (PrintPotentialInstances print_insts) sty (text "Matching instances:") $
                 ispecs ++ unifiers
 
-             ,  ppWhen (null matching_givens && isSingleton matches && null unifiers) $
+             ,  mwhen (null matching_givens && isSingleton matches && null unifiers) $
                 -- Intuitively, some given matched the wanted in their
                 -- flattened or rewritten (from given equalities) form
                 -- but the matcher can't figure that out because the
@@ -2457,10 +2455,10 @@ mk_dict_err ctxt@(CEC {cec_encl = implics}) (ct, (matches, unifiers, unsafe_over
                   sep [ text "There exists a (perhaps superclass) match:"
                       , nest 2 (vcat (pp_givens useful_givens))]
 
-             ,  ppWhen (isSingleton matches) $
+             ,  mwhen (isSingleton matches) $
                 parens (vcat [ text "The choice depends on the instantiation of" <+>
                                   quotes (pprWithCommas ppr (tyCoVarsOfTypesList tys))
-                             , ppWhen (null (matching_givens)) $
+                             , mwhen (null (matching_givens)) $
                                vcat [ text "To pick the first instance above, use IncoherentInstances"
                                     , text "when compiling the other instance declarations"]
                         ])]
@@ -2651,7 +2649,7 @@ pprPotentials (PrintPotentialInstances show_potentials) sty herald insts
   | otherwise
   = hang herald
        2 (vcat [ pprInstances show_these
-               , ppWhen (n_in_scope_hidden > 0) $
+               , mwhen (n_in_scope_hidden > 0) $
                  text "...plus"
                    <+> speakNOf n_in_scope_hidden (text "other")
                , not_in_scope_msg (text "...plus")
@@ -2691,9 +2689,9 @@ pprPotentials (PrintPotentialInstances show_potentials) sty herald insts
       | otherwise
       = hang (herald <+> speakNOf (length not_in_scope) (text "instance")
                      <+> text "involving out-of-scope types")
-           2 (ppWhen show_potentials (pprInstances not_in_scope))
+           2 (mwhen show_potentials (pprInstances not_in_scope))
 
-    flag_hint = ppUnless (show_potentials || equalLength show_these insts) $
+    flag_hint = munless (show_potentials || equalLength show_these insts) $
                 text "(use -fprint-potential-instances to see them all)"
 
 {- Note [Displaying potential instances]
@@ -2765,8 +2763,8 @@ mkAmbigMsg prepend_msg ct
 
     msg |  any isRuntimeUnkSkol ambig_kvs  -- See Note [Runtime skolems]
         || any isRuntimeUnkSkol ambig_tvs
-        = vcat [ text "Cannot resolve unknown runtime type"
-                 <> plural ambig_tvs <+> pprQuotedList ambig_tvs
+        = vcat [ (text "Cannot resolve unknown runtime type"
+                 <> plural ambig_tvs) <+> pprQuotedList ambig_tvs
                , text "Use :print or :force to determine these types"]
 
         | not (null ambig_tvs)
@@ -2777,11 +2775,10 @@ mkAmbigMsg prepend_msg ct
 
     pp_ambig what tkvs
       | prepend_msg -- "Ambiguous type variable 't0'"
-      = text "Ambiguous" <+> what <+> text "variable"
-        <> plural tkvs <+> pprQuotedList tkvs
+      = text "Ambiguous" <+> what <+> (text "variable" <> plural tkvs) <+> pprQuotedList tkvs
 
       | otherwise -- "The type variable 't0' is ambiguous"
-      = text "The" <+> what <+> text "variable" <> plural tkvs
+      = text "The" <+> what <+> (text "variable" <> plural tkvs)
         <+> pprQuotedList tkvs <+> isOrAre tkvs <+> text "ambiguous"
 
 pprSkols :: ReportErrCtxt -> [TcTyVar] -> SDoc
@@ -2854,13 +2851,12 @@ relevantBindings want_filtering ctxt ct
              -- enclosing *type* equality, because that's more useful for the programmer
        ; let extra_tvs = case tidy_orig of
                              KindEqOrigin t1 m_t2 _ _ -> tyCoVarsOfTypes $
-                                                         t1 : maybeToList m_t2
+                                                         t1 : toList m_t2
                              _                        -> emptyVarSet
              ct_fvs = tyCoVarsOfCt ct `unionVarSet` extra_tvs
 
              -- Put a zonked, tidied CtOrigin into the Ct
-             loc'   = setCtLocOrigin loc tidy_orig
-             ct'    = setCtLoc ct loc'
+             ct'    = set (ctLocL . ctLocOriginL) tidy_orig ct
              ctxt1  = ctxt { cec_tidy = env1 }
 
        ; (ctxt2, doc) <- relevant_bindings want_filtering ctxt1 lcl_env ct_fvs
@@ -2891,9 +2887,9 @@ relevant_bindings want_filtering ctxt lcl_env ct_tvs
          -- tcl_bndrs has the innermost bindings first,
          -- which are probably the most relevant ones
 
-       ; let doc = ppUnless (null docs) $
+       ; let doc = munless (null docs) $
                    hang (text "Relevant bindings include")
-                      2 (vcat docs $$ ppWhen discards discardMsg)
+                      2 (vcat docs $$ mwhen discards discardMsg)
 
              ctxt' = ctxt { cec_tidy = tidy_env' }
 

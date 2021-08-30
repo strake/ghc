@@ -37,7 +37,6 @@ import GHC.Utils.Panic
 import GHC.Utils.Panic.Plain
 
 import Data.Bits
-import Data.Maybe
 
 -- | Get the 'Name' associated with a known-key 'Unique'.
 knownUniqueName :: Unique -> Maybe Name

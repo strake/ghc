@@ -84,13 +84,12 @@ import GHC.Utils.Outputable as Outputable
 import GHC.Utils.Panic
 import GHC.Data.FastString
 import GHC.Utils.Panic.Plain
-import Control.Monad
 import GHC.Core.Class(classTyCon)
 import GHC.Types.Unique.Set ( nonDetEltsUniqSet )
 import qualified GHC.LanguageExtensions as LangExt
 
-import Data.Function
-import Data.List (partition, sortBy, groupBy, intersect)
+import Control.Monad
+import Data.List (sortBy, groupBy, intersect)
 import qualified Data.Set as Set
 
 {-
@@ -165,8 +164,7 @@ tcLExpr expr res_ty
 
 tcLExprNC (L loc expr) res_ty
   = setSrcSpan loc $
-    do  { expr' <- tcExpr expr res_ty
-        ; return (L loc expr') }
+    L loc <$> tcExpr expr res_ty
 
 tcExpr :: HsExpr GhcRn -> ExpRhoType -> TcM (HsExpr GhcTc)
 tcExpr (HsVar _ (L _ name))   res_ty = tcCheckId name res_ty
@@ -179,23 +177,17 @@ tcExpr e@(HsLit x lit) res_ty
   = do { let lit_ty = hsLitType lit
        ; tcWrapResult e (HsLit x (convertLit lit)) lit_ty res_ty }
 
-tcExpr (HsPar x expr) res_ty = do { expr' <- tcLExprNC expr res_ty
-                                  ; return (HsPar x expr') }
+tcExpr (HsPar x expr) res_ty = HsPar x <$> tcLExprNC expr res_ty
 
 tcExpr (HsPragE x prag expr) res_ty
-  = do { expr' <- tcLExpr expr res_ty
-       ; return (HsPragE x (tcExprPrag prag) expr') }
+  = HsPragE x (tcExprPrag prag) <$> tcLExpr expr res_ty
 
 tcExpr (HsOverLit x lit) res_ty
-  = do  { lit' <- newOverloadedLit lit res_ty
-        ; return (HsOverLit x lit') }
+  = HsOverLit x <$> newOverloadedLit lit res_ty
 
 tcExpr (NegApp x expr neg_expr) res_ty
-  = do  { (expr', neg_expr')
-            <- tcSyntaxOp NegateOrigin neg_expr [SynAny] res_ty $
-               \[arg_ty] ->
-               tcLExpr expr (mkCheckExpType arg_ty)
-        ; return (NegApp x expr' neg_expr') }
+  = uncurry (NegApp x) <$> tcSyntaxOp NegateOrigin neg_expr [SynAny] res_ty \ [arg_ty] ->
+    tcLExpr expr (mkCheckExpType arg_ty)
 
 tcExpr e@(HsIPVar _ x) res_ty
   = do {   {- Implicit parameters must have a *tau-type* not a
@@ -1683,7 +1675,7 @@ tcExprSig :: LHsExpr GhcRn -> TcIdSigInfo -> TcM (LHsExpr GhcTc, TcType)
 tcExprSig expr (CompleteSig { sig_bndr = poly_id, sig_loc = loc })
   = setSrcSpan loc $   -- Sets the location for the implication constraint
     do { (tv_prs, theta, tau) <- tcInstType tcInstSkolTyVars poly_id
-       ; given <- newEvVars theta
+       ; given <- traverse newEvVar theta
        ; traceTc "tcExprSig: CompleteSig" $
          vcat [ text "poly_id:" <+> ppr poly_id <+> dcolon <+> ppr (idType poly_id)
               , text "tv_prs:" <+> ppr tv_prs ]
@@ -2330,7 +2322,7 @@ disambiguateRecordBinds record_expr record_rho rbnds res_ty
 tyConOf :: FamInstEnvs -> TcSigmaType -> Maybe TyCon
 tyConOf fam_inst_envs ty0
   = case tcSplitTyConApp_maybe ty of
-      Just (tc, tys) -> Just (fstOf3 (tcLookupDataFamInst fam_inst_envs tc tys))
+      Just (tc, tys) -> Just (fst3 (tcLookupDataFamInst fam_inst_envs tc tys))
       Nothing        -> Nothing
   where
     (_, _, ty) = tcSplitSigmaTy ty0

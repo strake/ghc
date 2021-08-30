@@ -23,7 +23,7 @@ import Control.DeepSeq
 
 type FieldName = String
 
-newtype ExtensibleFields = ExtensibleFields { getExtensibleFields :: (Map FieldName BinData) }
+newtype ExtensibleFields = ExtensibleFields { getExtensibleFields :: Map FieldName BinData }
 
 instance Binary ExtensibleFields where
   put_ bh (ExtensibleFields fs) = do
@@ -34,8 +34,7 @@ instance Binary ExtensibleFields where
     header_entries <- forM (Map.toList fs) $ \(name, dat) -> do
       put_ bh name
       field_p_p <- tellBin bh
-      put_ bh field_p_p
-      return (field_p_p, dat)
+      (field_p_p, dat) <$ put_ bh field_p_p
 
     -- Now put the payloads and use the reserved space
     -- to point to the start of each payload:
@@ -55,8 +54,7 @@ instance Binary ExtensibleFields where
     -- Seek to and get each field's payload:
     fields <- forM header_entries $ \(name, field_p) -> do
       seekBin bh field_p
-      dat <- get bh
-      return (name, dat)
+      (,) name <$> get bh
 
     return . ExtensibleFields . Map.fromList $ fields
 

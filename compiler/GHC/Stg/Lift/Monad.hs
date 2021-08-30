@@ -44,6 +44,7 @@ import Control.Monad.Trans.RWS.Strict ( RWST, runRWST )
 import qualified Control.Monad.Trans.RWS.Strict as RWS
 import Control.Monad.Trans.Cont ( ContT (..) )
 import Data.ByteString ( ByteString )
+import Data.Foldable ( toList )
 
 -- | @uncurry 'mkStgBinding' . 'decomposeStgBinding' = id@
 decomposeStgBinding :: GenStgBinding pass -> (RecFlag, [(BinderP pass, GenStgRhs pass)])
@@ -221,7 +222,7 @@ instance MonadUnique LiftM where
   getUniquesM = LiftM (lift getUniquesM)
 
 runLiftM :: DynFlags -> UniqSupply -> LiftM () -> [OutStgTopBinding]
-runLiftM dflags us (LiftM m) = collectFloats (fromOL floats)
+runLiftM dflags us (LiftM m) = collectFloats (toList floats)
   where
     (_, _, floats) = initUs_ us (runRWST m (emptyEnv dflags) ())
 

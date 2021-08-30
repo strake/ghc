@@ -23,11 +23,13 @@ import GHC.Prelude
 import GHC.HsToCore.PmCheck.Types
 import GHC.HsToCore.PmCheck.Oracle
 import GHC.HsToCore.PmCheck.Ppr
+import GHC.HsToCore.Types
 import GHC.Types.Basic (Origin, isGenerated)
 import GHC.Core (CoreExpr, Expr(Var,App))
 import GHC.Data.FastString (unpackFS, lengthFS)
 import GHC.Driver.Session
 import GHC.Hs
+import GHC.Tc.Utils.Monad (env_lclL, getLclEnv)
 import GHC.Tc.Utils.Zonk (shortCutLit)
 import GHC.Types.Id
 import GHC.Core.ConLike
@@ -35,6 +37,7 @@ import GHC.Types.Name
 import GHC.Tc.Instance.Family
 import GHC.Builtin.Types
 import GHC.Types.SrcLoc
+import GHC.Utils.Lens.Monad
 import GHC.Utils.Misc
 import GHC.Utils.Outputable
 import GHC.Utils.Panic
@@ -60,8 +63,8 @@ import qualified GHC.LanguageExtensions as LangExt
 import GHC.Utils.Monad (concatMapM)
 
 import Control.Monad (when, forM_, zipWithM)
+import Data.Foldable (toList)
 import Data.List (elemIndex)
-import qualified Data.Semigroup as Semi
 
 {-
 This module checks pattern matches for:
@@ -126,13 +129,12 @@ data Precision = Approximate | Precise
 instance Outputable Precision where
   ppr = text . show
 
-instance Semi.Semigroup Precision where
+instance Semigroup Precision where
   Precise <> Precise = Precise
   _       <> _       = Approximate
 
 instance Monoid Precision where
   mempty = Precise
-  mappend = (Semi.<>)
 
 -- | Means by which we identify a RHS for later pretty-printing in a warning
 -- message. 'SDoc' for the equation to show, 'Located' for the location.
@@ -261,7 +263,7 @@ checkSingle dflags ctxt@(DsMatchContext kind locn) var p = do
   -- cases like #17646.
   when (exhaustive dflags kind) $ do
     -- TODO: This could probably call checkMatches, like checkGuardMatches.
-    missing   <- getPmDeltas
+    missing   <- dsl_deltas <$> getLclEnv
     tracePm "checkSingle: missing" (ppr missing)
     fam_insts <- dsGetFamInstEnvs
     grd_tree  <- mkGrdTreeRhs (L locn $ ppr p) <$> translatePat fam_insts var p
@@ -295,7 +297,7 @@ checkGuardMatches hs_ctx guards@(GRHSs _ grhss _) = do
 -- @
 --
 -- Returns one 'Deltas' for each GRHS, representing its covered values, or the
--- incoming uncovered 'Deltas' (from 'getPmDeltas') if the GRHS is inaccessible.
+-- incoming uncovered 'Deltas' (from @'dsl_deltas' <$> 'getLclEnv'@) if the GRHS is inaccessible.
 -- Since there is at least one /grhs/ per /match/, the list of 'Deltas' is at
 -- least as long as the list of matches.
 checkMatches
@@ -312,7 +314,7 @@ checkMatches ctxt vars matches = do
                                2
                                (vcat (map ppr matches)))
 
-  init_deltas <- getPmDeltas
+  init_deltas <- dsl_deltas <$> getLclEnv
   missing <- case matches of
     -- This must be an -XEmptyCase. See Note [Checking EmptyCase]
     [] | [var] <- vars -> addPmCtDeltas init_deltas (PmNotBotCt var)
@@ -321,21 +323,19 @@ checkMatches ctxt vars matches = do
   grd_tree  <- mkGrdTreeMany [] <$> mapM (translateMatch fam_insts vars) matches
   res <- checkGrdTree grd_tree missing
 
-  dsPmWarn dflags ctxt vars res
-
-  return (extractRhsDeltas init_deltas (cr_clauses res))
+  extractRhsDeltas init_deltas (cr_clauses res) <$ dsPmWarn dflags ctxt vars res
 
 -- | Extract the 'Deltas' reaching the RHSs of the 'AnnotatedTree'.
 -- For 'AccessibleRhs's, this is stored in the tree node, whereas
 -- 'InaccessibleRhs's fall back to the supplied original 'Deltas'.
 -- See @Note [Recovering from unsatisfiable pattern-matching constraints]@.
 extractRhsDeltas :: Deltas -> AnnotatedTree -> [Deltas]
-extractRhsDeltas orig_deltas = fromOL . go
+extractRhsDeltas orig_deltas = toList . go
   where
     go (AccessibleRhs deltas _) = unitOL deltas
     go (InaccessibleRhs _)      = unitOL orig_deltas
     go (MayDiverge t)           = go t
-    go (SequenceAnn l r)        = go l Semi.<> go r
+    go (SequenceAnn l r)        = go l <> go r
     go EmptyAnn                 = nilOL
 
 {- Note [Checking EmptyCase]
@@ -628,9 +628,8 @@ translateMatch :: FamInstEnvs -> [Id] -> LMatch GhcTc (LHsExpr GhcTc)
                -> DsM GrdTree
 translateMatch fam_insts vars (L match_loc (Match { m_pats = pats, m_grhss = grhss })) = do
   pats'   <- concat <$> zipWithM (translateLPat fam_insts) vars pats
-  grhss' <- mapM (translateLGRHS fam_insts match_loc pats) (grhssGRHSs grhss)
+  mkGrdTreeMany pats' <$> traverse (translateLGRHS fam_insts match_loc pats) (grhssGRHSs grhss)
   -- tracePm "translateMatch" (vcat [ppr pats, ppr pats', ppr grhss, ppr grhss'])
-  return (mkGrdTreeMany pats' grhss')
 
 -- -----------------------------------------------------------------------
 -- * Transform source guards (GuardStmt Id) to simpler PmGrds
@@ -960,11 +959,11 @@ checkGrdTree' (Guard (PmCon x con tvs dicts args) tree) deltas = do
     listToBag (PmTyCt . evVarPred <$> dicts) `snocBag` PmConCt x con tvs args
   CheckResult tree' unc_inner prec <- checkGrdTree' tree deltas'
   limit <- maxPmCheckModels <$> getDynFlags
-  let (prec', unc') = throttle limit deltas (unc_this Semi.<> unc_inner)
+  let (prec', unc') = throttle limit deltas (unc_this <> unc_inner)
   pure CheckResult
     { cr_clauses = applyWhen has_diverged mayDiverge tree'
     , cr_uncov = unc'
-    , cr_approx = prec Semi.<> prec' }
+    , cr_approx = prec <> prec' }
 -- Sequence: Thread residual uncovered sets from equation to equation
 checkGrdTree' (Sequence l r) unc_0 = do
   CheckResult l' unc_1 prec_l <- checkGrdTree' l unc_0
@@ -972,7 +971,7 @@ checkGrdTree' (Sequence l r) unc_0 = do
   pure CheckResult
     { cr_clauses = SequenceAnn l' r'
     , cr_uncov = unc_2
-    , cr_approx = prec_l Semi.<> prec_r }
+    , cr_approx = prec_l <> prec_r }
 -- Empty: Fall through for all values
 checkGrdTree' Empty unc = do
   pure CheckResult
@@ -986,8 +985,7 @@ checkGrdTree guards deltas = do
   tracePm "checkGrdTree {" $ vcat [ ppr guards
                                   , ppr deltas ]
   res <- checkGrdTree' guards deltas
-  tracePm "checkGrdTree }:" (ppr res) -- braces are easier to match by tooling
-  return res
+  res <$ tracePm "checkGrdTree }:" (ppr res) -- braces are easier to match by tooling
 
 -- ----------------------------------------------------------------------------
 -- * Propagation of term constraints inwards when checking nested matches
@@ -1026,17 +1024,14 @@ these constraints.
 -- with 'unsafeInterleaveM' in order not to do unnecessary work.
 locallyExtendPmDelta :: (Deltas -> DsM Deltas) -> DsM a -> DsM a
 locallyExtendPmDelta ext k = do
-  deltas <- getPmDeltas
+  deltas <- dsl_deltas <$> getLclEnv
   deltas' <- unsafeInterleaveM $ do
     deltas' <- ext deltas
-    inh <- isInhabited deltas'
     -- If adding a constraint would lead to a contradiction, don't add it.
     -- See @Note [Recovering from unsatisfiable pattern-matching constraints]@
     -- for why this is done.
-    if inh
-      then pure deltas'
-      else pure deltas
-  updPmDeltas deltas' k
+    bool deltas deltas' <$> isInhabited deltas'
+  locally (env_lclL . dsl_deltasL) (pure deltas') k
 
 -- | Add in-scope type constraints if the coverage checker might run and then
 -- run the given action.
@@ -1087,7 +1082,7 @@ needToRunPmCheck dflags origin
   = notNull (filter (`wopt` dflags) allPmCheckWarnings)
 
 redundantAndInaccessibleRhss :: AnnotatedTree -> ([RhsInfo], [RhsInfo])
-redundantAndInaccessibleRhss tree = (fromOL ol_red, fromOL ol_inacc)
+redundantAndInaccessibleRhss tree = (toList ol_red, toList ol_inacc)
   where
     (_ol_acc, ol_inacc, ol_red) = go tree
     -- | Collects RHSs which are
@@ -1102,9 +1097,9 @@ redundantAndInaccessibleRhss tree = (fromOL ol_red, fromOL ol_inacc)
     go (MayDiverge t)         = case go t of
       -- See Note [Determining inaccessible clauses]
       (acc, inacc, red)
-        | isNilOL acc && isNilOL inacc -> (nilOL, red, nilOL)
+        | null acc && null inacc -> (nilOL, red, nilOL)
       res                              -> res
-    go (SequenceAnn l r)      = go l Semi.<> go r
+    go (SequenceAnn l r)      = go l <> go r
     go EmptyAnn               = (nilOL,       nilOL, nilOL)
 
 {- Note [Determining inaccessible clauses]
@@ -1180,7 +1175,7 @@ dsPmWarn dflags ctx@(DsMatchContext kind loc) vars result
     pprEqns vars deltas = pprContext False ctx (text "are non-exhaustive") $ \_ ->
       case vars of -- See #11245
            [] -> text "Guards do not cover entire pattern space"
-           _  -> let us = map (\delta -> pprUncovered delta vars) deltas
+           _  -> let us = flip pprUncovered vars <$> deltas
                  in  hang (text "Patterns not matched:") 4
                        (vcat (take maxPatterns us) $$ dots maxPatterns us)
 
@@ -1196,14 +1191,13 @@ dsPmWarn dflags ctx@(DsMatchContext kind loc) vars result
       , text "Increase the limit or resolve the warnings to suppress this message." ]
 
 getNFirstUncovered :: [Id] -> Int -> Deltas -> DsM [Delta]
-getNFirstUncovered vars n (MkDeltas deltas) = go n (bagToList deltas)
+getNFirstUncovered vars n (MkDeltas deltas) = go n (toList deltas)
   where
     go 0 _              = pure []
     go _ []             = pure []
     go n (delta:deltas) = do
       front <- provideEvidence vars n delta
-      back <- go (n - length front) deltas
-      pure (front ++ back)
+      (++) front <$> go (n - length front) deltas
 
 {- Note [Inaccessible warnings for record updates]
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

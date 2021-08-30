@@ -102,8 +102,10 @@ import Control.Monad.Trans.Class
 import Control.Monad.Trans.Except
 
 import Data.Array
+import Data.Bool ( bool )
 import qualified Data.ByteString.Char8 as BS
 import Data.Char
+import Data.Filtrable ( mapEither )
 import Data.Function
 import Data.IORef ( IORef, modifyIORef, newIORef, readIORef, writeIORef )
 import Data.List ( elemIndices, find, group, intercalate, intersperse,
@@ -1592,7 +1594,7 @@ trySuccess act =
 
 editFile :: GhciMonad m => String -> m ()
 editFile str =
-  do file <- if null str then chooseEditFile else expandPath str
+  do file <- bool (expandPath str) chooseEditFile (null str)
      st <- getGHCiState
      errs <- liftIO $ readIORef $ lastErrorLocations st
      let cmd = editor st
@@ -1854,7 +1856,7 @@ loadModuleDefer = wrapDeferTypeErrors . loadModule_
 
 loadModule' :: GhciMonad m => [(FilePath, Maybe Phase)] -> m SuccessFlag
 loadModule' files = do
-  let (filenames, phases) = unzip files
+  let (filenames, phases) = Prelude.unzip files
   exp_filenames <- mapM expandPath filenames
   let files' = zip exp_filenames phases
   targets <- mapM (uncurry GHC.guessTarget) files'
@@ -2256,7 +2258,7 @@ kindOfType :: GHC.GhcMonad m => Bool -> String -> m ()
 kindOfType norm str = handleSourceError GHC.printException $ do
     (ty, kind) <- GHC.typeKind norm str
     printForUser $ vcat [ text str <+> dcolon <+> pprTypeForUser kind
-                        , ppWhen norm $ equals <+> pprTypeForUser ty ]
+                        , mwhen norm $ equals <+> pprTypeForUser ty ]
 
 -----------------------------------------------------------------------------
 -- :quit
@@ -2503,7 +2505,7 @@ moduleCmd str
           stuff     -> rest setContext            stuff
 
     rest op stuff = (op as bs, stuffs)
-       where (as,bs) = partitionWith starred stuffs
+       where (as,bs) = mapEither starred stuffs
              stuffs  = words stuff
 
     sensible ('*':m) = looksLikeModuleName m
@@ -2912,7 +2914,7 @@ setParsedPromptString fSetPrompt s = do
 
 setOptions wds =
    do -- first, deal with the GHCi opts (+s, +t, etc.)
-      let (plus_opts, minus_opts)  = partitionWith isPlus wds
+      let (plus_opts, minus_opts)  = mapEither isPlus wds
       mapM_ setOpt plus_opts
       -- then, dynamic flags
       when (not (null minus_opts)) $ newDynFlags False minus_opts
@@ -2982,7 +2984,7 @@ unsetOptions str
   =   -- first, deal with the GHCi opts (+s, +t, etc.)
      let opts = words str
          (minus_opts, rest1) = partition isMinus opts
-         (plus_opts, rest2)  = partitionWith isPlus rest1
+         (plus_opts, rest2)  = mapEither isPlus rest1
          (other_opts, rest3) = partition (`elem` map fst defaulters) rest2
 
          defaulters =

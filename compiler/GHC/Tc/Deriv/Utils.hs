@@ -52,6 +52,7 @@ import GHC.Builtin.Names.TH (liftClassKey)
 import GHC.Core.TyCon
 import GHC.Core.TyCo.Ppr (pprSourceTyCon)
 import GHC.Core.Type
+import GHC.Utils.Lens.Monad
 import GHC.Utils.Misc
 import GHC.Types.Var.Set
 
@@ -1014,11 +1015,7 @@ newDerivClsInst theta (DS { ds_name = dfun_name, ds_overlap = overlap_mode
 extendLocalInstEnv :: [ClsInst] -> TcM a -> TcM a
 -- Add new locally-defined instances; don't bother to check
 -- for functional dependency errors -- that'll happen in GHC.Tc.TyCl.Instance
-extendLocalInstEnv dfuns thing_inside
- = do { env <- getGblEnv
-      ; let  inst_env' = extendInstEnvList (tcg_inst_env env) dfuns
-             env'      = env { tcg_inst_env = inst_env' }
-      ; setGblEnv env' thing_inside }
+extendLocalInstEnv = locally (env_gblL . tcg_inst_envL) . flip extendInstEnvList
 
 {-
 Note [Deriving any class]

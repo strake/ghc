@@ -8,7 +8,6 @@ module GHC.Hs.Doc
   , mkHsDocStringUtf8ByteString
   , unpackHDS
   , hsDocStringToByteString
-  , ppr_mbDoc
 
   , appendDocs
   , concatDocs
@@ -36,7 +35,6 @@ import qualified Data.ByteString.Internal as BS
 import Data.Data
 import Data.Map (Map)
 import qualified Data.Map as Map
-import Data.Maybe
 import Foreign
 
 -- | Haskell Documentation String
@@ -50,13 +48,10 @@ newtype HsDocString = HsDocString ByteString
   --
   -- To avoid confusion, we pass on defining an instance at all.
   deriving (Eq, Show, Data)
+  deriving Binary via ByteString
 
 -- | Located Haskell Documentation String
 type LHsDocString = Located HsDocString
-
-instance Binary HsDocString where
-  put_ bh (HsDocString bs) = put_ bh bs
-  get bh = HsDocString <$> get bh
 
 instance Outputable HsDocString where
   ppr = doubleQuotes . text . unpackHDS
@@ -66,9 +61,8 @@ mkHsDocString s =
   inlinePerformIO $ do
     let len = utf8EncodedLength s
     buf <- mallocForeignPtrBytes len
-    withForeignPtr buf $ \ptr -> do
-      utf8EncodeString ptr s
-      pure (HsDocString (BS.fromForeignPtr buf 0 len))
+    withForeignPtr buf $ \ptr ->
+      HsDocString (BS.fromForeignPtr buf 0 len) <$ utf8EncodeString ptr s
 
 -- | Create a 'HsDocString' from a UTF8-encoded 'ByteString'.
 mkHsDocStringUtf8ByteString :: ByteString -> HsDocString
@@ -80,10 +74,6 @@ unpackHDS = utf8DecodeByteString . hsDocStringToByteString
 -- | Return the contents of a 'HsDocString' as a UTF8-encoded 'ByteString'.
 hsDocStringToByteString :: HsDocString -> ByteString
 hsDocStringToByteString (HsDocString bs) = bs
-
-ppr_mbDoc :: Maybe LHsDocString -> SDoc
-ppr_mbDoc (Just doc) = ppr doc
-ppr_mbDoc Nothing    = empty
 
 -- | Join two docstrings.
 --
@@ -101,10 +91,7 @@ appendDocs x y =
 --
 -- If all inputs are empty, 'Nothing' is returned.
 concatDocs :: [HsDocString] -> Maybe HsDocString
-concatDocs xs =
-    if BS.null b
-      then Nothing
-      else Just (HsDocString b)
+concatDocs xs = HsDocString b <$ guard (not $ BS.null b)
   where
     b = BS.intercalate (C8.pack "\n\n")
       . filter (not . BS.null)

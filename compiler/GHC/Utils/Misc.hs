@@ -3,8 +3,6 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE ConstraintKinds #-}
-{-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE TupleSections #-}
 
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
@@ -13,6 +11,7 @@
 module GHC.Utils.Misc (
         -- * Miscellaneous higher-order functions
         applyWhen, nTimes,
+        slipl, slipr, slipl4, slipr4,
 
         -- * General list processing
         zipEqual, zipWithEqual, zipWith3Equal, zipWith4Equal,
@@ -22,11 +21,11 @@ module GHC.Utils.Misc (
 
         filterByList, filterByLists, partitionByList,
 
-        unzipWith,
+        unzipWith, unzip, unzip3, unzip4, unzip5,
 
         mapFst, mapSnd, chkAppend,
         mapAndUnzip, mapAndUnzip3,
-        filterOut, partitionWith,
+        filterOut,
 
         dropWhileEndLE, spanEnd, last2, lastMaybe,
 
@@ -46,14 +45,9 @@ module GHC.Utils.Misc (
 
         changeLast,
 
-        whenNonEmpty,
-
         -- * Tuples
-        fstOf3, sndOf3, thdOf3,
-        firstM, first3M, secondM,
-        fst3, snd3, third3,
+        fst3, snd3, thd3,
         uncurry3,
-        liftFst, liftSnd,
 
         -- * List operations controlled by another list
         takeList, dropList, splitAtList, split,
@@ -120,6 +114,9 @@ module GHC.Utils.Misc (
         -- * Utils for flags
         OverridingBool(..),
         overrideWith,
+
+        -- * Misc
+        mwhen, munless,
     ) where
 
 import GHC.Prelude
@@ -128,14 +125,12 @@ import GHC.Utils.Exception
 import GHC.Utils.Panic.Plain
 
 import Data.Data
-import Data.List        hiding (group)
-import Data.List.NonEmpty  ( NonEmpty(..) )
+import Data.List        hiding (group, unzip, unzip3, unzip4, unzip5)
 
 import GHC.Exts
 import GHC.Stack (HasCallStack)
 
 import Control.Applicative ( liftA2 )
-import Control.Monad    ( liftM, guard )
 import Control.Monad.IO.Class ( MonadIO, liftIO )
 import System.IO.Error as IO ( isDoesNotExistError )
 import System.Directory ( doesDirectoryExist, getModificationTime, renameFile )
@@ -152,6 +147,9 @@ import qualified Data.IntMap as IM
 import qualified Data.Set as Set
 
 import Data.Time
+
+import Lens.Micro (_1, _2, _3, _4, _5)
+import Lens.Micro.Extras (view)
 
 #if defined(DEBUG)
 import {-# SOURCE #-} GHC.Utils.Outputable ( text )
@@ -180,39 +178,15 @@ nTimes 0 _ = id
 nTimes 1 f = f
 nTimes n f = f . nTimes (n-1) f
 
-fstOf3   :: (a,b,c) -> a
-sndOf3   :: (a,b,c) -> b
-thdOf3   :: (a,b,c) -> c
-fstOf3      (a,_,_) =  a
-sndOf3      (_,b,_) =  b
-thdOf3      (_,_,c) =  c
-
-fst3 :: (a -> d) -> (a, b, c) -> (d, b, c)
-fst3 f (a, b, c) = (f a, b, c)
-
-snd3 :: (b -> d) -> (a, b, c) -> (a, d, c)
-snd3 f (a, b, c) = (a, f b, c)
-
-third3 :: (c -> d) -> (a, b, c) -> (a, b, d)
-third3 f (a, b, c) = (a, b, f c)
+fst3   :: (a,b,c) -> a
+snd3   :: (a,b,c) -> b
+thd3   :: (a,b,c) -> c
+fst3      (a,_,_) =  a
+snd3      (_,b,_) =  b
+thd3      (_,_,c) =  c
 
 uncurry3 :: (a -> b -> c -> d) -> (a, b, c) -> d
 uncurry3 f (a, b, c) = f a b c
-
-liftFst :: (a -> b) -> (a, c) -> (b, c)
-liftFst f (a,c) = (f a, c)
-
-liftSnd :: (a -> b) -> (c, a) -> (c, b)
-liftSnd f (c,a) = (c, f a)
-
-firstM :: Monad m => (a -> m c) -> (a, b) -> m (c, b)
-firstM f (x, y) = liftM (\x' -> (x', y)) (f x)
-
-first3M :: Monad m => (a -> m d) -> (a, b, c) -> m (d, b, c)
-first3M f (x, y, z) = liftM (\x' -> (x', y, z)) (f x)
-
-secondM :: Monad m => (b -> m c) -> (a, b) -> m (a, c)
-secondM f (x, y) = (x,) <$> f y
 
 {-
 ************************************************************************
@@ -227,14 +201,6 @@ filterOut :: (a->Bool) -> [a] -> [a]
 filterOut _ [] = []
 filterOut p (x:xs) | p x       = filterOut p xs
                    | otherwise = x : filterOut p xs
-
-partitionWith :: (a -> Either b c) -> [a] -> ([b], [c])
--- ^ Uses a function to determine which of two output lists an input element should join
-partitionWith _ [] = ([],[])
-partitionWith f (x:xs) = case f x of
-                         Left  b -> (b:bs, cs)
-                         Right c -> (bs, c:cs)
-    where (bs,cs) = partitionWith f xs
 
 chkAppend :: [a] -> [a] -> [a]
 -- Checks for the second argument being empty
@@ -546,10 +512,6 @@ changeLast []     _  = panic "changeLast"
 changeLast [_]    x  = [x]
 changeLast (x:xs) x' = x : changeLast xs x'
 
-whenNonEmpty :: Applicative m => [a] -> (NonEmpty a -> m ()) -> m ()
-whenNonEmpty []     _ = pure ()
-whenNonEmpty (x:xs) f = f (x :| xs)
-
 {-
 ************************************************************************
 *                                                                      *
@@ -731,7 +693,8 @@ snocView xs
         = (x:xs', x')
     go [] = error "impossible"
 
-split :: Char -> String -> [String]
+{-# SPECIALIZE split :: Char -> [Char] -> [[Char]] #-}
+split :: (Eq a) => a -> [a] -> [[a]]
 split c s = case rest of
                 []     -> [chunk]
                 _:rest -> chunk : split c rest
@@ -932,12 +895,11 @@ fuzzyLookup user_entered possibilites
 ************************************************************************
 -}
 
-unzipWith :: (a -> b -> c) -> [(a, b)] -> [c]
-unzipWith f pairs = map ( \ (a, b) -> f a b ) pairs
+unzipWith :: Functor f => (a -> b -> c) -> f (a, b) -> f c
+unzipWith = fmap . uncurry
 
 seqList :: [a] -> b -> b
-seqList [] b = b
-seqList (x:xs) b = x `seq` seqList xs b
+seqList = flip (foldr seq)
 
 strictMap :: (a -> b) -> [a] -> [b]
 strictMap _ [] = []
@@ -947,6 +909,14 @@ strictMap f (x : xs) =
     !xs' = strictMap f xs
   in
     x' : xs'
+
+unzip4 :: Functor f => f (a, b, c, d) -> (f a, f b, f c, f d)
+unzip4 xs = (view _1 <$> xs, view _2 <$> xs, view _3 <$> xs, view _4 <$> xs)
+{-# INLINE unzip4 #-}
+
+unzip5 :: Functor f => f (a, b, c, d, e) -> (f a, f b, f c, f d, f e)
+unzip5 xs = (view _1 <$> xs, view _2 <$> xs, view _3 <$> xs, view _4 <$> xs, view _5 <$> xs)
+{-# INLINE unzip5 #-}
 
 
 -- Module names:
@@ -1166,7 +1136,7 @@ getModificationUTCTime = getModificationTime
 
 modificationTimeIfExists :: FilePath -> IO (Maybe UTCTime)
 modificationTimeIfExists f = do
-  (do t <- getModificationUTCTime f; return (Just t))
+  (Just <$> getModificationUTCTime f)
         `catchIO` \e -> if isDoesNotExistError e
                         then return Nothing
                         else ioError e
@@ -1188,8 +1158,7 @@ withAtomicRename targetFile f = do
   -- at just the right time, but that is not a case we aim to cover here.
   let temp = targetFile <.> "tmp"
   res <- f temp
-  liftIO $ renameFile temp targetFile
-  return res
+  res <$ liftIO (renameFile temp targetFile)
 
 -- --------------------------------------------------------------
 -- split a string at the last character where 'pred' is True,
@@ -1360,3 +1329,20 @@ overrideWith :: Bool -> OverridingBool -> Bool
 overrideWith b Auto   = b
 overrideWith _ Always = True
 overrideWith _ Never  = False
+
+mwhen, munless :: Monoid a => Bool -> a -> a
+mwhen False = mempty
+mwhen True = id
+munless = mwhen . not
+
+slipr :: (a -> b -> c -> d) -> b -> c -> a -> d
+slipr φ b c a = φ a b c
+
+slipl :: (a -> b -> c -> d) -> c -> a -> b -> d
+slipl φ c a b = φ a b c
+
+slipr4 :: (a -> b -> c -> d -> e) -> b -> c -> d -> a -> e
+slipr4 φ b c d a = φ a b c d
+
+slipl4 :: (a -> b -> c -> d -> e) -> d -> a -> b -> c -> e
+slipl4 φ d a b c = φ a b c d

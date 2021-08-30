@@ -68,7 +68,6 @@ import GHC.Types.Basic (Alignment)
 import GHC.Cmm.DebugBlock (UnwindTable)
 
 import Control.Monad
-import Data.Maybe       (fromMaybe)
 
 -- Format of an x86/x86_64 memory address, in bytes.
 --

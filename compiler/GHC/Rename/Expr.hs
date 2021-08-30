@@ -50,8 +50,6 @@ import GHC.Types.Name.Set
 import GHC.Types.Name.Reader
 import GHC.Types.Unique.Set
 import GHC.Types.SourceText
-import Data.List
-import Data.Maybe (isJust, isNothing)
 import GHC.Utils.Misc
 import GHC.Data.List.SetOps ( removeDups )
 import GHC.Utils.Error
@@ -60,14 +58,17 @@ import GHC.Utils.Panic.Plain
 import GHC.Utils.Outputable as Outputable
 import GHC.Types.SrcLoc
 import GHC.Data.FastString
-import Control.Monad
 import GHC.Builtin.Types ( nilDataConName )
 import qualified GHC.LanguageExtensions as LangExt
 
 import Control.Arrow (first)
-import Data.Ord
+import Control.Monad hiding (mapAndUnzipM)
+import Control.Monad.Trans.Writer (WriterT (..))
 import Data.Array
+import Data.Foldable (minimumBy)
 import qualified Data.List.NonEmpty as NE
+import Data.Maybe (isJust, isNothing)
+import Data.Ord
 
 {-
 ************************************************************************
@@ -99,23 +100,22 @@ rnExpr :: HsExpr GhcPs -> RnM (HsExpr GhcRn, FreeVars)
 finishHsVar :: Located Name -> RnM (HsExpr GhcRn, FreeVars)
 -- Separated from rnExpr because it's also used
 -- when renaming infix expressions
-finishHsVar (L l name)
- = do { this_mod <- getModule
-      ; when (nameIsLocalOrFrom this_mod name) $
-        checkThLocalName name
-      ; return (HsVar noExtField (L l name), unitFV name) }
+finishHsVar (L l name) =
+  [ (HsVar noExtField (L l name), unitFV name)
+  | this_mod <- getModule
+  , () <- when (nameIsLocalOrFrom this_mod name) $ checkThLocalName name ]
 
 rnUnboundVar :: RdrName -> RnM (HsExpr GhcRn, FreeVars)
 rnUnboundVar v
- = do { if isUnqual v
-        then -- Treat this as a "hole"
+ | isUnqual v =
+             -- Treat this as a "hole"
              -- Do not fail right now; instead, return HsUnboundVar
              -- and let the type checker report the error
              return (HsUnboundVar noExtField (rdrNameOcc v), emptyFVs)
 
-        else -- Fail immediately (qualified name)
-             do { n <- reportUnboundName v
-                ; return (HsVar noExtField (noLoc n), emptyFVs) } }
+ | otherwise =
+             -- Fail immediately (qualified name)
+             [ (HsVar noExtField (noLoc n), emptyFVs) | n <- reportUnboundName v ]
 
 rnExpr (HsVar _ (L l v))
   = do { opt_DuplicateRecordFields <- xoptM LangExt.DuplicateRecordFields
@@ -148,21 +148,15 @@ rnExpr (HsUnboundVar x v)
 rnExpr (HsOverLabel x _ v)
   = do { rebindable_on <- xoptM LangExt.RebindableSyntax
        ; if rebindable_on
-         then do { fromLabel <- lookupOccRn (mkVarUnqual (fsLit "fromLabel"))
-                 ; return (HsOverLabel x (Just fromLabel) v, unitFV fromLabel) }
-         else return (HsOverLabel x Nothing v, emptyFVs) }
+         then [ (HsOverLabel x (Just fromLabel) v, unitFV fromLabel) | fromLabel <- lookupOccRn (mkVarUnqual (fsLit "fromLabel")) ]
+         else pure (HsOverLabel x Nothing v, emptyFVs) }
 
 rnExpr (HsLit x lit@(HsString src s))
   = do { opt_OverloadedStrings <- xoptM LangExt.OverloadedStrings
-       ; if opt_OverloadedStrings then
-            rnExpr (HsOverLit x (mkHsIsString src s))
-         else do {
-            ; rnLit lit
-            ; return (HsLit x (convertLit lit), emptyFVs) } }
+       ; bool ((HsLit x (convertLit lit), emptyFVs) <$ rnLit lit) (rnExpr (HsOverLit x (mkHsIsString src s))) opt_OverloadedStrings }
 
 rnExpr (HsLit x lit)
-  = do { rnLit lit
-       ; return (HsLit x(convertLit lit), emptyFVs) }
+  = (HsLit x (convertLit lit), emptyFVs) <$ rnLit lit
 
 rnExpr (HsOverLit x lit)
   = do { ((lit', mb_neg), fvs) <- rnOverLit lit -- See Note [Negative zero]
@@ -296,7 +290,7 @@ rnExpr (ExplicitSum x alt arity expr)
 
 rnExpr (RecordCon { rcon_con_name = con_id
                   , rcon_flds = rec_binds@(HsRecFields { rec_dotdot = dd }) })
-  = do { con_lname@(L _ con_name) <- lookupLocatedOccRn con_id
+  = do { con_lname@(L _ con_name) <- wrapLocM lookupOccRn con_id
        ; (flds, fvs)   <- rnHsRecFields (HsRecFieldCon con_name) mk_hs_var rec_binds
        ; (flds', fvss) <- mapAndUnzipM rn_field flds
        ; let rec_binds' = HsRecFields { rec_flds = flds', rec_dotdot = dd }
@@ -356,28 +350,28 @@ We also collect the free variables of the term which come from
 this module. See Note [Grand plan for static forms] in GHC.Iface.Tidy.StaticPtrTable.
 -}
 
-rnExpr e@(HsStatic _ expr) = do
-    -- Normally, you wouldn't be able to construct a static expression without
+rnExpr e@(HsStatic _ expr) =
+  [ (HsStatic fvExpr' expr', fvExpr)
+  | -- Normally, you wouldn't be able to construct a static expression without
     -- first enabling -XStaticPointers in the first place, since that extension
     -- is what makes the parser treat `static` as a keyword. But this is not a
     -- sufficient safeguard, as one can construct static expressions by another
     -- mechanism: Template Haskell (see #14204). To ensure that GHC is
     -- absolutely prepared to cope with static forms, we check for
     -- -XStaticPointers here as well.
-    unlessXOptM LangExt.StaticPointers $
+    () <- unlessXOptM LangExt.StaticPointers $
       addErr $ hang (text "Illegal static expression:" <+> ppr e)
                   2 (text "Use StaticPointers to enable this extension")
-    (expr',fvExpr) <- rnLExpr expr
-    stage <- getStage
-    case stage of
+  , (expr',fvExpr) <- rnLExpr expr
+  , stage <- getStage
+  , () <- case stage of
       Splice _ -> addErr $ sep
              [ text "static forms cannot be used in splices:"
              , nest 2 $ ppr e
              ]
       _ -> return ()
-    mod <- getModule
-    let fvExpr' = filterNameSet (nameIsLocalOrFrom mod) fvExpr
-    return (HsStatic fvExpr' expr', fvExpr)
+  , mod <- getModule
+  , let fvExpr' = filterNameSet (nameIsLocalOrFrom mod) fvExpr ]
 
 {-
 ************************************************************************
@@ -599,26 +593,7 @@ methodNamesStmt ApplicativeStmt{}              = emptyFVs
 -}
 
 rnArithSeq :: ArithSeqInfo GhcPs -> RnM (ArithSeqInfo GhcRn, FreeVars)
-rnArithSeq (From expr)
- = do { (expr', fvExpr) <- rnLExpr expr
-      ; return (From expr', fvExpr) }
-
-rnArithSeq (FromThen expr1 expr2)
- = do { (expr1', fvExpr1) <- rnLExpr expr1
-      ; (expr2', fvExpr2) <- rnLExpr expr2
-      ; return (FromThen expr1' expr2', fvExpr1 `plusFV` fvExpr2) }
-
-rnArithSeq (FromTo expr1 expr2)
- = do { (expr1', fvExpr1) <- rnLExpr expr1
-      ; (expr2', fvExpr2) <- rnLExpr expr2
-      ; return (FromTo expr1' expr2', fvExpr1 `plusFV` fvExpr2) }
-
-rnArithSeq (FromThenTo expr1 expr2 expr3)
- = do { (expr1', fvExpr1) <- rnLExpr expr1
-      ; (expr2', fvExpr2) <- rnLExpr expr2
-      ; (expr3', fvExpr3) <- rnLExpr expr3
-      ; return (FromThenTo expr1' expr2' expr3',
-                plusFVs [fvExpr1, fvExpr2, fvExpr3]) }
+rnArithSeq = runWriterT . arithSeqInfoExprsL (WriterT . rnLExpr)
 
 {-
 ************************************************************************
@@ -1072,8 +1047,7 @@ rnRecStmtsAndThen ctxt rnBody s cont
           -- (C) do the right-hand-sides and thing-inside
         { segs <- rn_rec_stmts ctxt rnBody bound_names new_lhs_and_fv
         ; (res, fvs) <- cont segs
-        ; mapM_ (\(loc, ns) -> checkUnusedRecordWildcard loc fvs (Just ns))
-                rec_uses
+        ; for_ rec_uses \(loc, ns) -> checkUnusedRecordWildcard loc fvs (Just ns)
         ; warnUnusedLocalBinds bound_names (fvs `unionNameSet` implicit_uses)
         ; return (res, fvs) }}
 
@@ -1214,9 +1188,7 @@ rn_rec_stmts :: Outputable (body GhcPs) =>
              -> [Name]
              -> [(LStmtLR GhcRn GhcPs (Located (body GhcPs)), FreeVars)]
              -> RnM [Segment (LStmt GhcRn (Located (body GhcRn)))]
-rn_rec_stmts ctxt rnBody bndrs stmts
-  = do { segs_s <- mapM (rn_rec_stmt ctxt rnBody bndrs) stmts
-       ; return (concat segs_s) }
+rn_rec_stmts ctxt rnBody bndrs = concatMapM (rn_rec_stmt ctxt rnBody bndrs)
 
 ---------------------------------------------
 segmentRecStmts :: SrcSpan -> HsStmtContext GhcRn

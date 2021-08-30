@@ -38,6 +38,8 @@ import GHC.Utils.Panic
 import GHC.Data.FastString
 import GHC.Data.Bag
 
+import Data.Foldable (toList)
+
 {-
 Note [Typechecking rules]
 ~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -100,7 +102,7 @@ equation.
 -}
 
 tcRules :: [LRuleDecls GhcRn] -> TcM [LRuleDecls GhcTc]
-tcRules decls = mapM (wrapLocM tcRuleDecls) decls
+tcRules = traverse (wrapLocM tcRuleDecls)
 
 tcRuleDecls :: RuleDecls GhcRn -> TcM (RuleDecls GhcTc)
 tcRuleDecls (HsRules { rds_src = src
@@ -415,7 +417,7 @@ simplifyRule name tc_lvl lhs_wanted rhs_wanted
        ; let (quant_cts, residual_lhs_wanted) = getRuleQuantCts lhs_wanted
 
        -- Note [The SimplifyRule Plan] step 3
-       ; quant_evs <- mapM mk_quant_ev (bagToList quant_cts)
+       ; quant_evs <- traverse mk_quant_ev (toList quant_cts)
 
        ; traceTc "simplifyRule" $
          vcat [ text "LHS of rule" <+> doubleQuotes (ftext name)
@@ -466,8 +468,8 @@ getRuleQuantCts wc
       = ( simple_yes `andCts` implic_yes
         , emptyWC { wc_simple = simple_no, wc_impl = implics_no, wc_holes = holes })
      where
-        (simple_yes, simple_no) = partitionBag (rule_quant_ct skol_tvs) simples
-        (implic_yes, implics_no) = mapAccumBagL (float_implic skol_tvs)
+        (simple_yes, simple_no) = partition (rule_quant_ct skol_tvs) simples
+        (implic_yes, implics_no) = mapAccumL (float_implic skol_tvs)
                                                 emptyBag implics
 
     float_implic :: TcTyCoVarSet -> Cts -> Implication -> (Cts, Implication)

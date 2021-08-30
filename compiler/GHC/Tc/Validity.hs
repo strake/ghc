@@ -70,9 +70,9 @@ import GHC.Data.Bag      ( emptyBag )
 import qualified GHC.LanguageExtensions as LangExt
 
 import Control.Monad
-import Data.Foldable
-import Data.List        ( (\\), nub )
+import Data.List        ( (\\) )
 import qualified Data.List.NonEmpty as NE
+import Lens.Micro ( ix )
 
 {-
 ************************************************************************
@@ -225,7 +225,7 @@ checkAmbiguity ctxt ty
  where
    mk_msg allow_ambiguous
      = vcat [ text "In the ambiguity check for" <+> what
-            , ppUnless allow_ambiguous ambig_msg ]
+            , munless allow_ambiguous ambig_msg ]
    ambig_msg = text "To defer the ambiguity check to use sites, enable AllowAmbiguousTypes"
    what | Just n <- isSigMaybe ctxt = quotes (ppr n)
         | otherwise                 = pprUserTypeCtxt ctxt
@@ -1367,9 +1367,9 @@ Flexibility check:
 -}
 
 checkThetaCtxt :: UserTypeCtxt -> ThetaType -> TidyEnv -> TcM (TidyEnv, SDoc)
-checkThetaCtxt ctxt theta env
+checkThetaCtxt ctxt θ env
   = return ( env
-           , vcat [ text "In the context:" <+> pprTheta (tidyTypes env theta)
+           , vcat [ text "In the context:" <+> pprTheta (tidyType env <$> θ)
                   , text "While checking" <+> pprUserTypeCtxt ctxt ] )
 
 eqPredTyErr, predTupleErr, predIrredErr,
@@ -1948,7 +1948,7 @@ smallerMsg what inst_head
 
 noMoreMsg :: [TcTyVar] -> SDoc -> SDoc -> SDoc
 noMoreMsg tvs what inst_head
-  = vcat [ hang (text "Variable" <> plural tvs1 <+> quotes (pprWithCommas ppr tvs1)
+  = vcat [ hang ((text "Variable" <> plural tvs1) <+> quotes (pprWithCommas ppr tvs1)
                 <+> occurs <+> text "more often")
               2 (sep [ text "in the" <+> what
                      , text "than in the instance head" <+> quotes inst_head ])
@@ -2014,12 +2014,10 @@ checkValidCoAxiom ax@(CoAxiom { co_ax_tc = fam_tc, co_ax_branches = branches })
     --   (b) failure of injectivity
     check_branch_compat prev_branches cur_branch
       | cur_branch `isDominatedBy` prev_branches
-      = do { addWarnAt NoReason (coAxBranchSpan cur_branch) $
-             inaccessibleCoAxBranch fam_tc cur_branch
-           ; return prev_branches }
+      = prev_branches <$ addWarnAt NoReason (coAxBranchSpan cur_branch)
+        (inaccessibleCoAxBranch fam_tc cur_branch)
       | otherwise
-      = do { check_injectivity prev_branches cur_branch
-           ; return (cur_branch : prev_branches) }
+      = (cur_branch : prev_branches) <$ check_injectivity prev_branches cur_branch
 
      -- Injectivity check: check whether a new (CoAxBranch) can extend
      -- already checked equations without violating injectivity
@@ -2041,15 +2039,11 @@ checkValidCoAxiom ax@(CoAxiom { co_ax_tc = fam_tc, co_ax_branches = branches })
       = case injectiveBranches inj cur_branch branch of
            -- Case 1B2 in Note [Verifying injectivity annotation] in GHC.Core.FamInstEnv
           InjectivityUnified ax1 ax2
-            | ax1 `isDominatedBy` (replace_br prev_branches n ax2)
+            | ax1 `isDominatedBy` set (ix n) ax2 prev_branches
                 -> (acc, n + 1)
             | otherwise
                 -> (branch : acc, n + 1)
           InjectivityAccepted -> (acc, n + 1)
-
-    -- Replace n-th element in the list. Assumes 0-based indexing.
-    replace_br :: [CoAxBranch] -> Int -> CoAxBranch -> [CoAxBranch]
-    replace_br brs n br = take n brs ++ [br] ++ drop (n+1) brs
 
 
 -- Check that a "type instance" is well-formed (which includes decidability
@@ -2189,7 +2183,7 @@ checkFamPatBinders fam_tc qtvs pats rhs
 
     check_tvs tvs what what2
       = unless (null tvs) $ addErrAt (getSrcSpan (head tvs)) $
-        hang (text "Type variable" <> plural tvs <+> pprQuotedList tvs
+        hang ((text "Type variable" <> plural tvs) <+> pprQuotedList tvs
               <+> isOrAre tvs <+> what <> comma)
            2 (vcat [ text "but not" <+> what2 <+> text "the family instance"
                    , mk_extra tvs ])
@@ -2197,7 +2191,7 @@ checkFamPatBinders fam_tc qtvs pats rhs
     -- mk_extra: #7536: give a decent error message for
     --         type T a = Int
     --         type instance F (T a) = a
-    mk_extra tvs = ppWhen (any (`elemVarSet` dodgy_tvs) tvs) $
+    mk_extra tvs = mwhen (any (`elemVarSet` dodgy_tvs) tvs) $
                    hang (text "The real LHS (expanding synonyms) is:")
                       2 (pprTypeApp fam_tc (map expandTypeSynonyms pats))
 
@@ -2310,7 +2304,7 @@ checkConsistentFamInst (InClsInst { ai_class = clas
 
     pp_actual_ty = pprIfaceTypeApp topPrec (toIfaceTyCon fam_tc) $
                    toIfaceTcArgs fam_tc $
-                   tidyTypes tidy_env2 ax_arg_tys
+                   tidyType tidy_env2 <$> ax_arg_tys
 
     mk_wildcard at_tv = mkTyVarTy (mkTyVar tv_name (tyVarKind at_tv))
     tv_name = mkInternalName (mkAlphaTyVarUnique 1) (mkTyVarOcc "_") noSrcSpan

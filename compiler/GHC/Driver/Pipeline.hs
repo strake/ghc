@@ -102,9 +102,8 @@ import System.IO
 import Control.Monad
 import qualified Control.Monad.Catch as MC (handle)
 import Data.List        ( isInfixOf, intercalate )
-import Data.Maybe
+import Data.Maybe       ( isJust, isNothing )
 import Data.Version
-import Data.Either      ( partitionEithers )
 
 import Data.Time        ( UTCTime )
 

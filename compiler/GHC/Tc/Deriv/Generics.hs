@@ -53,7 +53,7 @@ import GHC.Data.FastString
 import GHC.Utils.Misc
 
 import Control.Monad (mplus)
-import Data.List (zip4, partition)
+import Data.List (zip4)
 import Data.Maybe (isJust)
 
 {-

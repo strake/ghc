@@ -47,7 +47,6 @@ import GHC.Builtin.Utils
 import GHC.Utils.Panic
 import GHC.Utils.Panic.Plain
 import GHC.Utils.Misc
-import GHC.Utils.Monad (mapMaybeM)
 
 import Control.Monad
 import Data.Char
@@ -368,7 +367,7 @@ bindConArgs (DataAlt con) base args
                                               base offset tag
                   ; Just <$> bindArgToReg arg }
 
-       mapMaybeM bind_arg args_w_offsets
+       mapMaybeA bind_arg args_w_offsets
 
 bindConArgs _other_con _base args
   = assert (null args ) return []

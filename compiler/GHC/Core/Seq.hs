@@ -68,8 +68,7 @@ seqExpr (Type t)        = seqType t
 seqExpr (Coercion co)   = seqCo co
 
 seqExprs :: [CoreExpr] -> ()
-seqExprs [] = ()
-seqExprs (e:es) = seqExpr e `seq` seqExprs es
+seqExprs = foldr (seq . seqExpr) ()
 
 seqTickish :: Tickish Id -> ()
 seqTickish ProfNote{ profNoteCC = cc } = cc `seq` ()
@@ -83,11 +82,10 @@ seqBndr b | isTyVar b = seqType (tyVarKind b)
                         megaSeqIdInfo (idInfo b)
 
 seqBndrs :: [CoreBndr] -> ()
-seqBndrs [] = ()
-seqBndrs (b:bs) = seqBndr b `seq` seqBndrs bs
+seqBndrs = foldr (seq . seqBndr) ()
 
 seqBinds :: [Bind CoreBndr] -> ()
-seqBinds bs = foldr (seq . seqBind) () bs
+seqBinds = foldr (seq . seqBind) ()
 
 seqBind :: Bind CoreBndr -> ()
 seqBind (NonRec b e) = seqBndr b `seq` seqExpr e
@@ -98,8 +96,9 @@ seqPairs [] = ()
 seqPairs ((b,e):prs) = seqBndr b `seq` seqExpr e `seq` seqPairs prs
 
 seqAlts :: [CoreAlt] -> ()
-seqAlts [] = ()
-seqAlts ((c,bs,e):alts) = c `seq` seqBndrs bs `seq` seqExpr e `seq` seqAlts alts
+seqAlts = foldr (seq . seqAlt) ()
+  where
+    seqAlt (c, bs, e) acc = c `seq` seqBndrs bs `seq` seqExpr e `seq` acc
 
 seqUnfolding :: Unfolding -> ()
 seqUnfolding (CoreUnfolding { uf_tmpl = e, uf_is_top = top,

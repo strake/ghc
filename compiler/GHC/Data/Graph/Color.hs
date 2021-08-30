@@ -27,10 +27,6 @@ import GHC.Types.Unique.Set
 import GHC.Utils.Outputable
 import GHC.Utils.Panic
 
-import Data.Maybe
-import Data.List
-
-
 -- | Try to color a graph with this set of colors.
 --      Uses Chaitin's algorithm to color the graph.
 --      The graph is scanned for nodes which are deamed 'trivially colorable'. These nodes

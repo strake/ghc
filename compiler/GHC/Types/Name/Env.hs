@@ -19,17 +19,16 @@ module GHC.Types.Name.Env (
         unitNameEnv, nameEnvElts,
         extendNameEnv_C, extendNameEnv_Acc, extendNameEnv,
         extendNameEnvList, extendNameEnvList_C,
-        filterNameEnv, anyNameEnv,
+        anyNameEnv,
         plusNameEnv, plusNameEnv_C, alterNameEnv,
         lookupNameEnv, lookupNameEnv_NF, delFromNameEnv, delListFromNameEnv,
-        elemNameEnv, mapNameEnv, disjointNameEnv,
+        elemNameEnv, disjointNameEnv,
 
         DNameEnv,
 
         emptyDNameEnv,
         lookupDNameEnv,
-        delFromDNameEnv, filterDNameEnv,
-        mapDNameEnv,
+        delFromDNameEnv,
         adjustDNameEnv, alterDNameEnv, extendDNameEnv,
         -- ** Dependency analysis
         depAnal
@@ -105,40 +104,36 @@ extendNameEnv      :: NameEnv a -> Name -> a -> NameEnv a
 plusNameEnv        :: NameEnv a -> NameEnv a -> NameEnv a
 plusNameEnv_C      :: (a->a->a) -> NameEnv a -> NameEnv a -> NameEnv a
 extendNameEnvList  :: NameEnv a -> [(Name,a)] -> NameEnv a
-extendNameEnvList_C :: (a->a->a) -> NameEnv a -> [(Name,a)] -> NameEnv a
+extendNameEnvList_C:: (a->a->a) -> NameEnv a -> [(Name,a)] -> NameEnv a
 delFromNameEnv     :: NameEnv a -> Name -> NameEnv a
 delListFromNameEnv :: NameEnv a -> [Name] -> NameEnv a
 elemNameEnv        :: Name -> NameEnv a -> Bool
 unitNameEnv        :: Name -> a -> NameEnv a
 lookupNameEnv      :: NameEnv a -> Name -> Maybe a
 lookupNameEnv_NF   :: NameEnv a -> Name -> a
-filterNameEnv      :: (elt -> Bool) -> NameEnv elt -> NameEnv elt
 anyNameEnv         :: (elt -> Bool) -> NameEnv elt -> Bool
-mapNameEnv         :: (elt1 -> elt2) -> NameEnv elt1 -> NameEnv elt2
 disjointNameEnv    :: NameEnv a -> NameEnv a -> Bool
 
-nameEnvElts x         = eltsUFM x
+nameEnvElts           = eltsUFM
 emptyNameEnv          = emptyUFM
 isEmptyNameEnv        = isNullUFM
-unitNameEnv x y       = unitUFM x y
-extendNameEnv x y z   = addToUFM x y z
-extendNameEnvList x l = addListToUFM x l
-lookupNameEnv x y     = lookupUFM x y
+unitNameEnv           = unitUFM
+extendNameEnv         = addToUFM
+extendNameEnvList     = addListToUFM
+lookupNameEnv         = lookupUFM
 alterNameEnv          = alterUFM
-mkNameEnv     l       = listToUFM l
-mkNameEnvWith f       = mkNameEnv . map (\a -> (f a, a))
-elemNameEnv x y          = elemUFM x y
-plusNameEnv x y          = plusUFM x y
-plusNameEnv_C f x y      = plusUFM_C f x y
-extendNameEnv_C f x y z  = addToUFM_C f x y z
-mapNameEnv f x           = mapUFM f x
-extendNameEnv_Acc x y z a b  = addToUFM_Acc x y z a b
-extendNameEnvList_C x y z = addListToUFM_C x y z
-delFromNameEnv x y      = delFromUFM x y
-delListFromNameEnv x y  = delListFromUFM x y
-filterNameEnv x y       = filterUFM x y
-anyNameEnv f x          = foldUFM ((||) . f) False x
-disjointNameEnv x y     = disjointUFM x y
+mkNameEnv             = listToUFM
+mkNameEnvWith f       = mkNameEnv . fmap (flip (,) <*> f)
+elemNameEnv              = elemUFM
+plusNameEnv              = plusUFM
+plusNameEnv_C            = plusUFM_C
+extendNameEnv_C          = addToUFM_C
+extendNameEnv_Acc        = addToUFM_Acc
+extendNameEnvList_C      = addListToUFM_C
+delFromNameEnv          = delFromUFM
+delListFromNameEnv      = delListFromUFM
+anyNameEnv f            = foldUFM ((||) . f) False
+disjointNameEnv         = disjointUFM
 
 lookupNameEnv_NF env n = expectJust "lookupNameEnv_NF" (lookupNameEnv env n)
 
@@ -156,12 +151,6 @@ lookupDNameEnv = lookupUDFM
 
 delFromDNameEnv :: DNameEnv a -> Name -> DNameEnv a
 delFromDNameEnv = delFromUDFM
-
-filterDNameEnv :: (a -> Bool) -> DNameEnv a -> DNameEnv a
-filterDNameEnv = filterUDFM
-
-mapDNameEnv :: (a -> b) -> DNameEnv a -> DNameEnv b
-mapDNameEnv = mapUDFM
 
 adjustDNameEnv :: (a -> a) -> DNameEnv a -> Name -> DNameEnv a
 adjustDNameEnv = adjustUDFM

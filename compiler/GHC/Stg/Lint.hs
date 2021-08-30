@@ -42,7 +42,7 @@ import GHC.Prelude
 import GHC.Stg.Syntax
 
 import GHC.Driver.Session
-import GHC.Data.Bag         ( Bag, emptyBag, isEmptyBag, snocBag, bagToList )
+import GHC.Data.Bag         ( Bag, emptyBag, isEmptyBag, snocBag )
 import GHC.Types.Basic      ( TopLevelFlag(..), isTopLevel )
 import GHC.Types.CostCentre ( isCurrentCCS )
 import GHC.Types.Id         ( Id, idType, isJoinId, idName )
@@ -59,6 +59,7 @@ import GHC.Unit.Module            ( Module )
 import qualified GHC.Utils.Error as Err
 import Control.Applicative ((<|>))
 import Control.Monad
+import Data.Foldable (toList)
 
 lintStgTopBindings :: forall a . (OutputablePass a, BinderP a ~ Id)
                    => DynFlags
@@ -283,7 +284,7 @@ initL this_mod unarised opts locals (LintM m) = do
   if isEmptyBag errs then
       Nothing
   else
-      Just (vcat (punctuate blankLine (bagToList errs)))
+      Just (vcat (punctuate blankLine (toList errs)))
 
 instance Applicative LintM where
       pure a = LintM $ \_mod _lf _opts _loc _scope errs -> (a, errs)

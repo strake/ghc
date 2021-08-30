@@ -1,4 +1,4 @@
-{-# LANGUAGE RecordWildCards, LambdaCase #-}
+{-# LANGUAGE RecordWildCards, LambdaCase, MonadComprehensions, BlockArguments #-}
 module GHCi.Leak
   ( LeakIndicators
   , getLeakIndicators
@@ -7,6 +7,8 @@ module GHCi.Leak
 
 import Control.Monad
 import Data.Bits
+import Data.Foldable (for_, toList, traverse_)
+import Data.Traversable (for)
 import Foreign.Ptr (ptrToIntPtr, intPtrToPtr)
 import GHC
 import GHC.Ptr (Ptr (..))
@@ -21,7 +23,6 @@ import GHC.Linker.Types
 import Prelude
 import System.Mem
 import System.Mem.Weak
-import GHC.Types.Unique.DFM
 
 -- Checking for space leaks in GHCi. See #15111, and the
 -- -fghci-leak-check flag.
@@ -39,13 +40,14 @@ data LeakModIndicators = LeakModIndicators
 -- the currently loaded modules.
 getLeakIndicators :: HscEnv -> IO LeakIndicators
 getLeakIndicators HscEnv{..} =
-  fmap LeakIndicators $
-    forM (eltsUDFM hsc_HPT) $ \hmi@HomeModInfo{..} -> do
-      leakMod <- mkWeakPtr hmi Nothing
-      leakIface <- mkWeakPtr hm_iface Nothing
-      leakDetails <- mkWeakPtr hm_details Nothing
-      leakLinkable <- mapM (`mkWeakPtr` Nothing) hm_linkable
-      return $ LeakModIndicators{..}
+  LeakIndicators <$>
+    for (toList hsc_HPT) \hmi@HomeModInfo{..} ->
+    [ LeakModIndicators{..}
+    | leakMod <- mkWeakPtr hmi Nothing
+    , leakIface <- mkWeakPtr hm_iface Nothing
+    , leakDetails <- mkWeakPtr hm_details Nothing
+    , leakLinkable <- traverse (`mkWeakPtr` Nothing) hm_linkable
+    ]
 
 -- | Look at the LeakIndicators collected by an earlier call to
 -- `getLeakIndicators`, and print messasges if any of them are still
@@ -53,15 +55,13 @@ getLeakIndicators HscEnv{..} =
 checkLeakIndicators :: DynFlags -> LeakIndicators -> IO ()
 checkLeakIndicators dflags (LeakIndicators leakmods)  = do
   performGC
-  forM_ leakmods $ \LeakModIndicators{..} -> do
-    deRefWeak leakMod >>= \case
-      Nothing -> return ()
-      Just hmi ->
+  for_ leakmods $ \LeakModIndicators{..} -> do
+    deRefWeak leakMod >>= traverse_ \ hmi ->
         report ("HomeModInfo for " ++
           showSDoc dflags (ppr (mi_module (hm_iface hmi)))) (Just hmi)
     deRefWeak leakIface >>= report "ModIface"
     deRefWeak leakDetails >>= report "ModDetails"
-    forM_ leakLinkable $ \l -> deRefWeak l >>= report "Linkable"
+    for_ leakLinkable $ deRefWeak >=> report "Linkable"
  where
   report :: String -> Maybe a -> IO ()
   report _ Nothing = return ()

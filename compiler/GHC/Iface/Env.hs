@@ -42,8 +42,8 @@ import GHC.Types.Name.Cache
 import GHC.Types.Unique.Supply
 import GHC.Types.SrcLoc
 
+import GHC.Utils.Lens.Monad
 import GHC.Utils.Outputable
-import Data.List     ( partition )
 import Data.IORef
 
 {-
@@ -68,9 +68,8 @@ newGlobalBinder :: Module -> OccName -> SrcSpan -> TcRnIf a b Name
 newGlobalBinder mod occ loc
   = do { name <- updNameCacheTc mod occ $ \name_cache ->
                  allocateGlobalBinder name_cache mod occ loc
-       ; traceIf (text "newGlobalBinder" <+>
-                  (vcat [ ppr mod <+> ppr occ <+> ppr loc, ppr name]))
-       ; return name }
+       ; name <$ traceIf (text "newGlobalBinder" <+>
+                  (vcat [ ppr mod <+> ppr occ <+> ppr loc, ppr name])) }
 
 newInteractiveBinder :: HscEnv -> OccName -> SrcSpan -> IO Name
 -- Works in the IO monad, and gets the Module
@@ -227,54 +226,39 @@ setNameModule (Just m) n =
 -}
 
 tcIfaceLclId :: FastString -> IfL Id
-tcIfaceLclId occ
-  = do  { lcl <- getLclEnv
-        ; case (lookupFsEnv (if_id_env lcl) occ) of
-            Just ty_var -> return ty_var
-            Nothing     -> failIfM (text "Iface id out of scope: " <+> ppr occ)
-        }
+tcIfaceLclId occ = flip lookupFsEnv occ . if_id_env <$> getLclEnv >>= \ case
+    Just ty_var -> return ty_var
+    Nothing     -> failIfM (text "Iface id out of scope: " <+> ppr occ)
 
 extendIfaceIdEnv :: [Id] -> IfL a -> IfL a
-extendIfaceIdEnv ids thing_inside
-  = do  { env <- getLclEnv
-        ; let { id_env' = extendFsEnvList (if_id_env env) pairs
-              ; pairs   = [(occNameFS (getOccName id), id) | id <- ids] }
-        ; setLclEnv (env { if_id_env = id_env' }) thing_inside }
+extendIfaceIdEnv ids
+  = locally (env_lclL . if_id_envL) $
+    flip extendFsEnvList [(occNameFS (getOccName id), id) | id <- ids]
 
 
 tcIfaceTyVar :: FastString -> IfL TyVar
 tcIfaceTyVar occ
   = do  { lcl <- getLclEnv
-        ; case (lookupFsEnv (if_tv_env lcl) occ) of
+        ; case lookupFsEnv (if_tv_env lcl) occ of
             Just ty_var -> return ty_var
             Nothing     -> failIfM (text "Iface type variable out of scope: " <+> ppr occ)
         }
 
 lookupIfaceTyVar :: IfaceTvBndr -> IfL (Maybe TyVar)
-lookupIfaceTyVar (occ, _)
-  = do  { lcl <- getLclEnv
-        ; return (lookupFsEnv (if_tv_env lcl) occ) }
+lookupIfaceTyVar (occ, _) = flip lookupFsEnv occ <$> view (env_lclL . if_tv_envL)
 
 lookupIfaceVar :: IfaceBndr -> IfL (Maybe TyCoVar)
-lookupIfaceVar (IfaceIdBndr (occ, _))
-  = do  { lcl <- getLclEnv
-        ; return (lookupFsEnv (if_id_env lcl) occ) }
-lookupIfaceVar (IfaceTvBndr (occ, _))
-  = do  { lcl <- getLclEnv
-        ; return (lookupFsEnv (if_tv_env lcl) occ) }
+lookupIfaceVar = \ case
+    IfaceIdBndr bndr -> lookupIfaceTyVar bndr
+    IfaceTvBndr bndr -> lookupIfaceTyVar bndr
 
 extendIfaceTyVarEnv :: [TyVar] -> IfL a -> IfL a
-extendIfaceTyVarEnv tyvars thing_inside
-  = do  { env <- getLclEnv
-        ; let { tv_env' = extendFsEnvList (if_tv_env env) pairs
-              ; pairs   = [(occNameFS (getOccName tv), tv) | tv <- tyvars] }
-        ; setLclEnv (env { if_tv_env = tv_env' }) thing_inside }
+extendIfaceTyVarEnv tyvars
+  = locally (env_lclL . if_tv_envL) $
+    flip extendFsEnvList [(occNameFS (getOccName tv), tv) | tv <- tyvars]
 
 extendIfaceEnvs :: [TyCoVar] -> IfL a -> IfL a
-extendIfaceEnvs tcvs thing_inside
-  = extendIfaceTyVarEnv tvs $
-    extendIfaceIdEnv    cvs $
-    thing_inside
+extendIfaceEnvs tcvs = extendIfaceTyVarEnv tvs . extendIfaceIdEnv cvs
   where
     (tvs, cvs) = partition isTyVar tcvs
 
@@ -296,11 +280,9 @@ newIfaceName occ
   = do  { uniq <- newUnique
         ; return $! mkInternalName uniq occ noSrcSpan }
 
-newIfaceNames :: [OccName] -> IfL [Name]
-newIfaceNames occs
-  = do  { uniqs <- newUniqueSupply
-        ; return [ mkInternalName uniq occ noSrcSpan
-                 | (occ,uniq) <- occs `zip` uniqsFromSupply uniqs] }
+newIfaceNames :: Traversable t => t OccName -> IfL (t Name)
+newIfaceNames occs = newUniqueSupply <₪> \ uniqs ->
+  withUniques (\ uniq occ -> mkInternalName uniq occ noSrcSpan) uniqs occs
 
 {-
 Names in a NameCache are always stored as a Global, and have the SrcLoc
@@ -315,6 +297,5 @@ its binding site, we fix it up.
 updNameCache :: IORef NameCache
              -> (NameCache -> (NameCache, c))  -- The updating function
              -> IO c
-updNameCache ncRef upd_fn
-  = atomicModifyIORef' ncRef upd_fn
+updNameCache = atomicModifyIORef'
 

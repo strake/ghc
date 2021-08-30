@@ -50,6 +50,8 @@ libraries/containers         -           -                               https:/
 libraries/deepseq            -           -                               ssh://git@github.com/haskell/deepseq.git
 libraries/directory          -           -                               ssh://git@github.com/haskell/directory.git
 libraries/filepath           -           -                               ssh://git@github.com/haskell/filepath.git
+libraries/filtrable          -           -                               _
+libraries/ftl                -           -                               _
 libraries/haskeline          -           -                               https://github.com/judah/haskeline.git
 libraries/hpc                -           -                               -
 libraries/microlens          -           -                               -

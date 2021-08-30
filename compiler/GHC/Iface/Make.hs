@@ -87,8 +87,7 @@ import GHC.Unit.Module.ModDetails
 import GHC.Unit.Module.ModGuts
 import GHC.Unit.Module.Deps
 
-import Data.Function
-import Data.List ( findIndex, mapAccumL, sortBy )
+import Data.List ( findIndex, sortBy )
 import Data.Ord
 import Data.IORef
 

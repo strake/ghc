@@ -71,6 +71,7 @@ import GHC.Types.CostCentre ( CostCentre, ccFromThisModule )
 import GHC.Types.Unique.Supply
 
 import Data.Bits
+import Data.Foldable ( toList )
 import Data.List        ( unfoldr )
 import Control.Monad
 import qualified Data.Set as S
@@ -421,7 +422,7 @@ cpeBind top_lvl env (Rec pairs)
                            bndrs1 rhss
 
        ; let (floats_s, rhss1) = unzip stuff
-             all_pairs = foldrOL add_float (bndrs1 `zip` rhss1)
+             all_pairs = foldr add_float (bndrs1 `zip` rhss1)
                                            (concatFloats floats_s)
 
        ; return (extendCorePrepEnvList env (bndrs `zip` bndrs1),
@@ -1267,7 +1268,7 @@ instance Outputable FloatingBind where
 
 instance Outputable Floats where
   ppr (Floats flag fs) = text "Floats" <> brackets (ppr flag) <+>
-                         braces (vcat (map ppr (fromOL fs)))
+                         braces (vcat (map ppr (toList fs)))
 
 instance Outputable OkToSpec where
   ppr OkToSpec    = text "OkToSpec"
@@ -1303,11 +1304,11 @@ emptyFloats :: Floats
 emptyFloats = Floats OkToSpec nilOL
 
 isEmptyFloats :: Floats -> Bool
-isEmptyFloats (Floats _ bs) = isNilOL bs
+isEmptyFloats (Floats _ bs) = null bs
 
 wrapBinds :: Floats -> CpeBody -> CpeBody
 wrapBinds (Floats _ binds) body
-  = foldrOL mk_bind body binds
+  = foldr mk_bind body binds
   where
     mk_bind (FloatCase rhs bndr con bs _) body = Case rhs bndr (exprType body) [(con,bs,body)]
     mk_bind (FloatLet bind)               body = Let bind body
@@ -1347,7 +1348,7 @@ combine _ _           = OkToSpec
 deFloatTop :: Floats -> [CoreBind]
 -- For top level only; we don't expect any FloatCases
 deFloatTop (Floats _ floats)
-  = foldrOL get [] floats
+  = foldr get [] floats
   where
     get (FloatLet b)               bs = get_bind b                 : bs
     get (FloatCase body var _ _ _) bs = get_bind (NonRec var body) : bs
@@ -1362,7 +1363,7 @@ deFloatTop (Floats _ floats)
 canFloat :: Floats -> CpeRhs -> Maybe (Floats, CpeRhs)
 canFloat (Floats ok_to_spec fs) rhs
   | OkToSpec <- ok_to_spec           -- Worth trying
-  , Just fs' <- go nilOL (fromOL fs)
+  , Just fs' <- go nilOL (toList fs)
   = Just (Floats OkToSpec fs', rhs)
   | otherwise
   = Nothing
@@ -1619,25 +1620,24 @@ cpCloneBndrs env bs = mapAccumLM cpCloneBndr env bs
 cpCloneBndr  :: CorePrepEnv -> InVar -> UniqSM (CorePrepEnv, OutVar)
 cpCloneBndr env bndr
   | not (isId bndr)
-  = return (env, bndr)
+  = pure (env, bndr)
 
-  | otherwise
-  = do { bndr' <- clone_it bndr
+  | otherwise =
+  [ (extendCorePrepEnv env bndr bndr'', bndr'')
+  | bndr' <- clone_it bndr
 
        -- Drop (now-useless) rules/unfoldings
        -- See Note [Drop unfoldings and rules]
        -- and Note [Preserve evaluatedness] in GHC.Core.Tidy
-       ; let unfolding' = zapUnfolding (realIdUnfolding bndr)
+  , let unfolding' = zapUnfolding (realIdUnfolding bndr)
                           -- Simplifier will set the Id's unfolding
 
-             bndr'' = bndr' `setIdUnfolding`      unfolding'
-                            `setIdSpecialisation` emptyRuleInfo
-
-       ; return (extendCorePrepEnv env bndr bndr'', bndr'') }
+        bndr'' = bndr' `setIdUnfolding`      unfolding'
+                       `setIdSpecialisation` emptyRuleInfo ]
   where
     clone_it bndr
       | isLocalId bndr, not (isCoVar bndr)
-      = do { uniq <- getUniqueM; return (setVarUnique bndr uniq) }
+      = set varUniqueL `flip` bndr <$> getUniqueM
       | otherwise   -- Top level things, which we don't want
                     -- to clone, have become GlobalIds by now
                     -- And we don't clone tyvars, or coercion variables
@@ -1669,8 +1669,8 @@ see Note [Preserve evaluatedness] in GHC.Core.Tidy.
 
 fiddleCCall :: Id -> UniqSM Id
 fiddleCCall id
-  | isFCallId id = (id `setVarUnique`) <$> getUniqueM
-  | otherwise    = return id
+  | isFCallId id = set varUniqueL `flip` id <$> getUniqueM
+  | otherwise    = pure id
 
 ------------------------------------------------------------------------------
 -- Generating new binders
@@ -1678,9 +1678,8 @@ fiddleCCall id
 
 newVar :: Type -> UniqSM Id
 newVar ty
- = seqType ty `seq` do
-     uniq <- getUniqueM
-     return (mkSysLocalOrCoVar (fsLit "sat") uniq ty)
+  = seqType ty `seq`
+  [ mkSysLocalOrCoVar (fsLit "sat") uniq ty | uniq <- getUniqueM ]
 
 
 ------------------------------------------------------------------------------
@@ -1719,7 +1718,7 @@ newVar ty
 wrapTicks :: Floats -> CoreExpr -> (Floats, CoreExpr)
 wrapTicks (Floats flag floats0) expr =
     (Floats flag (toOL $ reverse floats1), foldr mkTick expr (reverse ticks1))
-  where (floats1, ticks1) = foldlOL go ([], []) $ floats0
+  where (floats1, ticks1) = foldl go ([], []) $ floats0
         -- Deeply nested constructors will produce long lists of
         -- redundant source note floats here. We need to eliminate
         -- those early, as relying on mkTick to spot it after the fact

@@ -9,12 +9,13 @@
 module GHC.Data.Maybe (
         module Data.Maybe,
 
+        catMaybes, mapMaybe,
+
         MaybeErr(..), -- Instance of Monad
         failME, isSuccess,
 
         orElse,
         firstJust, firstJusts,
-        whenIsJust,
         expectJust,
         rightToMaybe,
 
@@ -24,9 +25,9 @@ module GHC.Data.Maybe (
 
 import GHC.Prelude
 
-import Control.Monad
+import Control.Applicative ((<|>))
 import Control.Monad.Trans.Maybe
-import Data.Maybe
+import Data.Maybe hiding (catMaybes, mapMaybe)
 import GHC.Utils.Exception (catch, SomeException(..))
 import GHC.Utils.Misc (HasCallStack)
 
@@ -41,21 +42,17 @@ infixr 4 `orElse`
 -}
 
 firstJust :: Maybe a -> Maybe a -> Maybe a
-firstJust a b = firstJusts [a, b]
+firstJust = ((<|>))
 
 -- | Takes a list of @Maybes@ and returns the first @Just@ if there is one, or
 -- @Nothing@ otherwise.
 firstJusts :: [Maybe a] -> Maybe a
-firstJusts = msum
+firstJusts = asum
 
 expectJust :: HasCallStack => String -> Maybe a -> a
 {-# INLINE expectJust #-}
 expectJust _   (Just x) = x
 expectJust err Nothing  = error ("expectJust " ++ err)
-
-whenIsJust :: Monad m => Maybe a -> (a -> m ()) -> m ()
-whenIsJust (Just x) f = f x
-whenIsJust Nothing  _ = return ()
 
 -- | Flipped version of @fromMaybe@, useful for chaining.
 orElse :: Maybe a -> a -> a
@@ -76,11 +73,11 @@ rightToMaybe (Right x) = Just x
 -- We had our own MaybeT in the past. Now we reuse transformer's MaybeT
 
 liftMaybeT :: Monad m => m a -> MaybeT m a
-liftMaybeT act = MaybeT $ Just `liftM` act
+liftMaybeT act = MaybeT (Just <$> act)
 
 -- | Try performing an 'IO' action, failing on error.
 tryMaybeT :: IO a -> MaybeT IO a
-tryMaybeT action = MaybeT $ catch (Just `fmap` action) handler
+tryMaybeT action = MaybeT $ catch (Just <$> action) handler
   where
     handler (SomeException _) = return Nothing
 
@@ -110,4 +107,4 @@ isSuccess (Succeeded {}) = True
 isSuccess (Failed {})    = False
 
 failME :: err -> MaybeErr err val
-failME e = Failed e
+failME = Failed

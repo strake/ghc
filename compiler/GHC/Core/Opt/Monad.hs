@@ -3,7 +3,7 @@
 
 -}
 
-
+{-# LANGUAGE TypeFamilies #-}
 {-# OPTIONS_GHC -Wno-incomplete-record-updates #-}
 
 module GHC.Core.Opt.Monad (
@@ -85,6 +85,8 @@ import Data.Word
 import Control.Monad
 import Control.Applicative ( Alternative(..) )
 import GHC.Utils.Panic (throwGhcException, GhcException(..), panic)
+import Data.Functor.Reader.Class
+import Data.Functor.Writer.Class
 
 {-
 ************************************************************************
@@ -194,7 +196,7 @@ instance Outputable SimplMode where
              , pp_flag eta (sLit "eta-expand") <> comma
              , pp_flag cc  (sLit "case-of-case") ])
          where
-           pp_flag f s = ppUnless f (text "no") <+> ptext s
+           pp_flag f s = munless f (text "no") <+> ptext s
 
 data FloatOutSwitches = FloatOutSwitches {
   floatOutLambdas   :: Maybe Int,  -- ^ Just n <=> float lambdas to top level, if
@@ -590,7 +592,7 @@ emptyWriter dflags = CoreWriter {
 
 plusWriter :: CoreWriter -> CoreWriter -> CoreWriter
 plusWriter w1 w2 = CoreWriter {
-        cw_simpl_count = (cw_simpl_count w1) `plusSimplCount` (cw_simpl_count w2)
+        cw_simpl_count = cw_simpl_count w1 `plusSimplCount` cw_simpl_count w2
     }
 
 type CoreIOEnv = IOEnv CoreReader
@@ -601,17 +603,27 @@ newtype CoreM a = CoreM { unCoreM :: CoreIOEnv (a, CoreWriter) }
     deriving (Functor)
 
 instance Monad CoreM where
-    mx >>= f = CoreM $ do
-            (x, w1) <- unCoreM mx
-            (y, w2) <- unCoreM (f x)
-            let w = w1 `plusWriter` w2
-            return $ seq w (y, w)
+    mx >>= f = CoreM
+      [ seq w (y, w)
+      | (x, w1) <- unCoreM mx
+      , (y, w2) <- unCoreM (f x)
+      , let w = w1 `plusWriter` w2 ]
             -- forcing w before building the tuple avoids a space leak
             -- (#7702)
 
+instance IsReader CoreM where
+    type EnvType CoreM = CoreReader
+    ask = CoreM . asks $ (,) <*> emptyWriter . hsc_dflags . cr_hsc_env
+
+instance IsWriter CoreM where
+    type WritType CoreM = CoreWriter
+    tell = CoreM . pure . pure
+    pass (CoreM x) = CoreM $ x <₪> \ ((a, f), w) -> (a, f w)
+    listen (CoreM x) = CoreM $ x <₪> \ (a, w) -> ((a, w), w)
+
 instance Applicative CoreM where
-    pure x = CoreM $ nop x
-    (<*>) = ap
+    pure = CoreM . nop
+    CoreM f <*> CoreM x = CoreM $ (\ (f, u) (x, v) -> (f x, plusWriter u v)) <$> f <*> x
     m *> k = m >>= \_ -> k
 
 instance Alternative CoreM where
@@ -622,11 +634,11 @@ instance MonadPlus CoreM
 
 instance MonadUnique CoreM where
     getUniqueSupplyM = do
-        mask <- read cr_uniq_mask
+        mask <- asks cr_uniq_mask
         liftIO $! mkSplitUniqSupply mask
 
     getUniqueM = do
-        mask <- read cr_uniq_mask
+        mask <- asks cr_uniq_mask
         liftIO $! uniqFromMask mask
 
 runCoreM :: HscEnv
@@ -639,7 +651,7 @@ runCoreM :: HscEnv
          -> CoreM a
          -> IO (a, SimplCount)
 runCoreM hsc_env rule_base mask mod orph_imps print_unqual loc m
-  = liftM extract $ runIOEnv reader $ unCoreM m
+  = fmap extract $ runIOEnv reader $ unCoreM m
   where
     reader = CoreReader {
             cr_hsc_env = hsc_env,
@@ -663,21 +675,13 @@ runCoreM hsc_env rule_base mask mod orph_imps print_unqual loc m
 -}
 
 nop :: a -> CoreIOEnv (a, CoreWriter)
-nop x = do
-    r <- getEnv
-    return (x, emptyWriter $ (hsc_dflags . cr_hsc_env) r)
-
-read :: (CoreReader -> a) -> CoreM a
-read f = CoreM $ getEnv >>= (\r -> nop (f r))
-
-write :: CoreWriter -> CoreM ()
-write w = CoreM $ return ((), w)
+nop x = (,) x . emptyWriter . hsc_dflags . cr_hsc_env <$> ask
 
 -- \subsection{Lifting IO into the monad}
 
 -- | Lift an 'IOEnv' operation into 'CoreM'
 liftIOEnv :: CoreIOEnv a -> CoreM a
-liftIOEnv mx = CoreM (mx >>= (\x -> nop x))
+liftIOEnv mx = CoreM (mx >>= nop)
 
 instance MonadIO CoreM where
     liftIO = liftIOEnv . IOEnv.liftIO
@@ -695,39 +699,38 @@ liftIOWithCount what = liftIO what >>= (\(count, x) -> addSimplCount count >> re
 -}
 
 getHscEnv :: CoreM HscEnv
-getHscEnv = read cr_hsc_env
+getHscEnv = asks cr_hsc_env
 
 getRuleBase :: CoreM RuleBase
-getRuleBase = read cr_rule_base
+getRuleBase = asks cr_rule_base
 
 getVisibleOrphanMods :: CoreM ModuleSet
-getVisibleOrphanMods = read cr_visible_orphan_mods
+getVisibleOrphanMods = asks cr_visible_orphan_mods
 
 getPrintUnqualified :: CoreM PrintUnqualified
-getPrintUnqualified = read cr_print_unqual
+getPrintUnqualified = asks cr_print_unqual
 
 getSrcSpanM :: CoreM SrcSpan
-getSrcSpanM = read cr_loc
+getSrcSpanM = asks cr_loc
 
 addSimplCount :: SimplCount -> CoreM ()
-addSimplCount count = write (CoreWriter { cw_simpl_count = count })
+addSimplCount count = tell (CoreWriter { cw_simpl_count = count })
 
 getUniqMask :: CoreM Char
-getUniqMask = read cr_uniq_mask
+getUniqMask = asks cr_uniq_mask
 
 -- Convenience accessors for useful fields of HscEnv
 
 instance HasDynFlags CoreM where
-    getDynFlags = fmap hsc_dflags getHscEnv
+    getDynFlags = hsc_dflags <$> getHscEnv
 
 instance HasModule CoreM where
-    getModule = read cr_module
+    getModule = asks cr_module
 
 getPackageFamInstEnv :: CoreM PackageFamInstEnv
 getPackageFamInstEnv = do
     hsc_env <- getHscEnv
-    eps <- liftIO $ hscEPS hsc_env
-    return $ eps_fam_inst_env eps
+    liftIO $ eps_fam_inst_env <$> hscEPS hsc_env
 
 {-
 ************************************************************************
@@ -756,8 +759,8 @@ getFirstAnnotations :: Typeable a => ([Word8] -> a) -> ModGuts -> CoreM (ModuleE
 getFirstAnnotations deserialize guts
   = bimap mod name <$> getAnnotations deserialize guts
   where
-    mod = mapModuleEnv head . filterModuleEnv (const $ not . null)
-    name = mapNameEnv head . filterNameEnv (not . null)
+    mod = fmap head . filterModuleEnv (const $ not . null)
+    name = fmap head . filter (not . null)
 
 {-
 Note [Annotations]

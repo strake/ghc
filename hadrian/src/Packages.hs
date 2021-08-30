@@ -2,13 +2,13 @@
 module Packages (
     -- * GHC packages
     array, base, binary, bytestring, cabal, checkApiAnnotations, checkPpr, countDeps,
-    compareSizes, compiler, containers, deepseq, deriveConstants, directory,
-    exceptions, filepath, genapply, genprimopcode, ghc, ghcBignum, ghcBoot, ghcBootTh,
-    ghcCompact, ghcHeap, ghci, ghcPkg, ghcPrim, haddock, haskeline,
+    compareSizes, compiler, containers, deepseq, deriveConstants, directory, dual, exceptions,
+    filepath, filtrable, ftl, genapply, genprimopcode, ghc, ghcBignum, ghcBoot, ghcBootTh,
+    ghcCompact, ghcHeap, ghci, ghcPkg, ghcPrim, haddock, haskeline, hs_functors,
     hsc2hs, hp2ps, hpc, hpcBin, integerGmp, integerSimple, iserv, iservProxy,
     libffi, libiserv, microlens, mtl, parsec, pretty, primitive, process, remoteIserv, rts,
-    runGhc, stm, templateHaskell, terminfo, text, time, timeout, touchy,
-    transformers, unlit, unix, win32, xhtml, ghcPackages, isGhcPackage,
+    runGhc, stm, tagged, templateHaskell, terminfo, text, time, timeout, touchy,
+    transformers, unlit, unix, util', win32, xhtml, ghcPackages, isGhcPackage,
 
     -- * Package information
     programName, nonHsMainPackage, autogenPath, programPath, timeoutPath,
@@ -32,12 +32,12 @@ import Oracles.Setting
 ghcPackages :: [Package]
 ghcPackages =
     [ array, base, binary, bytestring, cabal, checkPpr, checkApiAnnotations, countDeps
-    , compareSizes, compiler, containers, deepseq, deriveConstants, directory
-    , exceptions, filepath, genapply, genprimopcode, ghc, ghcBignum, ghcBoot, ghcBootTh
-    , ghcCompact, ghcHeap, ghci, ghcPkg, ghcPrim, haddock, haskeline, hsc2hs
+    , compareSizes, compiler, containers, deepseq, deriveConstants, directory, dual
+    , exceptions, filepath, filtrable, ftl, genapply, genprimopcode, ghc, ghcBignum, ghcBoot, ghcBootTh
+    , ghcCompact, ghcHeap, ghci, ghcPkg, ghcPrim, haddock, haskeline, hs_functors, hsc2hs
     , hp2ps, hpc, hpcBin, integerGmp, integerSimple, iserv, libffi, libiserv, microlens, mtl
-    , parsec, pretty, process, rts, runGhc, stm, templateHaskell
-    , terminfo, text, time, touchy, transformers, unlit, unix, win32, xhtml
+    , parsec, pretty, process, rts, runGhc, stm, tagged, templateHaskell
+    , terminfo, text, time, touchy, transformers, unlit, unix, util', win32, xhtml
     , timeout ]
 
 -- TODO: Optimise by switching to sets of packages.
@@ -59,8 +59,11 @@ containers          = lib  "containers"      `setPath` "libraries/containers/con
 deepseq             = lib  "deepseq"
 deriveConstants     = util "deriveConstants"
 directory           = lib  "directory"
+dual                = lib  "dual"
 exceptions          = lib  "exceptions"
 filepath            = lib  "filepath"
+filtrable           = lib  "filtrable"
+ftl                 = lib  "ftl"
 genapply            = util "genapply"
 genprimopcode       = util "genprimopcode"
 ghc                 = prg  "ghc-bin"         `setPath` "ghc"
@@ -78,6 +81,7 @@ hsc2hs              = util "hsc2hs"
 hp2ps               = util "hp2ps"
 hpc                 = lib  "hpc"
 hpcBin              = util "hpc-bin"         `setPath` "utils/hpc"
+hs_functors         = lib  "hs-functors"
 integerGmp          = lib  "integer-gmp"
 integerSimple       = lib  "integer-simple"
 iserv               = util "iserv"
@@ -94,6 +98,7 @@ remoteIserv         = util "remote-iserv"
 rts                 = top  "rts"
 runGhc              = util "runghc"
 stm                 = lib  "stm"
+tagged              = lib  "tagged"
 templateHaskell     = lib  "template-haskell"
 terminfo            = lib  "terminfo"
 text                = lib  "text"
@@ -103,6 +108,7 @@ touchy              = util "touchy"
 transformers        = lib  "transformers"
 unlit               = util "unlit"
 unix                = lib  "unix"
+util'               = lib  "util"
 win32               = lib  "Win32"
 xhtml               = lib  "xhtml"
 

@@ -75,14 +75,15 @@ instance IsSet LabelSet where
 -----------------------------------------------------------------------------
 -- LabelMap
 
-newtype LabelMap v = LM (UniqueMap v)
+newtype LabelMap v = LM { unLM :: UniqueMap v }
   deriving (Eq, Ord, Show, Functor, Foldable, Traversable)
+
+instance Filtrable LabelMap where
+  mapMaybe f = LM . mapMaybe f . unLM
 
 instance IsMap LabelMap where
   type KeyOf LabelMap = Label
 
-  mapNull (LM m) = mapNull m
-  mapSize (LM m) = mapSize m
   mapMember (Label k) (LM m) = mapMember k m
   mapLookup (Label k) (LM m) = mapLookup k m
   mapFindWithDefault def (Label k) (LM m) = mapFindWithDefault def k m
@@ -101,19 +102,13 @@ instance IsMap LabelMap where
   mapIntersection (LM x) (LM y) = LM (mapIntersection x y)
   mapIsSubmapOf (LM x) (LM y) = mapIsSubmapOf x y
 
-  mapMap f (LM m) = LM (mapMap f m)
   mapMapWithKey f (LM m) = LM (mapMapWithKey (f . mkHooplLabel) m)
-  mapFoldl k z (LM m) = mapFoldl k z m
-  mapFoldr k z (LM m) = mapFoldr k z m
   mapFoldlWithKey k z (LM m) =
       mapFoldlWithKey (\a v -> k a (mkHooplLabel v)) z m
   mapFoldMapWithKey f (LM m) = mapFoldMapWithKey (\k v -> f (mkHooplLabel k) v) m
-  {-# INLINEABLE mapFilter #-}
-  mapFilter f (LM m) = LM (mapFilter f m)
   {-# INLINEABLE mapFilterWithKey #-}
   mapFilterWithKey f (LM m) = LM (mapFilterWithKey (f . mkHooplLabel) m)
 
-  mapElems (LM m) = mapElems m
   mapKeys (LM m) = map mkHooplLabel (mapKeys m)
   {-# INLINEABLE mapToList #-}
   mapToList (LM m) = [(mkHooplLabel k, v) | (k, v) <- mapToList m]
@@ -137,8 +132,6 @@ instance TrieMap LabelMap where
   emptyTM = mapEmpty
   lookupTM k m = mapLookup k m
   alterTM k f m = mapAlter f k m
-  foldTM k m z = mapFoldr k z m
-  mapTM f m = mapMap f m
 
 -----------------------------------------------------------------------------
 -- FactBase

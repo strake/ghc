@@ -1,4 +1,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE CPP #-}
+
+#include "lens.h"
 
 {-# OPTIONS_GHC -Wno-incomplete-record-updates #-}
 
@@ -10,22 +13,23 @@ module GHC.Tc.Types.Constraint (
 
         -- Canonical constraints
         Xi, Ct(..), Cts, CtIrredStatus(..), emptyCts, andCts, andManyCts, pprCts,
-        singleCt, listToCts, ctsElts, consCts, snocCts, extendCtsList,
+        singleCt, listToCts, consCts, snocCts, extendCtsList,
         isEmptyCts, isCTyEqCan, isCFunEqCan,
         isPendingScDict, superClassesMightHelp, getPendingWantedScs,
         isCDictCan_Maybe, isCFunEqCan_maybe,
         isCNonCanonical, isWantedCt, isDerivedCt, isGivenCt,
         isUserTypeErrorCt, getUserTypeErrorMsg,
-        ctEvidence, ctLoc, setCtLoc, ctPred, ctFlavour, ctEqRel, ctOrigin,
-        ctEvId, mkTcEqPredLikeEv,
-        mkNonCanonical, mkNonCanonicalCt, mkGivens,
-        mkIrredCt,
+        ctEvidence, ctLoc, ctPred, ctFlavour, ctEqRel, ctOrigin, ctEvId,
+        ctEvidenceL, ctLocL, ctPredL, ctOriginL,
+        mkTcEqPredLikeEv, mkNonCanonical, mkNonCanonicalCt, mkGivens, mkIrredCt,
+        ctEvPredL, ctEvLocL, ctEvOriginL,
         ctEvPred, ctEvLoc, ctEvOrigin, ctEvEqRel,
         ctEvExpr, ctEvTerm, ctEvCoercion, ctEvEvId,
         tyCoVarsOfCt, tyCoVarsOfCts,
         tyCoVarsOfCtList, tyCoVarsOfCtsList,
 
         Hole(..), HoleSort(..), isOutOfScopeHole,
+        hole_sortL, hole_occL, hole_tyL, hole_locL,
 
         WantedConstraints(..), insolubleWC, emptyWC, isEmptyWC,
         isSolvedWC, andWC, unionsWC, mkSimpleWC, mkImplicWC,
@@ -39,10 +43,9 @@ module GHC.Tc.Types.Constraint (
         ImplicStatus(..), isInsolubleStatus, isSolvedStatus,
         SubGoalDepth, initialSubGoalDepth, maxSubGoalDepth,
         bumpSubGoalDepth, subGoalDepthExceeded,
-        CtLoc(..), ctLocSpan, ctLocEnv, ctLocLevel, ctLocOrigin,
-        ctLocTypeOrKind_maybe,
-        ctLocDepth, bumpCtLocDepth, isGivenLoc,
-        setCtLocOrigin, updateCtLocOrigin, setCtLocEnv, setCtLocSpan,
+        CtLoc(..), ctLocSpan, ctLocSpanL, ctLocEnv, ctLocEnvL, ctLocLevel, ctLocLevelL, ctLocOrigin, ctLocOriginL,
+        ctLocTypeOrKind_maybe, ctLocTypeOrKind_maybeL,
+        ctLocDepth, ctLocDepthL, isGivenLoc,
         pprCtLoc,
 
         -- CtEvidence
@@ -68,8 +71,7 @@ module GHC.Tc.Types.Constraint (
 
 import GHC.Prelude
 
-import {-# SOURCE #-} GHC.Tc.Types ( TcLclEnv, setLclEnvTcLevel, getLclEnvTcLevel
-                                   , setLclEnvLoc, getLclEnvLoc )
+import {-# SOURCE #-} GHC.Tc.Types ( TcLclEnv, tcl_tclvlL, tcl_locL )
 
 import GHC.Core.Predicate
 import GHC.Core.Type
@@ -97,7 +99,8 @@ import GHC.Types.SrcLoc
 import GHC.Data.Bag
 import GHC.Utils.Misc
 
-import Control.Monad ( msum )
+import Data.Foldable ( toList )
+import Lens.Micro.Extras ( view )
 
 {-
 ************************************************************************
@@ -215,6 +218,11 @@ data QCInst  -- A much simplified version of ClsInst
                                  -- Invariant: True => qci_pred is a ClassPred
     }
 
+LENS_FIELD(qci_evL, qci_ev)
+LENS_FIELD(qci_tvsL, qci_tvs)
+LENS_FIELD(qci_predL, qci_pred)
+LENS_FIELD(qci_pend_scL, qci_pend_sc)
+
 instance Outputable QCInst where
   ppr (QCI { qci_ev = ev }) = ppr ev
 
@@ -236,6 +244,10 @@ data Hole
            -- might get reported to the user if reducing type families in a
            -- hole type loops.
 
+LENS_FIELD(hole_sortL, hole_sort)
+LENS_FIELD(hole_occL, hole_occ)
+LENS_FIELD(hole_tyL, hole_ty)
+LENS_FIELD(hole_locL, hole_loc)
 
 -- | Used to indicate which sort of hole we have.
 data HoleSort = ExprHole Id
@@ -414,26 +426,36 @@ mkGivens loc ev_ids
                                        , ctev_pred = evVarPred ev_id
                                        , ctev_loc = loc })
 
+ctEvidenceL :: Lens' Ct CtEvidence
+ctEvidenceL f = \ case
+    CQuantCan qci -> CQuantCan <$> qci_evL f qci
+    ct -> (\ ev' -> ct { cc_ev = ev' }) <$> f (cc_ev ct)
+
+ctLocL :: Lens' Ct CtLoc
+ctLocL = ctEvidenceL . ctEvLocL
+
+ctOriginL :: Lens' Ct CtOrigin
+ctOriginL = ctLocL . ctLocOriginL
+
+ctPredL :: Lens' Ct PredType
+-- See Note [Ct/evidence invariant]
+ctPredL = ctEvidenceL . ctEvPredL
+
 ctEvidence :: Ct -> CtEvidence
-ctEvidence (CQuantCan (QCI { qci_ev = ev })) = ev
-ctEvidence ct = cc_ev ct
+ctEvidence = view ctEvidenceL
 
 ctLoc :: Ct -> CtLoc
-ctLoc = ctEvLoc . ctEvidence
-
-setCtLoc :: Ct -> CtLoc -> Ct
-setCtLoc ct loc = ct { cc_ev = (cc_ev ct) { ctev_loc = loc } }
-
-ctOrigin :: Ct -> CtOrigin
-ctOrigin = ctLocOrigin . ctLoc
+ctLoc = view ctLocL
 
 ctPred :: Ct -> PredType
--- See Note [Ct/evidence invariant]
-ctPred ct = ctEvPred (ctEvidence ct)
+ctPred = view ctPredL
+
+ctOrigin :: Ct -> CtOrigin
+ctOrigin = view ctOriginL
 
 ctEvId :: Ct -> EvVar
 -- The evidence Id for this Ct
-ctEvId ct = ctEvEvId (ctEvidence ct)
+ctEvId = ctEvEvId . view ctEvidenceL
 
 -- | Makes a new equality predicate with the same role as the given
 -- evidence.
@@ -490,7 +512,7 @@ tyCoVarsOfCtList = fvVarList . tyCoFVsOfCt
 -- | Returns free variables of constraints as a composable FV computation.
 -- See Note [Deterministic FV] in "GHC.Utils.FV".
 tyCoFVsOfCt :: Ct -> FV
-tyCoFVsOfCt ct = tyCoFVsOfType (ctPred ct)
+tyCoFVsOfCt = tyCoFVsOfType . view ctPredL
   -- This must consult only the ctPred, so that it gets *tidied* fvs if the
   -- constraint has been tidied. Tidying a constraint does not tidy the
   -- fields of the Ct, only the predicate in the CtEvidence.
@@ -559,12 +581,12 @@ dropDerivedWC wc@(WC { wc_simple = simples })
     -- The wc_impl implications are already (recursively) filtered
 
 --------------------------
-dropDerivedSimples :: Cts -> Cts
+dropDerivedSimples :: Filtrable f => f Ct -> f Ct
 -- Drop all Derived constraints, but make [W] back into [WD],
 -- so that if we re-simplify these constraints we will get all
 -- the right derived constraints re-generated.  Forgetting this
 -- step led to #12936
-dropDerivedSimples simples = mapMaybeBag dropDerivedCt simples
+dropDerivedSimples = mapMaybe dropDerivedCt
 
 dropDerivedCt :: Ct -> Maybe Ct
 dropDerivedCt ct
@@ -621,14 +643,13 @@ isDroppableCt ct
            _ -> False
 
 arisesFromGivens :: Ct -> Bool
-arisesFromGivens ct
-  = case ctEvidence ct of
-      CtGiven {}                   -> True
-      CtWanted {}                  -> False
-      CtDerived { ctev_loc = loc } -> isGivenLoc loc
+arisesFromGivens = view ctEvidenceL & \ case
+    CtGiven {}                   -> True
+    CtWanted {}                  -> False
+    CtDerived { ctev_loc = loc } -> isGivenLoc loc
 
 isGivenLoc :: CtLoc -> Bool
-isGivenLoc loc = isGivenOrigin (ctLocOrigin loc)
+isGivenLoc = isGivenOrigin . view ctLocOriginL
 
 {- Note [Dropping derived constraints]
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -754,20 +775,17 @@ Eq (F (TypeError msg))  -- Here the type error is nested under a type-function
 -- custom type errors anywhere in it.
 -- See Note [Custom type errors in constraints]
 getUserTypeErrorMsg :: Ct -> Maybe Type
-getUserTypeErrorMsg ct = findUserTypeError (ctPred ct)
+getUserTypeErrorMsg = findUserTypeError . view ctPredL
   where
-  findUserTypeError t = msum ( userTypeError_maybe t
+  findUserTypeError t = asum ( userTypeError_maybe t
                              : map findUserTypeError (subTys t)
                              )
 
-  subTys t            = case splitAppTys t of
-                          (t,[]) ->
-                            case splitTyConApp_maybe t of
-                              Nothing     -> []
-                              Just (_,ts) -> ts
-                          (t,ts) -> t : ts
-
-
+  subTys t = case splitAppTys t of
+    (t,[]) -> case splitTyConApp_maybe t of
+      Nothing     -> []
+      Just (_,ts) -> ts
+    (t,ts) -> t : ts
 
 
 isUserTypeErrorCt :: Ct -> Bool
@@ -799,7 +817,7 @@ superClassesMightHelp :: WantedConstraints -> Bool
 -- expose more equalities or functional dependencies) might help to
 -- solve this constraint.  See Note [When superclasses help]
 superClassesMightHelp (WC { wc_simple = simples, wc_impl = implics })
-  = anyBag might_help_ct simples || anyBag might_help_implic implics
+  = any might_help_ct simples || any might_help_implic implics
   where
     might_help_implic ic
        | IC_Unsolved <- ic_status ic = superClassesMightHelp (ic_wanted ic)
@@ -811,8 +829,7 @@ superClassesMightHelp (WC { wc_simple = simples, wc_impl = implics })
     is_ip _                             = False
 
 getPendingWantedScs :: Cts -> ([Ct], Cts)
-getPendingWantedScs simples
-  = mapAccumBagL get [] simples
+getPendingWantedScs = mapAccumL get []
   where
     get acc ct | Just ct' <- isPendingScDict ct
                = (ct':acc, ct')
@@ -870,9 +887,6 @@ andCts = unionBags
 listToCts :: [Ct] -> Cts
 listToCts = listToBag
 
-ctsElts :: Cts -> [Ct]
-ctsElts = bagToList
-
 consCts :: Ct -> Cts -> Cts
 consCts = consBag
 
@@ -893,7 +907,7 @@ isEmptyCts :: Cts -> Bool
 isEmptyCts = isEmptyBag
 
 pprCts :: Cts -> SDoc
-pprCts cts = vcat (map ppr (bagToList cts))
+pprCts cts = vcat (map ppr (toList cts))
 
 {-
 ************************************************************************
@@ -936,7 +950,7 @@ isEmptyWC (WC { wc_simple = f, wc_impl = i, wc_holes = holes })
 -- are solved.
 isSolvedWC :: WantedConstraints -> Bool
 isSolvedWC WC {wc_simple = wc_simple, wc_impl = wc_impl, wc_holes = holes} =
-  isEmptyBag wc_simple && allBag (isSolvedStatus . ic_status) wc_impl && isEmptyBag holes
+  isEmptyBag wc_simple && all (isSolvedStatus . ic_status) wc_impl && isEmptyBag holes
 
 andWC :: WantedConstraints -> WantedConstraints -> WantedConstraints
 andWC (WC { wc_simple = f1, wc_impl = i1, wc_holes = h1 })
@@ -967,9 +981,9 @@ addHole wc hole
 insolublesOnly :: WantedConstraints -> WantedConstraints
 -- Keep only the definitely-insoluble constraints
 insolublesOnly (WC { wc_simple = simples, wc_impl = implics, wc_holes = holes })
-  = WC { wc_simple = filterBag insolubleCt simples
-       , wc_impl   = mapBag implic_insols_only implics
-       , wc_holes  = filterBag isOutOfScopeHole holes }
+  = WC { wc_simple = filter insolubleCt simples
+       , wc_impl   = fmap implic_insols_only implics
+       , wc_holes  = filter isOutOfScopeHole holes }
   where
     implic_insols_only implic
       = implic { ic_wanted = insolublesOnly (ic_wanted implic) }
@@ -988,9 +1002,9 @@ insolubleImplic ic = isInsolubleStatus (ic_status ic)
 
 insolubleWC :: WantedConstraints -> Bool
 insolubleWC (WC { wc_impl = implics, wc_simple = simples, wc_holes = holes })
-  =  anyBag insolubleCt simples
-  || anyBag insolubleImplic implics
-  || anyBag isOutOfScopeHole holes  -- See Note [Insoluble holes]
+  =  any insolubleCt simples
+  || any insolubleImplic implics
+  || any isOutOfScopeHole holes  -- See Note [Insoluble holes]
 
 insolubleCt :: Ct -> Bool
 -- Definitely insoluble, in particular /excluding/ type-hole constraints
@@ -1399,19 +1413,31 @@ data CtEvidence
       { ctev_pred :: TcPredType
       , ctev_loc  :: CtLoc }
 
-ctEvPred :: CtEvidence -> TcPredType
+LENS_FIELD(ctev_predL, ctev_pred)
+LENS_FIELD(ctev_locL, ctev_loc)
+
+ctEvPredL :: Lens' CtEvidence TcPredType
 -- The predicate of a flavor
-ctEvPred = ctev_pred
+ctEvPredL = ctev_predL
+
+ctEvLocL :: Lens' CtEvidence CtLoc
+ctEvLocL = ctev_locL
+
+ctEvOriginL :: Lens' CtEvidence CtOrigin
+ctEvOriginL = ctEvLocL . ctLocOriginL
+
+ctEvPred :: CtEvidence -> TcPredType
+ctEvPred = view ctEvPredL
 
 ctEvLoc :: CtEvidence -> CtLoc
-ctEvLoc = ctev_loc
+ctEvLoc = view ctEvLocL
 
 ctEvOrigin :: CtEvidence -> CtOrigin
-ctEvOrigin = ctLocOrigin . ctEvLoc
+ctEvOrigin = view ctEvOriginL
 
 -- | Get the equality relation relevant for a 'CtEvidence'
 ctEvEqRel :: CtEvidence -> EqRel
-ctEvEqRel = predTypeEqRel . ctEvPred
+ctEvEqRel = predTypeEqRel . view ctEvPredL
 
 -- | Get the role relevant for a 'CtEvidence'
 ctEvRole :: CtEvidence -> Role
@@ -1791,60 +1817,67 @@ data CtLoc = CtLoc { ctl_origin :: CtOrigin
   --    binder stack:     tcl_bndrs :: TcBinderStack
   --    level:            tcl_tclvl :: TcLevel
 
+LENS_FIELD(ctl_originL, ctl_origin)
+LENS_FIELD(ctl_envL, ctl_env)
+LENS_FIELD(ctl_t_or_kL, ctl_t_or_k)
+LENS_FIELD(ctl_depthL, ctl_depth)
+
 mkKindLoc :: TcType -> TcType   -- original *types* being compared
           -> CtLoc -> CtLoc
-mkKindLoc s1 s2 loc = setCtLocOrigin (toKindLoc loc)
-                        (KindEqOrigin s1 (Just s2) (ctLocOrigin loc)
-                                      (ctLocTypeOrKind_maybe loc))
+mkKindLoc s1 s2 loc = over ctLocOriginL
+    (\ orig -> KindEqOrigin s1 (Just s2) orig (ctLocTypeOrKind_maybe loc))
+    (toKindLoc loc)
 
 -- | Take a CtLoc and moves it to the kind level
 toKindLoc :: CtLoc -> CtLoc
-toKindLoc loc = loc { ctl_t_or_k = Just KindLevel }
+toKindLoc = ctl_t_or_kL `set` Just KindLevel
 
 mkGivenLoc :: TcLevel -> SkolemInfo -> TcLclEnv -> CtLoc
 mkGivenLoc tclvl skol_info env
   = CtLoc { ctl_origin = GivenOrigin skol_info
-          , ctl_env    = setLclEnvTcLevel env tclvl
+          , ctl_env    = set tcl_tclvlL tclvl env
           , ctl_t_or_k = Nothing    -- this only matters for error msgs
           , ctl_depth  = initialSubGoalDepth }
 
 ctLocEnv :: CtLoc -> TcLclEnv
 ctLocEnv = ctl_env
 
+ctLocEnvL :: Lens' CtLoc TcLclEnv
+ctLocEnvL = ctl_envL
+
 ctLocLevel :: CtLoc -> TcLevel
-ctLocLevel loc = getLclEnvTcLevel (ctLocEnv loc)
+ctLocLevel = view ctLocLevelL
+
+ctLocLevelL :: Lens' CtLoc TcLevel
+ctLocLevelL = ctl_envL . tcl_tclvlL
 
 ctLocDepth :: CtLoc -> SubGoalDepth
 ctLocDepth = ctl_depth
 
+ctLocDepthL :: Lens' CtLoc SubGoalDepth
+ctLocDepthL = ctl_depthL
+
 ctLocOrigin :: CtLoc -> CtOrigin
 ctLocOrigin = ctl_origin
 
+ctLocOriginL :: Lens' CtLoc CtOrigin
+ctLocOriginL = ctl_originL
+
 ctLocSpan :: CtLoc -> RealSrcSpan
-ctLocSpan (CtLoc { ctl_env = lcl}) = getLclEnvLoc lcl
+ctLocSpan = view ctLocSpanL
+
+ctLocSpanL :: Lens' CtLoc RealSrcSpan
+ctLocSpanL = ctl_envL . tcl_locL
 
 ctLocTypeOrKind_maybe :: CtLoc -> Maybe TypeOrKind
 ctLocTypeOrKind_maybe = ctl_t_or_k
 
-setCtLocSpan :: CtLoc -> RealSrcSpan -> CtLoc
-setCtLocSpan ctl@(CtLoc { ctl_env = lcl }) loc = setCtLocEnv ctl (setLclEnvLoc lcl loc)
-
-bumpCtLocDepth :: CtLoc -> CtLoc
-bumpCtLocDepth loc@(CtLoc { ctl_depth = d }) = loc { ctl_depth = bumpSubGoalDepth d }
-
-setCtLocOrigin :: CtLoc -> CtOrigin -> CtLoc
-setCtLocOrigin ctl orig = ctl { ctl_origin = orig }
-
-updateCtLocOrigin :: CtLoc -> (CtOrigin -> CtOrigin) -> CtLoc
-updateCtLocOrigin ctl@(CtLoc { ctl_origin = orig }) upd
-  = ctl { ctl_origin = upd orig }
-
-setCtLocEnv :: CtLoc -> TcLclEnv -> CtLoc
-setCtLocEnv ctl env = ctl { ctl_env = env }
+ctLocTypeOrKind_maybeL :: Lens' CtLoc (Maybe TypeOrKind)
+ctLocTypeOrKind_maybeL = ctl_t_or_kL
 
 pprCtLoc :: CtLoc -> SDoc
 -- "arising from ... at ..."
 -- Not an instance of Outputable because of the "arising from" prefix
-pprCtLoc (CtLoc { ctl_origin = o, ctl_env = lcl})
+pprCtLoc CtLoc { ctl_origin = o, ctl_env = lcl }
   = sep [ pprCtOrigin o
-        , text "at" <+> ppr (getLclEnvLoc lcl)]
+        , text "at" <+> ppr (view tcl_locL lcl)]

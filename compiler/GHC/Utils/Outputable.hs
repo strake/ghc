@@ -1,3 +1,4 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 
 {-
@@ -35,7 +36,7 @@ module GHC.Utils.Outputable (
         ($$), ($+$), vcat,
         sep, cat,
         fsep, fcat,
-        hang, hangNotEmpty, punctuate, ppWhen, ppUnless,
+        hang, hangNotEmpty, punctuate, mwhen, munless,
         ppWhenOption, ppUnlessOption,
         speakNth, speakN, speakNOf, plural, isOrAre, doOrDoes, itsOrTheir,
         unicodeSyntax,
@@ -99,6 +100,7 @@ import GHC.LanguageExtensions (Extension)
 import GHC.Fingerprint
 import GHC.Show         ( showMultiLineString )
 import GHC.Utils.Exception
+import GHC.Utils.Misc (applyWhen, munless, mwhen)
 
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
@@ -250,7 +252,7 @@ defaultDumpStyle :: PprStyle
 defaultDumpStyle = PprDump neverQualify
 
 mkDumpStyle :: PrintUnqualified -> PprStyle
-mkDumpStyle print_unqual = PprDump print_unqual
+mkDumpStyle = PprDump
 
 -- | Default style for error messages, when we don't know PrintUnqualified
 -- It's a bit of a hack because it doesn't take into account what's in scope
@@ -269,11 +271,10 @@ mkUserStyle :: PrintUnqualified -> Depth -> PprStyle
 mkUserStyle unqual depth = PprUser unqual depth Uncoloured
 
 withUserStyle :: PrintUnqualified -> Depth -> SDoc -> SDoc
-withUserStyle unqual depth doc = withPprStyle (PprUser unqual depth Uncoloured) doc
+withUserStyle unqual depth = withPprStyle (PprUser unqual depth Uncoloured)
 
 withErrStyle :: PrintUnqualified -> SDoc -> SDoc
-withErrStyle unqual doc =
-   withPprStyle (mkErrStyle unqual) doc
+withErrStyle unqual = withPprStyle (mkErrStyle unqual)
 
 setStyleColoured :: Bool -> PprStyle -> PprStyle
 setStyleColoured col style =
@@ -311,6 +312,7 @@ code (either C or assembly), or generating interface files.
 -- or 'renderWithStyle'.  Avoid calling 'runSDoc' directly as it breaks the
 -- abstraction layer.
 newtype SDoc = SDoc { runSDoc :: SDocContext -> Doc }
+  deriving (Semigroup, Monoid)
 
 data SDocContext = SDC
   { sdocStyle                       :: !PprStyle
@@ -505,7 +507,7 @@ getPprDebug d = sdocWithContext $ \ctx -> d (sdocPprDebug ctx)
 
 -- | Says what to do with and without -dppr-debug
 ifPprDebug :: SDoc -> SDoc -> SDoc
-ifPprDebug yes no = getPprDebug $ \dbg -> if dbg then yes else no
+ifPprDebug yes no = getPprDebug $ bool no yes
 
 -- | Says what to do with -dppr-debug; without, return empty
 whenPprDebug :: SDoc -> SDoc        -- Empty for non-debug style
@@ -535,7 +537,7 @@ bufLeftRenderSDoc ctx bufHandle doc =
   Pretty.bufLeftRender bufHandle (runSDoc doc ctx)
 
 pprCode :: LabelStyle -> SDoc -> SDoc
-pprCode cs d = withPprStyle (PprCode cs) d
+pprCode cs = withPprStyle (PprCode cs)
 
 renderWithStyle :: SDocContext -> SDoc -> String
 renderWithStyle ctx sdoc
@@ -661,9 +663,7 @@ unicodeSyntax :: SDoc -> SDoc -> SDoc
 unicodeSyntax unicode plain =
    sdocOption sdocCanUseUnicode $ \can_use_unicode ->
    sdocOption sdocPrintUnicodeSyntax $ \print_unicode_syntax ->
-    if can_use_unicode && print_unicode_syntax
-    then unicode
-    else plain
+    bool plain unicode $ can_use_unicode && print_unicode_syntax
 
 unicode :: SDoc -> SDoc -> SDoc
 unicode unicode plain = sdocOption sdocCanUseUnicode $ \case
@@ -672,8 +672,6 @@ unicode unicode plain = sdocOption sdocCanUseUnicode $ \case
 
 nest :: Int -> SDoc -> SDoc
 -- ^ Indent 'SDoc' some specified amount
-(<>) :: SDoc -> SDoc -> SDoc
--- ^ Join two 'SDoc' together horizontally without a gap
 (<+>) :: SDoc -> SDoc -> SDoc
 -- ^ Join two 'SDoc' together horizontally with a gap between them
 ($$) :: SDoc -> SDoc -> SDoc
@@ -683,7 +681,6 @@ nest :: Int -> SDoc -> SDoc
 -- ^ Join two 'SDoc' together vertically
 
 nest n d    = SDoc $ Pretty.nest n . runSDoc d
-(<>) d1 d2  = SDoc $ \sty -> (Pretty.<>)  (runSDoc d1 sty) (runSDoc d2 sty)
 (<+>) d1 d2 = SDoc $ \sty -> (Pretty.<+>) (runSDoc d1 sty) (runSDoc d2 sty)
 ($$) d1 d2  = SDoc $ \sty -> (Pretty.$$)  (runSDoc d1 sty) (runSDoc d2 sty)
 ($+$) d1 d2 = SDoc $ \sty -> (Pretty.$+$) (runSDoc d1 sty) (runSDoc d2 sty)
@@ -734,22 +731,11 @@ punctuate p (d:ds) = go d ds
                      go d [] = [d]
                      go d (e:es) = (d <> p) : go e es
 
-ppWhen, ppUnless :: Bool -> SDoc -> SDoc
-ppWhen True  doc = doc
-ppWhen False _   = empty
-
-ppUnless True  _   = empty
-ppUnless False doc = doc
-
 ppWhenOption :: (SDocContext -> Bool) -> SDoc -> SDoc
-ppWhenOption f doc = sdocOption f $ \case
-   True  -> doc
-   False -> empty
+ppWhenOption f doc = sdocOption f $ flip mwhen doc
 
 ppUnlessOption :: (SDocContext -> Bool) -> SDoc -> SDoc
-ppUnlessOption f doc = sdocOption f $ \case
-   True  -> empty
-   False -> doc
+ppUnlessOption f = ppWhenOption (not . f)
 
 -- | Apply the given colour\/style for the argument.
 --
@@ -786,14 +772,8 @@ class Outputable a where
 instance Outputable Char where
     ppr c = text [c]
 
-instance Outputable Bool where
-    ppr True  = text "True"
-    ppr False = text "False"
-
-instance Outputable Ordering where
-    ppr LT = text "LT"
-    ppr EQ = text "EQ"
-    ppr GT = text "GT"
+instance Outputable Bool where ppr = text . show
+instance Outputable Ordering where ppr = text . show
 
 instance Outputable Int32 where
    ppr n = integer $ fromIntegral n
@@ -1054,7 +1034,7 @@ instance OutputableP env a => OutputableP env (SCC a) where
    pdoc env scc = ppr (fmap (pdoc env) scc)
 
 instance OutputableP env SDoc where
-   pdoc _ x = x
+   pdoc _ = id
 
 instance (OutputableP env a) => OutputableP env (Set a) where
     pdoc env s = braces (fsep (punctuate comma (map (pdoc env) (Set.toList s))))
@@ -1082,7 +1062,7 @@ data BindingSite
 -- The @OutputableBndr@ class encapsulates this idea.
 class Outputable a => OutputableBndr a where
    pprBndr :: BindingSite -> a -> SDoc
-   pprBndr _b x = ppr x
+   pprBndr _b = ppr
 
    pprPrefixOcc, pprInfixOcc :: a -> SDoc
       -- Print an occurrence of the name, suitable either in the
@@ -1149,9 +1129,7 @@ pprPrimWord64 w = word    w   <> primWord64Suffix
 ---------------------
 -- Put a name in parens if it's an operator
 pprPrefixVar :: Bool -> SDoc -> SDoc
-pprPrefixVar is_operator pp_v
-  | is_operator = parens pp_v
-  | otherwise   = pp_v
+pprPrefixVar is_operator = applyWhen is_operator parens
 
 -- Put a name in backquotes if it's not an operator
 pprInfixVar :: Bool -> SDoc -> SDoc
@@ -1161,7 +1139,7 @@ pprInfixVar is_operator pp_v
 
 ---------------------
 pprFastFilePath :: FastString -> SDoc
-pprFastFilePath path = text $ normalise $ unpackFS path
+pprFastFilePath = text . normalise . unpackFS
 
 -- | Normalise, escape and render a string representing a path
 --

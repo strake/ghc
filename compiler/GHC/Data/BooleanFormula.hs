@@ -18,7 +18,7 @@ module GHC.Data.BooleanFormula (
 
 import GHC.Prelude
 
-import Data.List ( nub, intersperse )
+import Data.List ( intersperse )
 import Data.Data
 
 import GHC.Utils.Monad
@@ -156,10 +156,10 @@ isUnsatisfied f bf
 -- If the boolean formula holds, does that mean that the given atom is always true?
 impliesAtom :: Eq a => BooleanFormula a -> a -> Bool
 Var x  `impliesAtom` y = x == y
-And xs `impliesAtom` y = any (\x -> (unLoc x) `impliesAtom` y) xs
+And xs `impliesAtom` y = any (\x -> unLoc x `impliesAtom` y) xs
            -- we have all of xs, so one of them implying y is enough
-Or  xs `impliesAtom` y = all (\x -> (unLoc x) `impliesAtom` y) xs
-Parens x `impliesAtom` y = (unLoc x) `impliesAtom` y
+Or  xs `impliesAtom` y = all (\x -> unLoc x `impliesAtom` y) xs
+Parens x `impliesAtom` y = unLoc x `impliesAtom` y
 
 implies :: Uniquable a => BooleanFormula a -> BooleanFormula a -> Bool
 implies e1 e2 = go (Clause emptyUniqSet [e1]) (Clause emptyUniqSet [e2])

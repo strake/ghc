@@ -1,10 +1,17 @@
 {-# LANGUAGE TypeFamilies, UndecidableInstances #-}
+{-# LANGUAGE CPP #-}
+
+#include "lens.h"
 
 -- | Various types used during desugaring.
 module GHC.HsToCore.Types (
-        DsM, DsLclEnv(..), DsGblEnv(..),
+        DsM,
+        DsLclEnv(..), dsl_metaL, dsl_locL, dsl_deltasL,
+        DsGblEnv(..), ds_modL, ds_fam_inst_envL, ds_unqualL, ds_msgsL, ds_if_envL, ds_complete_matchesL, ds_cc_stL,
         DsMetaEnv, DsMetaVal(..), CompleteMatchMap
     ) where
+
+import Prelude ((<$>))
 
 import Data.IORef
 
@@ -52,6 +59,14 @@ data DsGblEnv
      -- Tracking indices for cost centre annotations
   }
 
+LENS_FIELD(ds_modL, ds_mod)
+LENS_FIELD(ds_fam_inst_envL, ds_fam_inst_env)
+LENS_FIELD(ds_unqualL, ds_unqual)
+LENS_FIELD(ds_msgsL, ds_msgs)
+LENS_FIELD(ds_if_envL, ds_if_env)
+LENS_FIELD(ds_complete_matchesL, ds_complete_matches)
+LENS_FIELD(ds_cc_stL, ds_cc_st)
+
 instance ContainsModule DsGblEnv where
   extractModule = ds_mod
 
@@ -64,6 +79,10 @@ data DsLclEnv = DsLclEnv
     -- refined through each pattern match in turn
     dsl_deltas  :: Deltas
   }
+
+LENS_FIELD(dsl_metaL, dsl_meta)
+LENS_FIELD(dsl_locL, dsl_loc)
+LENS_FIELD(dsl_deltasL, dsl_deltas)
 
 -- Inside [| |] brackets, the desugarer looks
 -- up variables in the DsMetaEnv

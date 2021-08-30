@@ -16,7 +16,7 @@ import GHC.Utils.Monad
 import GHC.Utils.Outputable
 import GHC.Utils.Outputable.Ppr (showPprDefault)
 import GHC.Parser.Annotation
-import GHC.Data.Bag (filterBag,isEmptyBag)
+import GHC.Data.Bag (isEmptyBag)
 import System.Directory (removeFile)
 import System.Environment( getArgs )
 import System.Exit

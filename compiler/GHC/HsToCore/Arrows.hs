@@ -52,7 +52,6 @@ import GHC.Utils.Panic
 import GHC.Types.Var.Set
 import GHC.Types.SrcLoc
 import GHC.Data.List.SetOps( assocMaybe )
-import Data.List
 import GHC.Utils.Misc
 import GHC.Types.Unique.DSet
 
@@ -1228,8 +1227,8 @@ these bindings.
 collectPatBinders :: LPat GhcTc -> [Id]
 collectPatBinders pat = collectl pat []
 
-collectPatsBinders :: [LPat GhcTc] -> [Id]
-collectPatsBinders pats = foldr collectl [] pats
+collectPatsBinders :: Foldable f => f (LPat GhcTc) -> [Id]
+collectPatsBinders = foldr collectl []
 
 ---------------------
 collectl :: LPat GhcTc -> [Id] -> [Id]

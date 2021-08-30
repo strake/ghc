@@ -22,7 +22,8 @@ import GHC.CmmToAsm.Dwarf.Constants
 import GHC.CmmToAsm.Dwarf.Types
 
 import Control.Arrow    ( first )
-import Control.Monad    ( mfilter )
+import Control.Monad    ( join, mfilter )
+import Data.Foldable    ( toList )
 import Data.Maybe
 import Data.List        ( sortBy )
 import Data.Ord         ( comparing )
@@ -132,7 +133,7 @@ compileUnitFooter platform unitU =
 -- will come from the same procedure as the top-level block. See
 -- Note [Splitting DebugBlocks] for details.
 debugSplitProcs :: [DebugBlock] -> [DebugBlock]
-debugSplitProcs b = concat $ H.mapElems $ mergeMaps $ map (split Nothing) b
+debugSplitProcs = join . toList . mergeMaps . fmap (split Nothing)
   where mergeMaps = foldr (H.mapUnionWithKey (const (++))) H.mapEmpty
         split :: Maybe DebugBlock -> DebugBlock -> H.LabelMap [DebugBlock]
         split parent blk = H.mapInsert prc [blk'] nested

@@ -82,17 +82,12 @@ module GHC.Types.SrcLoc (
         getLoc, unLoc,
         unRealSrcSpan, getRealSrcSpan,
 
-        -- ** Modifying Located
-        mapLoc,
-
         -- ** Combining and comparing Located values
         eqLocated, cmpLocated, combineLocs, addCLoc,
         leftmost_smallest, leftmost_largest, rightmost_smallest,
         spans, isSubspanOf, isRealSubspanOf, sortLocated,
         sortRealLocated,
         lookupSrcLoc, lookupSrcSpan,
-
-        liftL,
 
         -- * Parser locations
         PsLoc(..),
@@ -115,12 +110,12 @@ import GHC.Utils.Panic
 import GHC.Data.FastString
 import qualified GHC.Data.Strict as Strict
 
+import Control.Monad (join)
 import Control.DeepSeq
 import Control.Applicative (liftA2)
 import Data.Bits
 import Data.Data
 import Data.List (sortBy, intercalate)
-import Data.Function (on)
 import qualified Data.Map as Map
 
 {-
@@ -358,7 +353,7 @@ mkGeneralSrcSpan = UnhelpfulSpan
 -- | Create a 'SrcSpan' corresponding to a single point
 srcLocSpan :: SrcLoc -> SrcSpan
 srcLocSpan (UnhelpfulLoc str) = UnhelpfulSpan str
-srcLocSpan (RealSrcLoc l mb) = RealSrcSpan (realSrcLocSpan l) (fmap (\b -> BufSpan b b) mb)
+srcLocSpan (RealSrcLoc l mb) = RealSrcSpan (realSrcLocSpan l) (join BufSpan <$> mb)
 
 realSrcLocSpan :: RealSrcLoc -> RealSrcSpan
 realSrcLocSpan (SrcLoc file line col) = RealSrcSpan' file line col line col
@@ -390,6 +385,8 @@ mkSrcSpan _ (UnhelpfulLoc str) = UnhelpfulSpan str
 mkSrcSpan (RealSrcLoc loc1 mbpos1) (RealSrcLoc loc2 mbpos2)
     = RealSrcSpan (mkRealSrcSpan loc1 loc2) (liftA2 BufSpan mbpos1 mbpos2)
 
+instance Semigroup SrcSpan where (<>) = combineSrcSpans
+
 -- | Combines two 'SrcSpan' into one that spans at least all the characters
 -- within both spans. Returns UnhelpfulSpan if the files differ.
 combineSrcSpans :: SrcSpan -> SrcSpan -> SrcSpan
@@ -399,6 +396,8 @@ combineSrcSpans (RealSrcSpan span1 mbspan1) (RealSrcSpan span2 mbspan2)
   | srcSpanFile span1 == srcSpanFile span2
       = RealSrcSpan (combineRealSrcSpans span1 span2) (liftA2 combineBufSpans mbspan1 mbspan2)
   | otherwise = UnhelpfulSpan (fsLit "<combineSrcSpans: files differ>")
+
+instance Semigroup RealSrcSpan where (<>) = combineRealSrcSpans
 
 -- | Combines two 'SrcSpan' into one that spans at least all the characters
 -- within both spans. Assumes the "file" part is the same in both inputs
@@ -411,6 +410,8 @@ combineRealSrcSpans span1 span2
     (line_end, col_end)     = max (srcSpanEndLine span1, srcSpanEndCol span1)
                                   (srcSpanEndLine span2, srcSpanEndCol span2)
     file = srcSpanFile span1
+
+instance Semigroup BufSpan where (<>) = combineBufSpans
 
 combineBufSpans :: BufSpan -> BufSpan -> BufSpan
 combineBufSpans span1 span2 = BufSpan start end
@@ -577,21 +578,21 @@ pprUserSpan show_path (RealSrcSpan s _) = pprUserRealSpan show_path s
 pprUserRealSpan :: Bool -> RealSrcSpan -> SDoc
 pprUserRealSpan show_path span@(RealSrcSpan' src_path line col _ _)
   | isPointRealSpan span
-  = hcat [ ppWhen show_path (pprFastFilePath src_path <> colon)
+  = hcat [ mwhen show_path (pprFastFilePath src_path <> colon)
          , int line <> colon
          , int col ]
 
 pprUserRealSpan show_path span@(RealSrcSpan' src_path line scol _ ecol)
   | isOneLineRealSpan span
-  = hcat [ ppWhen show_path (pprFastFilePath src_path <> colon)
+  = hcat [ mwhen show_path (pprFastFilePath src_path <> colon)
          , int line <> colon
          , int scol
-         , ppUnless (ecol - scol <= 1) (char '-' <> int (ecol - 1)) ]
+         , munless (ecol - scol <= 1) (char '-' <> int (ecol - 1)) ]
             -- For single-character or point spans, we just
             -- output the starting column number
 
 pprUserRealSpan show_path (RealSrcSpan' src_path sline scol eline ecol)
-  = hcat [ ppWhen show_path (pprFastFilePath src_path <> colon)
+  = hcat [ mwhen show_path (pprFastFilePath src_path <> colon)
          , parens (int sline <> comma <> int scol)
          , char '-'
          , parens (int eline <> comma <> int ecol') ]
@@ -612,9 +613,6 @@ data GenLocated l e = L l e
 
 type Located = GenLocated SrcSpan
 type RealLocated = GenLocated RealSrcSpan
-
-mapLoc :: (a -> b) -> GenLocated l a -> GenLocated l b
-mapLoc = fmap
 
 unLoc :: GenLocated l e -> e
 unLoc (L _ e) = e
@@ -699,11 +697,6 @@ isRealSubspanOf src parent
     | srcSpanFile parent /= srcSpanFile src = False
     | otherwise = realSrcSpanStart parent <= realSrcSpanStart src &&
                   realSrcSpanEnd parent   >= realSrcSpanEnd src
-
-liftL :: Monad m => (a -> m b) -> GenLocated l a -> m (GenLocated l b)
-liftL f (L loc a) = do
-  a' <- f a
-  return $ L loc a'
 
 getRealSrcSpan :: RealLocated a -> RealSrcSpan
 getRealSrcSpan (L l _) = l

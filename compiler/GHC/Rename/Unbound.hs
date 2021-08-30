@@ -40,8 +40,7 @@ import GHC.Unit.Module
 import GHC.Unit.Module.Imported
 import GHC.Unit.Home.ModInfo
 
-import Data.List
-import Data.Function ( on )
+import Data.List (sortBy)
 
 {-
 ************************************************************************
@@ -63,7 +62,7 @@ mkUnboundNameRdr :: RdrName -> Name
 mkUnboundNameRdr rdr = mkUnboundName (rdrNameOcc rdr)
 
 reportUnboundName :: RdrName -> RnM Name
-reportUnboundName rdr = unboundName WL_Any rdr
+reportUnboundName = unboundName WL_Any
 
 unboundName :: WhereLooking -> RdrName -> RnM Name
 unboundName wl rdr = unboundNameX wl rdr Outputable.empty
@@ -73,9 +72,8 @@ unboundNameX where_look rdr_name extra
   = do  { dflags <- getDynFlags
         ; let show_helpful_errors = gopt Opt_HelpfulErrors dflags
               err = notInScopeErr rdr_name $$ extra
-        ; if not show_helpful_errors
-          then addErr err
-          else do { local_env  <- getLocalRdrEnv
+        ; mkUnboundNameRdr rdr_name <$ bool (addErr err)
+               do { local_env  <- getLocalRdrEnv
                   ; global_env <- getGlobalRdrEnv
                   ; impInfo <- getImports
                   ; currmod <- getModule
@@ -83,8 +81,7 @@ unboundNameX where_look rdr_name extra
                   ; let suggestions = unknownNameSuggestions_ where_look
                           dflags hpt currmod global_env local_env impInfo
                           rdr_name
-                  ; addErr (err $$ suggestions) }
-        ; return (mkUnboundNameRdr rdr_name) }
+                  ; addErr (err $$ suggestions) } show_helpful_errors }
 
 notInScopeErr :: RdrName -> SDoc
 notInScopeErr rdr_name

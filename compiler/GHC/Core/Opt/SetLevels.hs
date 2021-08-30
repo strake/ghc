@@ -106,8 +106,11 @@ import GHC.Utils.Panic.Plain
 import GHC.Data.FastString
 import GHC.Types.Unique.DFM
 import GHC.Utils.FV
-import Data.Maybe
 import GHC.Utils.Monad  ( mapAccumLM )
+import Data.Foldable ( toList )
+import Data.Functor.Identity ( Identity (..) )
+import Data.List.NonEmpty ( NonEmpty (..) )
+import Data.Maybe
 
 {-
 ************************************************************************
@@ -252,7 +255,7 @@ isJoinCeilLvl (Level _ _ t) = t == JoinCeilLvl
 instance Outputable Level where
   ppr (Level maj min typ)
     = hcat [ char '<', int maj, char ',', int min, char '>'
-           , ppWhen (typ == JoinCeilLvl) (char 'C') ]
+           , mwhen (typ == JoinCeilLvl) (char 'C') ]
 
 instance Eq Level where
   (Level maj1 min1 _) == (Level maj2 min2 _) = maj1 == maj2 && min1 == min2
@@ -408,22 +411,20 @@ lvlApp env orig_expr ((_,AnnVar fn), args)
   -- Try to ensure that runRW#'s continuation isn't floated out.
   -- See Note [Simplification of runRW#].
   | fn `hasKey` runRWKey
-  = do { args' <- mapM (lvlExpr env) args
-       ; return (foldl' App (lookupVar env fn) args') }
+  = foldl' App (lookupVar env fn) <$> traverse (lvlExpr env) args
 
   | floatOverSat env   -- See Note [Floating over-saturated applications]
   , arity > 0
   , arity < n_val_args
   , Nothing <- isClassOpId_maybe fn
-  =  do { rargs' <- mapM (lvlNonTailMFE env False) rargs
-        ; lapp'  <- lvlNonTailMFE env False lapp
-        ; return (foldl' App lapp' rargs') }
+  = flip (foldl' App)
+    <$> traverse (lvlNonTailMFE env False) rargs
+    <*> lvlNonTailMFE env False lapp
 
   | otherwise
-  = do { (_, args') <- mapAccumLM lvl_arg stricts args
+  = foldl' App (lookupVar env fn) . snd <$> mapAccumLM lvl_arg stricts args
             -- Take account of argument strictness; see
             -- Note [Floating to the top]
-       ; return (foldl' App (lookupVar env fn) args') }
   where
     n_val_args = count (isValArg . deAnnotate) args
     arity      = idArity fn
@@ -453,18 +454,16 @@ lvlApp env orig_expr ((_,AnnVar fn), args)
     lvl_arg :: [Demand] -> CoreExprWithFVs -> LvlM ([Demand], LevelledExpr)
     lvl_arg strs arg | (str1 : strs') <- strs
                      , is_val_arg arg
-                     = do { arg' <- lvlMFE env (isStrictDmd str1) arg
-                          ; return (strs', arg') }
+                     = (,) strs' <$> lvlMFE env (isStrictDmd str1) arg
                      | otherwise
-                     = do { arg' <- lvlMFE env False arg
-                          ; return (strs, arg') }
+                     = (,) strs <$> lvlMFE env False arg
 
 lvlApp env _ (fun, args)
   =  -- No PAPs that we can float: just carry on with the
      -- arguments and the function.
-     do { args' <- mapM (lvlNonTailMFE env False) args
-        ; fun'  <- lvlNonTailExpr env fun
-        ; return (foldl' App fun' args') }
+     flip (foldl' App)
+     <$> traverse (lvlNonTailMFE env False) args
+     <*> lvlNonTailExpr env fun
 
 -------------------------------------------
 lvlCase :: LevelEnv             -- Level of in-scope names/tyvars
@@ -481,7 +480,7 @@ lvlCase env scrut_fvs scrut' case_bndr ty alts
   , not (floatTopLvlOnly env)     -- Can float anywhere
   =     -- Always float the case if possible
         -- Unlike lets we don't insist that it escapes a value lambda
-    do { (env1, (case_bndr' : bs')) <- cloneCaseBndrs env dest_lvl (case_bndr : bs)
+    do { (env1, (case_bndr' :| bs')) <- cloneCaseBndrs env dest_lvl (case_bndr :| bs)
        ; let rhs_env = extendCaseBndrEnv env1 case_bndr scrut'
        ; body' <- lvlMFE rhs_env True body
        ; let alt' = (con, map (stayPut dest_lvl) bs', body')
@@ -490,8 +489,7 @@ lvlCase env scrut_fvs scrut' case_bndr ty alts
   | otherwise     -- Stays put
   = do { let (alts_env1, [case_bndr']) = substAndLvlBndrs NonRecursive env incd_lvl [case_bndr]
              alts_env = extendCaseBndrEnv alts_env1 case_bndr scrut'
-       ; alts' <- mapM (lvl_alt alts_env) alts
-       ; return (Case scrut' case_bndr' ty' alts') }
+       ; Case scrut' case_bndr' ty' <$> traverse (lvl_alt alts_env) alts }
   where
     ty' = substTy (le_subst env) ty
 
@@ -500,8 +498,7 @@ lvlCase env scrut_fvs scrut' case_bndr ty alts
             -- Don't abstract over type variables, hence const True
 
     lvl_alt alts_env (con, bs, rhs)
-      = do { rhs' <- lvlMFE new_env True rhs
-           ; return (con, bs', rhs') }
+      = lvlMFE new_env True rhs <₪> \ rhs' -> (con, bs', rhs')
       where
         (new_env, bs') = substAndLvlBndrs NonRecursive alts_env incd_lvl bs
 
@@ -1116,7 +1113,7 @@ lvlBind env (AnnNonRec bndr rhs)
   = do {  -- No type abstraction; clone existing binder
          rhs' <- lvlFloatRhs [] dest_lvl env NonRecursive
                              is_bot mb_join_arity rhs
-       ; (env', [bndr']) <- cloneLetVars NonRecursive env dest_lvl [bndr]
+       ; (env', Identity bndr') <- cloneLetVars NonRecursive env dest_lvl (Identity bndr)
        ; let bndr2 = annotateBotStr bndr' 0 mb_bot_str
        ; return (NonRec (TB bndr2 (FloatMe dest_lvl)) rhs', env') }
 
@@ -1124,7 +1121,7 @@ lvlBind env (AnnNonRec bndr rhs)
   = do {  -- Yes, type abstraction; create a new binder, extend substitution, etc
          rhs' <- lvlFloatRhs abs_vars dest_lvl env NonRecursive
                              is_bot mb_join_arity rhs
-       ; (env', [bndr']) <- newPolyBndrs dest_lvl env abs_vars [bndr]
+       ; (env', Identity bndr') <- newPolyBndrs dest_lvl env abs_vars (Identity bndr)
        ; let bndr2 = annotateBotStr bndr' n_extra mb_bot_str
        ; return (NonRec (TB bndr2 (FloatMe dest_lvl)) rhs', env') }
 
@@ -1186,13 +1183,13 @@ lvlBind env (AnnRec pairs)
     let (rhs_env, abs_vars_w_lvls) = lvlLamBndrs env dest_lvl abs_vars
         rhs_lvl = le_ctxt_lvl rhs_env
 
-    (rhs_env', [new_bndr]) <- cloneLetVars Recursive rhs_env rhs_lvl [bndr]
+    (rhs_env', Identity new_bndr) <- cloneLetVars Recursive rhs_env rhs_lvl (Identity bndr)
     let
         (lam_bndrs, rhs_body)   = collectAnnBndrs rhs
         (body_env1, lam_bndrs1) = substBndrsSL NonRecursive rhs_env' lam_bndrs
         (body_env2, lam_bndrs2) = lvlLamBndrs body_env1 rhs_lvl lam_bndrs1
     new_rhs_body <- lvlRhs body_env2 Recursive is_bot (get_join bndr) rhs_body
-    (poly_env, [poly_bndr]) <- newPolyBndrs dest_lvl env abs_vars [bndr]
+    (poly_env, Identity poly_bndr) <- newPolyBndrs dest_lvl env abs_vars (Identity bndr)
     return (Rec [(TB poly_bndr (FloatMe dest_lvl)
                  , mkLams abs_vars_w_lvls $
                    mkLams lam_bndrs2 $
@@ -1555,8 +1552,8 @@ initialEnv float_lams
 addLvl :: Level -> VarEnv Level -> OutVar -> VarEnv Level
 addLvl dest_lvl env v' = extendVarEnv env v' dest_lvl
 
-addLvls :: Level -> VarEnv Level -> [OutVar] -> VarEnv Level
-addLvls dest_lvl env vs = foldl' (addLvl dest_lvl) env vs
+addLvls :: Foldable f => Level -> VarEnv Level -> f OutVar -> VarEnv Level
+addLvls = foldl' . addLvl
 
 floatLams :: LevelEnv -> Maybe Int
 floatLams le = floatOutLambdas (le_switches le)
@@ -1663,17 +1660,16 @@ type LvlM result = UniqSM result
 initLvl :: UniqSupply -> UniqSM a -> a
 initLvl = initUs_
 
-newPolyBndrs :: Level -> LevelEnv -> [OutVar] -> [InId]
-             -> LvlM (LevelEnv, [OutId])
+newPolyBndrs :: (MonadUnique m, Traversable t) => Level -> LevelEnv -> [OutVar] -> t InId -> m (LevelEnv, t OutId)
 -- The envt is extended to bind the new bndrs to dest_lvl, but
 -- the le_ctxt_lvl is unaffected
 newPolyBndrs dest_lvl
              env@(LE { le_lvl_env = lvl_env, le_subst = subst, le_env = id_env })
              abs_vars bndrs
  = assert (all (not . isCoVar) bndrs) $   -- What would we add to the CoSubst in this case. No easy answer.
-   do { uniqs <- getUniquesM
-      ; let new_bndrs = zipWith mk_poly_bndr bndrs uniqs
-            bndr_prs  = bndrs `zip` new_bndrs
+   do { uniqSupply <- getUniqueSupplyM
+      ; let new_bndrs = withUniques (flip mk_poly_bndr) uniqSupply bndrs
+            bndr_prs  = toList bndrs `zip` toList new_bndrs
             env' = env { le_lvl_env = addLvls dest_lvl lvl_env new_bndrs
                        , le_subst   = foldl' add_subst subst   bndr_prs
                        , le_env     = foldl' add_id    id_env  bndr_prs }
@@ -1704,10 +1700,8 @@ newLvlVar :: LevelledExpr        -- The RHS of the new binding
           -> Maybe JoinArity     -- Its join arity, if it is a join point
           -> Bool                -- True <=> the RHS looks like (makeStatic ...)
           -> LvlM Id
-newLvlVar lvld_rhs join_arity_maybe is_mk_static
-  = do { uniq <- getUniqueM
-       ; return (add_join_info (mk_id uniq rhs_ty))
-       }
+newLvlVar lvld_rhs join_arity_maybe is_mk_static =
+    getUniqueM <₪> \ uniq -> add_join_info (mk_id uniq rhs_ty)
   where
     add_join_info var = var `asJoinId_maybe` join_arity_maybe
     de_tagged_rhs = deTagExpr lvld_rhs
@@ -1722,42 +1716,40 @@ newLvlVar lvld_rhs join_arity_maybe is_mk_static
       = mkSysLocal (mkFastString "lvl") uniq rhs_ty
 
 -- | Clone the binders bound by a single-alternative case.
-cloneCaseBndrs :: LevelEnv -> Level -> [Var] -> LvlM (LevelEnv, [Var])
-cloneCaseBndrs env@(LE { le_subst = subst, le_lvl_env = lvl_env, le_env = id_env })
-               new_lvl vs
-  = do { us <- getUniqueSupplyM
-       ; let (subst', vs') = cloneBndrs subst us vs
-             -- N.B. We are not moving the body of the case, merely its case
-             -- binders.  Consequently we should *not* set le_ctxt_lvl and
-             -- le_join_ceil.  See Note [Setting levels when floating
-             -- single-alternative cases].
-             env' = env { le_lvl_env   = addLvls new_lvl lvl_env vs'
-                        , le_subst     = subst'
-                        , le_env       = foldl' add_id id_env (vs `zip` vs') }
+cloneCaseBndrs :: Traversable t => LevelEnv -> Level -> t Var -> LvlM (LevelEnv, t Var)
+cloneCaseBndrs env@(LE { le_subst = subst, le_lvl_env = lvl_env, le_env = id_env }) new_lvl vs =
+  [ (env', vs')
+  | us <- getUniqueSupplyM
+  , let (subst', vs') = cloneBndrs subst us vs
+        -- N.B. We are not moving the body of the case, merely its case
+        -- binders.  Consequently we should *not* set le_ctxt_lvl and
+        -- le_join_ceil.  See Note [Setting levels when floating
+        -- single-alternative cases].
+        env' = env
+          { le_lvl_env   = addLvls new_lvl lvl_env vs'
+          , le_subst     = subst'
+          , le_env       = foldl' add_id id_env (toList vs `zip` toList vs') } ]
 
-       ; return (env', vs') }
-
-cloneLetVars :: RecFlag -> LevelEnv -> Level -> [InVar]
-             -> LvlM (LevelEnv, [OutVar])
+cloneLetVars
+ :: Traversable t => RecFlag -> LevelEnv -> Level -> t InVar -> LvlM (LevelEnv, t OutVar)
 -- See Note [Need for cloning during float-out]
 -- Works for Ids bound by let(rec)
 -- The dest_lvl is attributed to the binders in the new env,
 -- but cloneVars doesn't affect the le_ctxt_lvl of the incoming env
 cloneLetVars is_rec
           env@(LE { le_subst = subst, le_lvl_env = lvl_env, le_env = id_env })
-          dest_lvl vs
-  = do { us <- getUniqueSupplyM
-       ; let vs1  = map zap vs
-                      -- See Note [Zapping the demand info]
-             (subst', vs2) = case is_rec of
-                               NonRecursive -> cloneBndrs      subst us vs1
-                               Recursive    -> cloneRecIdBndrs subst us vs1
-             prs  = vs `zip` vs2
-             env' = env { le_lvl_env = addLvls dest_lvl lvl_env vs2
-                        , le_subst   = subst'
-                        , le_env     = foldl' add_id id_env prs }
-
-       ; return (env', vs2) }
+          dest_lvl vs =
+  [ (env', vs2)
+  | us <- getUniqueSupplyM
+  , let vs1  = zap <$> vs -- See Note [Zapping the demand info]
+        (subst', vs2) = case is_rec of
+            NonRecursive -> cloneBndrs      subst us vs1
+            Recursive    -> cloneRecIdBndrs subst us vs1
+        prs  = toList vs `zip` toList vs2
+        env' = env
+          { le_lvl_env = addLvls dest_lvl lvl_env vs2
+          , le_subst   = subst'
+          , le_env     = foldl' add_id id_env prs } ]
   where
     zap :: Var -> Var
     zap v | isId v    = zap_join (zapIdDemandInfo v)

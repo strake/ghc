@@ -5,12 +5,12 @@ GHC.Rename.Env contains functions which convert RdrNames into Names.
 
 -}
 
-{-# LANGUAGE MultiWayIf, NamedFieldPuns #-}
+{-# LANGUAGE MultiWayIf, NamedFieldPuns, TypeFamilies #-}
 
 module GHC.Rename.Env (
         newTopSrcBinder,
-        lookupLocatedTopBndrRn, lookupTopBndrRn,
-        lookupLocatedOccRn, lookupOccRn, lookupOccRn_maybe,
+        lookupTopBndrRn,
+        lookupOccRn, lookupOccRn_maybe,
         lookupLocalOccRn_maybe, lookupInfoOccRn,
         lookupLocalOccThLvl_maybe, lookupLocalOccRn,
         lookupTypeOccRn,
@@ -82,11 +82,9 @@ import GHC.Data.List.SetOps ( minusList )
 import qualified GHC.LanguageExtensions as LangExt
 import GHC.Rename.Unbound
 import GHC.Rename.Utils
-import qualified Data.Semigroup as Semi
-import Data.Either      ( partitionEithers )
-import Data.List        ( find, sortBy )
 import Control.Arrow    ( first )
-import Data.Function
+import Data.Functor.Reader.Class
+import Data.List        ( find, sortBy )
 
 {-
 *********************************************************
@@ -168,9 +166,9 @@ newTopSrcBinder (L loc rdr_name)
         -- unless we are in GHC.Tup
     if isExternalName name then
       do { this_mod <- getModule
-         ; unless (this_mod == nameModule name)
-                  (addErrAt loc (badOrigBinding rdr_name))
-         ; return name }
+         ; name <$
+           unless (this_mod == nameModule name)
+                  (addErrAt loc (badOrigBinding rdr_name)) }
     else   -- See Note [Binders in Template Haskell] in "GHC.ThToHs"
       do { this_mod <- getModule
          ; externaliseName this_mod name }
@@ -208,8 +206,7 @@ newTopSrcBinder (L loc rdr_name)
         ; if isBrackStage stage then
                 -- We are inside a TH bracket, so make an *Internal* name
                 -- See Note [Top-level Names in Template Haskell decl quotes] in GHC.Rename.Names
-             do { uniq <- newUnique
-                ; return (mkInternalName uniq (rdrNameOcc rdr_name) loc) }
+             newUnique <₪> \ uniq -> mkInternalName uniq (rdrNameOcc rdr_name) loc
           else
              do { this_mod <- getModule
                 ; traceRn "newTopSrcBinder" (ppr this_mod $$ ppr rdr_name $$ ppr loc)
@@ -268,9 +265,6 @@ lookupTopBndrRn rdr_name =
                         unboundName WL_LocalTop rdr_name
     }
 
-lookupLocatedTopBndrRn :: Located RdrName -> RnM (Located Name)
-lookupLocatedTopBndrRn = wrapLocM lookupTopBndrRn
-
 -- | Lookup an @Exact@ @RdrName@. See Note [Looking up Exact RdrNames].
 -- This never adds an error, but it may return one, see
 -- Note [Errors in lookup functions]
@@ -287,8 +281,7 @@ lookupExactOcc_either name
                -- 'RuntimeRep's (#17837)
                UnboxedTuple -> tyConArity tycon `div` 2
                _ -> tyConArity tycon
-       ; checkTupSize tupArity
-       ; return (Right name) }
+       ; Right name <$ checkTupSize tupArity }
 
   | isExternalName name
   = return (Right name)
@@ -307,16 +300,12 @@ lookupExactOcc_either name
            [gre] -> return (Right (gre_name gre))
 
            []    -> -- See Note [Splicing Exact names]
-                    do { lcl_env <- getLocalRdrEnv
-                       ; if name `inLocalRdrEnvScope` lcl_env
-                         then return (Right name)
-                         else
-                         do { th_topnames_var <- fmap tcg_th_topnames getGblEnv
-                            ; th_topnames <- readTcRef th_topnames_var
-                            ; if name `elemNameSet` th_topnames
-                              then return (Right name)
-                              else return (Left (exactNameErr name))
-                            }
+                    do { lcl_env <- tcl_rdr . env_lcl <$> ask
+                       ; bool
+                         [ bool (Left (exactNameErr name)) (Right name) $ name `elemNameSet` th_topnames
+                         | th_topnames_var <- tcg_th_topnames <$> getGblEnv
+                         , th_topnames <- readMutVar th_topnames_var ]
+                         (pure (Right name)) $ name `inLocalRdrEnvScope` lcl_env
                        }
            gres -> return (Left (sameNameErr gres))   -- Ugh!  See Note [Template Haskell ambiguity]
        }
@@ -367,7 +356,7 @@ lookupInstDeclBndr cls what rdr
                                 -- when it's used
                           cls doc rdr
        ; case mb_name of
-           Left err -> do { addErr err; return (mkUnboundNameRdr rdr) }
+           Left err -> mkUnboundNameRdr rdr <$ addErr err
            Right nm -> return nm }
   where
     doc = what <+> text "of class" <+> quotes (ppr cls)
@@ -380,7 +369,7 @@ lookupFamInstName :: Maybe Name -> Located RdrName
 lookupFamInstName (Just cls) tc_rdr  -- Associated type; c.f GHC.Rename.Bind.rnMethodBind
   = wrapLocM (lookupInstDeclBndr cls (text "associated type")) tc_rdr
 lookupFamInstName Nothing tc_rdr     -- Family instance; tc_rdr is an *occurrence*
-  = lookupLocatedOccRn tc_rdr
+  = wrapLocM lookupOccRn tc_rdr
 
 -----------------------------------------------
 lookupConstructorFields :: Name -> RnM [FieldLabel]
@@ -397,37 +386,31 @@ lookupConstructorFields con_name
   = do  { this_mod <- getModule
         ; if nameIsLocalOrFrom this_mod con_name then
           do { field_env <- getRecFieldEnv
-             ; traceTc "lookupCF" (ppr con_name $$ ppr (lookupNameEnv field_env con_name) $$ ppr field_env)
-             ; return (lookupNameEnv field_env con_name `orElse` []) }
+             ; [] `fromMaybe` lookupNameEnv field_env con_name <$
+               traceTc "lookupCF"
+               (ppr con_name $$ ppr (lookupNameEnv field_env con_name) $$ ppr field_env) }
           else
           do { con <- tcLookupConLike con_name
-             ; traceTc "lookupCF 2" (ppr con)
-             ; return (conLikeFieldLabels con) } }
+             ; conLikeFieldLabels con <$ traceTc "lookupCF 2" (ppr con) } }
 
 
 -- In CPS style as `RnM r` is monadic
 -- Reports an error if the name is an Exact or Orig and it can't find the name
 -- Otherwise if it is not an Exact or Orig, returns k
 lookupExactOrOrig :: RdrName -> (Name -> r) -> RnM r -> RnM r
-lookupExactOrOrig rdr_name res k
-  = do { men <- lookupExactOrOrig_base rdr_name
-       ; case men of
+lookupExactOrOrig rdr_name res k = lookupExactOrOrig_base rdr_name >>= \ case
           FoundExactOrOrig n -> return (res n)
-          ExactOrOrigError e ->
-            do { addErr e
-               ; return (res (mkUnboundNameRdr rdr_name)) }
-          NotExactOrOrig     -> k }
+          ExactOrOrigError e -> res (mkUnboundNameRdr rdr_name) <$ addErr e
+          NotExactOrOrig     -> k
 
 -- Variant of 'lookupExactOrOrig' that does not report an error
 -- See Note [Errors in lookup functions]
 -- Calls k if the name is neither an Exact nor Orig
 lookupExactOrOrig_maybe :: RdrName -> (Maybe Name -> r) -> RnM r -> RnM r
-lookupExactOrOrig_maybe rdr_name res k
-  = do { men <- lookupExactOrOrig_base rdr_name
-       ; case men of
+lookupExactOrOrig_maybe rdr_name res k = lookupExactOrOrig_base rdr_name >>= \ case
            FoundExactOrOrig n -> return (res (Just n))
            ExactOrOrigError _ -> return (res Nothing)
-           NotExactOrOrig     -> k }
+           NotExactOrOrig     -> k
 
 data ExactOrOrigResult = FoundExactOrOrig Name -- ^ Found an Exact Or Orig Name
                        | ExactOrOrigError MsgDoc -- ^ The RdrName was an Exact
@@ -492,12 +475,10 @@ lookupRecFieldOcc mb_con rdr_name
                            -- scope (with the correct qualifier if
                            -- there is one, hence calling pickGREs).
                            gre <- lookupGRE_FieldLabel env fl
-                           guard (not (isQual rdr_name
-                                         && null (pickGREs rdr_name [gre])))
-                           return (fl, gre)
+                           (fl, gre) <$
+                               guard (not (isQual rdr_name && null (pickGREs rdr_name [gre])))
        ; case mb_field of
-           Just (fl, gre) -> do { addUsedGRE True gre
-                                ; return (flSelector fl) }
+           Just (fl, gre) -> flSelector fl <$ addUsedGRE True gre
            Nothing        -> lookupGlobalOccRn rdr_name }
              -- See Note [Fall back on lookupGlobalOccRn in lookupRecFieldOcc]
   | otherwise
@@ -607,28 +588,22 @@ lookupSubBndrOcc_helper must_have_parent warn_if_deprec parent rdr_name
   traceRn "lookupExportChild original_gres:" (ppr original_gres)
   traceRn "lookupExportChild picked_gres:" (ppr $ picked_gres original_gres)
   case picked_gres original_gres of
-    NoOccurrence ->
-      noMatchingParentErr original_gres
-    UniqueOccurrence g ->
-      if must_have_parent then noMatchingParentErr original_gres
-                          else checkFld g
-    DisambiguatedOccurrence g ->
-      checkFld g
-    AmbiguousOccurrence gres ->
-      mkNameClashErr gres
+    NoOccurrence -> noMatchingParentErr original_gres
+    UniqueOccurrence g
+      | must_have_parent -> noMatchingParentErr original_gres
+      | otherwise -> checkFld g
+    DisambiguatedOccurrence g -> checkFld g
+    AmbiguousOccurrence gres -> mkNameClashErr gres
     where
         -- Convert into FieldLabel if necessary
         checkFld :: GlobalRdrElt -> RnM ChildLookupResult
-        checkFld g@GRE{gre_name, gre_par} = do
-          addUsedGRE warn_if_deprec g
-          return $ case gre_par of
-            FldParent _ mfs ->
-              FoundFL  (fldParentToFieldLabel gre_name mfs)
-            _ -> FoundName gre_par gre_name
+        checkFld g@GRE{gre_name, gre_par} =
+          ( case gre_par of
+                FldParent _ mfs -> FoundFL  (fldParentToFieldLabel gre_name mfs)
+                _ -> FoundName gre_par gre_name ) <$ addUsedGRE warn_if_deprec g
 
         fldParentToFieldLabel :: Name -> Maybe FastString -> FieldLabel
-        fldParentToFieldLabel name mfs =
-          case mfs of
+        fldParentToFieldLabel name = \ case
             Nothing ->
               let fs = occNameFS (nameOccName name)
               in FieldLabel fs False name
@@ -662,13 +637,12 @@ lookupSubBndrOcc_helper must_have_parent warn_if_deprec parent rdr_name
                 else mkNameClashErr gss
 
         mkNameClashErr :: [GlobalRdrElt] -> RnM ChildLookupResult
-        mkNameClashErr gres = do
+        mkNameClashErr gres =
+          FoundName (gre_par (head gres)) (gre_name (head gres)) <$
           addNameClashErrRn rdr_name gres
-          return (FoundName (gre_par (head gres)) (gre_name (head gres)))
 
         getParent :: GlobalRdrElt -> Maybe Name
-        getParent (GRE { gre_par = p } ) =
-          case p of
+        getParent (GRE { gre_par = p } ) = case p of
             ParentIs cur_parent -> Just cur_parent
             FldParent { par_is = cur_parent } -> Just cur_parent
             NoParent -> Nothing
@@ -676,15 +650,11 @@ lookupSubBndrOcc_helper must_have_parent warn_if_deprec parent rdr_name
         picked_gres :: [GlobalRdrElt] -> DisambigInfo
         -- For Unqual, find GREs that are in scope qualified or unqualified
         -- For Qual,   find GREs that are in scope with that qualification
-        picked_gres gres
-          | isUnqual rdr_name
-          = mconcat (map right_parent gres)
-          | otherwise
-          = mconcat (map right_parent (pickGREs rdr_name gres))
+        picked_gres = foldMap right_parent .
+            applyWhen (not $ isUnqual rdr_name) (pickGREs rdr_name)
 
         right_parent :: GlobalRdrElt -> DisambigInfo
-        right_parent p
-          = case getParent p of
+        right_parent p = case getParent p of
                Just cur_parent
                   | parent == cur_parent -> DisambiguatedOccurrence p
                   | otherwise            -> NoOccurrence
@@ -711,7 +681,7 @@ instance Outputable DisambigInfo where
   ppr (DisambiguatedOccurrence gre) = text "DiambiguatedOccurrence:" <+> ppr gre
   ppr (AmbiguousOccurrence gres)    = text "Ambiguous:" <+> ppr gres
 
-instance Semi.Semigroup DisambigInfo where
+instance Semigroup DisambigInfo where
   -- This is the key line: We prefer disambiguated occurrences to other
   -- names.
   _ <> DisambiguatedOccurrence g' = DisambiguatedOccurrence g'
@@ -730,7 +700,6 @@ instance Semi.Semigroup DisambigInfo where
 
 instance Monoid DisambigInfo where
   mempty = NoOccurrence
-  mappend = (Semi.<>)
 
 -- Lookup SubBndrOcc can never be ambiguous
 --
@@ -767,19 +736,17 @@ lookupSubBndrOcc :: Bool
                  -> RnM (Either MsgDoc Name)
 -- Find all the things the rdr-name maps to
 -- and pick the one with the right parent namep
-lookupSubBndrOcc warn_if_deprec the_parent doc rdr_name = do
-  res <-
-    lookupExactOrOrig rdr_name (FoundName NoParent) $
-      -- This happens for built-in classes, see mod052 for example
-      lookupSubBndrOcc_helper True warn_if_deprec the_parent rdr_name
-  case res of
-    NameNotFound -> return (Left (unknownSubordinateErr doc rdr_name))
-    FoundName _p n -> return (Right n)
-    FoundFL fl  ->  return (Right (flSelector fl))
+lookupSubBndrOcc warn_if_deprec the_parent doc rdr_name =
+  lookupExactOrOrig rdr_name (FoundName NoParent)
+  -- This happens for built-in classes, see mod052 for example
+  (lookupSubBndrOcc_helper True warn_if_deprec the_parent rdr_name) <₪> \ case
+    NameNotFound -> Left (unknownSubordinateErr doc rdr_name)
+    FoundName _p n -> Right n
+    FoundFL fl  ->  Right (flSelector fl)
     IncorrectParent {}
          -- See [Mismatched class methods and associated type families]
          -- in TcInstDecls.
-      -> return $ Left (unknownSubordinateErr doc rdr_name)
+      -> Left (unknownSubordinateErr doc rdr_name)
 
 {-
 Note [Family instance binders]
@@ -917,37 +884,26 @@ we'll miss the fact that the qualified import is redundant.
 -}
 
 
-lookupLocatedOccRn :: Located RdrName -> RnM (Located Name)
-lookupLocatedOccRn = wrapLocM lookupOccRn
-
-lookupLocalOccRn_maybe :: RdrName -> RnM (Maybe Name)
+lookupLocalOccRn_maybe :: (IsReader f, EnvType f ~ Env gbl TcLclEnv) => RdrName -> f (Maybe Name)
 -- Just look in the local environment
-lookupLocalOccRn_maybe rdr_name
-  = do { local_env <- getLocalRdrEnv
-       ; return (lookupLocalRdrEnv local_env rdr_name) }
+lookupLocalOccRn_maybe rdr_name = flip lookupLocalRdrEnv rdr_name . tcl_rdr . env_lcl <$> ask
 
-lookupLocalOccThLvl_maybe :: Name -> RnM (Maybe (TopLevelFlag, ThLevel))
+lookupLocalOccThLvl_maybe :: (IsReader f, EnvType f ~ Env gbl TcLclEnv) => Name -> f (Maybe (TopLevelFlag, ThLevel))
 -- Just look in the local environment
-lookupLocalOccThLvl_maybe name
-  = do { lcl_env <- getLclEnv
-       ; return (lookupNameEnv (tcl_th_bndrs lcl_env) name) }
+lookupLocalOccThLvl_maybe name = flip lookupNameEnv name . tcl_th_bndrs . env_lcl <$> ask
 
 -- lookupOccRn looks up an occurrence of a RdrName
 lookupOccRn :: RdrName -> RnM Name
-lookupOccRn rdr_name
-  = do { mb_name <- lookupOccRn_maybe rdr_name
-       ; case mb_name of
-           Just name -> return name
-           Nothing   -> reportUnboundName rdr_name }
+lookupOccRn rdr_name = lookupOccRn_maybe rdr_name >>= \ case
+    Just name -> pure name
+    Nothing   -> reportUnboundName rdr_name
 
 -- Only used in one place, to rename pattern synonym binders.
 -- See Note [Renaming pattern synonym variables] in GHC.Rename.Bind
 lookupLocalOccRn :: RdrName -> RnM Name
-lookupLocalOccRn rdr_name
-  = do { mb_name <- lookupLocalOccRn_maybe rdr_name
-       ; case mb_name of
-           Just name -> return name
-           Nothing   -> unboundName WL_LocalOnly rdr_name }
+lookupLocalOccRn rdr_name = lookupLocalOccRn_maybe rdr_name >>= \ case
+    Just name -> pure name
+    Nothing   -> unboundName WL_LocalOnly rdr_name
 
 -- lookupTypeOccRn looks up an optionally promoted RdrName.
 lookupTypeOccRn :: RdrName -> RnM Name
@@ -956,10 +912,9 @@ lookupTypeOccRn rdr_name
   | isVarOcc (rdrNameOcc rdr_name)  -- See Note [Promoted variables in types]
   = badVarInType rdr_name
   | otherwise
-  = do { mb_name <- lookupOccRn_maybe rdr_name
-       ; case mb_name of
-             Just name -> return name
-             Nothing   -> lookup_demoted rdr_name }
+  = lookupOccRn_maybe rdr_name >>= \ case
+        Just name -> return name
+        Nothing   -> lookup_demoted rdr_name
 
 lookup_demoted :: RdrName -> RnM Name
 lookup_demoted rdr_name
@@ -969,15 +924,11 @@ lookup_demoted rdr_name
        ; star_is_type <- xoptM LangExt.StarIsType
        ; let star_info = starInfo star_is_type rdr_name
        ; if data_kinds
-            then do { mb_demoted_name <- lookupOccRn_maybe demoted_rdr
-                    ; case mb_demoted_name of
+            then lookupOccRn_maybe demoted_rdr >>= \ case
                         Nothing -> unboundNameX WL_Any rdr_name star_info
-                        Just demoted_name ->
-                          do { whenWOptM Opt_WarnUntickedPromotedConstructors $
-                               addWarn
-                                 (Reason Opt_WarnUntickedPromotedConstructors)
-                                 (untickedPromConstrWarn demoted_name)
-                             ; return demoted_name } }
+                        Just demoted_name -> demoted_name <$
+                            warnIfFlag Opt_WarnUntickedPromotedConstructors True
+                            (untickedPromConstrWarn demoted_name)
             else do { -- We need to check if a data constructor of this name is
                       -- in scope to give good error messages. However, we do
                       -- not want to give an additional error if the data
@@ -1077,9 +1028,7 @@ lookupGlobalOccRn :: RdrName -> RnM Name
 -- You usually want to use "lookupOccRn" which also looks in the local
 -- environment.
 lookupGlobalOccRn rdr_name =
-  lookupExactOrOrig rdr_name id $ do
-    mn <- lookupGlobalOccRn_base rdr_name
-    case mn of
+  lookupExactOrOrig rdr_name id $ lookupGlobalOccRn_base rdr_name >>= \ case
       Just n -> return n
       Nothing -> do { traceRn "lookupGlobalOccRn" (ppr rdr_name)
                     ; unboundName WL_Global rdr_name }
@@ -1124,9 +1073,7 @@ lookupInfoOccRn rdr_name =
 lookupGlobalOccRn_overloaded :: Bool -> RdrName
                              -> RnM (Maybe (Either Name [Name]))
 lookupGlobalOccRn_overloaded overload_ok rdr_name =
-  lookupExactOrOrig_maybe rdr_name (fmap Left) $
-     do  { res <- lookupGreRn_helper rdr_name
-         ; case res of
+  lookupExactOrOrig_maybe rdr_name (fmap Left) $ lookupGreRn_helper rdr_name >>= \ case
                 GreNotFound  -> return Nothing
                 OneNameMatch gre -> do
                   let wrapper = if isRecFldGRE gre then Right . (:[]) else Left
@@ -1136,8 +1083,7 @@ lookupGlobalOccRn_overloaded overload_ok rdr_name =
                   -- until we know which is meant
                   return $ Just (Right (map gre_name gres))
                 MultipleNames gres  -> do
-                  addNameClashErrRn rdr_name gres
-                  return (Just (Left (gre_name (head gres)))) }
+                  Just (Left (gre_name (head gres))) <$ addNameClashErrRn rdr_name gres
 
 
 --------------------------------------------------
@@ -1154,10 +1100,7 @@ lookupGreRn_maybe :: RdrName -> RnM (Maybe GlobalRdrElt)
 --   No bindings:         return Nothing
 --   Many bindings:       report "ambiguous", return an arbitrary (Just gre)
 -- Uses addUsedRdrName to record use and deprecations
-lookupGreRn_maybe rdr_name
-  = do
-      res <- lookupGreRn_helper rdr_name
-      case res of
+lookupGreRn_maybe rdr_name = lookupGreRn_helper rdr_name >>= \ case
         OneNameMatch gre ->  return $ Just gre
         MultipleNames gres -> do
           traceRn "lookupGreRn_maybe:NameClash" (ppr gres)
@@ -1254,9 +1197,7 @@ Note [Handling of deprecations]
 addUsedDataCons :: GlobalRdrEnv -> TyCon -> RnM ()
 -- Remember use of in-scope data constructors (#7969)
 addUsedDataCons rdr_env tycon
-  = addUsedGREs [ gre
-                | dc <- tyConDataCons tycon
-                , Just gre <- [lookupGRE_Name rdr_env (dataConName dc)] ]
+  = addUsedGREs $ lookupGRE_Name rdr_env . dataConName <$?> tyConDataCons tycon
 
 addUsedGRE :: Bool -> GlobalRdrElt -> RnM ()
 -- Called for both local and imported things
@@ -1289,10 +1230,8 @@ warnIfDeprecated gre@(GRE { gre_name = name, gre_imp = iss })
                not (nameIsLocalOrFrom this_mod name)) $
                    -- See Note [Handling of deprecations]
          do { iface <- loadInterfaceForName doc name
-            ; case lookupImpDeprec iface gre of
-                Just txt -> addWarn (Reason Opt_WarnWarningsDeprecations)
-                                   (mk_msg imp_spec txt)
-                Nothing  -> return () } }
+            ; lookupImpDeprec iface gre `for_` \ txt ->
+              addWarn (Reason Opt_WarnWarningsDeprecations) (mk_msg imp_spec txt) } }
   | otherwise
   = return ()
   where
@@ -1385,8 +1324,7 @@ lookupQualifiedNameGHCi rdr_name
       , is_ghci
       , gopt Opt_ImplicitImportQualified dflags   -- Enables this GHCi behaviour
       , not (safeDirectImpsReq dflags)            -- See Note [Safe Haskell and GHCi]
-      = do { res <- loadSrcInterface_maybe doc mod NotBoot Nothing
-           ; case res of
+      = do { loadSrcInterface_maybe doc mod NotBoot Nothing >>= \ case
                 Succeeded iface
                   -> return [ name
                             | avail <- mi_exports iface
@@ -1395,8 +1333,7 @@ lookupQualifiedNameGHCi rdr_name
 
                 _ -> -- Either we couldn't load the interface, or
                      -- we could but we didn't find the name in it
-                     do { traceRn "lookupQualifiedNameGHCi" (ppr rdr_name)
-                        ; return [] } }
+                     [] <$ traceRn "lookupQualifiedNameGHCi" (ppr rdr_name) }
 
       | otherwise
       = do { traceRn "lookupQualifiedNameGHCi: off" (ppr rdr_name)
@@ -1479,11 +1416,9 @@ lookupSigCtxtOccRn :: HsSigCtxt
                                    -- like "type family"
                    -> Located RdrName -> RnM (Located Name)
 lookupSigCtxtOccRn ctxt what
-  = wrapLocM $ \ rdr_name ->
-    do { mb_name <- lookupBindGroupOcc ctxt what rdr_name
-       ; case mb_name of
-           Left err   -> do { addErr err; return (mkUnboundNameRdr rdr_name) }
-           Right name -> return name }
+  = wrapLocM $ \ rdr_name -> lookupBindGroupOcc ctxt what rdr_name >>= \ case
+           Left err   -> mkUnboundNameRdr rdr_name <$ addErr err
+           Right name -> pure name
 
 lookupBindGroupOcc :: HsSigCtxt
                    -> SDoc
@@ -1501,8 +1436,7 @@ lookupBindGroupOcc ctxt what rdr_name
       -- up when you know what you are doing
 
   | Just (rdr_mod, rdr_occ) <- isOrig_maybe rdr_name
-  = do { n' <- lookupOrig rdr_mod rdr_occ
-       ; return (Right n') }
+  = Right <$> lookupOrig rdr_mod rdr_occ
 
   | otherwise
   = case ctxt of
@@ -1581,10 +1515,9 @@ lookupLocalTcNames :: HsSigCtxt -> SDoc -> RdrName -> RnM [(RdrName, Name)]
 -- Complain if neither is in scope.
 -- See Note [Fixity signature lookup]
 lookupLocalTcNames ctxt what rdr_name
-  = do { mb_gres <- mapM lookup (dataTcOccs rdr_name)
+  = do { mb_gres <- traverse lookup (dataTcOccs rdr_name)
        ; let (errs, names) = partitionEithers mb_gres
-       ; when (null names) $ addErr (head errs) -- Bleat about one only
-       ; return names }
+       ; names <$ null names `when` addErr (head errs) } -- Bleat about one only
   where
     lookup rdr = do { this_mod <- getModule
                     ; nameEither <- lookupBindGroupOcc ctxt what rdr
@@ -1752,9 +1685,8 @@ lookupQualifiedDo ctxt std_name
   = first mkSyntaxExpr <$> lookupQualifiedDoExpr ctxt std_name
 
 lookupNameWithQualifier :: Name -> ModuleName -> RnM (Name, FreeVars)
-lookupNameWithQualifier std_name modName
-  = do { qname <- lookupOccRn (mkRdrQual modName (nameOccName std_name))
-       ; return (qname, unitFV qname) }
+lookupNameWithQualifier std_name modName =
+  [ (qname, unitFV qname) | qname <- lookupOccRn (mkRdrQual modName (nameOccName std_name)) ]
 
 -- See Note [QualifiedDo].
 lookupQualifiedDoName

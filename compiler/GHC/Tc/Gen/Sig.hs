@@ -54,7 +54,6 @@ import GHC.Utils.Panic
 import GHC.Types.SrcLoc
 import GHC.Utils.Misc( singleton )
 import GHC.Data.Maybe( orElse )
-import Data.Maybe( mapMaybe )
 import Control.Monad( unless )
 
 

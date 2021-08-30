@@ -80,7 +80,7 @@ import GHC.Utils.Panic.Plain
 import GHC.Cmm.Ppr () -- For Outputable instances
 import qualified GHC.Driver.Session as D
 
-import Data.List (sort, nub, partition)
+import Data.List (sort)
 import Data.STRef.Strict
 import Control.Monad.ST
 
@@ -471,7 +471,7 @@ pprEdgeWeights m =
             = text "\t" <> ppr node <> text ";\n"
         getEdgeNodes (CfgEdge from to _) = [from,to]
         edgeNodes = setFromList $ concatMap getEdgeNodes edges :: LabelSet
-        nodes = filter (\n -> (not . setMember n) edgeNodes) . mapKeys $ mapFilter null m
+        nodes = filter (\n -> (not . setMember n) edgeNodes) . mapKeys $ filter null m
     in
     text "digraph {\n" <>
         (foldl' (<>) empty (map printEdge edges)) <>
@@ -986,7 +986,7 @@ mkGlobalWeights root localCfg
         (toVertex $ snd backedge, sort . map toVertex $ (setElems blocks))
 
     vertexMapping = mapFromList $ zip revOrder [0..] :: LabelMap Int
-    blockMapping = listArray (0,mapSize vertexMapping - 1) revOrder :: Array Int BlockId
+    blockMapping = listArray (0,length vertexMapping - 1) revOrder :: Array Int BlockId
     -- Map from blockId to indices starting at zero
     toVertex :: BlockId -> Int
     toVertex   blockId  = expectJust "mkGlobalWeights" $ mapLookup blockId vertexMapping
@@ -1187,7 +1187,7 @@ cfgEdgeProbabilities cfg toVertex
         | edgeCount <= 1 = mapFoldlWithKey (\m k _ -> IM.insert (toVertex k) 1.0 m) IM.empty weightMap
         | otherwise = mapFoldlWithKey (\m k _ -> IM.insert (toVertex k) (normalWeight k) m) IM.empty weightMap
       where
-        edgeCount = mapSize weightMap
+        edgeCount = length weightMap
         -- Negative weights are generally allowed but are mapped to zero.
         -- We then check if there is at least one non-zero edge and if not
         -- assign uniform weights to all branches.
@@ -1336,14 +1336,14 @@ calcFreqs graph backEdges loops revPostOrder = runST $ do
 
     nodeCount = IM.foldl' (\count toMap -> IM.foldlWithKey' countTargets count toMap) (IM.size graph) graph
       where
-        countTargets = (\count k _ -> countNode k + count )
-        countNode n = if IM.member n graph then 0 else 1
+        countTargets = (\count k _ -> countNode k + count)
+        countNode n = bool 1 0 $ IM.member n graph
 
     isBackEdge from to = S.member (from,to) backEdgeSet
     backEdgeSet = S.fromList backEdges
 
     revGraph :: IntMap IntSet
-    revGraph = IM.foldlWithKey' (\m from toMap -> addEdges m from toMap) IM.empty graph
+    revGraph = IM.foldlWithKey' addEdges IM.empty graph
         where
-            addEdges m0 from toMap = IM.foldlWithKey' (\m k _ -> addEdge m from k) m0 toMap
+            addEdges m0 from = IM.foldlWithKey' (\m k _ -> addEdge m from k) m0
             addEdge m0 from to = IM.insertWith IS.union to (IS.singleton from) m0

@@ -672,7 +672,7 @@ almost_devoid_co_var_of_co (FunCo _ co1 co2) cv
   = almost_devoid_co_var_of_co co1 cv
   && almost_devoid_co_var_of_co co2 cv
 almost_devoid_co_var_of_co (CoVarCo v) cv = v /= cv
-almost_devoid_co_var_of_co (HoleCo h)  cv = (coHoleCoVar h) /= cv
+almost_devoid_co_var_of_co (HoleCo h)  cv = coHoleCoVar h /= cv
 almost_devoid_co_var_of_co (AxiomInstCo _ _ cos) cv
   = almost_devoid_co_var_of_cos cos cv
 almost_devoid_co_var_of_co (UnivCo p _ t1 t2) cv

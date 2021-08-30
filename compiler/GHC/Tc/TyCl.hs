@@ -89,11 +89,8 @@ import GHC.Utils.Panic
 import GHC.Utils.Panic.Plain
 import GHC.Utils.Misc
 
-import Control.Monad
-import Data.Foldable
-import Data.Function ( on )
+import Control.Monad hiding ( mapAndUnzipM )
 import Data.Functor.Identity
-import Data.List
 import qualified Data.List.NonEmpty as NE
 import Data.List.NonEmpty ( NonEmpty(..) )
 import qualified Data.Set as Set
@@ -646,7 +643,7 @@ kcTyClGroup kisig_env decls
 
         ; cusks_enabled <- xoptM LangExt.CUSKs <&&> xoptM LangExt.PolyKinds
                     -- See Note [CUSKs and PolyKinds]
-        ; let (kindless_decls, kinded_decls) = partitionWith get_kind decls
+        ; let (kindless_decls, kinded_decls) = mapEither get_kind decls
 
               get_kind d
                 | Just ki <- lookupNameEnv kisig_env (tcdName (unLoc d))
@@ -734,12 +731,12 @@ generaliseTyClDecl inferred_tc_env (L _ decl)
     skolemise_tc_tycon tc_name
       = do { let tc = lookupNameEnv_NF inferred_tc_env tc_name
                       -- This lookup should not fail
-           ; scoped_prs <- mapSndM zonkAndSkolemise (tcTyConScopedTyVars tc)
+           ; scoped_prs <- (traverse . traverse) zonkAndSkolemise (tcTyConScopedTyVars tc)
            ; return (tc, scoped_prs) }
 
     zonk_tc_tycon :: (TcTyCon, ScopedPairs) -> TcM (TcTyCon, ScopedPairs, TcKind)
     zonk_tc_tycon (tc, scoped_prs)
-      = do { scoped_prs <- mapSndM zonkTcTyVarToTyVar scoped_prs
+      = do { scoped_prs <- (traverse . traverse) zonkTcTyVarToTyVar scoped_prs
                            -- We really have to do this again, even though
                            -- we have just done zonkAndSkolemise
            ; res_kind   <- zonkTcType (tyConResKind tc)
@@ -751,7 +748,7 @@ swizzleTcTyConBndrs tc_infos
   | all no_swizzle swizzle_prs
     -- This fast path happens almost all the time
     -- See Note [Non-cloning for tyvar binders] in GHC.Tc.Gen.HsType
-  = do { traceTc "Skipping swizzleTcTyConBndrs for" (ppr (map fstOf3 tc_infos))
+  = do { traceTc "Skipping swizzleTcTyConBndrs for" (ppr (map fst3 tc_infos))
        ; return tc_infos }
 
   | otherwise
@@ -835,9 +832,9 @@ swizzleTcTyConBndrs tc_infos
     swizzle_var :: Var -> Var
     swizzle_var v
       | Just nm <- lookupVarEnv swizzle_env v
-      = updateVarType swizzle_ty (v `setVarName` nm)
+      = over varTypeL swizzle_ty (set varNameL nm v)
       | otherwise
-      = updateVarType swizzle_ty v
+      = over varTypeL swizzle_ty v
 
     (map_type, _, _, _) = mapTyCo swizzleMapper
     swizzle_ty ty = runIdentity (map_type ty)
@@ -1508,7 +1505,7 @@ kcLTyClDecl (L loc decl)
     do { tycon <- tcLookupTcTyCon tc_name
        ; traceTc "kcTyClDecl {" (ppr tc_name)
        ; addVDQNote tycon $   -- See Note [Inferring visible dependent quantification]
-         addErrCtxt (tcMkDeclCtxt decl) $
+         tcAddDeclCtxt decl $
          kcTyClDecl decl tycon
        ; traceTc "kcTyClDecl done }" (ppr tc_name) }
   where
@@ -1545,7 +1542,7 @@ kcTyClDecl (DataDecl { tcdLName    = (L _ name)
 
 kcTyClDecl (SynDecl { tcdLName = L _ name, tcdRhs = rhs }) _tycon
   = bindTyClTyVars name $ \ _ _ res_kind ->
-    discardResult $ tcCheckLHsType rhs (TheKind res_kind)
+    () <$ tcCheckLHsType rhs (TheKind res_kind)
         -- NB: check against the result kind that we allocated
         -- in inferInitialKinds.
 
@@ -1605,8 +1602,8 @@ kcConDecl new_or_data res_kind (ConDeclH98
   { con_name = name, con_ex_tvs = ex_tvs
   , con_mb_cxt = ex_ctxt, con_args = args })
   = addErrCtxt (dataConCtxtName [name]) $
-    discardResult                   $
-    bindExplicitTKBndrs_Tv ex_tvs $
+    () <$
+    bindExplicitTKBndrs_Tv ex_tvs
     do { _ <- tcHsMbContext ex_ctxt
        ; kcConArgTys new_or_data res_kind (hsConDeclArgTys args)
          -- We don't need to check the telescope here,
@@ -1624,7 +1621,7 @@ kcConDecl new_or_data res_kind (ConDeclGADT
     -- If we don't look at MkT we won't get the correct kind
     -- for the type constructor T
     addErrCtxt (dataConCtxtName names) $
-    discardResult $
+    (() <$) $
     bindImplicitTKBndrs_Tv implicit_tkv_nms $
     bindExplicitTKBndrs_Tv explicit_tkv_nms $
         -- Why "_Tv"?  See Note [Kind-checking for GADTs]
@@ -2748,7 +2745,7 @@ kcTyFamInstEqn tc_fam_tc
        ; let vis_pats = numVisibleArgs hs_pats
        ; checkTc (vis_pats == vis_arity) $
                   wrongNumberOfParmsErr vis_arity
-       ; discardResult $
+       ; (() <$) $
          bindImplicitTKBndrs_Q_Tv imp_vars $
          bindExplicitTKBndrs_Q_Tv AnyKind (mb_expl_bndrs `orElse` []) $
          do { (_fam_app, res_kind) <- tcFamTyPats tc_fam_tc hs_pats
@@ -3427,7 +3424,7 @@ rejigConRes tmpl_bndrs res_tmpl dc_tvbndrs res_ty
         -- since the dcUserTyVarBinders invariant guarantees that the
         -- substitution has *all* the tyvars in its domain.
         -- See Note [DataCon user type variable binders] in GHC.Core.DataCon.
-        subst_user_tvs  = mapVarBndrs (getTyVar "rejigConRes" . substTyVar arg_subst)
+        subst_user_tvs  = over (traverse . binderVarL) (getTyVar "rejigConRes" . substTyVar arg_subst)
         substed_tvbndrs = subst_user_tvs dc_tvbndrs
 
         substed_eqs = map (substEqSpec arg_subst) raw_eqs
@@ -3630,7 +3627,7 @@ mkGADTVars tmpl_tvs dc_tvs subst
                       (extendTvSubst r_sub r_tv r_ty')
                       t_tvs
             where
-              r_tv1  = setTyVarName r_tv (choose_tv_name r_tv t_tv)
+              r_tv1  = set tyVarNameL (choose_tv_name r_tv t_tv) r_tv
               r_ty'  = mkTyVarTy r_tv1
 
                -- Not a simple substitution: make an equality predicate
@@ -3640,7 +3637,7 @@ mkGADTVars tmpl_tvs dc_tvs subst
                          -- so add it to t_sub (#14162)
                       r_sub t_tvs
             where
-              t_tv' = updateTyVarKind (substTy t_sub) t_tv
+              t_tv' = over tyVarKindL (substTy t_sub) t_tv
 
       | otherwise
       = pprPanic "mkGADTVars" (ppr tmpl_tvs $$ ppr subst)
@@ -3653,7 +3650,7 @@ mkGADTVars tmpl_tvs dc_tvs subst
     choose_tv_name :: TyVar -> TyVar -> Name
     choose_tv_name r_tv t_tv
       | isSystemName r_tv_name
-      = setNameUnique t_tv_name (getUnique r_tv_name)
+      = set nameUniqueL (getUnique r_tv_name) t_tv_name
 
       | otherwise
       = r_tv_name
@@ -4105,19 +4102,16 @@ checkValidClass cls
           -- Now check for cyclic superclasses
           -- If there are superclass cycles, checkClassCycleErrs bails.
         ; unless undecidable_super_classes $
-          case checkClassCycles cls of
-             Just err -> setSrcSpan (getSrcSpan cls) $
-                         addErrTc err
-             Nothing  -> return ()
+          checkClassCycles cls `for_` \ err -> setSrcSpan (getSrcSpan cls) $ addErrTc err
 
         -- Check the class operations.
         -- But only if there have been no earlier errors
         -- See Note [Abort when superclass cycle is detected]
         ; whenNoErrs $
-          mapM_ (check_op constrained_class_methods) op_stuff
+          traverse_ (check_op constrained_class_methods) op_stuff
 
         -- Check the associated type defaults are well-formed and instantiated
-        ; mapM_ check_at at_stuff  }
+        ; traverse_ check_at at_stuff  }
   where
     (tyvars, fundeps, theta, _, at_stuff, op_stuff) = classExtraBigSig cls
     cls_arity = length (tyConVisibleTyVars (classTyCon cls))
@@ -4143,7 +4137,7 @@ checkValidClass cls
         ; checkForLevPoly empty tau1
 
         ; unless constrained_class_methods $
-          mapM_ check_constraint (tail (cls_pred:op_theta))
+          traverse_ check_constraint (tail (cls_pred:op_theta))
 
         ; check_dm ctxt sel_id cls_pred tau2 dm
         }
@@ -4172,7 +4166,7 @@ checkValidClass cls
                         -- since there is no possible ambiguity (#10020)
 
              -- Check that any default declarations for associated types are valid
-           ; whenIsJust m_dflt_rhs $ \ (rhs, loc) ->
+           ; for_ m_dflt_rhs $ \ (rhs, loc) ->
              setSrcSpan loc $
              tcAddFamInstCtxt (text "default type instance") (getName fam_tc) $
              checkValidTyFamEqn fam_tc fam_tvs (mkTyVarTys fam_tvs) rhs }
@@ -4481,7 +4475,7 @@ checkValidRoleAnnots role_annots tc
       | otherwise                = Nothing
 
     check_roles
-      = whenIsJust role_annot_decl_maybe $
+      = for_ role_annot_decl_maybe $
           \decl@(L loc (RoleAnnotDecl _ _ the_role_annots)) ->
           addRoleAnnotCtxt name $
           setSrcSpan loc $ do
@@ -4503,7 +4497,7 @@ checkValidRoleAnnots role_annots tc
           ; when lint $ checkValidRoles tc }
 
     check_no_roles
-      = whenIsJust role_annot_decl_maybe illegalRoleAnnotDecl
+      = for_ role_annot_decl_maybe illegalRoleAnnotDecl
 
 checkRoleAnnot :: TyVar -> Located (Maybe Role) -> Role -> TcM ()
 checkRoleAnnot _  (L _ Nothing)   _  = return ()
@@ -4636,12 +4630,10 @@ addVDQNote tycon thing_inside
       ]
 
 tcAddDeclCtxt :: TyClDecl GhcRn -> TcM a -> TcM a
-tcAddDeclCtxt decl thing_inside
-  = addErrCtxt (tcMkDeclCtxt decl) thing_inside
+tcAddDeclCtxt decl = addErrCtxt (tcMkDeclCtxt decl)
 
 tcAddTyFamInstCtxt :: TyFamInstDecl GhcRn -> TcM a -> TcM a
-tcAddTyFamInstCtxt decl
-  = tcAddFamInstCtxt (text "type instance") (tyFamInstDeclName decl)
+tcAddTyFamInstCtxt decl = tcAddFamInstCtxt (text "type instance") (tyFamInstDeclName decl)
 
 tcMkDataFamInstCtxt :: DataFamInstDecl GhcRn -> SDoc
 tcMkDataFamInstCtxt decl@(DataFamInstDecl { dfid_eqn =
@@ -4650,8 +4642,7 @@ tcMkDataFamInstCtxt decl@(DataFamInstDecl { dfid_eqn =
                     (unLoc (feqn_tycon eqn))
 
 tcAddDataFamInstCtxt :: DataFamInstDecl GhcRn -> TcM a -> TcM a
-tcAddDataFamInstCtxt decl
-  = addErrCtxt (tcMkDataFamInstCtxt decl)
+tcAddDataFamInstCtxt decl = addErrCtxt (tcMkDataFamInstCtxt decl)
 
 tcMkFamInstCtxt :: SDoc -> Name -> SDoc
 tcMkFamInstCtxt flavour tycon
@@ -4659,12 +4650,10 @@ tcMkFamInstCtxt flavour tycon
          , quotes (ppr tycon) ]
 
 tcAddFamInstCtxt :: SDoc -> Name -> TcM a -> TcM a
-tcAddFamInstCtxt flavour tycon thing_inside
-  = addErrCtxt (tcMkFamInstCtxt flavour tycon) thing_inside
+tcAddFamInstCtxt flavour tycon = addErrCtxt (tcMkFamInstCtxt flavour tycon)
 
 tcAddClosedTypeFamilyDeclCtxt :: TyCon -> TcM a -> TcM a
-tcAddClosedTypeFamilyDeclCtxt tc
-  = addErrCtxt ctxt
+tcAddClosedTypeFamilyDeclCtxt tc = addErrCtxt ctxt
   where
     ctxt = text "In the equations for closed type family" <+>
            quotes (ppr tc)
@@ -4681,10 +4670,8 @@ fieldTypeMisMatch field_name con1 con2
          text "give different types for field", quotes (ppr field_name)]
 
 dataConCtxtName :: [Located Name] -> SDoc
-dataConCtxtName [con]
-   = text "In the definition of data constructor" <+> quotes (ppr con)
-dataConCtxtName con
-   = text "In the definition of data constructors" <+> interpp'SP con
+dataConCtxtName [con] = text "In the definition of data constructor" <+> quotes (ppr con)
+dataConCtxtName con = text "In the definition of data constructors" <+> interpp'SP con
 
 dataConCtxt :: Outputable a => a -> SDoc
 dataConCtxt con = text "In the definition of data constructor" <+> quotes (ppr con)
@@ -4817,12 +4804,8 @@ incoherentRoles = (text "Roles other than" <+> quotes (text "nominal") <+>
                   (text "Use IncoherentInstances to allow this; bad role found")
 
 addTyConCtxt :: TyCon -> TcM a -> TcM a
-addTyConCtxt tc = addTyConFlavCtxt name flav
-  where
-    name = getName tc
-    flav = tyConFlavour tc
+addTyConCtxt tc = addTyConFlavCtxt (getName tc) (tyConFlavour tc)
 
 addRoleAnnotCtxt :: Name -> TcM a -> TcM a
-addRoleAnnotCtxt name
-  = addErrCtxt $
+addRoleAnnotCtxt name = addErrCtxt $
     text "while checking a role annotation for" <+> quotes (ppr name)

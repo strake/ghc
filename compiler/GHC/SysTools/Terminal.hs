@@ -6,7 +6,6 @@ import GHC.Prelude
 
 #if defined(MIN_VERSION_terminfo)
 import GHC.Utils.Exception (catch)
-import Data.Maybe (fromMaybe)
 import System.Console.Terminfo (SetupTermError, Terminal, getCapability,
                                 setupTermFromEnv, termColors)
 import System.Posix (queryTerminal, stdError)

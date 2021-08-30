@@ -8,7 +8,6 @@
 module GHC.HsToCore.Docs where
 
 import GHC.Prelude
-import GHC.Data.Bag
 import GHC.Hs.Binds
 import GHC.Hs.Doc
 import GHC.Hs.Decls
@@ -22,10 +21,9 @@ import GHC.Tc.Types
 
 import Control.Applicative
 import Data.Bifunctor (first)
+import Data.Foldable (toList)
 import Data.Map (Map)
 import qualified Data.Map as M
-import Data.Maybe
-import Data.Semigroup
 
 -- | Extract docs from renamer output.
 extractDocs :: TcGblEnv
@@ -96,8 +94,8 @@ mkMaps instances decls =
     instanceMap = M.fromList [(l, n) | n <- instances, RealSrcSpan l _ <- [getSrcSpan n] ]
 
     names :: RealSrcSpan -> HsDecl GhcRn -> [Name]
-    names _ (InstD _ d) = maybeToList $ lookupSrcSpan (getInstLoc d) instanceMap
-    names l (DerivD {}) = maybeToList (M.lookup l instanceMap) -- See Note [1].
+    names _ (InstD _ d) = toList $ lookupSrcSpan (getInstLoc d) instanceMap
+    names l (DerivD {}) = toList (M.lookup l instanceMap) -- See Note [1].
     names _ decl = getMainDeclBinder decl
 
 {-
@@ -181,10 +179,10 @@ subordinates instMap decl = case decl of
       where
         cons = map unLoc $ (dd_cons dd)
         constrs = [ ( unLoc cname
-                    , maybeToList $ fmap unLoc $ con_doc c
+                    , toList $ fmap unLoc $ con_doc c
                     , conArgDocs c)
                   | c <- cons, cname <- getConNames c ]
-        fields  = [ (extFieldOcc n, maybeToList $ fmap unLoc doc, M.empty)
+        fields  = [ (extFieldOcc n, toList $ fmap unLoc doc, M.empty)
                   | RecCon flds <- map getConArgs cons
                   , (L _ (ConDeclField _ ns _ doc)) <- (unLoc flds)
                   , (L _ n) <- ns ]
@@ -233,7 +231,7 @@ classDecls class_ = filterDecls . collectDocs . sortLocated $ decls
   where
     decls = docs ++ defs ++ sigs ++ ats
     docs  = mkDecls tcdDocs (DocD noExtField) class_
-    defs  = mkDecls (bagToList . tcdMeths) (ValD noExtField) class_
+    defs  = mkDecls (toList . tcdMeths) (ValD noExtField) class_
     sigs  = mkDecls tcdSigs (SigD noExtField) class_
     ats   = mkDecls tcdATs (TyClD noExtField . FamDecl noExtField) class_
 
@@ -293,7 +291,7 @@ ungroup group_ =
 
     valbinds :: HsValBinds GhcRn -> [LHsBind GhcRn]
     valbinds (XValBindsLR (NValBinds binds _)) =
-      concatMap bagToList . snd . unzip $ binds
+      concatMap toList . snd . unzip $ binds
     valbinds ValBinds{} = error "expected XValBindsLR"
 
 -- | Collect docs and attach them to the right declarations.
@@ -331,7 +329,7 @@ filterDecls = filter (isHandled . unLoc . fst)
 
 -- | Go through all class declarations and filter their sub-declarations
 filterClasses :: [(LHsDecl a, doc)] -> [(LHsDecl a, doc)]
-filterClasses = map (first (mapLoc filterClass))
+filterClasses = map (first (fmap filterClass))
   where
     filterClass (TyClD x c@(ClassDecl {})) =
       TyClD x $ c { tcdSigs =
@@ -351,4 +349,4 @@ mkDecls :: (struct -> [Located decl])
         -> (decl -> hsDecl)
         -> struct
         -> [Located hsDecl]
-mkDecls field con = map (mapLoc con) . field
+mkDecls field con = map (fmap con) . field

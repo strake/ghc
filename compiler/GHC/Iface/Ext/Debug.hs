@@ -19,7 +19,6 @@ import GHC.Types.Name
 
 import qualified Data.Map as M
 import qualified Data.Set as S
-import Data.Function    ( on )
 import Data.List        ( sortOn )
 
 type Diff a = a -> a -> [SDoc]

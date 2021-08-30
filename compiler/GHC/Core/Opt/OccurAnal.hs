@@ -47,7 +47,7 @@ import GHC.Utils.Outputable
 import GHC.Utils.Outputable.Ppr
 import GHC.Utils.Panic
 import GHC.Utils.Panic.Plain
-import Data.List
+import Data.Traversable
 
 {-
 ************************************************************************
@@ -95,7 +95,7 @@ occurAnalysePgm this_mod active_unf active_rule imp_rules binds
 
     -- Note [Preventing loops due to imported functions rules]
     imp_rule_edges = foldr (plusVarEnv_C unionVarSet) emptyVarEnv
-                            [ mapVarEnv (const maps_to) $
+                            [ maps_to <$
                                 getUniqSet (exprFreeIds arg `delVarSetList` ru_bndrs imp_rule)
                             | imp_rule <- imp_rules
                             , not (isBuiltinRule imp_rule)  -- See Note [Plugin rules]
@@ -824,7 +824,7 @@ occAnalNonRecBind env lvl imp_rule_edges bndr rhs body_usage
     -- See Note [Rules are extra RHSs] and Note [Rule dependency info]
     rules_w_uds = occAnalRules rhs_env mb_join_arity bndr
     rule_uds    = map (\(_, l, r) -> l `andUDs` r) rules_w_uds
-    rules'      = map fstOf3 rules_w_uds
+    rules'      = map fst3 rules_w_uds
     rhs_usage3 = foldr andUDs rhs_usage2 rule_uds
     rhs_usage4 = case lookupVarEnv imp_rule_edges bndr of
                    Nothing -> rhs_usage3
@@ -1281,7 +1281,7 @@ makeNode env imp_rule_edges bndr_set (bndr, rhs)
     rules_w_uds :: [(CoreRule, UsageDetails, UsageDetails)]
     rules_w_uds = occAnalRules rhs_env mb_join_arity bndr
 
-    rules' = map fstOf3 rules_w_uds
+    rules' = map fst3 rules_w_uds
 
     rules_w_rhs_fvs :: [(Activation, VarSet)]    -- Find the RHS fvs
     rules_w_rhs_fvs = maybe id (\ids -> ((AlwaysActive, ids):))
@@ -2520,12 +2520,12 @@ Note [UsageDetails and zapping]
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 On many occasions, we must modify all gathered occurrence data at once. For
 instance, all occurrences underneath a (non-one-shot) lambda set the
-'occ_in_lam' flag to become 'True'. We could use 'mapVarEnv' to do this, but
+'occ_in_lam' flag to become 'True'. We could use 'fmap' to do this, but
 that takes O(n) time and we will do this often---in particular, there are many
 places where tail calls are not allowed, and each of these causes all variables
 to get marked with 'NoTailCallInfo'.
 
-Instead of relying on `mapVarEnv`, then, we carry three 'IdEnv's around along
+Instead of relying on `fmap`, then, we carry three 'IdEnv's around along
 with the 'OccInfoEnv'. Each of these extra environments is a "zapped set"
 recording which variables have been zapped in some way. Zapping all occurrence
 info then simply means setting the corresponding zapped set to the whole

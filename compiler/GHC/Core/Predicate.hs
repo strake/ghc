@@ -43,8 +43,6 @@ import GHC.Utils.Outputable
 import GHC.Utils.Misc
 import GHC.Utils.Panic
 
-import Control.Monad ( guard )
-
 -- | A predicate in the solver. The solver tries to prove Wanted predicates
 -- from Given ones.
 data Pred

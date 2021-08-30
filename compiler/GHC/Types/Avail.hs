@@ -42,7 +42,6 @@ import GHC.Utils.Constants (debugIsOn)
 
 import Data.Data ( Data )
 import Data.List ( find )
-import Data.Function
 
 -- -----------------------------------------------------------------------------
 -- The AvailInfo type
@@ -133,23 +132,22 @@ stableAvailCmp (AvailTC n ns nfs) (AvailTC m ms mfs) =
 stableAvailCmp (AvailTC {})       (Avail {})     = GT
 
 avail :: Name -> AvailInfo
-avail n = Avail n
+avail = Avail
 
 -- -----------------------------------------------------------------------------
 -- Operations on AvailInfo
 
 availsToNameSet :: [AvailInfo] -> NameSet
-availsToNameSet avails = foldr add emptyNameSet avails
-      where add avail set = extendNameSetList set (availNames avail)
+availsToNameSet = foldr add emptyNameSet
+  where add avail = flip extendNameSetList (availNames avail)
 
 availsToNameSetWithSelectors :: [AvailInfo] -> NameSet
-availsToNameSetWithSelectors avails = foldr add emptyNameSet avails
-      where add avail set = extendNameSetList set (availNamesWithSelectors avail)
+availsToNameSetWithSelectors = foldr add emptyNameSet
+  where add avail = flip extendNameSetList (availNamesWithSelectors avail)
 
 availsToNameEnv :: [AvailInfo] -> NameEnv AvailInfo
-availsToNameEnv avails = foldr add emptyNameEnv avails
-     where add avail env = extendNameEnvList env
-                                (zip (availNames avail) (repeat avail))
+availsToNameEnv = foldr add emptyNameEnv
+  where add avail = flip extendNameEnvList (zip (availNames avail) (repeat avail))
 
 -- | Just the main name made available, i.e. not the available pieces
 -- of type or class brought into scope by the 'GenAvailInfo'

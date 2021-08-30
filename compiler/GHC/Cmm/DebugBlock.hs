@@ -48,11 +48,12 @@ import GHC.Cmm.Dataflow.Collections
 import GHC.Cmm.Dataflow.Graph
 import GHC.Cmm.Dataflow.Label
 
+import Control.Monad ( join )
+import Data.Foldable ( toList )
 import Data.Maybe
-import Data.List     ( minimumBy, nubBy )
+import Data.List     ( minimumBy )
 import Data.Ord      ( comparing )
 import qualified Data.Map as Map
-import Data.Either   ( partitionEithers )
 
 -- | Debug information about a block of code. Ticks scope over nested
 -- blocks.
@@ -103,8 +104,7 @@ cmmDebugGen modLoc decls = map (blocksForScope Nothing) topScopes
 
       -- Analyse tick scope structure: Each one is either a top-level
       -- tick scope, or the child of another.
-      (topScopes, childScopes)
-        = partitionEithers $ map (\a -> findP a a) $ Map.keys blockCtxs
+      (topScopes, childScopes) = join findP `mapEither` Map.keys blockCtxs
       findP tsc GlobalScope = Left tsc -- top scope
       findP tsc scp | scp' `Map.member` blockCtxs = Right (scp', tsc)
                     | otherwise                   = findP tsc scp'
@@ -194,7 +194,7 @@ cmmDebugGen modLoc decls = map (blocksForScope Nothing) topScopes
                       bCtxsTicks bctxs ++ ticksToCopy scope
               stick = case filter isSourceTick ticks of
                 []     -> cstick
-                sticks -> Just $! bestSrcTick (sticks ++ maybeToList cstick)
+                sticks -> Just $! bestSrcTick (sticks ++ toList cstick)
 
 -- | Build a map of blocks sorted by their tick scopes
 --
@@ -208,7 +208,7 @@ blockContexts decls = Map.map reverse $ foldr walkProc Map.empty decls
                  -> Map.Map CmmTickScope [BlockContext]
         walkProc CmmData{}                 m = m
         walkProc prc@(CmmProc _ _ _ graph) m
-          | mapNull blocks = m
+          | null blocks = m
           | otherwise      = snd $ walkBlock prc entry (emptyLbls, m)
           where blocks = toBlockMap graph
                 entry  = [mapFind (g_entry graph) blocks]

@@ -4,11 +4,13 @@
 {-# LANGUAGE TypeFamilies     #-}
 module Main where
 
+import Prelude hiding (filter)
 import System.IO
 import GHC
 import GHC.Utils.Monad
 import GHC.Utils.Outputable
-import GHC.Data.Bag (filterBag,isEmptyBag)
+import GHC.Data.Bag (isEmptyBag)
+import Data.Filtrable (filter)
 import System.Directory (removeFile)
 import System.Environment( getArgs )
 
@@ -30,13 +32,13 @@ main = do
                         l <- loadModule d
                         let ts=typecheckedSource l
 --                        liftIO (putStr (showSDocDebug (ppr ts)))
-                        let fs=filterBag isDataCon ts
+                        let fs=filter isDataCon ts
                         return $ not $ isEmptyBag fs
         removeFile "Test.hs"
         print ok
     where
       isDataCon (L _ (AbsBinds { abs_binds = bs }))
-        = not (isEmptyBag (filterBag isDataCon bs))
+        = not (isEmptyBag (filter isDataCon bs))
       isDataCon (L l (f@FunBind {}))
         | (MG _ (L _ (m:_)) _) <- fun_matches f,
           ((L _ (c@ConPat{})):_)<-hsLMatchPats m,

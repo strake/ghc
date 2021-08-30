@@ -50,7 +50,6 @@ import GHC.Types.SrcLoc
 import Data.Ratio
 import GHC.Utils.Outputable as Outputable
 import GHC.Driver.Session
-import GHC.Utils.Misc
 import GHC.Utils.Panic
 import GHC.Utils.Panic.Plain
 import GHC.Data.FastString

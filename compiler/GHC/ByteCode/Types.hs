@@ -35,7 +35,6 @@ import Data.Array.Base  ( UArray(..) )
 import Data.ByteString (ByteString)
 import Data.IntMap (IntMap)
 import qualified Data.IntMap as IntMap
-import Data.Maybe (catMaybes)
 import GHC.Exts.Heap
 import GHC.Stack.CCS
 

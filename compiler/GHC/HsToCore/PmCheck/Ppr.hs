@@ -21,7 +21,6 @@ import GHC.Utils.Outputable
 import GHC.Utils.Panic
 import GHC.Utils.Panic.Plain
 import Control.Monad.Trans.RWS.CPS
-import GHC.Data.Maybe
 import Data.List.NonEmpty (NonEmpty, nonEmpty, toList)
 
 import GHC.HsToCore.PmCheck.Types
@@ -42,7 +41,7 @@ import GHC.HsToCore.PmCheck.Oracle
 -- additional elements are indicated by "...".
 pprUncovered :: Delta -> [Id] -> SDoc
 pprUncovered delta vas
-  | isNullUDFM refuts = fsep vec -- there are no refutations
+  | null refuts = fsep vec -- there are no refutations
   | otherwise         = hang (fsep vec) 4 $
                           text "where" <+> vcat (map (pprRefutableShapes . snd) (udfmToList refuts))
   where
@@ -121,9 +120,7 @@ getCleanName x = do
   let (clean_name:name_supply') = name_supply
   case lookupDVarEnv renamings x of
     Just nm -> pure nm
-    Nothing -> do
-      put (extendDVarEnv renamings x clean_name, name_supply')
-      pure clean_name
+    Nothing -> clean_name <$ put (extendDVarEnv renamings x clean_name, name_supply')
 
 checkRefuts :: Id -> PmPprM (Maybe SDoc) -- the clean name if it has negative info attached
 checkRefuts x = do

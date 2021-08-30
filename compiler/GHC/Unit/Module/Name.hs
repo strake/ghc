@@ -39,14 +39,14 @@ instance Eq ModuleName where
   nm1 == nm2 = getUnique nm1 == getUnique nm2
 
 instance Ord ModuleName where
-  nm1 `compare` nm2 = stableModuleNameCmp nm1 nm2
+  compare = stableModuleNameCmp
 
 instance Outputable ModuleName where
   ppr = pprModuleName
 
 instance Binary ModuleName where
   put_ bh (ModuleName fs) = put_ bh fs
-  get bh = do fs <- get bh; return (ModuleName fs)
+  get bh = ModuleName <$> get bh
 
 instance Data ModuleName where
   -- don't traverse?

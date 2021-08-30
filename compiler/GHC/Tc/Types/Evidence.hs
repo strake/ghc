@@ -58,7 +58,6 @@ module GHC.Tc.Types.Evidence (
 import GHC.Prelude
 
 import GHC.Types.Unique.DFM
-import GHC.Types.Unique.FM
 import GHC.Types.Var
 import GHC.Core.Coercion.Axiom
 import GHC.Core.Coercion
@@ -86,6 +85,7 @@ import GHC.Utils.Outputable
 import GHC.Data.Bag
 import qualified Data.Data as Data
 import GHC.Types.SrcLoc
+import Data.Foldable (toList)
 import Data.IORef( IORef )
 import GHC.Types.Unique.Set
 
@@ -491,7 +491,7 @@ extendEvBinds bs ev_bind
                                                ev_bind }
 
 isEmptyEvBindMap :: EvBindMap -> Bool
-isEmptyEvBindMap (EvBindMap m) = isEmptyDVarEnv m
+isEmptyEvBindMap (EvBindMap m) = null m
 
 lookupEvBind :: EvBindMap -> EvVar -> Maybe EvBind
 lookupEvBind bs = lookupDVarEnv (ev_bind_varenv bs)
@@ -500,7 +500,7 @@ evBindMapBinds :: EvBindMap -> Bag EvBind
 evBindMapBinds = foldEvBindMap consBag emptyBag
 
 foldEvBindMap :: (EvBind -> a -> a) -> a -> EvBindMap -> a
-foldEvBindMap k z bs = foldDVarEnv k z (ev_bind_varenv bs)
+foldEvBindMap k z bs = foldr k z (ev_bind_varenv bs)
 
 -- See Note [Deterministic UniqFM] to learn about nondeterminism.
 -- If you use this please provide a justification why it doesn't introduce
@@ -510,10 +510,10 @@ nonDetStrictFoldEvBindMap k z bs = nonDetStrictFoldDVarEnv k z (ev_bind_varenv b
 
 filterEvBindMap :: (EvBind -> Bool) -> EvBindMap -> EvBindMap
 filterEvBindMap k (EvBindMap { ev_bind_varenv = env })
-  = EvBindMap { ev_bind_varenv = filterDVarEnv k env }
+  = EvBindMap { ev_bind_varenv = filter k env }
 
 evBindMapToVarSet :: EvBindMap -> VarSet
-evBindMapToVarSet (EvBindMap dve) = unsafeUFMToUniqSet (mapUFM evBindVar (udfmToUfm dve))
+evBindMapToVarSet (EvBindMap dve) = unsafeUFMToUniqSet (evBindVar <$> udfmToUfm dve)
 
 varSetMinusEvBindMap :: VarSet -> EvBindMap -> VarSet
 varSetMinusEvBindMap vs (EvBindMap dve) = vs `uniqSetMinusUDFM` dve
@@ -957,7 +957,7 @@ no_parens d _ = d
 
 instance Outputable TcEvBinds where
   ppr (TcEvBinds v) = ppr v
-  ppr (EvBinds bs)  = text "EvBinds" <> braces (vcat (map ppr (bagToList bs)))
+  ppr (EvBinds bs)  = text "EvBinds" <> braces (vcat (map ppr (toList bs)))
 
 instance Outputable EvBindsVar where
   ppr (EvBindsVar { ebv_uniq = u })

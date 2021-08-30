@@ -29,7 +29,7 @@ module GHC.Rename.Names (
         ImportDeclUsage
     ) where
 
-import GHC.Prelude
+import GHC.Prelude hiding ( last )
 
 import GHC.Driver.Session
 
@@ -80,13 +80,15 @@ import GHC.Data.Maybe
 import GHC.Data.FastString
 import GHC.Data.FastString.Env
 
-import Control.Monad
-import Data.Either      ( partitionEithers, isRight, rights )
+import Control.Monad hiding (mapAndUnzipM)
+import Data.Either      ( isRight, rights )
+import Data.Foldable    ( toList )
 import Data.Map         ( Map )
 import qualified Data.Map as Map
 import Data.Ord         ( comparing )
-import Data.List        ( partition, (\\), find, sortBy )
-import Data.Function    ( on )
+import Data.List        ( (\\), find, sortBy )
+import Data.List.NonEmpty ( NonEmpty (..), last )
+import qualified Data.List.NonEmpty as NE
 import qualified Data.Set as S
 import System.FilePath  ((</>))
 
@@ -204,7 +206,7 @@ rnImports imports = do
     clobberSourceImports imp_avails =
       imp_avails { imp_boot_mods = imp_boot_mods' }
       where
-        imp_boot_mods' = mergeUFM combJ id (const mempty)
+        imp_boot_mods' = mergeUFM combJ id (const emptyUFM)
                             (imp_boot_mods imp_avails)
                             (imp_direct_dep_mods imp_avails)
 
@@ -341,9 +343,8 @@ rnImportDecl this_mod
         Just (False, _) -> return () -- Explicit import list
         _  | implicit   -> return () -- Do not bleat for implicit imports
            | qual_only  -> return ()
-           | otherwise  -> whenWOptM Opt_WarnMissingImportList $
-                           addWarn (Reason Opt_WarnMissingImportList)
-                                   (missingImportListWarn imp_mod_name)
+           | otherwise  -> warnIfFlag Opt_WarnMissingImportList True
+                           (missingImportListWarn imp_mod_name)
 
     iface <- loadSrcInterface doc imp_mod_name want_boot (fmap sl_fs mb_pkg)
 
@@ -400,12 +401,10 @@ rnImportDecl this_mod
         imports = calculateAvails dflags iface mod_safe' want_boot (ImportedByUser imv)
 
     -- Complain if we import a deprecated module
-    whenWOptM Opt_WarnWarningsDeprecations (
-       case (mi_warns iface) of
-          WarnAll txt -> addWarn (Reason Opt_WarnWarningsDeprecations)
-                                (moduleWarn imp_mod_name txt)
-          _           -> return ()
-     )
+    case mi_warns iface of
+        WarnAll txt -> warnIfFlag Opt_WarnWarningsDeprecations True
+                       (moduleWarn imp_mod_name txt)
+        _           -> return ()
 
     -- Complain about -Wcompat-unqualified-imports violations.
     warnUnqualifiedImport decl iface
@@ -527,9 +526,7 @@ calculateAvails dflags iface mod_safe' want_boot imported_by =
 -- `Data.List.singleton` proposal. See #17244.
 warnUnqualifiedImport :: ImportDecl GhcPs -> ModIface -> RnM ()
 warnUnqualifiedImport decl iface =
-    whenWOptM Opt_WarnCompatUnqualifiedImports
-    $ when bad_import
-    $ addWarnAt (Reason Opt_WarnCompatUnqualifiedImports) loc warning
+    warnIfFlagAt loc Opt_WarnCompatUnqualifiedImports bad_import warning
   where
     mod = mi_module iface
     loc = getLoc $ ideclName decl
@@ -639,8 +636,7 @@ extendGlobalRdrEnvRn avails new_fixities
         ; let fix_env' = foldl' extend_fix_env fix_env new_gres
               gbl_env' = gbl_env { tcg_rdr_env = rdr_env2, tcg_fix_env = fix_env' }
 
-        ; traceRn "extendGlobalRdrEnvRn 2" (pprGlobalRdrEnv True rdr_env2)
-        ; return (gbl_env', lcl_env3) }
+        ; (gbl_env', lcl_env3) <$ traceRn "extendGlobalRdrEnvRn 2" (pprGlobalRdrEnv True rdr_env2) }
   where
     new_names = concatMap availNames avails
     new_occs  = map nameOccName new_names
@@ -665,7 +661,7 @@ extendGlobalRdrEnvRn avails new_fixities
     -- This establishes INVARIANT 1 of GlobalRdrEnvs
     add_gre env gre
       | not (null dups)    -- Same OccName defined twice
-      = do { addDupDeclErr (gre : dups); return env }
+      = env <$ addDupDeclErr (gre :| dups)
 
       | otherwise
       = return (extendGlobalRdrEnv env gre)
@@ -1003,16 +999,13 @@ filterImports iface decl_spec (Just (want_hiding, L l import_items))
              return [ (L loc ie, avail) | (ie,avail) <- stuff ]
         where
             -- Warn when importing T(..) if T was exported abstractly
-            emit_warning (DodgyImport n) = whenWOptM Opt_WarnDodgyImports $
-              addWarn (Reason Opt_WarnDodgyImports) (dodgyImportWarn n)
-            emit_warning MissingImportList = whenWOptM Opt_WarnMissingImportList $
-              addWarn (Reason Opt_WarnMissingImportList) (missingImportListItem ieRdr)
-            emit_warning (BadImportW ie) = whenWOptM Opt_WarnDodgyImports $
-              addWarn (Reason Opt_WarnDodgyImports) (lookup_err_msg (BadImport ie))
+            emit_warning (DodgyImport n) = warnIfFlag Opt_WarnDodgyImports True (dodgyImportWarn n)
+            emit_warning MissingImportList = warnIfFlag Opt_WarnMissingImportList True (missingImportListItem ieRdr)
+            emit_warning (BadImportW ie) = warnIfFlag Opt_WarnDodgyImports True (lookup_err_msg (BadImport ie))
 
             run_lookup :: IELookupM a -> TcRn (Maybe a)
             run_lookup m = case m of
-              Failed err -> addErr (lookup_err_msg err) >> return Nothing
+              Failed err -> Nothing <$ addErr (lookup_err_msg err)
               Succeeded a -> return (Just a)
 
             lookup_err_msg err = case err of
@@ -1077,9 +1070,8 @@ filterImports iface decl_spec (Just (want_hiding, L l import_items))
                  []    -> failLookupWith (BadImport ie)
                  names -> return ([mkIEThingAbs tc' l name | name <- names], [])
             | otherwise
-            -> do nameAvail <- lookup_name ie (ieWrappedName tc')
-                  return ([mkIEThingAbs tc' l nameAvail]
-                         , [])
+            -> lookup_name ie (ieWrappedName tc') <₪> \ nameAvail ->
+               ([mkIEThingAbs tc' l nameAvail], [])
 
         IEThingWith xt ltc@(L l rdr_tc) wc rdr_ns rdr_fs ->
           assertPpr (null rdr_fs) (ppr rdr_fs) do
@@ -1157,7 +1149,7 @@ data IELookupError
   | IllegalImport
 
 failLookupWith :: IELookupError -> IELookupM a
-failLookupWith err = Failed err
+failLookupWith = Failed
 
 catchIELookup :: IELookupM a -> (IELookupError -> IELookupM a) -> IELookupM a
 catchIELookup m h = case m of
@@ -1263,7 +1255,7 @@ lookupChildren all_kids rdr_items
 
 reportUnusedNames :: TcGblEnv -> RnM ()
 reportUnusedNames gbl_env
-  = do  { keep <- readTcRef (tcg_keep gbl_env)
+  = do  { keep <- readMutVar (tcg_keep gbl_env)
         ; traceRn "RUN" (ppr (tcg_dus gbl_env))
         ; warnUnusedImportDecls gbl_env
         ; warnUnusedTopBinds $ unused_locals keep
@@ -1803,9 +1795,8 @@ dodgyMsgInsert tc = IEThingAll noExtField ii
     ii = noLoc (IEName $ noLoc tc)
 
 
-addDupDeclErr :: [GlobalRdrElt] -> TcRn ()
-addDupDeclErr [] = panic "addDupDeclErr: empty list"
-addDupDeclErr gres@(gre : _)
+addDupDeclErr :: NonEmpty GlobalRdrElt -> TcRn ()
+addDupDeclErr gres@(gre :| _)
   = addErrAt (getSrcSpan (last sorted_names)) $
     -- Report the error at the later location
     vcat [text "Multiple declarations of" <+>
@@ -1814,11 +1805,9 @@ addDupDeclErr gres@(gre : _)
              -- latter might not be in scope in the RdrEnv and so will
              -- be printed qualified.
           text "Declared at:" <+>
-                   vcat (map (ppr . nameSrcLoc) sorted_names)]
+                   vcat (toList $ ppr . nameSrcLoc <$> sorted_names)]
   where
-    sorted_names =
-      sortBy (SrcLoc.leftmost_smallest `on` nameSrcSpan)
-             (map gre_name gres)
+    sorted_names = NE.sortBy (SrcLoc.leftmost_smallest `on` nameSrcSpan) (gre_name <$> gres)
 
 
 

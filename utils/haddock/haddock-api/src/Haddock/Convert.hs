@@ -94,7 +94,7 @@ tyThingToLHsDecl prr t = case t of
 
            -- | Convert a LHsTyVarBndr to an equivalent LHsType.
            hsLTyVarBndrToType :: LHsTyVarBndr flag (GhcPass p) -> LHsType (GhcPass p)
-           hsLTyVarBndrToType = mapLoc cvt
+           hsLTyVarBndrToType = fmap cvt
 
            extractFamDefDecl :: FamilyDecl GhcRn -> Type -> TyFamDefltDecl GhcRn
            extractFamDefDecl fd rhs =

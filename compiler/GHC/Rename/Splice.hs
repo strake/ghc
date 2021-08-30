@@ -118,14 +118,14 @@ rnBracket e br_body
        }
 
 rn_bracket :: ThStage -> HsBracket GhcPs -> RnM (HsBracket GhcRn, FreeVars)
-rn_bracket outer_stage br@(VarBr x flg rdr_name)
-  = do { name <- lookupOccRn rdr_name
-       ; this_mod <- getModule
+rn_bracket outer_stage br@(VarBr x flg rdr_name) =
+  [ (VarBr x flg name, unitFV name)
+  | name <- lookupOccRn rdr_name
+  , this_mod <- getModule
 
-       ; when (flg && nameIsLocalOrFrom this_mod name) $
+  , () <- when (flg && nameIsLocalOrFrom this_mod name) $
              -- Type variables can be quoted in TH. See #5721.
-                 do { mb_bind_lvl <- lookupLocalOccThLvl_maybe name
-                    ; case mb_bind_lvl of
+                 lookupLocalOccThLvl_maybe name >>= \ case
                         { Nothing -> return ()      -- Can happen for data constructors,
                                                     -- but nothing needs to be done for them
 
@@ -139,8 +139,7 @@ rn_bracket outer_stage br@(VarBr x flg rdr_name)
                                    ; checkTc (thLevel outer_stage + 1 == bind_lvl)
                                              (quotedNameStageErr br) }
                         }
-                    }
-       ; return (VarBr x flg name, unitFV name) }
+  ]
 
 rn_bracket _ (ExpBr x e) = do { (e', fvs) <- rnLExpr e
                             ; return (ExpBr x e', fvs) }
@@ -279,9 +278,7 @@ rnSpliceGen run_splice pend_splice splice
                  ; return (result, fvs1 `plusFV` fvs2) } }
    where
      is_typed_splice = isTypedSplice splice
-     splice_type = if is_typed_splice
-                   then Typed
-                   else Untyped
+     splice_type | is_typed_splice = Typed | otherwise = Untyped
 
 
 -- Nested splices are fine without TemplateHaskell because they
@@ -330,10 +327,10 @@ runRnSplice flavour run_meta ppr_res splice
                               (tcCheckExpr the_expr meta_exp_ty)
 
              -- Run the expression
-       ; mod_finalizers_ref <- newTcRef []
+       ; mod_finalizers_ref <- newMutVar []
        ; result <- setStage (RunSplice mod_finalizers_ref) $
                      run_meta zonked_q_expr
-       ; mod_finalizers <- readTcRef mod_finalizers_ref
+       ; mod_finalizers <- readMutVar mod_finalizers_ref
        ; traceSplice (SpliceInfo { spliceDescription = what
                                  , spliceIsDecl      = is_decl
                                  , spliceSource      = Just the_expr
@@ -632,7 +629,7 @@ rnSplicePat splice
              -- See Note [Delaying modFinalizers in untyped splices].
            ; return ( Left $ ParPat noExtField $ ((SplicePat noExtField)
                               . HsSpliced noExtField (ThModFinalizers mod_finalizers)
-                              . HsSplicedPat)  `mapLoc`
+                              . HsSplicedPat) <$>
                               pat
                     , emptyFVs
                     ) }
@@ -682,13 +679,12 @@ rnTopSpliceDecls splice
      -- there is no point in delaying them.
      --
      -- See Note [Delaying modFinalizers in untyped splices].
-     add_mod_finalizers_now :: [ForeignRef (TH.Q ())] -> TcRn ()
+     add_mod_finalizers_now :: [ForeignRef (TH.Q ())] -> RnM ()
      add_mod_finalizers_now []             = return ()
      add_mod_finalizers_now mod_finalizers = do
-       th_modfinalizers_var <- fmap tcg_th_modfinalizers getGblEnv
+       th_modfinalizers_var <- tcg_th_modfinalizers <$> getGblEnv
        env <- getLclEnv
-       updTcRef th_modfinalizers_var $ \fins ->
-         (env, ThModFinalizers mod_finalizers) : fins
+       updMutVar th_modfinalizers_var $ (:) (env, ThModFinalizers mod_finalizers)
 
 
 {-

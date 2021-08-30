@@ -92,7 +92,7 @@ basicBlockCodeGen block = do
   let instrs = mid_instrs `appOL` tail_instrs
   let
         (top,other_blocks,statics)
-                = foldrOL mkBlocks ([],[],[]) instrs
+                = foldr mkBlocks ([],[],[]) instrs
 
         mkBlocks (NEWBLOCK id) (instrs,blocks,statics)
           = ([], BasicBlock id instrs : blocks, statics)

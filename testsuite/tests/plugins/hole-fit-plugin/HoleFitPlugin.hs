@@ -20,11 +20,11 @@ bumpHolesChecked :: HolePluginState -> HolePluginState
 bumpHolesChecked (HPS h l) = HPS (h + 1) l
 
 initPlugin :: [CommandLineOption] -> TcM (TcRef HolePluginState)
-initPlugin [limit] = newTcRef $ HPS 0 $
+initPlugin [limit] = newMutVar $ HPS 0 $
   case readMaybe @Int limit of
       Just number ->  Just number
       _ -> error $ "Invalid argument to plugin: " <> show limit
-initPlugin _ = newTcRef $ HPS 0 Nothing
+initPlugin _ = newMutVar $ HPS 0 Nothing
 
 fromModule :: HoleFitCandidate -> [String]
 fromModule (GreHFCand gre) =
@@ -41,8 +41,8 @@ toHoleFitCommand _ _ = Nothing
 --   using the name of the hole as module to search in
 modFilterTimeoutP :: [CommandLineOption] -> TcRef HolePluginState -> CandPlugin
 modFilterTimeoutP _ ref hole cands = do
-  updTcRef ref bumpHolesChecked
-  HPS {..} <- readTcRef ref
+  updMutVar ref bumpHolesChecked
+  HPS {..} <- readMutVar ref
   return $ case holesLimit of
     -- If we're out of checks, remove any candidates, so nothing is checked.
     Just limit | holesChecked > limit -> []
@@ -60,7 +60,7 @@ modFilterTimeoutP _ ref hole cands = do
 
 modSortP :: [CommandLineOption] -> TcRef HolePluginState -> FitPlugin
 modSortP _ ref hole hfs = do
-  HPS {..} <- readTcRef ref
+  HPS {..} <- readMutVar ref
   return $ case holesLimit of
     Just limit | holesChecked > limit -> [RawHoleFit $ text msg]
     _ -> case toHoleFitCommand hole "sort_by_mod" of

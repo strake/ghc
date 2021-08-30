@@ -137,8 +137,8 @@ import GHC.Unit
 import GHC.Data.Stream (Stream)
 import qualified GHC.Data.Stream as Stream
 
-import Data.List
-import Data.Maybe
+import Data.List (groupBy, sortBy)
+import Data.Maybe (fromJust)
 import Data.Ord         ( comparing )
 import Control.Monad
 import System.IO
@@ -784,9 +784,9 @@ makeImportsDoc dflags imports
                 | needImportedSymbols config
                 = vcat $
                         (pprGotDeclaration config :) $
-                        map ( pprImportedSymbol config . fst . head) $
-                        groupBy (\(_,a) (_,b) -> a == b) $
-                        sortBy (\(_,a) (_,b) -> compare a b) $
+                        map (pprImportedSymbol config . fst . head) $
+                        groupBy (on (==) snd) $
+                        sortBy (comparing snd) $
                         map doPpr $
                         imps
                 | otherwise

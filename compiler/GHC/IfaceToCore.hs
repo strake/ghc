@@ -99,6 +99,7 @@ import GHC.Fingerprint
 import qualified GHC.Data.BooleanFormula as BF
 
 import Control.Monad
+import Data.Foldable (toList)
 import qualified Data.Map as Map
 
 {-
@@ -391,8 +392,7 @@ typecheckIfacesForMerging mod ifaces tc_env_var =
         decl_env = foldl' mergeIfaceDecls emptyOccEnv decl_envs
                         ::  OccEnv IfaceDecl
     -- TODO: change loadDecls to accept w/o Fingerprint
-    names_w_things <- loadDecls ignore_prags (map (\x -> (fingerprint0, x))
-                                                  (occEnvElts decl_env))
+    names_w_things <- loadDecls ignore_prags ((,) fingerprint0 <$> toList decl_env)
     let global_type_env = mkNameEnv names_w_things
     writeMutVar tc_env_var global_type_env
 
@@ -850,7 +850,7 @@ tc_iface_decl _ _ (IfacePatSyn{ ifName = name
                               , ifFieldLabels = field_labels })
   = do { traceIf (text "tc_iface_decl" <+> ppr name)
        ; matcher <- tc_pr if_matcher
-       ; builder <- fmapMaybeM tc_pr if_builder
+       ; builder <- traverse tc_pr if_builder
        ; bindIfaceForAllBndrs univ_bndrs $ \univ_tvs -> do
        { bindIfaceForAllBndrs ex_bndrs $ \ex_tvs -> do
        { patsyn <- forkM (mk_doc name) $
@@ -1449,7 +1449,7 @@ tcIfaceDataAlt :: DataCon -> [Type] -> [FastString] -> IfaceExpr
                -> IfL (AltCon, [TyVar], CoreExpr)
 tcIfaceDataAlt con inst_tys arg_strs rhs
   = do  { us <- newUniqueSupply
-        ; let uniqs = uniqsFromSupply us
+        ; let uniqs = toList $ uniqsFromSupply us
         ; let (ex_tvs, arg_ids)
                       = dataConRepFSInstPat arg_strs uniqs con inst_tys
 
@@ -1610,34 +1610,32 @@ tcPragExpr is_compulsory toplvl name expr
 
     -- Check for type consistency in the unfolding
     -- See Note [Linting Unfoldings from Interfaces]
-    when (isTopLevel toplvl) $
+    (core_expr' <$) $ when (isTopLevel toplvl) $
       whenGOptM Opt_DoCoreLinting $ do
         in_scope <- get_in_scope
         dflags   <- getDynFlags
-        case lintUnfolding is_compulsory dflags noSrcLoc in_scope core_expr' of
-          Nothing       -> return ()
-          Just fail_msg -> do { mod <- getIfModule
+        lintUnfolding is_compulsory dflags noSrcLoc in_scope core_expr' `for_` \ fail_msg ->
+                           do { mod <- getIfModule
                               ; pprPanic "Iface Lint failure"
                                   (vcat [ text "In interface for" <+> ppr mod
                                         , hang doc 2 fail_msg
                                         , ppr name <+> equals <+> ppr core_expr'
                                         , text "Iface expr =" <+> ppr expr ]) }
-    return core_expr'
   where
-    doc = ppWhen is_compulsory (text "Compulsory") <+>
+    doc = mwhen is_compulsory (text "Compulsory") <+>
           text "Unfolding of" <+> ppr name
 
     get_in_scope :: IfL VarSet -- Totally disgusting; but just for linting
-    get_in_scope
-        = do { (gbl_env, lcl_env) <- getEnvs
-             ; rec_ids <- case if_rec_types gbl_env of
+    get_in_scope =
+      [ unionVarSets
+          [ bindingsVars (if_tv_env lcl_env)
+          , bindingsVars (if_id_env lcl_env)
+          , mkVarSet rec_ids ]
+      | (gbl_env, lcl_env) <- getEnvs
+      , rec_ids <- case if_rec_types gbl_env of
                             Nothing -> return []
-                            Just (_, get_env) -> do
-                               { type_env <- setLclEnv () get_env
-                               ; return (typeEnvIds type_env) }
-             ; return (bindingsVars (if_tv_env lcl_env) `unionVarSet`
-                       bindingsVars (if_id_env lcl_env) `unionVarSet`
-                       mkVarSet rec_ids) }
+                            Just (_, get_env) -> typeEnvIds <$> setLclEnv () get_env
+      ]
 
     bindingsVars :: FastStringEnv Var -> VarSet
     bindingsVars ufm = mkVarSet $ nonDetEltsUFM ufm
@@ -1682,10 +1680,9 @@ tcIfaceGlobal name
   where
     via_external =  do
         { hsc_env <- getTopEnv
-        ; mb_thing <- liftIO (lookupType hsc_env name)
-        ; case mb_thing of {
-            Just thing -> return thing ;
-            Nothing    -> do
+        ; liftIO (lookupType hsc_env name) >>= \ case
+          { Just thing -> pure thing
+          ; Nothing    -> do
 
         { mb_thing <- importDecl name   -- It's imported; go get it
         ; case mb_thing of

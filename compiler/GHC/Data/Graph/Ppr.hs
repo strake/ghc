@@ -16,10 +16,6 @@ import GHC.Types.Unique
 import GHC.Types.Unique.Set
 import GHC.Types.Unique.FM
 
-import Data.List (mapAccumL)
-import Data.Maybe
-
-
 -- | Pretty print a graph in a somewhat human readable format.
 dumpGraph
         :: (Outputable k, Outputable color)

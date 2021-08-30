@@ -19,9 +19,8 @@ import GHC.Driver.Backend
 import GHC.Utils.Panic
 import GHC.Cmm.Dataflow.Label (Label)
 
-import Data.Maybe
 import Data.List (groupBy)
-import Data.Function (on)
+import Data.Foldable (toList)
 import qualified Data.Map as M
 
 -- Note [Cmm Switches, the general plan]
@@ -201,7 +200,7 @@ switchTargetsToTable (SwitchTargets _ (lo,hi) mbdef branches)
 -- | The list of all labels occurring in the SwitchTargets value.
 switchTargetsToList :: SwitchTargets -> [Label]
 switchTargetsToList (SwitchTargets _ _ mbdef branches)
-    = maybeToList mbdef ++ M.elems branches
+    = toList mbdef ++ toList branches
 
 -- | Groups cases with equal targets, suitable for pretty-printing to a
 -- c-like switch statement with fall-through semantics.

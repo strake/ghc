@@ -15,16 +15,15 @@ module GHC.Data.FastString.Env (
         emptyFsEnv, unitFsEnv,
         extendFsEnv_C, extendFsEnv_Acc, extendFsEnv,
         extendFsEnvList, extendFsEnvList_C,
-        filterFsEnv,
         plusFsEnv, plusFsEnv_C, alterFsEnv,
         lookupFsEnv, lookupFsEnv_NF, delFromFsEnv, delListFromFsEnv,
-        elemFsEnv, mapFsEnv,
+        elemFsEnv,
 
         -- * Deterministic FastString environments (maps)
         DFastStringEnv,
 
         -- ** Manipulating these environments
-        mkDFsEnv, emptyDFsEnv, dFsEnvElts, lookupDFsEnv
+        mkDFsEnv, emptyDFsEnv, lookupDFsEnv
     ) where
 
 import GHC.Prelude
@@ -58,8 +57,6 @@ elemFsEnv          :: FastString -> FastStringEnv a -> Bool
 unitFsEnv          :: FastString -> a -> FastStringEnv a
 lookupFsEnv        :: FastStringEnv a -> FastString -> Maybe a
 lookupFsEnv_NF     :: FastStringEnv a -> FastString -> a
-filterFsEnv        :: (elt -> Bool) -> FastStringEnv elt -> FastStringEnv elt
-mapFsEnv           :: (elt1 -> elt2) -> FastStringEnv elt1 -> FastStringEnv elt2
 
 emptyFsEnv                = emptyUFM
 unitFsEnv x y             = unitUFM x y
@@ -72,12 +69,10 @@ elemFsEnv x y             = elemUFM x y
 plusFsEnv x y             = plusUFM x y
 plusFsEnv_C f x y         = plusUFM_C f x y
 extendFsEnv_C f x y z     = addToUFM_C f x y z
-mapFsEnv f x              = mapUFM f x
 extendFsEnv_Acc x y z a b = addToUFM_Acc x y z a b
 extendFsEnvList_C x y z   = addListToUFM_C x y z
 delFromFsEnv x y          = delFromUFM x y
 delListFromFsEnv x y      = delListFromUFM x y
-filterFsEnv x y           = filterUFM x y
 
 lookupFsEnv_NF env n = expectJust "lookupFsEnv_NF" (lookupFsEnv env n)
 
@@ -89,9 +84,6 @@ type DFastStringEnv a = UniqDFM FastString a  -- Domain is FastString
 
 emptyDFsEnv :: DFastStringEnv a
 emptyDFsEnv = emptyUDFM
-
-dFsEnvElts :: DFastStringEnv a -> [a]
-dFsEnvElts = eltsUDFM
 
 mkDFsEnv :: [(FastString,a)] -> DFastStringEnv a
 mkDFsEnv l = listToUDFM l

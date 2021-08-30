@@ -32,11 +32,9 @@ import qualified Data.Map as M
 import qualified Data.Set as S
 import Data.ByteString            ( ByteString )
 import Data.Data                  ( Typeable, Data )
-import Data.Semigroup             ( Semigroup(..) )
 import Data.Word                  ( Word8 )
 import Control.Applicative        ( (<|>) )
-import Data.Coerce                ( coerce  )
-import Data.Function              ( on )
+import Data.Coerce                ( coerce )
 
 type Span = RealSrcSpan
 
@@ -315,7 +313,7 @@ instance Outputable a => Outputable (NodeInfo a) where
     ]
 
 pprNodeIdents :: Outputable a => NodeIdentifiers a -> SDoc
-pprNodeIdents ni = braces $ fsep $ punctuate ", " $ map go $ M.toList ni
+pprNodeIdents ni = braces $ fsep $ punctuate ", " $ go <$> M.toList ni
   where
     go (i,id) = parens $ hsep $ punctuate ", " [pprIdentifier i, ppr id]
 
@@ -633,6 +631,15 @@ data Scope
   | ModuleScope
     deriving (Eq, Ord, Typeable, Data)
 
+instance Semigroup Scope where
+    ModuleScope <> _ = ModuleScope
+    _ <> ModuleScope = ModuleScope
+    NoScope <> x = x
+    x <> NoScope = x
+    LocalScope a <> LocalScope b = LocalScope (a <> b)
+
+instance Monoid Scope where mempty = NoScope
+
 instance Outputable Scope where
   ppr NoScope = text "NoScope"
   ppr (LocalScope sp) = text "LocalScope" <+> ppr sp
@@ -685,7 +692,7 @@ instance Outputable TyVarScope where
   ppr (ResolvedScopes xs) =
     text "type variable scopes:" <+> hsep (punctuate ", " $ map ppr xs)
   ppr (UnresolvedScope ns sp) =
-    text "unresolved type variable scope for name" O.<> plural ns
+    (text "unresolved type variable scope for name" O.<> plural ns)
       <+> pprBindSpan sp
 
 instance Binary TyVarScope where

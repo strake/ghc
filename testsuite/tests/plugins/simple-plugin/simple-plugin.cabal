@@ -12,6 +12,7 @@ Library
     Extensions:     CPP
     Build-Depends:
         base,
+        filtrable,
         template-haskell,
         ghc >= 6.11
     Exposed-Modules:

@@ -52,8 +52,6 @@ import GHC.Utils.Outputable
 import GHC.Utils.Misc
 import GHC.Utils.Panic
 
-import Data.Maybe ( mapMaybe )
-
 newtype Env
   = Env
   { locals :: IdSet

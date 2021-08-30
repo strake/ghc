@@ -47,8 +47,7 @@ newBufHandle :: Handle -> IO BufHandle
 newBufHandle hdl = do
   ptr <- mallocBytes buf_size
   r <- newFastMutInt
-  writeFastMutInt r 0
-  return (BufHandle ptr r hdl)
+  BufHandle ptr r hdl <$ writeFastMutInt r 0
 
 buf_size :: Int
 buf_size = 8192
@@ -142,4 +141,3 @@ bFlush (BufHandle buf r hdl) = do
   i <- readFastMutInt r
   when (i > 0) $ hPutBuf hdl buf i
   free buf
-  return ()

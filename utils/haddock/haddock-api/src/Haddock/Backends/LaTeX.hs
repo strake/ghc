@@ -40,7 +40,8 @@ import Data.Char
 import Control.Monad
 import Data.Maybe
 import Data.List
-import Prelude hiding ((<>))
+import Data.Foldable (toList)
+import Prelude
 
 import Haddock.Doc (combineDocumentation)
 
@@ -704,7 +705,7 @@ ppDataDecl pats instances subdocs doc dataDecl unicode =
     constrBit
       | null cons = Nothing
       | otherwise = Just $
-          text "\\enspace" <+> emph (text "Constructors") <> text "\\par" $$
+          (text "\\enspace" <+> emph (text "Constructors")) <> text "\\par" $$
           text "\\haddockbeginconstrs" $$
           vcat (zipWith (ppSideBySideConstr subdocs unicode) leaders cons) $$
           text "\\end{tabulary}\\par"
@@ -712,7 +713,7 @@ ppDataDecl pats instances subdocs doc dataDecl unicode =
     patternBit
       | null pats = Nothing
       | otherwise = Just $
-          text "\\enspace" <+> emph (text "Bundled Patterns") <> text "\\par" $$
+          (text "\\enspace" <+> emph (text "Bundled Patterns")) <> text "\\par" $$
           text "\\haddockbeginconstrs" $$
           vcat [ empty <-> ppSideBySidePat lnames typ d unicode
                | (SigD _ (PatSynSig _ lnames typ), d) <- pats
@@ -1312,7 +1313,7 @@ enumeratedList items =
 descriptionList :: [(LaTeX,LaTeX)] -> LaTeX
 descriptionList items =
   text "\\begin{description}" $$
-  vcat (map (\(a,b) -> text "\\item" <> brackets a <+> b) items) $$
+  vcat (map (\(a,b) -> (text "\\item" <> brackets a) <+> b) items) $$
   text "\\end{description}"
 
 

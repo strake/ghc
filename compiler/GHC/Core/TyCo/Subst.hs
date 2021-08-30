@@ -83,8 +83,6 @@ import GHC.Utils.Outputable
 import GHC.Utils.Panic
 import GHC.Utils.Panic.Plain
 
-import Data.List (mapAccumL)
-
 {-
 %************************************************************************
 %*                                                                      *
@@ -232,8 +230,8 @@ composeTCvSubstEnv :: InScopeSet
 -- It assumes that both are idempotent.
 -- Typically, @env1@ is the refinement to a base substitution @env2@
 composeTCvSubstEnv in_scope (tenv1, cenv1) (tenv2, cenv2)
-  = ( tenv1 `plusVarEnv` mapVarEnv (substTy subst1) tenv2
-    , cenv1 `plusVarEnv` mapVarEnv (substCo subst1) cenv2 )
+  = ( tenv1 `plusVarEnv` fmap (substTy subst1) tenv2
+    , cenv1 `plusVarEnv` fmap (substCo subst1) cenv2 )
         -- First apply env1 to the range of env2
         -- Then combine the two, making sure that env1 loses if
         -- both bind the same variable; that's why env1 is the
@@ -830,8 +828,7 @@ subst_co subst co
     go_prov p@(PluginProv _)     = p
 
     -- See Note [Substituting in a coercion hole]
-    go_hole h@(CoercionHole { ch_co_var = cv })
-      = h { ch_co_var = updateVarType go_ty cv }
+    go_hole = over (coHoleCoVarL . varTypeL) go_ty
 
 substForAllCoBndr :: TCvSubst -> TyCoVar -> KindCoercion
                   -> (TCvSubst, TyCoVar, Coercion)
@@ -883,7 +880,7 @@ substForAllCoTyVarBndrUsing sym sco (TCvSubst in_scope tenv cenv) old_var old_ki
     -- we want. We don't want to do substitution once more. Also, in most cases,
     -- new_kind_co is a Refl, in which case coercionKind is really fast.
 
-    new_var  = uniqAway in_scope (setTyVarKind old_var new_ki1)
+    new_var  = uniqAway in_scope (set tyVarKindL new_ki1 old_var)
 
 substForAllCoCoVarBndrUsing :: Bool  -- apply sym to binder?
                             -> (Coercion -> Coercion)  -- transformation to kind co
@@ -983,7 +980,7 @@ substTyVarBndrUsing subst_fn subst@(TCvSubst in_scope tenv cenv) old_var
 
     new_var | no_kind_change = uniqAway in_scope old_var
             | otherwise = uniqAway in_scope $
-                          setTyVarKind old_var (subst_fn subst old_ki)
+                          set tyVarKindL (subst_fn subst old_ki) old_var
         -- The uniqAway part makes sure the new variable is not already in scope
 
 -- | Substitute a covar in a binding position, returning an
@@ -1023,9 +1020,9 @@ cloneTyVarBndr subst@(TCvSubst in_scope tv_env cv_env) tv uniq
     no_kind_change = noFreeVarsOfType old_ki -- verify that kind is closed
 
     tv1 | no_kind_change = tv
-        | otherwise      = setTyVarKind tv (substTy subst old_ki)
+        | otherwise      = set tyVarKindL (substTy subst old_ki) tv
 
-    tv' = setVarUnique tv1 uniq
+    tv' = set varUniqueL uniq tv1
 
 cloneTyVarBndrs :: TCvSubst -> [TyVar] -> UniqSupply -> (TCvSubst, [TyVar])
 cloneTyVarBndrs subst []     _usupply = (subst, [])

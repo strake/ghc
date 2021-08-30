@@ -83,8 +83,8 @@ import qualified GHC.LanguageExtensions as LangExt
 import GHC.Tc.Types.Evidence
 
 import Control.Monad    ( zipWithM )
+import Data.Foldable (toList)
 import Data.List.NonEmpty (NonEmpty(..))
-import Data.Maybe (maybeToList)
 import qualified Data.List.NonEmpty as NEL
 
 {-
@@ -345,8 +345,7 @@ mkDataConCase var ty alts@(alt1 :| _)
                                           -- (not that splitTyConApp does, these days)
 
     mk_case :: Maybe CoreAlt -> [CoreAlt] -> CoreExpr
-    mk_case def alts = mkWildCase (Var var) (idType var) ty $
-      maybeToList def ++ alts
+    mk_case def alts = mkWildCase (Var var) (idType var) ty $ toList def ++ alts
 
     mk_alts :: MatchResult [CoreAlt]
     mk_alts = traverse mk_alt sorted_alts
@@ -358,10 +357,9 @@ mkDataConCase var ty alts@(alt1 :| _)
       flip adjustMatchResultDs match_result $ \body -> do
         case dataConBoxer con of
           Nothing -> return (DataAlt con, args, body)
-          Just (DCB boxer) -> do
-            us <- newUniqueSupply
+          Just (DCB boxer) -> newUniqueSupply <₪> \ us ->
             let (rep_ids, binds) = initUs_ us (boxer ty_args args)
-            return (DataAlt con, rep_ids, mkLets binds body)
+            in (DataAlt con, rep_ids, mkLets binds body)
 
     mk_default :: MatchResult (Maybe CoreAlt)
     mk_default
@@ -483,7 +481,7 @@ mkCoreAppDs s fun arg = mkCoreApp s fun arg  -- The rest is done in GHC.Core.Mak
 
 -- NB: No argument can be levity polymorphic
 mkCoreAppsDs :: SDoc -> CoreExpr -> [CoreExpr] -> CoreExpr
-mkCoreAppsDs s fun args = foldl' (mkCoreAppDs s) fun args
+mkCoreAppsDs = foldl' . mkCoreAppDs
 
 mkCastDs :: CoreExpr -> Coercion -> CoreExpr
 -- We define a desugarer-specific version of GHC.Core.Utils.mkCast,
@@ -854,9 +852,8 @@ shareFailureHandler = \case
   mr@(MR_Infallible _) -> mr
   MR_Fallible match_fn -> MR_Fallible $ \fail_expr -> do
     (fail_bind, shared_failure_handler) <- mkFailurePair fail_expr
-    body <- match_fn shared_failure_handler
     -- Never unboxed, per the above, so always OK for `let` not `case`.
-    return $ Let fail_bind body
+    Let fail_bind <$> match_fn shared_failure_handler
 
 {-
 Note [Failure thunks and CPR]
@@ -975,15 +972,12 @@ isTrueLHsExpr (L _ (HsConLikeOut _ con))
   | con `hasKey` getUnique trueDataCon = Just return
 isTrueLHsExpr (L _ (HsTick _ tickish e))
     | Just ticks <- isTrueLHsExpr e
-    = Just (\x -> do wrapped <- ticks x
-                     return (Tick tickish wrapped))
+    = Just (fmap (Tick tickish) . ticks)
    -- This encodes that the result is constant True for Hpc tick purposes;
    -- which is specifically what isTrueLHsExpr is trying to find out.
 isTrueLHsExpr (L _ (HsBinTick _ ixT _ e))
     | Just ticks <- isTrueLHsExpr e
-    = Just (\x -> do e <- ticks x
-                     this_mod <- getModule
-                     return (Tick (HpcTick this_mod ixT) e))
+    = Just \x -> [Tick (HpcTick this_mod ixT) e | e <- ticks x, this_mod <- getModule]
 
 isTrueLHsExpr (L _ (HsPar _ e))   = isTrueLHsExpr e
 isTrueLHsExpr _                   = Nothing

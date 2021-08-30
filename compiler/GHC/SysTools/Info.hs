@@ -14,7 +14,7 @@ import GHC.Driver.Session
 import GHC.Utils.Outputable
 import GHC.Utils.Misc
 
-import Data.List
+import Data.List hiding (filter)
 import Data.IORef
 
 import System.IO

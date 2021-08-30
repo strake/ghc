@@ -393,7 +393,7 @@ pprTypedLamBinder bind_site debug_on var
       , isDeadBinder var        -> empty
 
       | not debug_on            -- Even dead binders can be one-shot
-      , isDeadBinder var        -> char '_' <+> ppWhen (isId var)
+      , isDeadBinder var        -> char '_' <+> mwhen (isId var)
                                                 (pprIdBndrInfo (idInfo var))
 
       | not debug_on            -- No parens, no kind info

@@ -79,7 +79,8 @@ import GHC.Data.FastString
 import GHC.Data.Pair
 import GHC.Data.Bag
 
-import Data.List  ( find, partition, intersperse )
+import Data.List  ( find, intersperse )
+import Lens.Micro ( _last )
 
 type BagDerivStuff = Bag DerivStuff
 
@@ -1898,7 +1899,7 @@ gen_Newtype_binds loc cls inst_tvs inst_tys rhs_ty
     -- Same as inst_tys, but with the last argument type replaced by the
     -- representation type.
     underlying_inst_tys :: [Type]
-    underlying_inst_tys = changeLast inst_tys rhs_ty
+    underlying_inst_tys = set _last rhs_ty inst_tys
 
 nlHsAppType :: LHsExpr GhcPs -> Type -> LHsExpr GhcPs
 nlHsAppType e s = noLoc (HsAppType noExtField e hs_ty)
@@ -1929,7 +1930,7 @@ mkCoerceClassMethEqn cls inst_tvs inst_tys rhs_ty id
     cls_tvs = classTyVars cls
     in_scope = mkInScopeSet $ mkVarSet inst_tvs
     lhs_subst = mkTvSubst in_scope (zipTyEnv cls_tvs inst_tys)
-    rhs_subst = mkTvSubst in_scope (zipTyEnv cls_tvs (changeLast inst_tys rhs_ty))
+    rhs_subst = mkTvSubst in_scope (zipTyEnv cls_tvs (set _last rhs_ty inst_tys))
     (_class_tvs, _class_constraint, user_meth_ty)
       = tcSplitMethodTy (varType id)
 
@@ -2009,15 +2010,15 @@ type SeparateBagsDerivStuff =
 
 genAuxBinds :: DynFlags -> SrcSpan -> BagDerivStuff -> SeparateBagsDerivStuff
 genAuxBinds dflags loc b = genAuxBinds' b2 where
-  (b1,b2) = partitionBagWith splitDerivAuxBind b
+  (b1,b2) = mapEither splitDerivAuxBind b
   splitDerivAuxBind (DerivAuxBind x) = Left x
   splitDerivAuxBind  x               = Right x
 
   rm_dups = foldr dup_check emptyBag
-  dup_check a b = if anyBag (== a) b then b else consBag a b
+  dup_check a b | any (== a) b = b | otherwise = consBag a b
 
   genAuxBinds' :: BagDerivStuff -> SeparateBagsDerivStuff
-  genAuxBinds' = foldr f ( mapBag (genAuxBindSpec dflags loc) (rm_dups b1)
+  genAuxBinds' = foldr f ( genAuxBindSpec dflags loc <$> rm_dups b1
                             , emptyBag )
   f :: DerivStuff -> SeparateBagsDerivStuff -> SeparateBagsDerivStuff
   f (DerivAuxBind _) = panic "genAuxBinds'" -- We have removed these before

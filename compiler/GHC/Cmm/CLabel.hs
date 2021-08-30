@@ -142,8 +142,6 @@ import GHC.Utils.Misc
 import GHC.Core.Ppr ( {- instances -} )
 import GHC.CmmToAsm.Config
 
-import Data.Bool (bool)
-
 -- -----------------------------------------------------------------------------
 -- The CLabel type
 
@@ -1099,9 +1097,8 @@ labelDynamic config this_mod lbl =
 
    LocalBlockLabel _    -> False
 
-   ForeignLabel _ _ source _  ->
-       if os == OSMinGW32
-       then case source of
+   ForeignLabel _ _ source _  -> case os of
+       OSMinGW32 -> case source of
             -- Foreign label is in some un-named foreign package (or DLL).
             ForeignLabelInExternalPackage -> True
 
@@ -1115,7 +1112,7 @@ labelDynamic config this_mod lbl =
             ForeignLabelInPackage pkgId ->
                 externalDynamicRefs && (this_pkg /= pkgId)
 
-       else -- On Mac OS X and on ELF platforms, false positives are OK,
+       _ -> -- On Mac OS X and on ELF platforms, false positives are OK,
             -- so we claim that all foreign imports come from dynamic
             -- libraries
             True

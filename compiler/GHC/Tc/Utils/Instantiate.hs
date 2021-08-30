@@ -20,8 +20,7 @@ module GHC.Tc.Utils.Instantiate (
 
        newOverloadedLit, mkOverLit,
 
-       newClsInst,
-       tcGetInsts, tcGetInstEnvs, getOverlapFlag,
+       newClsInst, tcGetInstEnvs, getOverlapFlag,
        tcExtendLocalInstEnv,
        instCallConstraints, newMethodFromName,
        tcSyntaxName,
@@ -85,7 +84,6 @@ import GHC.Data.FastString
 
 import Data.List ( sortBy )
 import Control.Monad( unless )
-import Data.Function ( on )
 
 {-
 ************************************************************************
@@ -171,7 +169,7 @@ deeplySkolemise ty
       = do { let arg_tys' = substTys subst arg_tys
            ; ids1           <- newSysLocalIds (fsLit "dk") arg_tys'
            ; (subst', tvs1) <- tcInstSkolTyVarsX subst tvs
-           ; ev_vars1       <- newEvVars (substTheta subst' theta)
+           ; ev_vars1       <- traverse newEvVar (substTheta subst' theta)
            ; (wrap, tvs_prs2, ev_vars2, rho) <- go subst' ty'
            ; let tv_prs1 = map tyVarName tvs `zip` tvs1
            ; return ( mkWpLams ids1
@@ -678,10 +676,6 @@ getOverlapFlag overlap_mode
               final_oflag = setOverlapModeMaybe default_oflag overlap_mode
         ; return final_oflag }
 
-tcGetInsts :: TcM [ClsInst]
--- Gets the local class instances.
-tcGetInsts = fmap tcg_insts getGblEnv
-
 newClsInst :: Maybe OverlapMode -> Name -> [TyVar] -> ThetaType
            -> Class -> [Type] -> TcM ClsInst
 newClsInst overlap_mode dfun_name tvs theta clas tys
@@ -723,9 +717,9 @@ tcExtendLocalInstEnv dfuns thing_inside
       ; (inst_env', cls_insts') <- foldlM addLocalInst
                                           (tcg_inst_env env, tcg_insts env)
                                           dfuns
-      ; let env' = env { tcg_insts    = cls_insts'
-                       , tcg_inst_env = inst_env' }
-      ; setGblEnv env' thing_inside }
+      ; setGblEnv env
+          { tcg_insts    = cls_insts'
+          , tcg_inst_env = inst_env' } thing_inside }
 
 addLocalInst :: (InstEnv, [ClsInst]) -> ClsInst -> TcM (InstEnv, [ClsInst])
 -- Check that the proposed new instance is OK,

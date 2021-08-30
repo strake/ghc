@@ -78,6 +78,7 @@ import GHC.Tc.Errors
 import GHC.Tc.Utils.Unify
 
 import GHC.Utils.Error
+import GHC.Utils.Lens.Monad
 import GHC.Utils.Outputable
 import GHC.Utils.Panic
 import GHC.Utils.Panic.Plain
@@ -100,9 +101,7 @@ fixityMisMatch real_thing real_fixity sig_fixity =
   where
     ppr_fix f =
         ppr f <+>
-        (if f == defaultFixity
-            then parens (text "default")
-            else empty)
+        (mwhen (f == defaultFixity) $ parens (text "default"))
 
 checkHsigDeclM :: ModIface -> TyThing -> TyThing -> TcRn ()
 checkHsigDeclM sig_iface sig_thing real_thing = do
@@ -656,9 +655,8 @@ mergeSignatures
                                             is_dloc = loc
                                           } ImpAll
                                 rdr_env = mkGlobalRdrEnv (gresFromAvails (Just ispec) as1)
-                            setGblEnv tcg_env {
-                                tcg_rdr_env = rdr_env
-                            } $ exports_from_avail mb_exports rdr_env
+                            locally (env_gblL . tcg_rdr_envL) (pure rdr_env) $
+                                exports_from_avail mb_exports rdr_env
                                     -- NB: tcg_imports is also empty!
                                     emptyImportAvails
                                     (tcg_semantic_mod tcg_env)
@@ -726,10 +724,8 @@ mergeSignatures
     {- -- NB: This is commented out, because warns above is disabled.
     -- If you tried to explicitly export an identifier that has a warning
     -- attached to it, that's probably a mistake.  Warn about it.
-    case mb_lies of
-      Nothing -> return ()
-      Just lies ->
-        forM_ (concatMap (\(L loc x) -> map (L loc) (ieNames x)) lies) $ \(L loc n) ->
+    for_ mb_lies \ lies ->
+        (concatMap . traverse) ieNames lies `for_` \(L loc n) ->
           setSrcSpan loc $
             unless (nameOccName n `elemOccSet` ok_to_use) $
                 addWarn NoReason $ vcat [
@@ -885,7 +881,7 @@ mergeSignatures
     -- See also Note [rnIfaceNeverExported] in GHC.Iface.Rename
     dfun_insts <- forM (tcg_insts tcg_env) $ \inst -> do
         n <- newDFunName (is_cls inst) (is_tys inst) (nameSrcSpan (is_dfun_name inst))
-        let dfun = setVarName (is_dfun inst) n
+        let dfun = set varNameL n (is_dfun inst)
         return (dfun, inst { is_dfun_name = n, is_dfun = dfun })
     tcg_env <- return tcg_env {
             tcg_insts = map snd dfun_insts,

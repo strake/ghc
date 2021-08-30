@@ -56,6 +56,7 @@ import Data.Data hiding (Fixity(..))
 import qualified Data.Data as Data (Fixity(..))
 import qualified Data.Kind
 import Data.Maybe (isJust)
+import Lens.Micro (Traversal, Traversal')
 
 import GHCi.RemoteTypes ( ForeignRef )
 import qualified Language.Haskell.TH as TH (Q)
@@ -1559,6 +1560,11 @@ data MatchGroup p body
      -- where there are n patterns
   | XMatchGroup !(XXMatchGroup p body)
 
+mg_altsL :: Traversal' (MatchGroup p a) (Located [LMatch p a])
+mg_altsL f = \ case
+    mg@MG { mg_alts = alts } -> f alts <₪> \ alts' -> mg { mg_alts = alts' }
+    XMatchGroup x -> pure (XMatchGroup x)
+
 data MatchGroupTc
   = MatchGroupTc
        { mg_arg_tys :: [Type]  -- Types of the arguments, t1..tn
@@ -1755,7 +1761,7 @@ pprGRHSs ctxt (GRHSs _ grhss (L _ binds))
   = vcat (map (pprGRHS ctxt . unLoc) grhss)
   -- Print the "where" even if the contents of the binds is empty. Only
   -- EmptyLocalBinds means no "where" keyword
- $$ ppUnless (eqEmptyLocalBinds binds)
+ $$ munless (eqEmptyLocalBinds binds)
       (text "where" $$ nest 4 (pprBinds binds))
 
 pprGRHS :: (OutputableBndrId idR, Outputable body)
@@ -2700,6 +2706,13 @@ data ArithSeqInfo id
                     (LHsExpr id)
                     (LHsExpr id)
 -- AZ: Should ArithSeqInfo have a TTG extension?
+
+arithSeqInfoExprsL :: Traversal (ArithSeqInfo a) (ArithSeqInfo b) (LHsExpr a) (LHsExpr b)
+arithSeqInfoExprsL f = \ case
+    From x -> From <$> f x
+    FromThen x y -> FromThen <$> f x <*> f y
+    FromTo x y -> FromTo <$> f x <*> f y
+    FromThenTo x y z -> FromThenTo <$> f x <*> f y <*> f z
 
 instance OutputableBndrId p
          => Outputable (ArithSeqInfo (GhcPass p)) where

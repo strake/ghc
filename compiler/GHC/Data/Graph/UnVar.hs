@@ -116,25 +116,25 @@ completeGraph :: UnVarSet -> UnVarGraph
 completeGraph s = prune $ UnVarGraph $ unitBag $ CG s
 
 neighbors :: UnVarGraph -> Var -> UnVarSet
-neighbors (UnVarGraph g) v = unionUnVarSets $ concatMap go $ bagToList g
+neighbors (UnVarGraph g) v = unionUnVarSets $ concatMap go g
   where go (CG s)       = (if v `elemUnVarSet` s then [s] else [])
         go (CBPG s1 s2) = (if v `elemUnVarSet` s1 then [s2] else []) ++
                           (if v `elemUnVarSet` s2 then [s1] else [])
 
 -- hasLoopAt G v <=> v--v ∈ G
 hasLoopAt :: UnVarGraph -> Var -> Bool
-hasLoopAt (UnVarGraph g) v = any go $ bagToList g
+hasLoopAt (UnVarGraph g) v = any go g
   where go (CG s)       = v `elemUnVarSet` s
         go (CBPG s1 s2) = v `elemUnVarSet` s1 && v `elemUnVarSet` s2
 
 
 delNode :: UnVarGraph -> Var -> UnVarGraph
-delNode (UnVarGraph g) v = prune $ UnVarGraph $ mapBag go g
+delNode (UnVarGraph g) v = prune $ UnVarGraph $ fmap go g
   where go (CG s)       = CG (s `delUnVarSet` v)
         go (CBPG s1 s2) = CBPG (s1 `delUnVarSet` v) (s2 `delUnVarSet` v)
 
 prune :: UnVarGraph -> UnVarGraph
-prune (UnVarGraph g) = UnVarGraph $ filterBag go g
+prune (UnVarGraph g) = UnVarGraph $ filter go g
   where go (CG s)       = not (isEmptyUnVarSet s)
         go (CBPG s1 s2) = not (isEmptyUnVarSet s1) && not (isEmptyUnVarSet s2)
 

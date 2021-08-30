@@ -1,4 +1,8 @@
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE CPP #-}
+
+#include "lens.h"
 
 -- -----------------------------------------------------------------------------
 --
@@ -18,10 +22,6 @@ module GHC.CmmToAsm.Monad (
         addImportNat,
         addNodeBetweenNat,
         addImmediateSuccessorNat,
-        updateCfgNat,
-        getUniqueNat,
-        mapAccumLNat,
-        setDeltaNat,
         getConfig,
         getPlatform,
         getDeltaNat,
@@ -37,7 +37,19 @@ module GHC.CmmToAsm.Monad (
         getFileId,
         getDebugBlock,
 
-        DwarfFiles
+        DwarfFiles,
+
+        natm_usL,
+        natm_deltaL,
+        natm_importsL,
+        natm_picL,
+        natm_dflagsL,
+        natm_configL,
+        natm_this_moduleL,
+        natm_modlocL,
+        natm_fileidL,
+        natm_debug_mapL,
+        natm_cfgL,
 )
 
 where
@@ -59,16 +71,16 @@ import GHC.Cmm.DebugBlock
 import GHC.Data.FastString      ( FastString )
 import GHC.Types.Unique.FM
 import GHC.Types.Unique.Supply
-import GHC.Types.Unique         ( Unique )
 import GHC.Driver.Session
 import GHC.Unit.Module
 
+import GHC.Utils.Lens.Monad
+import GHC.Utils.Monad.State.Lazy (State (..), runState)
 import GHC.Utils.Outputable (SDoc, ppr)
 import GHC.Utils.Panic      (pprPanic)
 import GHC.CmmToAsm.CFG
 
-import Control.Monad.Trans.State (State, StateT (..))
-import Data.Functor.Identity (Identity (..))
+import Data.Functor.State.Class (IsState (..), gets)
 
 data NcgImpl statics instr jumpDest = NcgImpl {
     ncgConfig                 :: !NCGConfig,
@@ -116,20 +128,34 @@ data NatM_State
         -- generated instructions. So instead we update the CFG as we go.
         }
 
+LENS_FIELD(natm_usL, natm_us)
+LENS_FIELD(natm_deltaL, natm_delta)
+LENS_FIELD(natm_importsL, natm_imports)
+LENS_FIELD(natm_picL, natm_pic)
+LENS_FIELD(natm_dflagsL, natm_dflags)
+LENS_FIELD(natm_configL, natm_config)
+LENS_FIELD(natm_this_moduleL, natm_this_module)
+LENS_FIELD(natm_modlocL, natm_modloc)
+LENS_FIELD(natm_fileidL, natm_fileid)
+LENS_FIELD(natm_debug_mapL, natm_debug_map)
+LENS_FIELD(natm_cfgL, natm_cfg)
+
 type DwarfFiles = UniqFM FastString (FastString, Int)
 
-newtype NatM result = NatM (NatM_State -> (result, NatM_State))
+newtype NatM result = NatM (State NatM_State result)
     deriving (Functor)
     deriving (Applicative, Monad) via State NatM_State
 
 unNat :: NatM a -> NatM_State -> (a, NatM_State)
-unNat (NatM a) = a
+unNat (NatM x) = runState x
+
+instance IsState NatM where
+    type StateType NatM = NatM_State
+    state = NatM . state
 
 mkNatM_State :: UniqSupply -> Int -> DynFlags -> Module -> ModLocation ->
                 DwarfFiles -> LabelMap DebugBlock -> CFG -> NatM_State
-mkNatM_State us delta dflags this_mod
-        = \loc dwf dbg cfg ->
-                NatM_State
+mkNatM_State us delta dflags this_mod = \loc dwf dbg cfg -> NatM_State
                         { natm_us = us
                         , natm_delta = delta
                         , natm_imports = []
@@ -187,67 +213,30 @@ initConfig dflags = NCGConfig
    }
 
 initNat :: NatM_State -> NatM a -> (a, NatM_State)
-initNat init_st m
-        = case unNat m init_st of { (r,st) -> (r,st) }
+initNat = flip unNat
 
 instance MonadUnique NatM where
-  getUniqueSupplyM = NatM $ \st ->
-      case splitUniqSupply (natm_us st) of
-          (us1, us2) -> (us1, st {natm_us = us2})
-
-  getUniqueM = NatM $ \st ->
-      case takeUniqFromSupply (natm_us st) of
-          (uniq, us') -> (uniq, st {natm_us = us'})
-
-mapAccumLNat :: (acc -> x -> NatM (acc, y))
-                -> acc
-                -> [x]
-                -> NatM (acc, [y])
-
-mapAccumLNat _ b []
-  = return (b, [])
-mapAccumLNat f b (x:xs)
-  = do (b__2, x__2)  <- f b x
-       (b__3, xs__2) <- mapAccumLNat f b__2 xs
-       return (b__3, x__2:xs__2)
-
-getUniqueNat :: NatM Unique
-getUniqueNat = NatM $ \ st ->
-    case takeUniqFromSupply $ natm_us st of
-    (uniq, us') -> (uniq, st {natm_us = us'})
+  getUniqueSupplyM = stating natm_usL splitUniqSupply
+  getUniqueM = stating natm_usL takeUniqFromSupply
 
 instance HasDynFlags NatM where
-    getDynFlags = NatM $ \ st -> (natm_dflags st, st)
-
+    getDynFlags = gets natm_dflags
 
 getDeltaNat :: NatM Int
-getDeltaNat = NatM $ \ st -> (natm_delta st, st)
-
-
-setDeltaNat :: Int -> NatM ()
-setDeltaNat delta = NatM $ \ st -> ((), st {natm_delta = delta})
-
+getDeltaNat = gets natm_delta
 
 getThisModuleNat :: NatM Module
-getThisModuleNat = NatM $ \ st -> (natm_this_module st, st)
-
+getThisModuleNat = gets natm_this_module
 
 addImportNat :: CLabel -> NatM ()
-addImportNat imp
-        = NatM $ \ st -> ((), st {natm_imports = imp : natm_imports st})
-
-updateCfgNat :: (CFG -> CFG) -> NatM ()
-updateCfgNat f
-        = NatM $ \ st -> let !cfg' = f (natm_cfg st)
-                         in ((), st { natm_cfg = cfg'})
+addImportNat = modifying_ natm_importsL . (:)
 
 -- | Record that we added a block between `from` and `old`.
 addNodeBetweenNat :: BlockId -> BlockId -> BlockId -> NatM ()
 addNodeBetweenNat from between to
  = do   df <- getDynFlags
-        let jmpWeight = fromIntegral . uncondWeight .
-                        cfgWeightInfo $ df
-        updateCfgNat (updateCfg jmpWeight from between to)
+        let jmpWeight = fromIntegral . uncondWeight . cfgWeightInfo $ df
+        modifying_ natm_cfgL (updateCfg jmpWeight from between to)
   where
     -- When transforming A -> B to A -> A' -> B
     -- A -> A' keeps the old edge info while
@@ -267,65 +256,52 @@ addNodeBetweenNat from between to
 addImmediateSuccessorNat :: BlockId -> BlockId -> NatM ()
 addImmediateSuccessorNat block succ = do
    dflags <- getDynFlags
-   updateCfgNat (addImmediateSuccessor dflags block succ)
+   modifying_ natm_cfgL (addImmediateSuccessor dflags block succ)
 
 getBlockIdNat :: NatM BlockId
-getBlockIdNat
- = do   u <- getUniqueNat
-        return (mkBlockId u)
-
+getBlockIdNat = mkBlockId <$> getUniqueM
 
 getNewLabelNat :: NatM CLabel
-getNewLabelNat
- = blockLbl <$> getBlockIdNat
-
+getNewLabelNat = blockLbl <$> getBlockIdNat
 
 getNewRegNat :: Format -> NatM Reg
-getNewRegNat rep
- = do u <- getUniqueNat
-      platform <- getPlatform
-      return (RegVirtual $ targetMkVirtualReg platform u rep)
-
+getNewRegNat rep =
+  [ RegVirtual $ targetMkVirtualReg platform u rep
+  | u <- getUniqueM, platform <- getPlatform ]
 
 getNewRegPairNat :: Format -> NatM (Reg,Reg)
-getNewRegPairNat rep
- = do u <- getUniqueNat
-      platform <- getPlatform
-      let vLo = targetMkVirtualReg platform u rep
-      let lo  = RegVirtual $ targetMkVirtualReg platform u rep
-      let hi  = RegVirtual $ getHiVirtualRegFromLo vLo
-      return (lo, hi)
-
+getNewRegPairNat rep =
+  [ (lo, hi)
+  | u <- getUniqueM
+  , platform <- getPlatform
+  , let vLo = targetMkVirtualReg platform u rep
+        lo  = RegVirtual $ targetMkVirtualReg platform u rep
+        hi  = RegVirtual $ getHiVirtualRegFromLo vLo
+  ]
 
 getPicBaseMaybeNat :: NatM (Maybe Reg)
-getPicBaseMaybeNat
-        = NatM (\state -> (natm_pic state, state))
-
+getPicBaseMaybeNat = gets natm_pic
 
 getPicBaseNat :: Format -> NatM Reg
-getPicBaseNat rep
- = do   mbPicBase <- getPicBaseMaybeNat
-        case mbPicBase of
+getPicBaseNat rep = getPicBaseMaybeNat >>= \ case
                 Just picBase -> return picBase
-                Nothing
-                 -> do
+                Nothing -> do
                         reg <- getNewRegNat rep
-                        NatM (\state -> (reg, state { natm_pic = Just reg }))
+                        state \st -> (reg, st { natm_pic = Just reg })
 
 getModLoc :: NatM ModLocation
-getModLoc
-        = NatM $ \ st -> (natm_modloc st, st)
+getModLoc = gets natm_modloc
 
 -- | Get native code generator configuration
 getConfig :: NatM NCGConfig
-getConfig = NatM $ \st -> (natm_config st, st)
+getConfig = gets natm_config
 
 -- | Get target platform from native code generator configuration
 getPlatform :: NatM Platform
 getPlatform = ncgPlatform <$> getConfig
 
 getFileId :: FastString -> NatM Int
-getFileId f = NatM $ \st ->
+getFileId f = state $ \st ->
   case lookupUFM (natm_fileid st) f of
     Just (_,n) -> (n, st)
     Nothing    -> let n = 1 + sizeUFM (natm_fileid st)
@@ -333,4 +309,4 @@ getFileId f = NatM $ \st ->
                   in n `seq` fids `seq` (n, st { natm_fileid = fids  })
 
 getDebugBlock :: Label -> NatM (Maybe DebugBlock)
-getDebugBlock l = NatM $ \st -> (mapLookup l (natm_debug_map st), st)
+getDebugBlock l = gets (mapLookup l . natm_debug_map)

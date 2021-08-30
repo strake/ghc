@@ -75,7 +75,6 @@ import GHC.Unit.Module
 import GHC.Types.Name
 import GHC.Types.Avail
 import GHC.Types.Name.Set
-import GHC.Data.Maybe
 import GHC.Types.SrcLoc as SrcLoc
 import GHC.Data.FastString
 import GHC.Types.FieldLabel
@@ -89,6 +88,7 @@ import GHC.Utils.Outputable.Ppr (warnPprTrace)
 import GHC.Utils.Panic
 
 import Data.Data
+import Data.Foldable( toList )
 import Data.List( sortBy )
 
 {-
@@ -396,13 +396,13 @@ lookupLocalRdrOcc (LRE { lre_env = env }) occ = lookupOccEnv env occ
 elemLocalRdrEnv :: RdrName -> LocalRdrEnv -> Bool
 elemLocalRdrEnv rdr_name (LRE { lre_env = env, lre_in_scope = ns })
   = case rdr_name of
-      Unqual occ -> occ  `elemOccEnv` env
+      Unqual occ -> occ `elemOccEnv` env
       Exact name -> name `elemNameSet` ns  -- See Note [Local bindings with Exact Names]
       Qual {} -> False
       Orig {} -> False
 
 localRdrEnvElts :: LocalRdrEnv -> [Name]
-localRdrEnvElts (LRE { lre_env = env }) = occEnvElts env
+localRdrEnvElts (LRE { lre_env = env }) = toList env
 
 inLocalRdrEnvScope :: Name -> LocalRdrEnv -> Bool
 -- This is the point of the NameSet
@@ -757,7 +757,7 @@ emptyGlobalRdrEnv :: GlobalRdrEnv
 emptyGlobalRdrEnv = emptyOccEnv
 
 globalRdrEnvElts :: GlobalRdrEnv -> [GlobalRdrElt]
-globalRdrEnvElts env = foldOccEnv (++) [] env
+globalRdrEnvElts = concat
 
 instance Outputable GlobalRdrElt where
   ppr gre = hang (ppr (gre_name gre) <+> ppr (gre_par gre))
@@ -765,9 +765,9 @@ instance Outputable GlobalRdrElt where
 
 pprGlobalRdrEnv :: Bool -> GlobalRdrEnv -> SDoc
 pprGlobalRdrEnv locals_only env
-  = vcat [ text "GlobalRdrEnv" <+> ppWhen locals_only (ptext (sLit "(locals only)"))
+  = vcat [ text "GlobalRdrEnv" <+> mwhen locals_only (ptext (sLit "(locals only)"))
              <+> lbrace
-         , nest 2 (vcat [ pp (remove_locals gre_list) | gre_list <- occEnvElts env ]
+         , nest 2 (vcat [ pp (remove_locals gre_list) | gre_list <- toList env ]
              <+> rbrace) ]
   where
     remove_locals gres | locals_only = filter isLocalGRE gres
