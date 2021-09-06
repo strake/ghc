@@ -657,14 +657,15 @@ discardProg hsc_env
   = discardIC $ hsc_env { hsc_mod_graph = emptyMG
                         , hsc_HPT = emptyHomePackageTable }
 
--- | Discard the contents of the InteractiveContext, but keep the DynFlags.
--- It will also keep ic_int_print and ic_monad if their names are from
--- external packages.
+-- | Discard the contents of the InteractiveContext, but keep the DynFlags and
+-- the loaded plugins.  It will also keep ic_int_print and ic_monad if their
+-- names are from external packages.
 discardIC :: HscEnv -> HscEnv
 discardIC = over hsc_ICL $ \ old_ic -> let
   -- Force the new values for ic_int_print and ic_monad to avoid leaking old_ic
   !new_ic_int_print = keep_external_name ic_int_print
   !new_ic_monad = keep_external_name ic_monad
+  !old_plugins = ic_plugins old_ic
   dflags = ic_dflags old_ic
   empty_ic = emptyInteractiveContext dflags
   keep_external_name ic_name
@@ -674,7 +675,11 @@ discardIC = over hsc_ICL $ \ old_ic -> let
     this_pkg = homeUnit dflags
     old_name = ic_name old_ic
 
-  in empty_ic { ic_int_print = new_ic_int_print, ic_monad = new_ic_monad }
+  in empty_ic
+    { ic_int_print = new_ic_int_print
+    , ic_monad     = new_ic_monad
+    , ic_plugins   = old_plugins
+    }
 
 -- | If there is no -o option, guess the name of target executable
 -- by using top-level source file name as a base.
