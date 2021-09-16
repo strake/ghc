@@ -15,7 +15,6 @@
 ----------------------------------------------------------------------------
 module Data.Bitraversable
   ( Bitraversable(..)
-  , bisequenceA
   , bisequence
   , bimapM
   , bifor
@@ -124,11 +123,11 @@ class (Bifunctor t, Bifoldable t) => Bitraversable t where
   bitraverse :: Applicative f => (a -> f c) -> (b -> f d) -> t a b -> f (t c d)
   bitraverse f g = bisequenceA . bimap f g
 
--- | Alias for 'bisequence'.
---
--- @since 4.10.0.0
-bisequenceA :: (Bitraversable t, Applicative f) => t (f a) (f b) -> f (t a b)
-bisequenceA = bisequence
+  -- | Alias for 'bisequence'.
+  --
+  -- @since 4.10.0.0
+  bisequenceA :: Applicative f => t (f a) (f b) -> f (t a b)
+  bisequenceA = bitraverse id id
 
 -- | Alias for 'bitraverse'.
 --
