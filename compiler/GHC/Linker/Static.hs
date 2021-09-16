@@ -214,18 +214,6 @@ linkBinary' staticLink dflags o_files dep_units = do
                           then ["-Wl,-no_compact_unwind"]
                           else [])
 
-                      -- '-Wl,-read_only_relocs,suppress'
-                      -- ld gives loads of warnings like:
-                      --     ld: warning: text reloc in _base_GHCziArr_unsafeArray_info to _base_GHCziArr_unsafeArray_closure
-                      -- when linking any program. We're not sure
-                      -- whether this is something we ought to fix, but
-                      -- for now this flags silences them.
-                      ++ (if platformOS   platform == OSDarwin &&
-                             platformArch platform == ArchX86 &&
-                             not staticLink
-                          then ["-Wl,-read_only_relocs,suppress"]
-                          else [])
-
                       ++ (if toolSettings_ldIsGnuLd toolSettings' &&
                              not (gopt Opt_WholeArchiveHsLibs dflags)
                           then ["-Wl,--gc-sections"]

@@ -19,7 +19,6 @@ module GHC.CmmToAsm.X86.Instr
    , shortcutJump
    , allocMoreStack
    , maxSpillSlots
-   , archWordFormat
    , takeRegRegMoveInstr
    , regUsageOfInstr
    , takeDeltaInstr
@@ -68,13 +67,6 @@ import GHC.Types.Basic (Alignment)
 import GHC.Cmm.DebugBlock (UnwindTable)
 
 import Control.Monad
-
--- Format of an x86/x86_64 memory address, in bytes.
---
-archWordFormat :: Bool -> Format
-archWordFormat is32Bit
- | is32Bit   = II32
- | otherwise = II64
 
 -- -----------------------------------------------------------------------------
 -- Intel x86 instructions
@@ -245,15 +237,6 @@ data Instr
         | NOP
 
 
-        -- We need to support the FSTP (x87 store and pop) instruction
-        -- so that we can correctly read off the return value of an
-        -- x86 CDECL C function call when its floating point.
-        -- so we dont include a register argument, and just use st(0)
-        -- this instruction is used ONLY for return values of C ffi calls
-        -- in x86_32 abi
-        | X87Store         Format  AddrMode -- st(0), dst
-
-
         -- SSE2 floating point: we use a restricted set of the available SSE2
         -- instructions for floating-point.
         -- use MOV for moving (either movss or movsd (movlpd better?))
@@ -400,8 +383,6 @@ regUsageOfInstr platform instr
     CALL (Right reg) params -> mkRU (reg:params) (callClobberedRegs platform)
     CLTD   _            -> mkRU [eax] [edx]
     NOP                 -> mkRU [] []
-
-    X87Store    _  dst    -> mkRUR ( use_EA dst [])
 
     CVTSS2SD   src dst  -> mkRU [src] [dst]
     CVTSD2SS   src dst  -> mkRU [src] [dst]
@@ -551,9 +532,6 @@ patchRegsOfInstr instr env
     JMP op regs          -> JMP (patchOp op) regs
     JMP_TBL op ids s lbl -> JMP_TBL (patchOp op) ids s lbl
 
-    -- literally only support storing the top x87 stack value st(0)
-    X87Store  fmt  dst     -> X87Store fmt  (lookupAddr dst)
-
     CVTSS2SD src dst    -> CVTSS2SD (env src) (env dst)
     CVTSD2SS src dst    -> CVTSD2SS (env src) (env dst)
     CVTTSS2SIQ fmt src dst -> CVTTSS2SIQ fmt (patchOp src) (env dst)
@@ -670,15 +648,13 @@ mkSpillInstr
     -> Instr
 
 mkSpillInstr config reg delta slot
-  = let off     = spillSlotToOffset platform slot - delta
+  = let off     = spillSlotToOffset slot - delta
     in
     case targetClassOfReg platform reg of
-           RcInteger   -> MOV (archWordFormat is32Bit)
-                              (OpReg reg) (OpAddr (spRel platform off))
-           RcDouble    -> MOV FF64 (OpReg reg) (OpAddr (spRel platform off))
+           RcInteger   -> MOV II64 (OpReg reg) (OpAddr (spRel off))
+           RcDouble    -> MOV FF64 (OpReg reg) (OpAddr (spRel off))
            _         -> panic "X86.mkSpillInstr: no match"
     where platform = ncgPlatform config
-          is32Bit = target32Bit platform
 
 -- | Make a spill reload instruction.
 mkLoadInstr
@@ -689,24 +665,20 @@ mkLoadInstr
     -> Instr
 
 mkLoadInstr config reg delta slot
-  = let off     = spillSlotToOffset platform slot - delta
+  = let off     = spillSlotToOffset slot - delta
     in
         case targetClassOfReg platform reg of
-              RcInteger -> MOV (archWordFormat is32Bit)
-                               (OpAddr (spRel platform off)) (OpReg reg)
-              RcDouble  -> MOV FF64 (OpAddr (spRel platform off)) (OpReg reg)
+              RcInteger -> MOV II64 (OpAddr (spRel off)) (OpReg reg)
+              RcDouble  -> MOV FF64 (OpAddr (spRel off)) (OpReg reg)
               _           -> panic "X86.mkLoadInstr"
     where platform = ncgPlatform config
-          is32Bit = target32Bit platform
 
-spillSlotSize :: Platform -> Int
-spillSlotSize platform
-   | target32Bit platform = 12
-   | otherwise            = 8
+spillSlotSize :: Int
+spillSlotSize = 8
 
 maxSpillSlots :: NCGConfig -> Int
 maxSpillSlots config
-    = ((ncgSpillPreallocSize config - 64) `div` spillSlotSize (ncgPlatform config)) - 1
+    = ((ncgSpillPreallocSize config - 64) `div` spillSlotSize) - 1
 --  = 0 -- useful for testing allocMoreStack
 
 -- number of bytes that the stack pointer should be aligned to
@@ -716,9 +688,9 @@ stackAlign = 16
 -- convert a spill slot number to a *byte* offset, with no sign:
 -- decide on a per arch basis whether you are spilling above or below
 -- the C stack pointer.
-spillSlotToOffset :: Platform -> Int -> Int
-spillSlotToOffset platform slot
-   = 64 + spillSlotSize platform * slot
+spillSlotToOffset :: Int -> Int
+spillSlotToOffset slot
+   = 64 + spillSlotSize * slot
 
 --------------------------------------------------------------------------------
 
@@ -763,11 +735,8 @@ mkRegRegMoveInstr
 
 mkRegRegMoveInstr platform src dst
  = case targetClassOfReg platform src of
-        RcInteger -> case platformArch platform of
-                     ArchX86    -> MOV II32 (OpReg src) (OpReg dst)
-                     ArchX86_64 -> MOV II64 (OpReg src) (OpReg dst)
-                     _          -> panic "X86.mkRegRegMoveInstr: Bad arch"
-        RcDouble    ->  MOV FF64 (OpReg src) (OpReg dst)
+        RcInteger -> MOV II64 (OpReg src) (OpReg dst)
+        RcDouble  -> MOV FF64 (OpReg src) (OpReg dst)
         -- this code is the lie we tell ourselves because both float and double
         -- use the same register class.on x86_64 and x86 32bit with SSE2,
         -- more plainly, both use the XMM registers
@@ -829,10 +798,7 @@ mkJumpInstr id
 needs_probe_call :: Platform -> Int -> Bool
 needs_probe_call platform amount
   = case platformOS platform of
-     OSMinGW32 -> case platformArch platform of
-                    ArchX86    -> amount > (4 * 1024)
-                    ArchX86_64 -> amount > (8 * 1024)
-                    _          -> False
+     OSMinGW32 -> amount > (8 * 1024)
      _         -> False
 
 mkStackAllocInstr
@@ -841,7 +807,7 @@ mkStackAllocInstr
         -> [Instr]
 mkStackAllocInstr platform amount
   = case platformOS platform of
-      OSMinGW32 ->
+      OSMinGW32
         -- These will clobber AX but this should be ok because
         --
         -- 1. It is the first thing we do when entering the closure and AX is
@@ -859,41 +825,22 @@ mkStackAllocInstr platform amount
         -- untouched.  It's part of the standard prologue code for any Windows
         -- function dropping the stack more than a page.
         -- See Note [Windows stack layout]
-        case platformArch platform of
-            ArchX86    | needs_probe_call platform amount ->
-                           [ MOV II32 (OpImm (ImmInt amount)) (OpReg eax)
-                           , CALL (Left $ strImmLit "___chkstk_ms") [eax]
-                           , SUB II32 (OpReg eax) (OpReg esp)
-                           ]
-                       | otherwise ->
-                           [ SUB II32 (OpImm (ImmInt amount)) (OpReg esp)
-                           , TEST II32 (OpReg esp) (OpReg esp)
-                           ]
-            ArchX86_64 | needs_probe_call platform amount ->
+        | needs_probe_call platform amount ->
                            [ MOV II64 (OpImm (ImmInt amount)) (OpReg rax)
                            , CALL (Left $ strImmLit "___chkstk_ms") [rax]
                            , SUB II64 (OpReg rax) (OpReg rsp)
                            ]
-                       | otherwise ->
+        | otherwise ->
                            [ SUB II64 (OpImm (ImmInt amount)) (OpReg rsp)
                            , TEST II64 (OpReg rsp) (OpReg rsp)
                            ]
-            _ -> panic "X86.mkStackAllocInstr"
-      _       ->
-        case platformArch platform of
-          ArchX86    -> [ SUB II32 (OpImm (ImmInt amount)) (OpReg esp) ]
-          ArchX86_64 -> [ SUB II64 (OpImm (ImmInt amount)) (OpReg rsp) ]
-          _ -> panic "X86.mkStackAllocInstr"
+      _       -> [ SUB II64 (OpImm (ImmInt amount)) (OpReg rsp) ]
 
 mkStackDeallocInstr
         :: Platform
         -> Int
         -> [Instr]
-mkStackDeallocInstr platform amount
-  = case platformArch platform of
-      ArchX86    -> [ADD II32 (OpImm (ImmInt amount)) (OpReg esp)]
-      ArchX86_64 -> [ADD II64 (OpImm (ImmInt amount)) (OpReg rsp)]
-      _ -> panic "X86.mkStackDeallocInstr"
+mkStackDeallocInstr _platform amount = [ADD II64 (OpImm (ImmInt amount)) (OpReg rsp)]
 
 
 --
@@ -952,7 +899,7 @@ allocMoreStack platform slots proc@(CmmProc info lbl live (ListGraph code)) = do
 
     let
       delta = ((x + stackAlign - 1) `quot` stackAlign) * stackAlign -- round up
-        where x = slots * spillSlotSize platform -- sp delta
+        where x = slots * spillSlotSize -- sp delta
 
       alloc   = mkStackAllocInstr   platform delta
       dealloc = mkStackDeallocInstr platform delta

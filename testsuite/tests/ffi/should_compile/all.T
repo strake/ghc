@@ -5,15 +5,6 @@ def ffi( name, opts ):
 setTestOpts(ffi)
 
 test('cc001', normal, compile, [''])
-
-# Non-static C call
-# cc004 test also uses stdcall, so it only works on i386.
-if config.platform.startswith('i386-'):
-    ways = normal
-else:
-    ways = expect_fail
-test('cc004', ways, compile, [''])
-
 test('cc005', normal, compile, [''])
 test('cc007', normal, compile, [''])
 test('cc008', normal, compile, [''])

@@ -13,14 +13,6 @@ module GHC.IO.Handle.Lock.Windows where
 import GHC.Base () -- Make implicit dependency known to build system
 #else
 
-#if defined(i386_HOST_ARCH)
-## define WINDOWS_CCONV stdcall
-#elif defined(x86_64_HOST_ARCH)
-## define WINDOWS_CCONV ccall
-#else
-# error Unknown mingw32 arch
-#endif
-
 #include <windows.h>
 
 import Data.Bits
@@ -79,11 +71,11 @@ foreign import ccall unsafe "_get_osfhandle"
   c_get_osfhandle :: CInt -> IO HANDLE
 
 -- https://msdn.microsoft.com/en-us/library/windows/desktop/aa365203.aspx
-foreign import WINDOWS_CCONV interruptible "LockFileEx"
+foreign import ccall interruptible "LockFileEx"
   c_LockFileEx :: HANDLE -> DWORD -> DWORD -> DWORD -> DWORD -> Ptr () -> IO BOOL
 
 -- https://msdn.microsoft.com/en-us/library/windows/desktop/aa365716.aspx
-foreign import WINDOWS_CCONV interruptible "UnlockFileEx"
+foreign import ccall interruptible "UnlockFileEx"
   c_UnlockFileEx :: HANDLE -> DWORD -> DWORD -> DWORD -> Ptr () -> IO BOOL
 
 #endif

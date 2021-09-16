@@ -386,11 +386,6 @@ hs_exit_(bool wait_foreign)
 
     flushStdHandles();
 
-    // sanity check
-#if defined(DEBUG)
-    checkFPUStack();
-#endif
-
 #if defined(THREADED_RTS)
     ioManagerDie();
 #endif

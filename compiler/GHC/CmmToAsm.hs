@@ -155,7 +155,7 @@ nativeCodeGen dflags this_mod modLoc h us cmms
        nCG' ncgImpl = nativeCodeGen' dflags this_mod modLoc ncgImpl h us cmms
    in case platformArch platform of
       ArchX86       -> nCG' (X86.ncgX86     config)
-      ArchX86_64    -> nCG' (X86.ncgX86_64  config)
+      ArchX86_64    -> nCG' (X86.ncgX86     config)
       ArchPPC       -> nCG' (PPC.ncgPPC     config)
       ArchPPC_64 _  -> nCG' (PPC.ncgPPC     config)
       ArchSPARC     -> nCG' (SPARC.ncgSPARC config)

@@ -28,7 +28,6 @@ import GHC.Platform
 import qualified GHC.CmmToAsm.Reg.Linear.PPC    as PPC
 import qualified GHC.CmmToAsm.Reg.Linear.SPARC  as SPARC
 import qualified GHC.CmmToAsm.Reg.Linear.X86    as X86
-import qualified GHC.CmmToAsm.Reg.Linear.X86_64 as X86_64
 
 import qualified GHC.CmmToAsm.PPC.Instr   as PPC.Instr
 import qualified GHC.CmmToAsm.SPARC.Instr as SPARC.Instr
@@ -42,15 +41,9 @@ class Show freeRegs => FR freeRegs where
 
 instance FR X86.FreeRegs where
     frAllocateReg  = \_ -> X86.allocateReg
-    frGetFreeRegs  = X86.getFreeRegs
+    frGetFreeRegs  = \_ -> X86.getFreeRegs
     frInitFreeRegs = X86.initFreeRegs
     frReleaseReg   = \_ -> X86.releaseReg
-
-instance FR X86_64.FreeRegs where
-    frAllocateReg  = \_ -> X86_64.allocateReg
-    frGetFreeRegs  = X86_64.getFreeRegs
-    frInitFreeRegs = X86_64.initFreeRegs
-    frReleaseReg   = \_ -> X86_64.releaseReg
 
 instance FR PPC.FreeRegs where
     frAllocateReg  = \_ -> PPC.allocateReg

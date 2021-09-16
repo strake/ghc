@@ -1,6 +1,5 @@
 {-# LANGUAGE Trustworthy #-}
 {-# LANGUAGE NoImplicitPrelude #-}
-{-# LANGUAGE CPP #-}
 
 module GHC.Environment (getFullArgs) where
 
@@ -10,16 +9,6 @@ import GHC.Base
 import GHC.Real ( fromIntegral )
 import GHC.IO.Encoding
 import qualified GHC.Foreign as GHC
-
-#if defined(mingw32_HOST_OS)
-# if defined(i386_HOST_ARCH)
-#  define WINDOWS_CCONV stdcall
-# elif defined(x86_64_HOST_ARCH)
-#  define WINDOWS_CCONV ccall
-# else
-#  error Unknown mingw32 arch
-# endif
-#endif
 
 -- | Computation 'getFullArgs' is the "raw" version of
 -- 'System.Environment.getArgs', similar to @argv@ in other languages. It

@@ -236,7 +236,7 @@ cmmMachOpFoldM _ (MO_Sub _) [CmmLit lit, CmmLit (CmmInt i rep)]
 
 cmmMachOpFoldM platform cmp [CmmMachOp conv [x], CmmLit (CmmInt i _)]
   |     -- powerPC NCG has a TODO for I8/I16 comparisons, so don't try
-    platformArch platform `elem` [ArchX86, ArchX86_64],
+    ArchX86_64 <- platformArch platform,
         -- if the operand is widened:
     Just (rep, signed, narrow_fn) <- maybe_conversion conv,
         -- and this is a comparison operation:

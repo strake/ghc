@@ -44,9 +44,6 @@ import GHC.Data.FastString
 import GHC.Utils.Outputable
 import GHC.Utils.Panic
 
-import Data.Word
-import Data.Bits
-
 -- -----------------------------------------------------------------------------
 -- Printing this stuff out
 --
@@ -267,12 +264,9 @@ pprAlign platform alignment
         log2 8 = 3
         log2 n = 1 + log2 (n `quot` 2)
 
-pprReg :: Platform -> Format -> Reg -> SDoc
-pprReg platform f r
-  = case r of
-      RegReal    (RealRegSingle i) ->
-          if target32Bit platform then ppr32_reg_no f i
-                                  else ppr64_reg_no f i
+pprReg :: Format -> Reg -> SDoc
+pprReg f = \ case
+      RegReal    (RealRegSingle i) -> ppr_reg_no f i
       RegReal    (RealRegPair _ _) -> panic "X86.Ppr: no reg pairs on this arch"
       RegVirtual (VirtualRegI  u)  -> text "%vI_"   <> pprUniqueAlways u
       RegVirtual (VirtualRegHi u)  -> text "%vHi_"  <> pprUniqueAlways u
@@ -280,43 +274,13 @@ pprReg platform f r
       RegVirtual (VirtualRegD  u)  -> text "%vD_"   <> pprUniqueAlways u
 
   where
-    ppr32_reg_no :: Format -> Int -> SDoc
-    ppr32_reg_no II8   = ppr32_reg_byte
-    ppr32_reg_no II16  = ppr32_reg_word
-    ppr32_reg_no _     = ppr32_reg_long
+    ppr_reg_no :: Format -> Int -> SDoc
+    ppr_reg_no II8   = ppr_reg_byte
+    ppr_reg_no II16  = ppr_reg_word
+    ppr_reg_no II32  = ppr_reg_long
+    ppr_reg_no _     = ppr_reg_quad
 
-    ppr32_reg_byte i = ptext
-      (case i of {
-         0 -> sLit "%al";     1 -> sLit "%bl";
-         2 -> sLit "%cl";     3 -> sLit "%dl";
-        _  -> sLit $ "very naughty I386 byte register: " ++ show i
-      })
-
-    ppr32_reg_word i = ptext
-      (case i of {
-         0 -> sLit "%ax";     1 -> sLit "%bx";
-         2 -> sLit "%cx";     3 -> sLit "%dx";
-         4 -> sLit "%si";     5 -> sLit "%di";
-         6 -> sLit "%bp";     7 -> sLit "%sp";
-        _  -> sLit "very naughty I386 word register"
-      })
-
-    ppr32_reg_long i = ptext
-      (case i of {
-         0 -> sLit "%eax";    1 -> sLit "%ebx";
-         2 -> sLit "%ecx";    3 -> sLit "%edx";
-         4 -> sLit "%esi";    5 -> sLit "%edi";
-         6 -> sLit "%ebp";    7 -> sLit "%esp";
-         _  -> ppr_reg_float i
-      })
-
-    ppr64_reg_no :: Format -> Int -> SDoc
-    ppr64_reg_no II8   = ppr64_reg_byte
-    ppr64_reg_no II16  = ppr64_reg_word
-    ppr64_reg_no II32  = ppr64_reg_long
-    ppr64_reg_no _     = ppr64_reg_quad
-
-    ppr64_reg_byte i = ptext
+    ppr_reg_byte i = ptext
       (case i of {
          0 -> sLit "%al";     1 -> sLit "%bl";
          2 -> sLit "%cl";     3 -> sLit "%dl";
@@ -329,7 +293,7 @@ pprReg platform f r
         _  -> sLit $ "very naughty x86_64 byte register: " ++ show i
       })
 
-    ppr64_reg_word i = ptext
+    ppr_reg_word i = ptext
       (case i of {
          0 -> sLit "%ax";     1 -> sLit "%bx";
          2 -> sLit "%cx";     3 -> sLit "%dx";
@@ -342,7 +306,7 @@ pprReg platform f r
         _  -> sLit "very naughty x86_64 word register"
       })
 
-    ppr64_reg_long i = ptext
+    ppr_reg_long i = ptext
       (case i of {
          0 -> sLit "%eax";    1  -> sLit "%ebx";
          2 -> sLit "%ecx";    3  -> sLit "%edx";
@@ -355,7 +319,7 @@ pprReg platform f r
         _  -> sLit "very naughty x86_64 register"
       })
 
-    ppr64_reg_quad i = ptext
+    ppr_reg_quad i = ptext
       (case i of {
          0 -> sLit "%rax";      1 -> sLit "%rbx";
          2 -> sLit "%rcx";      3 -> sLit "%rdx";
@@ -390,14 +354,6 @@ pprFormat x
                 FF32  -> sLit "ss"      -- "scalar single-precision float" (SSE2)
                 FF64  -> sLit "sd"      -- "scalar double-precision float" (SSE2)
                 )
-
-pprFormat_x87 :: Format -> SDoc
-pprFormat_x87 x
-  = ptext $ case x of
-                FF32  -> sLit "s"
-                FF64  -> sLit "l"
-                _     -> panic "X86.Ppr.pprFormat_x87"
-
 
 pprCond :: Cond -> SDoc
 pprCond c
@@ -442,7 +398,7 @@ pprAddr platform (AddrBaseIndex base index displacement)
   = let
         pp_disp  = ppr_disp displacement
         pp_off p = pp_disp <> char '(' <> p <> char ')'
-        pp_reg r = pprReg platform (archWordFormat (target32Bit platform)) r
+        pp_reg r = pprReg II64 r
     in
     case (base, index) of
       (EABaseNone,  EAIndexNone) -> pp_disp
@@ -472,11 +428,6 @@ pprAlignForSection platform seg =
     case platformOS platform of
       -- Darwin: alignments are given as shifts.
       OSDarwin
-       | target32Bit platform ->
-          case seg of
-           ReadOnlyData16    -> int 4
-           CString           -> int 1
-           _                 -> int 2
        | otherwise ->
           case seg of
            ReadOnlyData16    -> int 4
@@ -484,12 +435,6 @@ pprAlignForSection platform seg =
            _                 -> int 3
       -- Other: alignments are given as bytes.
       _
-       | target32Bit platform ->
-          case seg of
-           Text              -> text "4,0x90"
-           ReadOnlyData16    -> int 16
-           CString           -> int 1
-           _                 -> int 4
        | otherwise ->
           case seg of
            ReadOnlyData16    -> int 16
@@ -514,20 +459,9 @@ pprDataItem config lit
         ppr_item II64 _
             = case platformOS platform of
               OSDarwin
-               | target32Bit platform ->
-                  case lit of
-                  CmmInt x _ ->
-                      [text "\t.long\t"
-                          <> int (fromIntegral (fromIntegral x :: Word32)),
-                       text "\t.long\t"
-                          <> int (fromIntegral
-                              (fromIntegral (x `shiftR` 32) :: Word32))]
-                  _ -> panic "X86.Ppr.ppr_item: no match for II64"
                | otherwise ->
                   [text "\t.quad\t" <> pprImm platform imm]
               _
-               | target32Bit platform ->
-                  [text "\t.quad\t" <> pprImm platform imm]
                | otherwise ->
                   -- x86_64: binutils can't handle the R_X86_64_PC64
                   -- relocation type, which means we can't do
@@ -618,7 +552,7 @@ pprInstr platform i = case i of
         -- instruction is shorter.
 
    MOVSxL formats src dst
-      -> pprFormatOpOpCoerce (sLit "movs") formats (archWordFormat (target32Bit platform)) src dst
+      -> pprFormatOpOpCoerce (sLit "movs") formats II64 src dst
 
    -- here we do some patching, since the physical registers are only set late
    -- in the code generation.
@@ -766,13 +700,11 @@ pprInstr platform i = case i of
         -- would be if doing a full word comparison. See #13425.
           format' = case (src,dst) of
            (OpImm (ImmInteger mask), OpReg dstReg)
-             | 0 <= mask && mask < 128 -> minSizeOfReg platform dstReg
+             | 0 <= mask && mask < 128 -> minSizeOfReg dstReg
            _ -> format
-          minSizeOfReg platform (RegReal (RealRegSingle i))
-            | target32Bit platform && i <= 3        = II8  -- al, bl, cl, dl
-            | target32Bit platform && i <= 7        = II16 -- si, di, bp, sp
-            | not (target32Bit platform) && i <= 15 = II8  -- al .. r15b
-          minSizeOfReg _ _ = format                 -- other
+          minSizeOfReg (RegReal (RealRegSingle i))
+            | i <= 15 = II8  -- al .. r15b
+          minSizeOfReg _ = format                 -- other
 
    PUSH format op
       -> pprFormatOp (sLit "push") format op
@@ -816,7 +748,7 @@ pprInstr platform i = case i of
       -> text "\tjmp " <> pprImm platform imm
 
    JMP op _
-      -> text "\tjmp *" <> pprOperand platform (archWordFormat (target32Bit platform)) op
+      -> text "\tjmp *" <> pprOperand platform II64 op
 
    JMP_TBL op _ _ _
       -> pprInstr platform (JMP op [])
@@ -825,7 +757,7 @@ pprInstr platform i = case i of
       -> text "\tcall " <> pprImm platform imm
 
    CALL (Right reg) _
-      -> text "\tcall *" <> pprReg platform (archWordFormat (target32Bit platform)) reg
+      -> text "\tcall *" <> pprReg II64 reg
 
    IDIV fmt op
       -> pprFormatOp (sLit "idiv") fmt op
@@ -870,9 +802,8 @@ pprInstr platform i = case i of
        -- FETCHGOT for PIC on ELF platforms
    FETCHGOT reg
       -> vcat [ text "\tcall 1f",
-                hcat [ text "1:\tpopl\t", pprReg platform II32 reg ],
-                hcat [ text "\taddl\t$_GLOBAL_OFFSET_TABLE_+(.-1b), ",
-                       pprReg platform II32 reg ]
+                hcat [ text "1:\tpopl\t", pprReg II32 reg ],
+                hcat [ text "\taddl\t$_GLOBAL_OFFSET_TABLE_+(.-1b), ", pprReg II32 reg ]
               ]
 
     -- FETCHPC for PIC on Darwin/x86
@@ -881,13 +812,8 @@ pprInstr platform i = case i of
     --  and it's a good thing to use the same name on both platforms)
    FETCHPC reg
       -> vcat [ text "\tcall 1f",
-                hcat [ text "1:\tpopl\t", pprReg platform II32 reg ]
+                hcat [ text "1:\tpopl\t", pprReg II32 reg ]
               ]
-
-   -- the
-   -- GST fmt src addr ==> FLD dst ; FSTPsz addr
-   g@(X87Store fmt  addr)
-      -> pprX87 g (hcat [gtab, text "fstp", pprFormat_x87 fmt, gsp, pprAddr platform addr])
 
    -- Atomics
    LOCK i
@@ -904,21 +830,6 @@ pprInstr platform i = case i of
 
 
   where
-   gtab :: SDoc
-   gtab  = char '\t'
-
-   gsp :: SDoc
-   gsp   = char ' '
-
-
-
-   pprX87 :: Instr -> SDoc -> SDoc
-   pprX87 fake actual
-      = (char '#' <> pprX87Instr fake) $$ actual
-
-   pprX87Instr :: Instr -> SDoc
-   pprX87Instr (X87Store fmt dst) = pprFormatAddr (sLit "gst") fmt dst
-   pprX87Instr _ = panic "X86.Ppr.pprX87Instr: no match"
 
    pprDollImm :: Imm -> SDoc
    pprDollImm i = text "$" <> pprImm platform i
@@ -926,7 +837,7 @@ pprInstr platform i = case i of
 
    pprOperand :: Platform -> Format -> Operand -> SDoc
    pprOperand platform f op = case op of
-      OpReg r   -> pprReg platform f r
+      OpReg r   -> pprReg f r
       OpImm i   -> pprDollImm i
       OpAddr ea -> pprAddr platform ea
 
@@ -990,9 +901,9 @@ pprInstr platform i = case i of
    pprRegReg name reg1 reg2
      = hcat [
            pprMnemonic_ name,
-           pprReg platform (archWordFormat (target32Bit platform)) reg1,
+           pprReg II64 reg1,
            comma,
-           pprReg platform (archWordFormat (target32Bit platform)) reg2
+           pprReg II64 reg2
        ]
 
 
@@ -1002,7 +913,7 @@ pprInstr platform i = case i of
            pprMnemonic name format,
            pprOperand platform format op1,
            comma,
-           pprReg platform (archWordFormat (target32Bit platform)) reg2
+           pprReg II64 reg2
        ]
 
    pprCondOpReg :: PtrString -> Format -> Cond -> Operand -> Reg -> SDoc
@@ -1014,7 +925,7 @@ pprInstr platform i = case i of
            space,
            pprOperand platform format op1,
            comma,
-           pprReg platform format reg2
+           pprReg format reg2
        ]
 
    pprFormatFormatOpReg :: PtrString -> Format -> Format -> Operand -> Reg -> SDoc
@@ -1023,7 +934,7 @@ pprInstr platform i = case i of
            pprMnemonic name format2,
            pprOperand platform format1 op1,
            comma,
-           pprReg platform format2 reg2
+           pprReg format2 reg2
        ]
 
    pprFormatOpOpReg :: PtrString -> Format -> Operand -> Operand -> Reg -> SDoc
@@ -1034,18 +945,9 @@ pprInstr platform i = case i of
            comma,
            pprOperand platform format op2,
            comma,
-           pprReg platform format reg3
+           pprReg format reg3
        ]
 
-
-
-   pprFormatAddr :: PtrString -> Format -> AddrMode -> SDoc
-   pprFormatAddr name format  op
-     = hcat [
-           pprMnemonic name format,
-           comma,
-           pprAddr platform op
-       ]
 
    pprShift :: PtrString -> Format -> Operand -> Operand -> SDoc
    pprShift name format src dest

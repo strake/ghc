@@ -340,17 +340,6 @@ rtsPackageArgs = package rts ? do
 
             , inputs ["**/Evac.c", "**/Evac_thr.c"] ? arg "-funroll-loops"
 
-            , speedHack ?
-              inputs [ "**/Evac.c", "**/Evac_thr.c"
-                     , "**/Scav.c", "**/Scav_thr.c"
-                     , "**/Compact.c", "**/GC.c" ] ? arg "-fno-PIC"
-            -- @-static@ is necessary for these bits, as otherwise the NCG
-            -- generates dynamic references.
-            , speedHack ?
-              inputs [ "**/Updates.c", "**/StgMiscClosures.c"
-                     , "**/PrimOps.c", "**/Apply.c"
-                     , "**/AutoApply.c" ] ? pure ["-fno-PIC", "-static"]
-
             -- inlining warnings happen in Compact
             , inputs ["**/Compact.c"] ? arg "-Wno-inline"
 
@@ -402,42 +391,6 @@ rtsPackageArgs = package rts ? do
 
         , builder HsCpp ? flag WithLibdw ? arg "-DUSE_LIBDW"
         , builder HsCpp ? flag HaveLibMingwEx ? arg "-DHAVE_LIBMINGWEX" ]
-
--- Compile various performance-critical pieces *without* -fPIC -dynamic
--- even when building a shared library.  If we don't do this, then the
--- GC runs about 50% slower on x86 due to the overheads of PIC.  The
--- cost of doing this is a little runtime linking and less sharing, but
--- not much.
---
--- On x86_64 this doesn't work, because all objects in a shared library
--- must be compiled with -fPIC (since the 32-bit relocations generated
--- by the default small memory can't be resolved at runtime).  So we
--- only do this on i386.
---
--- This apparently doesn't work on OS X (Darwin) nor on Solaris.
--- On Darwin we get errors of the form
---
---  ld: absolute addressing (perhaps -mdynamic-no-pic) used in _stg_ap_0_fast
---      from rts/dist/build/Apply.dyn_o not allowed in slidable image
---
--- and lots of these warnings:
---
---  ld: warning codegen in _stg_ap_pppv_fast (offset 0x0000005E) prevents image
---      from loading in dyld shared cache
---
--- On Solaris we get errors like:
---
--- Text relocation remains                         referenced
---     against symbol                  offset      in file
--- .rodata (section)                   0x11        rts/dist/build/Apply.dyn_o
---   ...
--- ld: fatal: relocations remain against allocatable but non-writable sections
--- collect2: ld returned 1 exit status
-speedHack :: Action Bool
-speedHack = do
-    i386   <- anyTargetArch ["i386"]
-    goodOS <- not <$> anyTargetOs ["darwin", "solaris2"]
-    return $ i386 && goodOS
 
 -- See @rts/ghc.mk@.
 rtsWarnings :: Args

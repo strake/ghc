@@ -24,9 +24,6 @@ enum RelocAarch64 {
 enum RelocARM {
 #include "ELFRelocs/ARM.def"
 };
-enum Reloci386 {
-#include "ELFRelocs/i386.def"
-};
 enum RelocX86_64 {
 #include "ELFRelocs/x86_64.def"
 };

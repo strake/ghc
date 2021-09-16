@@ -1,6 +1,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
--- | Free regs map for i386
+-- | Free regs map for x86
 module GHC.CmmToAsm.Reg.Linear.X86 where
 
 import GHC.Prelude
@@ -15,7 +15,7 @@ import GHC.Utils.Outputable
 import Data.Word
 import Data.Bits
 
-newtype FreeRegs = FreeRegs Word32
+newtype FreeRegs = FreeRegs Word64
     deriving (Show,Outputable)
 
 noFreeRegs :: FreeRegs
@@ -32,12 +32,12 @@ initFreeRegs :: Platform -> FreeRegs
 initFreeRegs platform
         = foldl' (flip releaseReg) noFreeRegs (allocatableRegs platform)
 
-getFreeRegs :: Platform -> RegClass -> FreeRegs -> [RealReg] -- lazily
-getFreeRegs platform cls (FreeRegs f) = go f 0
+getFreeRegs :: RegClass -> FreeRegs -> [RealReg] -- lazily
+getFreeRegs cls (FreeRegs f) = go f 0
 
   where go 0 _ = []
         go n m
-          | n .&. 1 /= 0 && classOfRealReg platform (RealRegSingle m) == cls
+          | n .&. 1 /= 0 && classOfRealReg (RealRegSingle m) == cls
           = RealRegSingle m : (go (n `shiftR` 1) $! (m+1))
 
           | otherwise

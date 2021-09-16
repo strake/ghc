@@ -362,17 +362,3 @@ int rts_isDynamic(void)
     return 0;
 #endif
 }
-
-// Used for detecting a non-empty FPU stack on x86 (see #4914)
-void checkFPUStack(void)
-{
-#if defined(i386_HOST_ARCH)
-    static unsigned char buf[108];
-    asm("FSAVE %0":"=m" (buf));
-
-    if(buf[8]!=255 || buf[9]!=255) {
-        errorBelch("NONEMPTY FPU Stack, TAG = %x %x\n",buf[8],buf[9]);
-        abort();
-    }
-#endif
-}

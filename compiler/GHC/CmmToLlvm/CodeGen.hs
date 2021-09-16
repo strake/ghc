@@ -455,10 +455,7 @@ genCall target res args = do
     let lmconv = case target of
             ForeignTarget _ (ForeignConvention conv _ _ _) ->
               case conv of
-                 StdCallConv  -> case platformArch platform of
-                                 ArchX86    -> CC_X86_Stdcc
-                                 ArchX86_64 -> CC_X86_Stdcc
-                                 _          -> CC_Ccc
+                 StdCallConv  -> CC_Ccc
                  CCallConv    -> CC_Ccc
                  CApiConv     -> CC_Ccc
                  PrimCallConv       -> panic "GHC.CmmToLlvm.CodeGen.genCall: PrimCallConv"

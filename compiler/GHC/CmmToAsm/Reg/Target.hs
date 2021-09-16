@@ -74,8 +74,8 @@ targetRealRegSqueeze platform
 targetClassOfRealReg :: Platform -> RealReg -> RegClass
 targetClassOfRealReg platform
     = case platformArch platform of
-      ArchX86       -> X86.classOfRealReg platform
-      ArchX86_64    -> X86.classOfRealReg platform
+      ArchX86       -> X86.classOfRealReg
+      ArchX86_64    -> X86.classOfRealReg
       ArchPPC       -> PPC.classOfRealReg
       ArchS390X     -> panic "targetClassOfRealReg ArchS390X"
       ArchSPARC     -> SPARC.classOfRealReg
@@ -110,8 +110,8 @@ targetMkVirtualReg platform
 targetRegDotColor :: Platform -> RealReg -> SDoc
 targetRegDotColor platform
     = case platformArch platform of
-      ArchX86       -> X86.regDotColor platform
-      ArchX86_64    -> X86.regDotColor platform
+      ArchX86       -> X86.regDotColor
+      ArchX86_64    -> X86.regDotColor
       ArchPPC       -> PPC.regDotColor
       ArchS390X     -> panic "targetRegDotColor ArchS390X"
       ArchSPARC     -> SPARC.regDotColor

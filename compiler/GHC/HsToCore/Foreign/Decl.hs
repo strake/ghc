@@ -160,10 +160,8 @@ dsCImport :: Id
           -> Safety
           -> Maybe Header
           -> DsM ([Binding], SDoc, SDoc)
-dsCImport id co (CLabel cid) cconv _ _ = do
-   dflags <- getDynFlags
+dsCImport id co (CLabel cid) _ _ _ = do
    let ty  = coercionLKind co
-       platform = targetPlatform dflags
        fod = case tyConAppTyCon_maybe (dropForAlls ty) of
              Just tycon
               | tyConUnique tycon == funPtrTyConKey ->
@@ -172,9 +170,8 @@ dsCImport id co (CLabel cid) cconv _ _ = do
    (resTy, foRhs) <- resultWrapper ty
    assert (maybe False (`eqType` addrPrimTy) resTy) $    -- typechecker ensures this
     let
-        rhs = foRhs (Lit (LitLabel cid stdcall_info fod))
+        rhs = foRhs (Lit (LitLabel cid Nothing fod))
         rhs' = Cast rhs co
-        stdcall_info = fun_type_arg_stdcall_info platform cconv ty
     in
     return ([(id, rhs')], empty, empty)
 
@@ -184,20 +181,6 @@ dsCImport id co (CFunction target) cconv safety mHeader
   = dsFCall id co (CCall (CCallSpec target cconv safety)) mHeader
 dsCImport id co CWrapper cconv _ _
   = dsFExportDynamic id co cconv
-
--- For stdcall labels, if the type was a FunPtr or newtype thereof,
--- then we need to calculate the size of the arguments in order to add
--- the @n suffix to the label.
-fun_type_arg_stdcall_info :: Platform -> CCallConv -> Type -> Maybe Int
-fun_type_arg_stdcall_info platform StdCallConv ty
-  | Just (tc,[arg_ty]) <- splitTyConApp_maybe ty,
-    tyConUnique tc == funPtrTyConKey
-  = let
-       (bndrs, _) = tcSplitPiTys arg_ty
-       fe_arg_tys = mapMaybe binderRelevantType_maybe bndrs
-    in Just $ sum (map (widthInBytes . typeWidth . typeCmmType platform . getPrimTyOf) fe_arg_tys)
-fun_type_arg_stdcall_info _ _other_conv _
-  = Nothing
 
 {-
 ************************************************************************

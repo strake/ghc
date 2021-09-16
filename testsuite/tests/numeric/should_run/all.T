@@ -7,23 +7,14 @@ test('arith001', normal, compile_and_run, [''])
 test('arith002', normal, compile_and_run, [''])
 test('arith003', normal, compile_and_run, [''])
 test('arith004', normal, compile_and_run, [''])
-test('arith005', when(platform('i386-apple-darwin'), expect_broken_for(7043, ['ghci'])), compile_and_run, [''])
+test('arith005', normal, compile_and_run, [''])
 test('arith006', normal, compile_and_run, [''])
 test('arith007', normal, compile_and_run, [''])
-
-# On i386, we need -msse2 to get reliable floating point results
-if config.arch == 'i386':
-    opts = '-msse2'
-else:
-    opts = ''
-test('arith008', normal, compile_and_run, [opts])
-
+test('arith008', normal, compile_and_run, [''])
 test('arith009', normal, compile_and_run, [''])
 test('arith010', normal, compile_and_run, [''])
 test('arith011', normal, compile_and_run, [''])
-
-test('arith012', normal, compile_and_run, [opts])
-
+test('arith012', normal, compile_and_run, [''])
 test('arith013', normal, compile_and_run, [''])
 test('arith014', normal, compile_and_run, [''])
 test('arith015', normal, compile_and_run, [''])

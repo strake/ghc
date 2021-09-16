@@ -29,8 +29,6 @@ test('ffi004', skip, compile_and_run, [''])
 # use of 80-bit internal precision when using the native code generator.
 #
 test('ffi005', [ omit_ways(prof_ways + ['ghci']),
-                 when(arch('i386'), skip),
-                 when(platform('i386-apple-darwin'), expect_broken(4105)),
                  exit_code(3) ],
                compile_and_run, ['ffi005_c.c'])
 
@@ -46,13 +44,7 @@ test('ffi006', normal, compile_and_run, [''])
 test('ffi007', omit_ways(['ghci']), compile_and_run, [''])
 test('ffi008', [exit_code(1), omit_ways(['ghci'])], compile_and_run, [''])
 
-# On i386, we need -msse2 to get reliable floating point results
-if config.platform.startswith('i386-'):
-    opts = '-msse2'
-else:
-    opts = ''
-
-test('ffi009', [when(fast(), skip), reqlib('random')], compile_and_run, [opts])
+test('ffi009', [when(fast(), skip), reqlib('random')], compile_and_run, [''])
 
 test('ffi010', normal, compile_and_run, [''])
 test('ffi011', normal, compile_and_run, [''])

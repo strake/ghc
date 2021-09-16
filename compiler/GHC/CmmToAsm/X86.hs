@@ -1,11 +1,7 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 -- | Native code generator for x86 and x86-64 architectures
-module GHC.CmmToAsm.X86
-   ( ncgX86_64
-   , ncgX86
-   )
-where
+module GHC.CmmToAsm.X86 ( ncgX86 ) where
 
 import GHC.Prelude
 
@@ -21,11 +17,7 @@ import qualified GHC.CmmToAsm.X86.CodeGen as X86
 import qualified GHC.CmmToAsm.X86.Regs    as X86
 
 ncgX86 :: NCGConfig -> NcgImpl (Alignment, RawCmmStatics) X86.Instr X86.JumpDest
-ncgX86 = ncgX86_64
-
-
-ncgX86_64 :: NCGConfig -> NcgImpl (Alignment, RawCmmStatics) X86.Instr X86.JumpDest
-ncgX86_64 config = NcgImpl
+ncgX86 config = NcgImpl
    { ncgConfig                 = config
    , cmmTopCodeGen             = X86.cmmTopCodeGen
    , generateJumpTableForInstr = X86.generateJumpTableForInstr config

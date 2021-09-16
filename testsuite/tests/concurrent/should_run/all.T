@@ -142,21 +142,9 @@ test('conc019', extra_run_opts('+RTS -K16m -RTS'), compile_and_run, [''])
 test('conc020', normal, compile_and_run, [''])
 test('conc021', [ omit_ways(['ghci']), exit_code(1) ], compile_and_run, [''])
 test('conc022', normal, compile_and_run, [''])
-
-# On Windows, the non-threaded RTS creates a real OS thread for each
-# threadDelay.  conc023 creates 5000 concurrent threadDelays, and the
-# resulting creation of OS threads seems to cause the system to run
-# out of memory sometimes (I'm not sure exactly how/why this happens,
-# but the threaded RTS fixes it).  See #1197.
-if config.platform == 'i386-unknown-mingw32':
-   conc023_ways = only_ways(['threaded1','threaded2'])
-else:
-   conc023_ways = normal
-
 test('conc023', [when(fast(), skip),
                  reqlib('random'), multi_cpu_race,
-                 conc023_ways], compile_and_run, [''])
-
+                 normal], compile_and_run, [''])
 test('conc024', normal, compile_and_run, [''])
 test('conc025', normal, compile_and_run, [''])
 test('conc026', normal, compile_and_run, [''])

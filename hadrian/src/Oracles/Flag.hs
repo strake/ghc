@@ -56,19 +56,14 @@ getFlag = expr . flag
 
 platformSupportsSharedLibs :: Action Bool
 platformSupportsSharedLibs = do
-    badPlatform   <- anyTargetPlatform [ "powerpc-unknown-linux"
-                                       , "x86_64-unknown-mingw32"
-                                       , "i386-unknown-mingw32" ]
-    solaris       <- anyTargetPlatform [ "i386-unknown-solaris2" ]
-    solarisBroken <- flag SolarisBrokenShld
-    return $ not (badPlatform || solaris && solarisBroken)
+    not <$> anyTargetPlatform [ "powerpc-unknown-linux", "x86_64-unknown-mingw32" ]
 
 -- | Does the target support the threaded runtime system?
 targetSupportsSMP :: Action Bool
 targetSupportsSMP = do
   unreg <- flag GhcUnregisterised
   armVer <- targetArmVersion
-  goodArch <- anyTargetArch ["i386", "x86_64", "sparc", "powerpc", "arm", "aarch64", "s390x"]
+  goodArch <- anyTargetArch ["x86_64", "sparc", "powerpc", "arm", "aarch64", "s390x"]
   if   -- The THREADED_RTS requires `BaseReg` to be in a register and the
        -- Unregisterised mode doesn't allow that.
      | unreg                -> return False

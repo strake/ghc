@@ -12,7 +12,6 @@ import GHC.Platform.Reg
 
 import GHC.Utils.Outputable
 import GHC.Utils.Panic
-import GHC.Platform
 import GHC.Types.Unique
 
 import GHC.Types.Unique.FM
@@ -30,19 +29,19 @@ mkVirtualReg u format
         FF64    -> VirtualRegD u
         _other  -> VirtualRegI u
 
-regDotColor :: Platform -> RealReg -> SDoc
-regDotColor platform reg
- = case (lookupUFM (regColors platform) reg) of
+regDotColor :: RealReg -> SDoc
+regDotColor reg
+ = case lookupUFM regColors reg of
         Just str -> text str
         _        -> panic "Register not assigned a color"
 
-regColors :: Platform -> UniqFM RealReg [Char]
-regColors platform = listToUFM (normalRegColors platform)
+regColors :: UniqFM RealReg [Char]
+regColors = listToUFM normalRegColors
 
-normalRegColors :: Platform -> [(RealReg,String)]
-normalRegColors platform =
-    zip (map realRegSingle [0..lastint platform]) colors
-        ++ zip (map realRegSingle [firstxmm..lastxmm platform]) greys
+normalRegColors :: [(RealReg,String)]
+normalRegColors =
+    zip (map realRegSingle [0..lastint]) colors
+        ++ zip (map realRegSingle [firstxmm..lastxmm]) greys
   where
     -- 16 colors - enough for amd64 gp regs
     colors = ["#800000","#ff0000","#808000","#ffff00","#008000"

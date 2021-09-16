@@ -33,16 +33,6 @@ import GHC.IO.Encoding.UTF8 (mkUTF8)
 import GHC.IO.Encoding.UTF16 (mkUTF16le, mkUTF16be)
 import GHC.IO.Encoding.UTF32 (mkUTF32le, mkUTF32be)
 
-#if defined(mingw32_HOST_OS)
-# if defined(i386_HOST_ARCH)
-#  define WINDOWS_CCONV stdcall
-# elif defined(x86_64_HOST_ARCH)
-#  define WINDOWS_CCONV ccall
-# else
-#  error Unknown mingw32 arch
-# endif
-#endif
-
 -- note CodePage = UInt which might not work on Win64.  But the Win32 package
 -- also has this issue.
 getCurrentCodePage :: IO Word32
@@ -53,10 +43,10 @@ getCurrentCodePage = do
         else getACP
 
 -- Since the Win32 package depends on base, we have to import these ourselves:
-foreign import WINDOWS_CCONV unsafe "windows.h GetConsoleCP"
+foreign import ccall unsafe "windows.h GetConsoleCP"
     getConsoleCP :: IO Word32
 
-foreign import WINDOWS_CCONV unsafe "windows.h GetACP"
+foreign import ccall unsafe "windows.h GetACP"
     getACP :: IO Word32
 
 {-# NOINLINE currentCodePage #-}

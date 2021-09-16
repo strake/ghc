@@ -26,8 +26,6 @@ TARGETS=(
     #########################
 
     # Windows x86
-    "i386-unknown-windows"
-    "i686-unknown-windows"
     "x86_64-unknown-windows"
 
     #########################
@@ -56,9 +54,6 @@ TARGETS=(
     "aarch64-unknown-linux-musl"
     "aarch64-unknown-linux"
     # Linux x86
-    "i386-unknown-linux-gnu"
-    "i386-unknown-linux-musl"
-    "i386-unknown-linux"
     "x86_64-unknown-linux-gnu"
     "x86_64-unknown-linux-musl"
     "x86_64-unknown-linux"
@@ -79,11 +74,9 @@ TARGETS=(
     #########################
 
     # macOS
-    "i386-apple-darwin"
     "x86_64-apple-darwin"
     # iOS
     "armv7-apple-ios arm64-apple-ios"
-    "i386-apple-ios x86_64-apple-ios"
 
     #########################
     # FreeBSD
