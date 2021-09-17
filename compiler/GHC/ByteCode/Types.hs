@@ -104,8 +104,7 @@ data BCONPtr
   | BCONPtrItbl  !Name
   | BCONPtrStr   !ByteString
 
-instance NFData BCONPtr where
-  rnf x = x `seq` ()
+instance NFData BCONPtr where rnf = rwhnf
 
 -- | Information about a breakpoint that we know at code-generation time
 data CgBreakInfo

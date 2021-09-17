@@ -141,8 +141,7 @@ instance Outputable NameSort where
   ppr  Internal       = text "internal"
   ppr  System         = text "system"
 
-instance NFData Name where
-  rnf Name{..} = rnf n_sort
+instance NFData Name where rnf = rnf . n_sort
 
 instance NFData NameSort where
   rnf (External m) = rnf m

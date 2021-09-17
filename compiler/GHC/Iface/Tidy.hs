@@ -28,7 +28,7 @@ import GHC.Core.FVs
 import GHC.Core.Tidy
 import GHC.Core.Opt.Monad
 import GHC.Core.Stats   (coreBindsStats, CoreStats(..))
-import GHC.Core.Seq     (seqBinds)
+import GHC.Core.Seq     (seqBind)
 import GHC.Core.Lint
 import GHC.Core.Rules
 import GHC.Core.PatSyn
@@ -1127,7 +1127,7 @@ tidyTopBinds :: UnfoldingOpts
 
 tidyTopBinds uf_opts unfold_env init_occ_env binds
   = do let result = tidy init_env binds
-       seqBinds (snd result) `seq` return result
+       foldMap' seqBind (snd result) `seq` pure result
        -- This seqBinds avoids a spike in space usage (see #13564)
   where
     init_env = (init_occ_env, emptyVarEnv)

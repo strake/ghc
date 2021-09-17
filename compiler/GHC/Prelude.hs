@@ -18,7 +18,7 @@ import Prelude as X hiding (filter, unzip, unzip3, unzip4, unzip5)
 import Control.Monad as X (guard)
 import Data.Bool as X (bool)
 import Data.Filtrable as X
-import Data.Foldable as X (asum, foldl', for_, sequenceA_, traverse_)
+import Data.Foldable as X (asum, foldMap', foldl', for_, sequenceA_, traverse_)
 import Data.Function as X (on)
 import Data.Maybe as X (fromMaybe)
 import Data.Monoid as X (Monoid (..))

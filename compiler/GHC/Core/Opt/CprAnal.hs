@@ -104,7 +104,7 @@ cprAnalProgram dflags fam_envs binds = do
   dumpIfSet_dyn dflags Opt_D_dump_cpr_signatures "Cpr signatures" FormatText $
     dumpIdInfoOfProgram (ppr . cprInfo) binds_plus_cpr
   -- See Note [Stamp out space leaks in demand analysis] in GHC.Core.Opt.DmdAnal
-  seqBinds binds_plus_cpr `seq` return binds_plus_cpr
+  foldMap' seqBind binds_plus_cpr `seq` pure binds_plus_cpr
 
 -- Analyse a (group of) top-level binding(s)
 cprAnalTopBind :: AnalEnv

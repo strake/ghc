@@ -2116,14 +2116,14 @@ seqMCo (MCo co) = seqCo co
 seqCo :: Coercion -> ()
 seqCo (Refl ty)                 = seqType ty
 seqCo (GRefl r ty mco)          = r `seq` seqType ty `seq` seqMCo mco
-seqCo (TyConAppCo r tc cos)     = r `seq` tc `seq` seqCos cos
+seqCo (TyConAppCo r tc cos)     = r `seq` tc `seq` foldMap' seqCo cos
 seqCo (AppCo co1 co2)           = seqCo co1 `seq` seqCo co2
 seqCo (ForAllCo tv k co)        = seqType (varType tv) `seq` seqCo k
                                                        `seq` seqCo co
 seqCo (FunCo r co1 co2)         = r `seq` seqCo co1 `seq` seqCo co2
 seqCo (CoVarCo cv)              = cv `seq` ()
 seqCo (HoleCo h)                = coHoleCoVar h `seq` ()
-seqCo (AxiomInstCo con ind cos) = con `seq` ind `seq` seqCos cos
+seqCo (AxiomInstCo con ind cos) = con `seq` ind `seq` foldMap' seqCo cos
 seqCo (UnivCo p r t1 t2)
   = seqProv p `seq` r `seq` seqType t1 `seq` seqType t2
 seqCo (SymCo co)                = seqCo co
@@ -2133,16 +2133,12 @@ seqCo (LRCo lr co)              = lr `seq` seqCo co
 seqCo (InstCo co arg)           = seqCo co `seq` seqCo arg
 seqCo (KindCo co)               = seqCo co
 seqCo (SubCo co)                = seqCo co
-seqCo (AxiomRuleCo _ cs)        = seqCos cs
+seqCo (AxiomRuleCo _ cs)        = foldMap' seqCo cs
 
 seqProv :: UnivCoProvenance -> ()
 seqProv (PhantomProv co)    = seqCo co
 seqProv (ProofIrrelProv co) = seqCo co
 seqProv (PluginProv _)      = ()
-
-seqCos :: [Coercion] -> ()
-seqCos []       = ()
-seqCos (co:cos) = seqCo co `seq` seqCos cos
 
 {-
 %************************************************************************

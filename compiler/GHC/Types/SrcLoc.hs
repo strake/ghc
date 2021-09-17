@@ -337,8 +337,7 @@ instance ToJson RealSrcSpan where
                                      , ("endCol", JSInt srcSpanECol)
                                      ]
 
-instance NFData SrcSpan where
-  rnf x = x `seq` ()
+instance NFData SrcSpan where rnf = rwhnf
 
 -- | Built-in "bad" 'SrcSpan's for common sources of location uncertainty
 noSrcSpan, wiredInSrcSpan, interactiveSrcSpan :: SrcSpan

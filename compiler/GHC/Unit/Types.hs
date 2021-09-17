@@ -285,8 +285,7 @@ instance Data Unit where
   gunfold _ _  = error "gunfold"
   dataTypeOf _ = mkNoRepType "Unit"
 
-instance NFData Unit where
-  rnf x = x `seq` ()
+instance NFData Unit where rnf = rwhnf
 
 -- | Compares unit ids lexically, rather than by their 'Unique's
 stableUnitCmp :: Unit -> Unit -> Ordering

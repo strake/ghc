@@ -3,6 +3,9 @@
 (c) The GRASP/AQUA Project, Glasgow University, 1993-1998
 -}
 
+{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DerivingStrategies #-}
 
 module GHC.Iface.Syntax (
         module GHC.Iface.Type,
@@ -63,6 +66,7 @@ import GHC.Types.Var( VarBndr(..), binderVar, tyVarSpecToBinders )
 import GHC.Core.TyCon ( Role (..), Injectivity(..), tyConBndrVisArgFlag )
 import GHC.Core.DataCon (SrcStrictness(..), SrcUnpackedness(..))
 import GHC.Builtin.Types ( constraintKindTyConName )
+import GHC.Generics ( Generic )
 
 import GHC.Utils.Lexeme (isLexSym)
 import GHC.Utils.Fingerprint
@@ -189,6 +193,8 @@ data IfaceTyConParent
        IfaceTyCon    -- Family TyCon (pretty-printing only, not used in GHC.IfaceToCore)
                      -- see Note [Pretty printing via Iface syntax] in GHC.Types.TyThing.Ppr
        IfaceAppArgs  -- Arguments of the family TyCon
+  deriving stock (Generic)
+  deriving anyclass (NFData)
 
 data IfaceFamTyConFlav
   = IfaceDataFamilyTyCon                      -- Data family
@@ -199,6 +205,8 @@ data IfaceFamTyConFlav
     -- See Note [Pretty printing via Iface syntax] in "GHC.Types.TyThing.Ppr"
   | IfaceAbstractClosedSynFamilyTyCon
   | IfaceBuiltInSynFamTyCon -- for pretty printing purposes only
+  deriving stock (Generic)
+  deriving anyclass (NFData)
 
 data IfaceClassOp
   = IfaceClassOp IfaceTopBndr
@@ -211,7 +219,8 @@ data IfaceClassOp
 data IfaceAT = IfaceAT  -- See Class.ClassATItem
                   IfaceDecl          -- The associated type declaration
                   (Maybe IfaceType)  -- Default associated type instance, if any
-
+  deriving stock (Generic)
+  deriving anyclass (NFData)
 
 -- This is just like CoAxBranch
 data IfaceAxBranch = IfaceAxBranch { ifaxbTyVars    :: [IfaceTvBndr]
@@ -227,6 +236,8 @@ data IfaceConDecls
   = IfAbstractTyCon     -- c.f TyCon.AbstractTyCon
   | IfDataTyCon [IfaceConDecl] -- Data type decls
   | IfNewTyCon  IfaceConDecl   -- Newtype decls
+  deriving stock (Generic)
+  deriving anyclass (NFData)
 
 -- For IfDataTyCon and IfNewTyCon we store:
 --  * the data constructor(s);
@@ -318,6 +329,8 @@ data IfaceAnnotation
 type IfaceAnnTarget = AnnTarget OccName
 
 data IfaceCompleteMatch = IfaceCompleteMatch [IfExtName] IfExtName
+  deriving stock (Generic)
+  deriving anyclass (NFData)
 
 instance Outputable IfaceCompleteMatch where
   ppr (IfaceCompleteMatch cls ty) = text "COMPLETE" <> colon <+> ppr cls
@@ -367,7 +380,8 @@ data IfaceUnfolding
                  IfaceExpr
 
   | IfDFunUnfold [IfaceBndr] [IfaceExpr]
-
+  deriving stock (Generic)
+  deriving anyclass (NFData)
 
 -- We only serialise the IdDetails of top-level Ids, and even then
 -- we only need a very limited selection.  Notably, none of the
@@ -378,6 +392,8 @@ data IfaceIdDetails
   = IfVanillaId
   | IfRecSelId (Either IfaceTyCon IfaceDecl) Bool
   | IfDFunId
+  deriving stock (Generic)
+  deriving anyclass (NFData)
 
 -- | Iface type for LambdaFormInfo. Fields not relevant for imported Ids are
 -- omitted in this type.
@@ -572,11 +588,15 @@ data IfaceConAlt = IfaceDefault
 data IfaceBinding
   = IfaceNonRec IfaceLetBndr IfaceExpr
   | IfaceRec    [(IfaceLetBndr, IfaceExpr)]
+  deriving stock (Generic)
+  deriving anyclass (NFData)
 
 -- IfaceLetBndr is like IfaceIdBndr, but has IdInfo too
 -- It's used for *non-top-level* let/rec binders
 -- See Note [IdInfo on nested let-bindings]
 data IfaceLetBndr = IfLetBndr IfLclName IfaceType IfaceIdInfo IfaceJoinInfo
+  deriving stock (Generic)
+  deriving anyclass (NFData)
 
 data IfaceJoinInfo = IfaceNotJoinPoint
                    | IfaceJoinPoint JoinArity
@@ -2506,22 +2526,8 @@ instance NFData IfaceClassBody where
     IfAbstractClass -> ()
     IfConcreteClass f1 f2 f3 f4 -> rnf f1 `seq` rnf f2 `seq` rnf f3 `seq` f4 `seq` ()
 
-instance NFData IfaceAT where
-  rnf (IfaceAT f1 f2) = rnf f1 `seq` rnf f2
-
 instance NFData IfaceClassOp where
   rnf (IfaceClassOp f1 f2 f3) = rnf f1 `seq` rnf f2 `seq` f3 `seq` ()
-
-instance NFData IfaceTyConParent where
-  rnf = \case
-    IfNoParent -> ()
-    IfDataInstance f1 f2 f3 -> rnf f1 `seq` rnf f2 `seq` rnf f3
-
-instance NFData IfaceConDecls where
-  rnf = \case
-    IfAbstractTyCon -> ()
-    IfDataTyCon f1 -> rnf f1
-    IfNewTyCon f1 -> rnf f1
 
 instance NFData IfaceConDecl where
   rnf (IfCon f1 f2 f3 f4 f5 f6 f7 f8 f9 f10 f11) =
@@ -2532,14 +2538,7 @@ instance NFData IfaceSrcBang where
   rnf (IfSrcBang f1 f2) = f1 `seq` f2 `seq` ()
 
 instance NFData IfaceBang where
-  rnf x = x `seq` ()
-
-instance NFData IfaceIdDetails where
-  rnf = \case
-    IfVanillaId -> ()
-    IfRecSelId (Left tycon) b -> rnf tycon `seq` rnf b
-    IfRecSelId (Right decl) b -> rnf decl `seq` rnf b
-    IfDFunId -> ()
+  rnf = rwhnf
 
 instance NFData IfaceInfoItem where
   rnf = \case
@@ -2551,17 +2550,6 @@ instance NFData IfaceInfoItem where
     HsLevity -> ()
     HsCpr cpr -> cpr `seq` ()
     HsLFInfo lf_info -> lf_info `seq` () -- TODO: seq further?
-
-instance NFData IfaceUnfolding where
-  rnf = \case
-    IfCoreUnfold inlinable expr ->
-      rnf inlinable `seq` rnf expr
-    IfCompulsory expr ->
-      rnf expr
-    IfInlineRule arity b1 b2 e ->
-      rnf arity `seq` rnf b1 `seq` rnf b2 `seq` rnf e
-    IfDFunUnfold bndrs exprs ->
-      rnf bndrs `seq` rnf exprs
 
 instance NFData IfaceExpr where
   rnf = \case
@@ -2580,25 +2568,8 @@ instance NFData IfaceExpr where
     IfaceFCall fc ty -> fc `seq` rnf ty
     IfaceTick tick e -> rnf tick `seq` rnf e
 
-instance NFData IfaceBinding where
-  rnf = \case
-    IfaceNonRec bndr e -> rnf bndr `seq` rnf e
-    IfaceRec binds -> rnf binds
-
-instance NFData IfaceLetBndr where
-  rnf (IfLetBndr nm ty id_info join_info) =
-    rnf nm `seq` rnf ty `seq` rnf id_info `seq` rnf join_info
-
-instance NFData IfaceFamTyConFlav where
-  rnf = \case
-    IfaceDataFamilyTyCon -> ()
-    IfaceOpenSynFamilyTyCon -> ()
-    IfaceClosedSynFamilyTyCon f1 -> rnf f1
-    IfaceAbstractClosedSynFamilyTyCon -> ()
-    IfaceBuiltInSynFamTyCon -> ()
-
 instance NFData IfaceJoinInfo where
-  rnf x = x `seq` ()
+  rnf = rwhnf
 
 instance NFData IfaceTickish where
   rnf = \case
@@ -2611,9 +2582,6 @@ instance NFData IfaceConAlt where
     IfaceDefault -> ()
     IfaceDataAlt nm -> rnf nm
     IfaceLitAlt lit -> lit `seq` ()
-
-instance NFData IfaceCompleteMatch where
-  rnf (IfaceCompleteMatch f1 f2) = rnf f1 `seq` rnf f2
 
 instance NFData IfaceRule where
   rnf (IfaceRule f1 f2 f3 f4 f5 f6 f7 f8) =

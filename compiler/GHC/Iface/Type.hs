@@ -12,6 +12,9 @@ This module defines interface types and binders
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DerivingStrategies #-}
 
 #if !MIN_VERSION_GLASGOW_HASKELL(8,10,0,0)
 {-# OPTIONS_GHC -Wno-overlapping-patterns -Wno-incomplete-patterns #-}
@@ -86,6 +89,7 @@ import GHC.Data.FastString
 import GHC.Data.FastString.Env
 import GHC.Utils.Misc
 import GHC.Utils.Panic
+import GHC.Generics ( Generic )
 
 import Data.Maybe( isJust )
 import Control.DeepSeq
@@ -106,6 +110,8 @@ type IfExtName = Name   -- An External or WiredIn Name can appear in Iface synta
 data IfaceBndr          -- Local (non-top-level) binders
   = IfaceIdBndr {-# UNPACK #-} !IfaceIdBndr
   | IfaceTvBndr {-# UNPACK #-} !IfaceTvBndr
+  deriving stock (Generic)
+  deriving anyclass (NFData)
 
 type IfaceIdBndr  = (IfLclName, IfaceType)
 type IfaceTvBndr  = (IfLclName, IfaceKind)
@@ -176,7 +182,8 @@ type IfaceContext = [IfacePredType]
 data IfaceTyLit
   = IfaceNumTyLit Integer
   | IfaceStrTyLit FastString
-  deriving (Eq)
+  deriving stock (Eq, Generic)
+  deriving anyclass (NFData)
 
 type IfaceTyConBinder    = VarBndr IfaceBndr TyConBndrVis
 type IfaceForAllBndr     = VarBndr IfaceBndr ArgFlag
@@ -233,7 +240,8 @@ instance Monoid IfaceAppArgs where
 -- properly.
 data IfaceTyCon = IfaceTyCon { ifaceTyConName :: IfExtName
                              , ifaceTyConInfo :: IfaceTyConInfo }
-    deriving (Eq)
+  deriving stock (Eq, Generic)
+  deriving anyclass (NFData)
 
 -- | The various types of TyCons which have special, built-in syntax.
 data IfaceTyConSort = IfaceNormalTyCon          -- ^ a regular tycon
@@ -2013,11 +2021,6 @@ instance NFData IfaceType where
     IfaceCoercionTy f1 -> rnf f1
     IfaceTupleTy f1 f2 f3 -> f1 `seq` f2 `seq` rnf f3
 
-instance NFData IfaceTyLit where
-  rnf = \case
-    IfaceNumTyLit f1 -> rnf f1
-    IfaceStrTyLit f1 -> rnf f1
-
 instance NFData IfaceCoercion where
   rnf = \case
     IfaceReflCo f1 -> rnf f1
@@ -2040,14 +2043,9 @@ instance NFData IfaceCoercion where
     IfaceFreeCoVar f1 -> f1 `seq` ()
     IfaceHoleCo f1 -> f1 `seq` ()
 
-instance NFData IfaceUnivCoProv where
-  rnf x = seq x ()
-
-instance NFData IfaceMCoercion where
-  rnf x = seq x ()
-
-instance NFData IfaceOneShot where
-  rnf x = seq x ()
+instance NFData IfaceUnivCoProv where rnf = rwhnf
+instance NFData IfaceMCoercion where rnf = rwhnf
+instance NFData IfaceOneShot where rnf = rwhnf
 
 instance NFData IfaceTyConSort where
   rnf = \case
@@ -2058,14 +2056,6 @@ instance NFData IfaceTyConSort where
 
 instance NFData IfaceTyConInfo where
   rnf (IfaceTyConInfo f s) = f `seq` rnf s
-
-instance NFData IfaceTyCon where
-  rnf (IfaceTyCon nm info) = rnf nm `seq` rnf info
-
-instance NFData IfaceBndr where
-  rnf = \case
-    IfaceIdBndr id_bndr -> rnf id_bndr
-    IfaceTvBndr tv_bndr -> rnf tv_bndr
 
 instance NFData IfaceAppArgs where
   rnf = \case

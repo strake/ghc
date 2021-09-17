@@ -6,8 +6,8 @@
 
 module GHC.Core.Seq (
         -- * Utilities for forcing Core structures
-        seqExpr, seqExprs, seqUnfolding, seqRules,
-        megaSeqIdInfo, seqRuleInfo, seqBinds,
+        seqExpr, seqUnfolding, seqRule,
+        megaSeqIdInfo, seqRuleInfo, seqBind,
     ) where
 
 import GHC.Prelude
@@ -23,6 +23,8 @@ import GHC.Core.Type( seqType, isTyVar )
 import GHC.Core.Coercion( seqCo )
 import GHC.Types.Id( Id, idInfo )
 
+import Control.DeepSeq( rwhnf )
+
 -- | Evaluate all the fields of the 'IdInfo' that are generally demanded by the
 -- compiler
 megaSeqIdInfo :: IdInfo -> ()
@@ -36,24 +38,17 @@ megaSeqIdInfo info
     seqDemand (demandInfo info)                 `seq`
     seqStrictSig (strictnessInfo info)          `seq`
     seqCprSig (cprInfo info)                    `seq`
-    seqCaf (cafInfo info)                       `seq`
-    seqOneShot (oneShotInfo info)               `seq`
+    rwhnf (cafInfo info)                        `seq`
+    rwhnf (oneShotInfo info)                    `seq`
     seqOccInfo (occInfo info)
 
-seqOneShot :: OneShotInfo -> ()
-seqOneShot l = l `seq` ()
-
 seqRuleInfo :: RuleInfo -> ()
-seqRuleInfo (RuleInfo rules fvs) = seqRules rules `seq` seqDVarSet fvs
+seqRuleInfo (RuleInfo rules fvs) = foldMap' seqRule rules `seq` seqDVarSet fvs
 
-seqCaf :: CafInfo -> ()
-seqCaf c = c `seq` ()
-
-seqRules :: [CoreRule] -> ()
-seqRules [] = ()
-seqRules (Rule { ru_bndrs = bndrs, ru_args = args, ru_rhs = rhs } : rules)
-  = seqBndrs bndrs `seq` seqExprs (rhs:args) `seq` seqRules rules
-seqRules (BuiltinRule {} : rules) = seqRules rules
+seqRule :: CoreRule -> ()
+seqRule Rule { ru_bndrs = bndrs, ru_args = args, ru_rhs = rhs }
+  = foldMap' seqBndr bndrs `seq` foldMap' seqExpr (rhs:args) `seq` ()
+seqRule BuiltinRule {} = ()
 
 seqExpr :: CoreExpr -> ()
 seqExpr (Var v)         = v `seq` ()
@@ -61,31 +56,22 @@ seqExpr (Lit lit)       = lit `seq` ()
 seqExpr (App f a)       = seqExpr f `seq` seqExpr a
 seqExpr (Lam b e)       = seqBndr b `seq` seqExpr e
 seqExpr (Let b e)       = seqBind b `seq` seqExpr e
-seqExpr (Case e b t as) = seqExpr e `seq` seqBndr b `seq` seqType t `seq` seqAlts as
+seqExpr (Case e b t as) = seqExpr e `seq` seqBndr b `seq` seqType t `seq` foldMap' seqAlt as
 seqExpr (Cast e co)     = seqExpr e `seq` seqCo co
 seqExpr (Tick n e)      = seqTickish n `seq` seqExpr e
 seqExpr (Type t)        = seqType t
 seqExpr (Coercion co)   = seqCo co
 
-seqExprs :: [CoreExpr] -> ()
-seqExprs = foldr (seq . seqExpr) ()
-
 seqTickish :: Tickish Id -> ()
 seqTickish ProfNote{ profNoteCC = cc } = cc `seq` ()
 seqTickish HpcTick{} = ()
-seqTickish Breakpoint{ breakpointFVs = ids } = seqBndrs ids
+seqTickish Breakpoint{ breakpointFVs = ids } = foldMap' seqBndr ids
 seqTickish SourceNote{} = ()
 
 seqBndr :: CoreBndr -> ()
 seqBndr b | isTyVar b = seqType (tyVarKind b)
           | otherwise = seqType (varType b)             `seq`
                         megaSeqIdInfo (idInfo b)
-
-seqBndrs :: [CoreBndr] -> ()
-seqBndrs = foldr (seq . seqBndr) ()
-
-seqBinds :: [Bind CoreBndr] -> ()
-seqBinds = foldr (seq . seqBind) ()
 
 seqBind :: Bind CoreBndr -> ()
 seqBind (NonRec b e) = seqBndr b `seq` seqExpr e
@@ -95,10 +81,8 @@ seqPairs :: [(CoreBndr, CoreExpr)] -> ()
 seqPairs [] = ()
 seqPairs ((b,e):prs) = seqBndr b `seq` seqExpr e `seq` seqPairs prs
 
-seqAlts :: [CoreAlt] -> ()
-seqAlts = foldr (seq . seqAlt) ()
-  where
-    seqAlt (c, bs, e) acc = c `seq` seqBndrs bs `seq` seqExpr e `seq` acc
+seqAlt :: CoreAlt -> ()
+seqAlt (c, bs, e) = c `seq` foldMap' seqBndr bs `seq` seqExpr e `seq` ()
 
 seqUnfolding :: Unfolding -> ()
 seqUnfolding (CoreUnfolding { uf_tmpl = e, uf_is_top = top,

@@ -34,6 +34,7 @@ import GHC.Utils.Misc (seqList)
 import GHC.CmmToAsm.CFG
 
 import Data.Foldable (toList)
+import Control.DeepSeq (rwhnf)
 import Control.Monad
 
 -- | The maximum number of build\/spill cycles we'll allow.
@@ -428,49 +429,15 @@ patchRegsFromGraph platform graph code
 --  We need to deepSeq the whole graph before trying to colour it to avoid
 --  space leaks.
 seqGraph :: Color.Graph VirtualReg RegClass RealReg -> ()
-seqGraph graph          = seqNodes (nonDetEltsUFM (Color.graphMap graph))
-   -- See Note [Unique Determinism and code generation]
-
-seqNodes :: [Color.Node VirtualReg RegClass RealReg] -> ()
-seqNodes ns
- = case ns of
-        []              -> ()
-        (n : ns)        -> seqNode n `seq` seqNodes ns
+seqGraph = seqEltsUFM (foldMap' seqNode) . Color.graphMap
 
 seqNode :: Color.Node VirtualReg RegClass RealReg -> ()
 seqNode node
-        =     seqVirtualReg     (Color.nodeId node)
-        `seq` seqRegClass       (Color.nodeClass node)
-        `seq` seqMaybeRealReg   (Color.nodeColor node)
-        `seq` (seqVirtualRegList (nonDetEltsUniqSet (Color.nodeConflicts node)))
-        `seq` (seqRealRegList    (nonDetEltsUniqSet (Color.nodeExclusions node)))
-        `seq` (seqRealRegList (Color.nodePreference node))
-        `seq` (seqVirtualRegList (nonDetEltsUniqSet (Color.nodeCoalesce node)))
+        =     Color.nodeId node
+        `seq` Color.nodeClass node
+        `seq` foldMap' rwhnf (Color.nodeColor node)
+        `seq` foldMap' rwhnf (nonDetEltsUniqSet (Color.nodeConflicts node))
+        `seq` foldMap' rwhnf (nonDetEltsUniqSet (Color.nodeExclusions node))
+        `seq` foldMap' rwhnf (Color.nodePreference node)
+        `seq` foldMap' rwhnf (nonDetEltsUniqSet (Color.nodeCoalesce node))
               -- It's OK to use nonDetEltsUniqSet for seq
-
-seqVirtualReg :: VirtualReg -> ()
-seqVirtualReg reg = reg `seq` ()
-
-seqRealReg :: RealReg -> ()
-seqRealReg reg = reg `seq` ()
-
-seqRegClass :: RegClass -> ()
-seqRegClass c = c `seq` ()
-
-seqMaybeRealReg :: Maybe RealReg -> ()
-seqMaybeRealReg mr
- = case mr of
-        Nothing         -> ()
-        Just r          -> seqRealReg r
-
-seqVirtualRegList :: [VirtualReg] -> ()
-seqVirtualRegList rs
- = case rs of
-        []              -> ()
-        (r : rs)        -> seqVirtualReg r `seq` seqVirtualRegList rs
-
-seqRealRegList :: [RealReg] -> ()
-seqRealRegList rs
- = case rs of
-        []              -> ()
-        (r : rs)        -> seqRealReg r `seq` seqRealRegList rs

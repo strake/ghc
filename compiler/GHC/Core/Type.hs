@@ -162,7 +162,7 @@ module GHC.Core.Type (
         eqVarBndrs,
 
         -- * Forcing evaluation of types
-        seqType, seqTypes,
+        seqType,
 
         -- * Other views onto Types
         coreView, tcView,
@@ -2065,14 +2065,10 @@ seqType (LitTy n)                   = n `seq` ()
 seqType (TyVarTy tv)                = tv `seq` ()
 seqType (AppTy t1 t2)               = seqType t1 `seq` seqType t2
 seqType (FunTy _ t1 t2)             = seqType t1 `seq` seqType t2
-seqType (TyConApp tc tys)           = tc `seq` seqTypes tys
+seqType (TyConApp tc tys)           = tc `seq` foldMap' seqType tys
 seqType (ForAllTy (Bndr tv _) ty)   = seqType (varType tv) `seq` seqType ty
 seqType (CastTy ty co)              = seqType ty `seq` seqCo co
 seqType (CoercionTy co)             = seqCo co
-
-seqTypes :: [Type] -> ()
-seqTypes []       = ()
-seqTypes (ty:tys) = seqType ty `seq` seqTypes tys
 
 {-
 ************************************************************************

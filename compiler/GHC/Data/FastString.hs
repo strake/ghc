@@ -225,8 +225,7 @@ instance Data FastString where
   gunfold _ _  = error "gunfold"
   dataTypeOf _ = mkNoRepType "FastString"
 
-instance NFData FastString where
-  rnf fs = seq fs ()
+instance NFData FastString where rnf = rwhnf
 
 -- | Compare FastString lexicographically
 cmpFS :: FastString -> FastString -> Ordering

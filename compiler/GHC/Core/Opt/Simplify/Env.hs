@@ -70,6 +70,7 @@ import GHC.Utils.Panic.Plain
 import GHC.Types.Unique.FM      ( pprUniqFM )
 
 import Data.Foldable (toList)
+import Control.DeepSeq (rwhnf)
 
 {-
 ************************************************************************
@@ -742,7 +743,7 @@ simplBinder :: SimplEnv -> InBndr -> SimplM (SimplEnv, OutBndr)
 -- we *don't* need to use it to track occurrence info.
 simplBinder env bndr
   | isTyVar bndr  = do  { let (env', tv) = substTyVarBndr env bndr
-                        ; seqTyVar tv `seq` return (env', tv) }
+                        ; rwhnf tv `seq` pure (env', tv) }
   | otherwise     = do  { let (env', id) = substIdBndr env bndr
                         ; seqId id `seq` return (env', id) }
 
@@ -759,7 +760,7 @@ simplRecBndrs :: SimplEnv -> [InBndr] -> SimplM SimplEnv
 simplRecBndrs env@(SimplEnv {}) ids
   = assert (all (not . isJoinId) ids) $
     do  { let (env1, ids1) = mapAccumL substIdBndr env ids
-        ; seqIds ids1 `seq` return env1 }
+        ; foldMap' seqId ids1 `seq` pure env1 }
 
 
 ---------------
@@ -823,17 +824,10 @@ subst_id_bndr env@(SimplEnv { seInScope = in_scope, seIdSubst = id_subst })
               = delVarEnv id_subst old_id
 
 ------------------------------------
-seqTyVar :: TyVar -> ()
-seqTyVar b = b `seq` ()
-
 seqId :: Id -> ()
 seqId id = seqType (idType id)  `seq`
            idInfo id            `seq`
            ()
-
-seqIds :: [Id] -> ()
-seqIds []       = ()
-seqIds (id:ids) = seqId id `seq` seqIds ids
 
 {-
 Note [Arity robustness]
@@ -898,7 +892,7 @@ simplRecJoinBndrs :: SimplEnv -> [InBndr]
 simplRecJoinBndrs env@(SimplEnv {}) ids res_ty
   = assert (all isJoinId ids) $
     do  { let (env1, ids1) = mapAccumL (simplJoinBndr res_ty) env ids
-        ; seqIds ids1 `seq` return env1 }
+        ; foldMap' seqId ids1 `seq` pure env1 }
 
 ---------------
 simplJoinBndr :: OutType

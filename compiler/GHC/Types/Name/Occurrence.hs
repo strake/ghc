@@ -249,8 +249,7 @@ instance Data OccName where
 instance HasOccName OccName where
   occName = id
 
-instance NFData OccName where
-  rnf x = x `seq` ()
+instance NFData OccName where rnf = rwhnf
 
 {-
 ************************************************************************

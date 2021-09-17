@@ -54,8 +54,7 @@ instance Data ModuleName where
   gunfold _ _  = error "gunfold"
   dataTypeOf _ = mkNoRepType "ModuleName"
 
-instance NFData ModuleName where
-  rnf x = x `seq` ()
+instance NFData ModuleName where rnf = rwhnf
 
 stableModuleNameCmp :: ModuleName -> ModuleName -> Ordering
 -- ^ Compares module names lexically, rather than by their 'Unique's

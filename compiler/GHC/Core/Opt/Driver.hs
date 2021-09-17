@@ -41,7 +41,7 @@ import GHC.Core.Opt.CprAnal      ( cprAnalProgram )
 import GHC.Core.Opt.CallArity    ( callArityAnalProgram )
 import GHC.Core.Opt.Exitify      ( exitifyProgram )
 import GHC.Core.Opt.WorkWrap     ( wwTopBinds )
-import GHC.Core.Seq (seqBinds)
+import GHC.Core.Seq (seqBind)
 import GHC.Core.FamInstEnv
 
 import GHC.Utils.Constants ( debugIsOn )
@@ -1065,4 +1065,4 @@ dmdAnal dflags fam_envs binds = do
   Err.dumpIfSet_dyn dflags Opt_D_dump_str_signatures "Strictness signatures" FormatText $
     dumpIdInfoOfProgram (pprIfaceStrictSig . strictnessInfo) binds_plus_dmds
   -- See Note [Stamp out space leaks in demand analysis] in GHC.Core.Opt.DmdAnal
-  seqBinds binds_plus_dmds `seq` return binds_plus_dmds
+  foldMap' seqBind binds_plus_dmds `seq` pure binds_plus_dmds

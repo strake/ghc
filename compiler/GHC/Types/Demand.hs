@@ -37,7 +37,7 @@ module GHC.Types.Demand (
         splitStrictSig, strictSigDmdEnv,
         prependArgsStrictSig, etaConvertStrictSig,
 
-        seqDemand, seqDemandList, seqDmdType, seqStrictSig,
+        seqDemand, seqDmdType, seqStrictSig,
 
         evalDmd, cleanEvalDmd, cleanEvalProdDmd, isStrictDmd,
         splitDmdTy, splitFVs, deferAfterPreciseException,
@@ -290,13 +290,9 @@ bothStr (SProd _) (SCall _)    = HyperStr
 
 -- utility functions to deal with memory leaks
 seqStrDmd :: StrDmd -> ()
-seqStrDmd (SProd ds)   = seqStrDmdList ds
+seqStrDmd (SProd ds)   = foldMap' seqArgStr ds
 seqStrDmd (SCall s)    = seqStrDmd s
 seqStrDmd _            = ()
-
-seqStrDmdList :: [ArgStr] -> ()
-seqStrDmdList [] = ()
-seqStrDmdList (d:ds) = seqArgStr d `seq` seqStrDmdList ds
 
 seqArgStr :: ArgStr -> ()
 seqArgStr Lazy    = ()
@@ -584,13 +580,9 @@ isUsedU (UCall Many _) = True  -- No need to recurse
 
 -- Squashing usage demand demands
 seqUseDmd :: UseDmd -> ()
-seqUseDmd (UProd ds)   = seqArgUseList ds
+seqUseDmd (UProd ds)   = foldMap' seqArgUse ds
 seqUseDmd (UCall c d)  = c `seq` seqUseDmd d
 seqUseDmd _            = ()
-
-seqArgUseList :: [ArgUse] -> ()
-seqArgUseList []     = ()
-seqArgUseList (d:ds) = seqArgUse d `seq` seqArgUseList ds
 
 seqArgUse :: ArgUse -> ()
 seqArgUse (Use c u)  = c `seq` seqUseDmd u
@@ -770,10 +762,6 @@ isUsedOnce (JD { ud = a }) = case useCount a of
 -- More utility functions for strictness
 seqDemand :: Demand -> ()
 seqDemand (JD {sd = s, ud = u}) = seqArgStr s `seq` seqArgUse u
-
-seqDemandList :: [Demand] -> ()
-seqDemandList [] = ()
-seqDemandList (d:ds) = seqDemand d `seq` seqDemandList ds
 
 isStrictDmd :: JointDmd (Str s) (Use u) -> Bool
 -- See Note [Strict demands]
@@ -1259,10 +1247,10 @@ decreaseArityDmdType _ = nopDmdType
 
 seqDmdType :: DmdType -> ()
 seqDmdType (DmdType env ds res) =
-  seqDmdEnv env `seq` seqDemandList ds `seq` res `seq` ()
+  seqDmdEnv env `seq` foldMap' seqDemand ds `seq` res `seq` ()
 
 seqDmdEnv :: DmdEnv -> ()
-seqDmdEnv env = seqEltsUFM seqDemandList env
+seqDmdEnv = seqEltsUFM (foldMap' seqDemand)
 
 splitDmdTy :: DmdType -> (Demand, DmdType)
 -- Split off one function argument
