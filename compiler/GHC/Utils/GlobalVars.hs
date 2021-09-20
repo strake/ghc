@@ -3,6 +3,8 @@
 {-# OPTIONS_GHC -fno-cse #-}
 -- -fno-cse is needed for GLOBAL_VAR's to behave properly
 
+#include "ghcplatform.h"
+
 module GHC.Utils.GlobalVars
    ( v_unsafeHasPprDebug
    , v_unsafeHasNoDebugOutput

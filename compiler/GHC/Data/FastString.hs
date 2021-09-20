@@ -5,6 +5,8 @@
 -- We always optimise this, otherwise performance of a non-optimised
 -- compiler is severely affected
 
+#include "ghcplatform.h"
+
 -- |
 -- There are two principal string types used internally by GHC:
 --
