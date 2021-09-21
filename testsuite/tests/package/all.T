@@ -6,7 +6,7 @@ inc_ghc = '-package ghc '
 hide_ghc = '-hide-package ghc '
 
 test('package01',  normal, compile,      [hide_all + incr_containers])
-test('package01e', normalise_version('containers'), compile_fail, [hide_all + incr_containers])
+test('package01e', [normalise_version('containers'), fragile(0)], compile_fail, [hide_all + incr_containers])
 test('package02',  normal, compile,      [hide_all + inc_containers + incr_containers])
 test('package03',  normal, compile,      [hide_all + incr_containers + inc_containers])
 test('package04',  normal, compile,      [incr_containers])
@@ -18,5 +18,5 @@ test('package08e', [normalise_version('ghc'), fragile(0)], compile_fail, [incr_g
 test('package09e', normal, compile_fail, ['-package "containers (Data.Map as M, Data.Set as M)"'])
 test('package10',  normal, compile,      ['-hide-all-packages -package "ghc (GHC.Types.Unique.FM as Prelude)" '])
 
-test('T4806', normalise_version('containers'), compile_fail, ['-ignore-package containers'])
-test('T4806a', normalise_version('containers'), compile_fail, ['-ignore-package deepseq'])
+test('T4806', [normalise_version('containers'), fragile(0)], compile_fail, ['-ignore-package containers'])
+test('T4806a', [normalise_version('containers'), fragile(0)], compile_fail, ['-ignore-package deepseq'])
