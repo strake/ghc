@@ -369,22 +369,14 @@ howToAccessLabel config arch os this_mod DataReference lbl
         -- (AccessDirectly, because we get an implicit symbol stub)
         -- and calling functions from PIC code on non-i386 platforms (via a symbol stub)
 
-howToAccessLabel config arch os this_mod CallReference lbl
+howToAccessLabel config _ os this_mod CallReference lbl
         | osElfTarget os
-        , labelDynamic config this_mod lbl && not (ncgPIC config)
-        = AccessDirectly
-
-        | osElfTarget os
-        , arch /= ArchX86
         , labelDynamic config this_mod lbl
-        , ncgPIC config
-        = AccessViaStub
+        = bool AccessDirectly AccessViaStub $ ncgPIC config
 
 howToAccessLabel config _ os this_mod _ lbl
         | osElfTarget os
-        = if labelDynamic config this_mod lbl
-            then AccessViaSymbolPtr
-            else AccessDirectly
+        = bool AccessDirectly AccessViaSymbolPtr $ labelDynamic config this_mod lbl
 
 -- all other platforms
 howToAccessLabel config _ _ _ _ _
@@ -506,16 +498,6 @@ gotLabel
 -- However, for PIC on x86, we need a small helper function.
 pprGotDeclaration :: NCGConfig -> SDoc
 pprGotDeclaration config = case (arch,os) of
-   (ArchX86, OSDarwin)
-        | ncgPIC config
-        -> vcat [
-                text ".section __TEXT,__textcoal_nt,coalesced,no_toc",
-                text ".weak_definition ___i686.get_pc_thunk.ax",
-                text ".private_extern ___i686.get_pc_thunk.ax",
-                text "___i686.get_pc_thunk.ax:",
-                text "\tmovl (%esp), %eax",
-                text "\tret" ]
-
    (_, OSDarwin) -> empty
 
    -- Emit XCOFF TOC section
@@ -569,58 +551,6 @@ pprGotDeclaration config = case (arch,os) of
 
 pprImportedSymbol :: NCGConfig -> CLabel -> SDoc
 pprImportedSymbol config importedLbl = case (arch,os) of
-   (ArchX86, OSDarwin)
-        | Just (CodeStub, lbl) <- dynamicLinkerLabelInfo importedLbl
-        -> if not pic
-             then
-              vcat [
-                  text ".symbol_stub",
-                  text "L" <> ppr_lbl lbl <> ptext (sLit "$stub:"),
-                      text "\t.indirect_symbol" <+> ppr_lbl lbl,
-                      text "\tjmp *L" <> ppr_lbl lbl
-                          <> text "$lazy_ptr",
-                  text "L" <> ppr_lbl lbl
-                      <> text "$stub_binder:",
-                      text "\tpushl $L" <> ppr_lbl lbl
-                          <> text "$lazy_ptr",
-                      text "\tjmp dyld_stub_binding_helper"
-              ]
-             else
-              vcat [
-                  text ".section __TEXT,__picsymbolstub2,"
-                      <> text "symbol_stubs,pure_instructions,25",
-                  text "L" <> ppr_lbl lbl <> ptext (sLit "$stub:"),
-                      text "\t.indirect_symbol" <+> ppr_lbl lbl,
-                      text "\tcall ___i686.get_pc_thunk.ax",
-                  text "1:",
-                      text "\tmovl L" <> ppr_lbl lbl
-                          <> text "$lazy_ptr-1b(%eax),%edx",
-                      text "\tjmp *%edx",
-                  text "L" <> ppr_lbl lbl
-                      <> text "$stub_binder:",
-                      text "\tlea L" <> ppr_lbl lbl
-                          <> text "$lazy_ptr-1b(%eax),%eax",
-                      text "\tpushl %eax",
-                      text "\tjmp dyld_stub_binding_helper"
-              ]
-           $+$ vcat [        text ".section __DATA, __la_sym_ptr"
-                    <> (if pic then int 2 else int 3)
-                    <> text ",lazy_symbol_pointers",
-                text "L" <> ppr_lbl lbl <> ptext (sLit "$lazy_ptr:"),
-                    text "\t.indirect_symbol" <+> ppr_lbl lbl,
-                    text "\t.long L" <> ppr_lbl lbl
-                    <> text "$stub_binder"]
-
-        | Just (SymbolPtr, lbl) <- dynamicLinkerLabelInfo importedLbl
-        -> vcat [
-                text ".non_lazy_symbol_pointer",
-                char 'L' <> ppr_lbl lbl <> text "$non_lazy_ptr:",
-                text "\t.indirect_symbol" <+> ppr_lbl lbl,
-                text "\t.long\t0"]
-
-        | otherwise
-        -> empty
-
    (_, OSDarwin) -> empty
 
 
@@ -702,7 +632,6 @@ pprImportedSymbol config importedLbl = case (arch,os) of
    ppr_lbl  = pprCLabel     platform AsmStyle
    arch     = platformArch  platform
    os       = platformOS    platform
-   pic      = ncgPIC config
 
 --------------------------------------------------------------------------------
 -- Generate code to calculate the address that should be put in the
@@ -723,7 +652,7 @@ pprImportedSymbol config importedLbl = case (arch,os) of
 --          bcl 20,31,1f.
 --      1:  mflr picReg
 
--- i386 version:
+-- x86 version:
 --          call 1f
 --      1:  popl %picReg
 

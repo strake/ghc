@@ -1291,15 +1291,6 @@ runPhase (RealPhase cc_phase) input_fn
 
         let
           more_hcc_opts =
-                -- on x86 the floating point regs have greater precision
-                -- than a double, which leads to unpredictable results.
-                -- By default, we turn this off with -ffloat-store unless
-                -- the user specified -fexcess-precision.
-                (if platformArch platform == ArchX86 &&
-                    not (gopt Opt_ExcessPrecision dflags)
-                        then [ "-ffloat-store" ]
-                        else []) ++
-
                 -- gcc's -fstrict-aliasing allows two accesses to memory
                 -- to be considered non-aliasing if they have different types.
                 -- This interacts badly with the C code we generate, which is

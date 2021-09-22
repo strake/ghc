@@ -43,8 +43,6 @@ void heapCheckFail( void );
 
 void printRtsInfo(const RtsConfig);
 
-void checkFPUStack(void);
-
 #define xstr(s) str(s)
 #define str(s) #s
 

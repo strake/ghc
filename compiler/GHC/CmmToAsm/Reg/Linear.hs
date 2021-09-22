@@ -113,7 +113,6 @@ import GHC.CmmToAsm.Reg.Linear.JoinToTargets
 import qualified GHC.CmmToAsm.Reg.Linear.PPC    as PPC
 import qualified GHC.CmmToAsm.Reg.Linear.SPARC  as SPARC
 import qualified GHC.CmmToAsm.Reg.Linear.X86    as X86
-import qualified GHC.CmmToAsm.Reg.Linear.X86_64 as X86_64
 import GHC.CmmToAsm.Reg.Target
 import GHC.CmmToAsm.Reg.Liveness
 import GHC.CmmToAsm.Reg.Utils
@@ -213,7 +212,7 @@ linearRegAlloc
 linearRegAlloc config entry_ids block_live sccs
  = case platformArch platform of
       ArchX86        -> go $ (frInitFreeRegs platform :: X86.FreeRegs)
-      ArchX86_64     -> go $ (frInitFreeRegs platform :: X86_64.FreeRegs)
+      ArchX86_64     -> go $ (frInitFreeRegs platform :: X86.FreeRegs)
       ArchS390X      -> panic "linearRegAlloc ArchS390X"
       ArchSPARC      -> go $ (frInitFreeRegs platform :: SPARC.FreeRegs)
       ArchSPARC64    -> panic "linearRegAlloc ArchSPARC64"

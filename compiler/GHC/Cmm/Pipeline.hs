@@ -172,12 +172,6 @@ cpsTop dflags proc =
         -- the entry point.
         splitting_proc_points = backend dflags /= NCG
                              || not (platformTablesNextToCode platform)
-                             || -- Note [inconsistent-pic-reg]
-                                usingInconsistentPicReg
-        usingInconsistentPicReg
-           = case (platformArch platform, platformOS platform, positionIndependent dflags)
-             of   (ArchX86, OSDarwin, pic) -> pic
-                  _                        -> False
 
 -- Note [Sinking after stack layout]
 -- ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

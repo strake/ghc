@@ -31,7 +31,6 @@ test('T11223_simple_duplicate',
 
 test('T11223_simple_duplicate_lib',
      [extra_files(['bar.c', 'foo.c', 'foo.hs']),
-      when(platform('i386-unknown-mingw32'), expect_broken(13515)),
       when(ghc_dynamic(), skip), normalise_errmsg_fun(normalise_duplicate_errmsg)],
      makefile_test, ['t_11223_simple_duplicate_lib'])
 

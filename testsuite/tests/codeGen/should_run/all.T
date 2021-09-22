@@ -80,8 +80,7 @@ test('cgrun069',
      ['cgrun069', [('cgrun069_cmm.cmm', '')], ''])
 test('cgrun070', normal, compile_and_run, [''])
 test('cgrun071',
-     [when(have_cpu_feature('sse4_2'), extra_hc_opts('-msse4.2')),
-      when(arch('i386'), expect_broken_for(17247, ['optasm', 'profthreaded', 'profasm', 'dyn', 'threaded2']))],
+     [when(have_cpu_feature('sse4_2'), extra_hc_opts('-msse4.2'))],
      compile_and_run, [''])
 test('cgrun072', normal, compile_and_run, [''])
 test('cgrun075', normal, compile_and_run, [''])
@@ -106,7 +105,7 @@ test('T5129',
      only_ways(['optasm']),
      compile_and_run, [''])
 test('T5626', exit_code(1), compile_and_run, [''])
-test('T5747', when(arch('i386'), extra_hc_opts('-msse2')), compile_and_run, ['-O2'])
+test('T5747', normal, compile_and_run, ['-O2'])
 test('T5785', normal, compile_and_run, [''])
 test('setByteArray', normal, compile_and_run, [''])
 test('compareByteArrays', normal, compile_and_run, [''])

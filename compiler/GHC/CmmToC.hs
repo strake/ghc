@@ -235,13 +235,6 @@ pprStmt platform stmt =
         fnCall =
             case fn of
               CmmLit (CmmLabel lbl)
-                | StdCallConv <- cconv ->
-                    pprCall platform (pprCLabel platform CStyle lbl) cconv hresults hargs
-                        -- stdcall functions must be declared with
-                        -- a function type, otherwise the C compiler
-                        -- doesn't add the @n suffix to the label.  We
-                        -- can't add the @n suffix ourselves, because
-                        -- it isn't valid C.
                 | CmmNeverReturns <- ret ->
                     pprCall platform cast_fn cconv hresults hargs <> semi
                 | not (isMathFun lbl) ->

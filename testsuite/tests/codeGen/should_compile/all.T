@@ -13,11 +13,8 @@ test('T3132', normal, compile, ['-dcmm-lint'])
 test('T3286', [], multimod_compile, ['T3286', '-v0'])
 test('T3579', normal, compile, [''])
 test('T2578', normal, makefile_test, [])
-# skip llvm on i386 as we don't support fPIC
-test('jmp_tbl', when(arch('i386'), omit_ways(llvm_ways)), compile, ['-fPIC -O'])
-test('massive_array',
-     [ when(arch('i386'), omit_ways(llvm_ways)) ],
-     compile, ['-fPIC'])
+test('jmp_tbl', normal, compile, ['-fPIC -O'])
+test('massive_array', normal, compile, ['-fPIC'])
 test('T7237', normal, compile, [''])
 test('T7574', [cmm_src, omit_ways(llvm_ways)], compile, ['-no-hs-main'])
 test('T8205', normal, compile, ['-O0'])

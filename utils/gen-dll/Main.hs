@@ -127,14 +127,6 @@ import Foreign.Storable (peek)
 import Foreign.Marshal.Array (peekArray)
 import Foreign.Marshal.Alloc (alloca)
 
-#if defined(i386_HOST_ARCH)
-# define WINDOWS_CCONV stdcall
-#elif defined(x86_64_HOST_ARCH)
-# define WINDOWS_CCONV ccall
-#else
-# error Unknown mingw32 arch
-#endif
-
 -- Setup some standard program names.
 nm :: FilePath
 nm = NM_TOOL_BIN
@@ -392,10 +384,10 @@ isTrue s = let s' = map toLower s
                   | s' == "no"  -> False
                   | otherwise   -> error $ "Expected yes/no but got '" ++ s ++ "'"
 
-foreign import WINDOWS_CCONV unsafe "Shellapi.h CommandLineToArgvW"
+foreign import ccall unsafe "Shellapi.h CommandLineToArgvW"
      c_CommandLineToArgvW :: CWString -> Ptr CInt -> IO (Ptr CWString)
 
-foreign import WINDOWS_CCONV unsafe "windows.h LocalFree"
+foreign import ccall unsafe "windows.h LocalFree"
     localFree :: Ptr a -> IO (Ptr a)
 
 mkArgs :: String -> IO [String]

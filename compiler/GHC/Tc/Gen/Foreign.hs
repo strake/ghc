@@ -63,8 +63,6 @@ import GHC.Data.Bag
 import GHC.Driver.Hooks
 import qualified GHC.LanguageExtensions as LangExt
 
-import Control.Monad
-
 -- Defines a binding
 isForeignImport :: LForeignDecl name -> Bool
 isForeignImport (L _ (ForeignImport {})) = True
@@ -528,15 +526,7 @@ checkCg check = do
 checkCConv :: CCallConv -> TcM CCallConv
 checkCConv CCallConv    = return CCallConv
 checkCConv CApiConv     = return CApiConv
-checkCConv StdCallConv  = do dflags <- getDynFlags
-                             let platform = targetPlatform dflags
-                             if platformArch platform == ArchX86
-                                 then return StdCallConv
-                                 else do -- This is a warning, not an error. see #3336
-                                         when (wopt Opt_WarnUnsupportedCallingConventions dflags) $
-                                             addWarnTc (Reason Opt_WarnUnsupportedCallingConventions)
-                                                 (text "the 'stdcall' calling convention is unsupported on this platform," $$ text "treating as ccall")
-                                         return CCallConv
+checkCConv StdCallConv  = return CCallConv
 checkCConv PrimCallConv = do addErrTc (text "The `prim' calling convention can only be used with `foreign import'")
                              return PrimCallConv
 checkCConv JavaScriptCallConv = do dflags <- getDynFlags

@@ -75,15 +75,9 @@ test('T876',
      compile_and_run,
      ['-O'])
 
-# Get reproducible floating-point results on x86
-if config.arch == 'i386':
-   sse2_opts = '-msse2'
-else:
-   sse2_opts = ''
-
 test('T4321',
      omit_ways(['ghci']),
-     compile_and_run, ['-O ' + sse2_opts])
+     compile_and_run, ['-O'])
 
 test('T3736', [], makefile_test, ['T3736'])
 test('T3738',
@@ -164,7 +158,7 @@ test('T5237',
      only_ways(['normal'])
      ],
     compile_and_run,
-    ['-O ' + sse2_opts])
+    ['-O'])
 
 test('T5536',
      [collect_stats('bytes allocated',1),

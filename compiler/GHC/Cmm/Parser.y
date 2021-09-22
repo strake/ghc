@@ -1196,11 +1196,10 @@ foreignCall conv_string results_code expr_code args_code safety ret
           expr <- expr_code
           args <- sequence args_code
           let
-                  expr' = adjCallTarget platform conv expr args
                   (arg_exprs, arg_hints) = unzip args
                   (res_regs,  res_hints) = unzip results
                   fc = ForeignConvention conv arg_hints res_hints ret
-                  target = ForeignTarget expr' fc
+                  target = ForeignTarget expr fc
           _ <- code $ emitForeignCall safety res_regs target arg_exprs
           return ()
 
@@ -1245,18 +1244,6 @@ doCall expr_code res_code args_code = do
   updfr_off <- getUpdFrameOff
   c <- code $ mkCall expr (NativeNodeCall,NativeReturn) ress args updfr_off []
   emit c
-
-adjCallTarget :: Platform -> CCallConv -> CmmExpr -> [(CmmExpr, ForeignHint) ]
-              -> CmmExpr
--- On Windows, we have to add the '@N' suffix to the label when making
--- a call with the stdcall calling convention.
-adjCallTarget platform StdCallConv (CmmLit (CmmLabel lbl)) args
- | platformOS platform == OSMinGW32
-  = CmmLit (CmmLabel (addLabelSize lbl (sum (map size args))))
-  where size (e, _) = max (platformWordSizeInBytes platform) (widthInBytes (typeWidth (cmmExprType platform e)))
-                 -- c.f. CgForeignCall.emitForeignCall
-adjCallTarget _ _ expr _
-  = expr
 
 primCall
         :: [CmmParse (CmmFormal, ForeignHint)]

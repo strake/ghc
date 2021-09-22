@@ -174,15 +174,6 @@ dwarfFrameLabel  = sLit ".Lsection_frame"
 -- | Mapping of registers to DWARF register numbers
 dwarfRegNo :: Platform -> Reg -> Word8
 dwarfRegNo p r = case platformArch p of
-  ArchX86
-    | r == eax  -> 0
-    | r == ecx  -> 1  -- yes, no typo
-    | r == edx  -> 2
-    | r == ebx  -> 3
-    | r == esp  -> 4
-    | r == ebp  -> 5
-    | r == esi  -> 6
-    | r == edi  -> 7
   ArchX86_64
     | r == rax  -> 0
     | r == rdx  -> 1 -- this neither. The order GCC allocates registers in?
@@ -226,7 +217,6 @@ dwarfReturnRegNo p
   -- when using this mechanism gdb already knows the IP anyway. Clang
   -- does this too, so it must be safe.
   = case platformArch p of
-    ArchX86    -> 8  -- eip
     ArchX86_64 -> 16 -- rip
     ArchPPC_64 ELF_V2 -> 65 -- lr (link register)
     _other     -> error "dwarfReturnRegNo: Unsupported platform!"

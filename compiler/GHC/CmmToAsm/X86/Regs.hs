@@ -184,14 +184,9 @@ addrModeRegs _ = []
 -- applicable, is the same but for the frame pointer.
 
 
-spRel :: Platform
-      -> Int -- ^ desired stack offset in bytes, positive or negative
+spRel :: Int -- ^ desired stack offset in bytes, positive or negative
       -> AddrMode
-spRel platform n
- | target32Bit platform
-    = AddrBaseIndex (EABaseReg esp) EAIndexNone (ImmInt n)
- | otherwise
-    = AddrBaseIndex (EABaseReg rsp) EAIndexNone (ImmInt n)
+spRel n = AddrBaseIndex (EABaseReg rsp) EAIndexNone (ImmInt n)
 
 -- The register numbers must fit into 32 bits on x86, so that we can
 -- use a Word32 to represent the set of free registers in the register
@@ -200,29 +195,24 @@ spRel platform n
 
 
 firstxmm :: RegNo
-firstxmm  = 16
+firstxmm = 16
 
---  on 32bit platformOSs, only the first 8 XMM/YMM/ZMM registers are available
-lastxmm :: Platform -> RegNo
-lastxmm platform
- | target32Bit platform = firstxmm + 7  -- xmm0 - xmmm7
- | otherwise            = firstxmm + 15 -- xmm0 -xmm15
+lastxmm :: RegNo
+lastxmm = firstxmm + 15 -- xmm0 - xmm15
 
-lastint :: Platform -> RegNo
-lastint platform
- | target32Bit platform = 7 -- not %r8..%r15
- | otherwise            = 15
+lastint :: RegNo
+lastint = 15
 
-intregnos :: Platform -> [RegNo]
-intregnos platform = [0 .. lastint platform]
+intregnos :: [RegNo]
+intregnos = [0 .. lastint]
 
 
 
-xmmregnos :: Platform -> [RegNo]
-xmmregnos platform = [firstxmm  .. lastxmm platform]
+xmmregnos :: [RegNo]
+xmmregnos = [firstxmm  .. lastxmm]
 
-floatregnos :: Platform -> [RegNo]
-floatregnos platform = xmmregnos platform
+floatregnos :: [RegNo]
+floatregnos = xmmregnos
 
 -- argRegs is the set of regs which are read for an n-argument call to C.
 -- For archs which pass all args on the stack (x86), is empty.
@@ -231,37 +221,34 @@ argRegs :: RegNo -> [Reg]
 argRegs _       = panic "MachRegs.argRegs(x86): should not be used!"
 
 -- | The complete set of machine registers.
-allMachRegNos :: Platform -> [RegNo]
-allMachRegNos platform = intregnos platform ++ floatregnos platform
+allMachRegNos :: [RegNo]
+allMachRegNos = intregnos ++ floatregnos
 
 -- | Take the class of a register.
 {-# INLINE classOfRealReg #-}
-classOfRealReg :: Platform -> RealReg -> RegClass
+classOfRealReg :: RealReg -> RegClass
 -- On x86, we might want to have an 8-bit RegClass, which would
 -- contain just regs 1-4 (the others don't have 8-bit versions).
 -- However, we can get away without this at the moment because the
 -- only allocatable integer regs are also 8-bit compatible (1, 3, 4).
-classOfRealReg platform reg
+classOfRealReg reg
     = case reg of
         RealRegSingle i
-            | i <= lastint platform -> RcInteger
-            | i <= lastxmm platform -> RcDouble
-            | otherwise             -> panic "X86.Reg.classOfRealReg registerSingle too high"
+            | i <= lastint -> RcInteger
+            | i <= lastxmm -> RcDouble
+            | otherwise -> panic "X86.Reg.classOfRealReg registerSingle too high"
         _   -> panic "X86.Regs.classOfRealReg: RegPairs on this arch"
 
 -- | Get the name of the register with this number.
 -- NOTE: fixme, we dont track which "way" the XMM registers are used
-showReg :: Platform -> RegNo -> String
-showReg platform n
-        | n >= firstxmm && n <= lastxmm  platform = "%xmm" ++ show (n-firstxmm)
+showReg :: RegNo -> String
+showReg n
+        | n >= firstxmm && n <= lastxmm = "%xmm" ++ show (n-firstxmm)
         | n >= 8   && n < firstxmm      = "%r" ++ show n
-        | otherwise      = regNames platform A.! n
+        | otherwise      = regNames A.! n
 
-regNames :: Platform -> A.Array Int String
-regNames platform
-    = if target32Bit platform
-      then A.listArray (0,8) ["%eax", "%ebx", "%ecx", "%edx", "%esi", "%edi", "%ebp", "%esp"]
-      else A.listArray (0,8) ["%rax", "%rbx", "%rcx", "%rdx", "%rsi", "%rdi", "%rbp", "%rsp"]
+regNames :: A.Array Int String
+regNames = A.listArray (0,8) ["%rax", "%rbx", "%rcx", "%rdx", "%rsi", "%rdi", "%rbp", "%rsp"]
 
 
 
@@ -383,7 +370,6 @@ xmm n = regSingle (firstxmm+n)
 callClobberedRegs       :: Platform -> [Reg]
 -- caller-saves registers
 callClobberedRegs platform
- | target32Bit platform = [eax,ecx,edx] ++ map regSingle (floatregnos platform)
  | platformOS platform == OSMinGW32
    = [rax,rcx,rdx,r8,r9,r10,r11]
    -- Only xmm0-5 are caller-saves registers on 64bit windows.
@@ -394,7 +380,7 @@ callClobberedRegs platform
     -- all xmm regs are caller-saves
     -- caller-saves registers
     = [rax,rcx,rdx,rsi,rdi,r8,r9,r10,r11]
-   ++ map regSingle (floatregnos platform)
+   ++ map regSingle floatregnos
 
 allArgRegs :: Platform -> [(Reg, Reg)]
 allArgRegs platform
@@ -404,7 +390,7 @@ allArgRegs platform
 
 allIntArgRegs :: Platform -> [Reg]
 allIntArgRegs platform
- | (platformOS platform == OSMinGW32) || target32Bit platform
+ | platformOS platform == OSMinGW32
     = panic "X86.Regs.allIntArgRegs: not defined for this platform"
  | otherwise = [rdi,rsi,rdx,rcx,r8,r9]
 
@@ -421,10 +407,8 @@ allFPArgRegs platform
 -- Machine registers which might be clobbered by instructions that
 -- generate results into fixed registers, or need arguments in a fixed
 -- register.
-instrClobberedRegs :: Platform -> [Reg]
-instrClobberedRegs platform
- | target32Bit platform = [ eax, ecx, edx ]
- | otherwise            = [ rax, rcx, rdx ]
+instrClobberedRegs :: [Reg]
+instrClobberedRegs = [ rax, rcx, rdx ]
 
 --
 
@@ -434,5 +418,5 @@ instrClobberedRegs platform
 allocatableRegs :: Platform -> [RealReg]
 allocatableRegs platform
    = let isFree i = freeReg platform i
-     in  map RealRegSingle $ filter isFree (allMachRegNos platform)
+     in  map RealRegSingle $ filter isFree allMachRegNos
 

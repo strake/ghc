@@ -1306,14 +1306,7 @@ generateCCall d0 s p (CCallSpec target cconv safety) fn args_r_to_l
                  StaticTarget _ _ _ False ->
                    panic "generateCCall: unexpected FFI value import"
                  StaticTarget _ target _ True ->
-                   Just (LitLabel target mb_size IsFunction)
-                   where
-                      mb_size
-                          | OSMinGW32 <- platformOS platform
-                          , StdCallConv <- cconv
-                          = Just (fromIntegral a_reps_sizeW * platformWordSizeInBytes platform)
-                          | otherwise
-                          = Nothing
+                   Just (LitLabel target Nothing IsFunction)
 
      let
          is_static = isJust maybe_static_target
