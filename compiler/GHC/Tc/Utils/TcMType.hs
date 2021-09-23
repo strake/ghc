@@ -70,8 +70,7 @@ module GHC.Tc.Utils.TcMType (
   -- Zonking and tidying
   zonkTidyTcType, zonkTidyTcTypes, zonkTidyOrigin,
   tidyEvVar, tidyCt, tidyHole, tidySkolemInfo,
-    zonkTcTyVar, zonkTcTyVars,
-  zonkTcTyVarToTyVar, zonkTyVarTyVarPairs,
+  zonkTcTyVar, zonkTcTyVarToTyVar, zonkTyVarTyVarPairs,
   zonkTyCoVarsAndFV, zonkTcTypeAndFV, zonkDTyCoVarSetAndFV,
   zonkTyCoVarsAndFVList,
   candidateQTyVarsOfType,  candidateQTyVarsOfKind,
@@ -135,7 +134,11 @@ import GHC.Types.Basic ( TypeOrKind(..) )
 import GHC.Data.Maybe
 
 import Control.Monad
+import Control.Monad.Trans.Class (lift)
+import Control.Monad.Trans.State (StateT (..))
 import Data.Functor.Reader.Class
+import Data.Functor.State.Class (get)
+import Data.Tuple       ( swap )
 
 {-
 ************************************************************************
@@ -1977,9 +1980,6 @@ zonkTyCoVarsAndFVList :: MonadIO m => [TyCoVar] -> m [TyCoVar]
 zonkTyCoVarsAndFVList tycovars
   = tyCoVarsOfTypesList <$> traverse zonkTyCoVar tycovars
 
-zonkTcTyVars :: (MonadIO m, Traversable t) => t TcTyVar -> m (t TcType)
-zonkTcTyVars = traverse zonkTcTyVar
-
 -----------------  Types
 zonkTyCoVarKind :: MonadIO m => TyCoVar -> m TyCoVar
 zonkTyCoVarKind = tyVarKindL zonkTcType
@@ -2206,45 +2206,35 @@ But c.f Note [Sharing when zonking to Type] in GHC.Tc.Utils.Zonk.
 ************************************************************************
 -}
 
-zonkTidyTcType :: TidyEnv -> TcType -> TcM (TidyEnv, TcType)
-zonkTidyTcType env ty = do { ty' <- zonkTcType ty
-                           ; return (tidyOpenType env ty') }
+zonkTidyTcType :: MonadIO m => TcType -> StateT TidyEnv m TcType
+zonkTidyTcType ty = StateT \ env -> swap . tidyOpenType env <$> zonkTcType ty
 
-zonkTidyTcTypes :: TidyEnv -> [TcType] -> TcM (TidyEnv, [TcType])
-zonkTidyTcTypes = zonkTidyTcTypes' []
-  where zonkTidyTcTypes' zs env [] = return (env, reverse zs)
-        zonkTidyTcTypes' zs env (ty:tys)
-          = do { (env', ty') <- zonkTidyTcType env ty
-               ; zonkTidyTcTypes' (ty':zs) env' tys }
+zonkTidyTcTypes :: (Traversable f, MonadIO m) => f TcType -> StateT TidyEnv m (f TcType)
+zonkTidyTcTypes = traverse zonkTidyTcType
 
-zonkTidyOrigin :: TidyEnv -> CtOrigin -> TcM (TidyEnv, CtOrigin)
-zonkTidyOrigin env (GivenOrigin skol_info)
-  = do { skol_info1 <- zonkSkolemInfo skol_info
-       ; let skol_info2 = tidySkolemInfo env skol_info1
-       ; return (env, GivenOrigin skol_info2) }
-zonkTidyOrigin env orig@(TypeEqOrigin { uo_actual   = act
-                                      , uo_expected = exp })
-  = do { (env1, act') <- zonkTidyTcType env  act
-       ; (env2, exp') <- zonkTidyTcType env1 exp
-       ; return ( env2, orig { uo_actual   = act'
-                             , uo_expected = exp' }) }
-zonkTidyOrigin env (KindEqOrigin ty1 m_ty2 orig t_or_k)
-  = do { (env1, ty1')   <- zonkTidyTcType env  ty1
-       ; (env2, m_ty2') <- case m_ty2 of
-                             Just ty2 -> fmap Just <$> zonkTidyTcType env1 ty2
-                             Nothing  -> return (env1, Nothing)
-       ; (env3, orig')  <- zonkTidyOrigin env2 orig
-       ; return (env3, KindEqOrigin ty1' m_ty2' orig' t_or_k) }
-zonkTidyOrigin env (FunDepOrigin1 p1 o1 l1 p2 o2 l2)
-  = do { (env1, p1') <- zonkTidyTcType env  p1
-       ; (env2, p2') <- zonkTidyTcType env1 p2
-       ; return (env2, FunDepOrigin1 p1' o1 l1 p2' o2 l2) }
-zonkTidyOrigin env (FunDepOrigin2 p1 o1 p2 l2)
-  = do { (env1, p1') <- zonkTidyTcType env  p1
-       ; (env2, p2') <- zonkTidyTcType env1 p2
-       ; (env3, o1') <- zonkTidyOrigin env2 o1
-       ; return (env3, FunDepOrigin2 p1' o1' p2' l2) }
-zonkTidyOrigin env orig = return (env, orig)
+zonkTidyOrigin :: MonadIO m => CtOrigin -> StateT TidyEnv m CtOrigin
+zonkTidyOrigin (GivenOrigin skol_info) = do
+  env <- get
+  lift $ GivenOrigin . tidySkolemInfo env <$> zonkSkolemInfo skol_info
+zonkTidyOrigin orig@(TypeEqOrigin { uo_actual   = act, uo_expected = exp }) =
+  [ orig { uo_actual = act', uo_expected = exp' }
+  | act' <- zonkTidyTcType act
+  , exp' <- zonkTidyTcType exp ]
+zonkTidyOrigin (KindEqOrigin ty1 m_ty2 orig t_or_k) =
+  [ KindEqOrigin ty1' m_ty2' orig' t_or_k
+  | ty1'   <- zonkTidyTcType ty1
+  , m_ty2' <- traverse zonkTidyTcType m_ty2
+  , orig'  <- zonkTidyOrigin orig ]
+zonkTidyOrigin (FunDepOrigin1 p1 o1 l1 p2 o2 l2) =
+  [ FunDepOrigin1 p1' o1 l1 p2' o2 l2
+  | p1' <- zonkTidyTcType p1
+  , p2' <- zonkTidyTcType p2 ]
+zonkTidyOrigin (FunDepOrigin2 p1 o1 p2 l2) =
+  [ FunDepOrigin2 p1' o1' p2' l2
+  | p1' <- zonkTidyTcType p1
+  , p2' <- zonkTidyTcType p2
+  , o1' <- zonkTidyOrigin o1 ]
+zonkTidyOrigin orig = pure orig
 
 ----------------
 tidyCt :: TidyEnv -> Ct -> Ct

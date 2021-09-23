@@ -141,8 +141,7 @@ tcLookupImported_maybe :: Name -> TcM (MaybeErr MsgDoc TyThing)
 -- Returns (Failed err) if we can't find the interface file for the thing
 tcLookupImported_maybe name
   = do  { hsc_env <- getTopEnv
-        ; mb_thing <- liftIO (lookupType hsc_env name)
-        ; case mb_thing of
+        ; liftIO (lookupType hsc_env name) >>= \ case
             Just thing -> return (Succeeded thing)
             Nothing    -> tcImportDecl_maybe name }
 
@@ -289,10 +288,9 @@ loadSrcInterface :: SDoc
                  -> RnM ModIface
 
 loadSrcInterface doc mod want_boot maybe_pkg
-  = do { res <- loadSrcInterface_maybe doc mod want_boot maybe_pkg
-       ; case res of
+  = loadSrcInterface_maybe doc mod want_boot maybe_pkg >>= \case
            Failed err      -> failWithTc err
-           Succeeded iface -> return iface }
+           Succeeded iface -> return iface
 
 -- | Like 'loadSrcInterface', but returns a 'MaybeErr'.
 loadSrcInterface_maybe :: SDoc
@@ -308,8 +306,7 @@ loadSrcInterface_maybe doc mod want_boot maybe_pkg
   -- interface; it will call the Finder again, but the ModLocation will be
   -- cached from the first search.
   = do { hsc_env <- getTopEnv
-       ; res <- liftIO $ findImportedModule hsc_env mod maybe_pkg
-       ; case res of
+       ; liftIO (findImportedModule hsc_env mod maybe_pkg) >>= \ case
            Found _ mod -> initIfaceTcRn $ loadInterface doc mod (ImportByUser want_boot)
            -- TODO: Make sure this error message is good
            err         -> return (Failed (cannotFindModule (hsc_dflags hsc_env) mod err)) }
@@ -972,8 +969,7 @@ findAndReadIface doc_str mod wanted_mod_with_insts hi_boot_file
                         (_, Just indef_mod) ->
                           instModuleToModule (pkgState dflags)
                             (uninstantiateInstantiatedModule indef_mod)
-              read_result <- readIface wanted_mod file_path
-              case read_result of
+              readIface wanted_mod file_path >>= \ case
                 Failed err -> return (Failed (badIfaceFile file_path err))
                 Succeeded iface -> return (Succeeded (iface, file_path))
                             -- Don't forget to fill in the package name...
@@ -987,8 +983,7 @@ findAndReadIface doc_str mod wanted_mod_with_insts hi_boot_file
                   let ref = canGenerateDynamicToo dflags
                       dynFilePath = addBootSuffix_maybe hi_boot_file
                                   $ replaceExtension filePath (dynHiSuf dflags)
-                  r <- read_file dynFilePath
-                  case r of
+                  read_file dynFilePath >>= \ case
                       Succeeded (dynIface, _)
                        | mi_mod_hash (mi_final_exts iface) == mi_mod_hash (mi_final_exts dynIface) ->
                           return ()
@@ -1015,22 +1010,18 @@ readIface :: Module -> FilePath
         -- Succeeded iface <=> successfully found and parsed
 
 readIface wanted_mod file_path
-  = do  { res <- tryMostM $
-                 readBinIface CheckHiWay QuietBinIFace file_path
-        ; case res of
+  = tryMostM (readBinIface CheckHiWay QuietBinIFace file_path) <₪> \ case
             Right iface
                 -- NB: This check is NOT just a sanity check, it is
                 -- critical for correctness of recompilation checking
                 -- (it lets us tell when -this-unit-id has changed.)
-                | wanted_mod == actual_mod
-                                -> return (Succeeded iface)
-                | otherwise     -> return (Failed err)
+                | wanted_mod == actual_mod -> Succeeded iface
+                | otherwise -> Failed err
                 where
                   actual_mod = mi_module iface
                   err = hiModuleNameMismatchWarn wanted_mod actual_mod
 
-            Left exn    -> return (Failed (text (showException exn)))
-    }
+            Left exn -> Failed (text (showException exn))
 
 {-
 *********************************************************

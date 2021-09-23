@@ -70,8 +70,10 @@ import GHC.Utils.Panic
 import GHC.Utils.Panic.Plain
 import qualified GHC.LanguageExtensions as LangExt
 
-import Data.Maybe( isNothing )
 import Control.Monad
+import Data.Maybe( isNothing )
+import Control.Monad.Trans.Class ( lift )
+import Control.Monad.Trans.State ( StateT (..) )
 
 {-
 ************************************************************************
@@ -204,10 +206,10 @@ matchExpectedFunTys herald arity orig_ty thing_inside
                          {- Not a good origin at all :-( -} }
 
     ------------
-    mk_ctxt :: [ExpSigmaType] -> TcType -> TidyEnv -> TcM (TidyEnv, MsgDoc)
-    mk_ctxt arg_tys res_ty env
-      = zonkTidyTcType env (mkVisFunTys arg_tys' res_ty) <₪> \ (env', ty) ->
-        (env', mk_fun_tys_msg herald ty arity)
+    mk_ctxt :: [ExpSigmaType] -> TcType -> StateT TidyEnv TcM MsgDoc
+    mk_ctxt arg_tys res_ty
+      = zonkTidyTcType (mkVisFunTys arg_tys' res_ty) <₪> \ ty ->
+        mk_fun_tys_msg herald ty arity
       where
         arg_tys' = checkingExpType "matchExpectedFunTys" <$> reverse arg_tys
             -- this is safe b/c we're called from "go"
@@ -330,10 +332,10 @@ matchActualFunTysPart herald ct_orig mb_thing
       , co <- unifyType mb_thing fun_ty unif_fun_ty ]
 
     ------------
-    mk_ctxt :: [TcType] -> TcType -> TidyEnv -> TcM (TidyEnv, MsgDoc)
-    mk_ctxt arg_tys res_ty env
-      = zonkTidyTcType env (mkVisFunTys (reverse arg_tys) res_ty) <₪> \ (env', ty) ->
-        (env', mk_fun_tys_msg herald ty n_val_args_in_call)
+    mk_ctxt :: [TcType] -> TcType -> StateT TidyEnv TcM MsgDoc
+    mk_ctxt arg_tys res_ty
+      = zonkTidyTcType (mkVisFunTys (reverse arg_tys) res_ty) <₪> \ ty ->
+        mk_fun_tys_msg herald ty n_val_args_in_call
 
 mk_fun_tys_msg :: SDoc -> TcType -> Arity -> SDoc
 mk_fun_tys_msg herald ty n_args_in_call
@@ -594,16 +596,15 @@ addSubTypeCtxt ty_actual ty_expected
  | otherwise
  = addErrCtxtM mk_msg
   where
-    mk_msg tidy_env =
-      [ (tidy_env, msg)
-      | (tidy_env, ty_actual)   <- zonkTidyTcType tidy_env ty_actual
-                   -- might not be filled if we're debugging. ugh.
-      , (tidy_env, ty_expected) <- readExpType_maybe ty_expected >>= \ case
-                                          Just ty -> fmap mkCheckExpType <$>
-                                                     zonkTidyTcType tidy_env ty
-                                          Nothing -> pure (tidy_env, ty_expected)
-      , ty_expected             <- readExpType ty_expected
-      , (tidy_env, ty_expected) <- zonkTidyTcType tidy_env ty_expected
+    mk_msg =
+      [ msg
+      | ty_actual   <- zonkTidyTcType ty_actual
+        -- might not be filled if we're debugging. ugh.
+      , ty_expected <- lift (readExpType_maybe ty_expected) >>= \ case
+            Just ty -> mkCheckExpType <$> zonkTidyTcType ty
+            Nothing -> pure ty_expected
+      , ty_expected <- lift (readExpType ty_expected)
+      , ty_expected <- zonkTidyTcType ty_expected
       , let msg = vcat
               [ hang (text "When checking that:") 4 (ppr ty_actual)
               , nest 2 (hang (text "is more polymorphic than:") 2 (ppr ty_expected)) ] ]

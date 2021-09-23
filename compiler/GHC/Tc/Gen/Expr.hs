@@ -89,7 +89,10 @@ import GHC.Types.Unique.Set ( nonDetEltsUniqSet )
 import qualified GHC.LanguageExtensions as LangExt
 
 import Control.Monad
+import Control.Monad.Trans.Class (lift)
+import Control.Monad.Trans.State (evalStateT)
 import Data.List (sortBy, groupBy, intersect)
+import Data.List.NonEmpty (NonEmpty (..))
 import qualified Data.Set as Set
 
 {-
@@ -1360,7 +1363,7 @@ tcArgs fun orig_fun_ty orig_args
                     , inner_res_ty ) }
 
     ty_app_err ty arg
-      = do { (_, ty) <- zonkTidyTcType emptyTidyEnv ty
+      = do { ty <- zonkTidyTcType ty `evalStateT` emptyTidyEnv
            ; failWith $
                text "Cannot apply expression of type" <+> quotes (ppr ty) $$
                text "to a visible type argument" <+> quotes (ppr arg) }
@@ -1792,11 +1795,8 @@ tcCheckRecSelId rn_expr (Ambiguous _ lbl) res_ty
 
 ------------------------
 tcInferRecSelId :: AmbiguousFieldOcc GhcRn -> TcM (HsExpr GhcTc, TcRhoType)
-tcInferRecSelId (Unambiguous sel (L _ lbl))
-  = do { (expr', ty) <- tc_infer_id lbl sel
-       ; return (expr', ty) }
-tcInferRecSelId (Ambiguous _ lbl)
-  = ambiguousSelector lbl
+tcInferRecSelId (Unambiguous sel (L _ lbl)) = tc_infer_id lbl sel
+tcInferRecSelId (Ambiguous _ lbl) = ambiguousSelector lbl
 
 ------------------------
 tcInferId :: Name -> TcM (HsExpr GhcTc, TcSigmaType)
@@ -2217,8 +2217,9 @@ ambiguousSelector (L _ rdr)
 addAmbiguousNameErr :: RdrName -> TcM ()
 addAmbiguousNameErr rdr
   = do { env <- getGlobalRdrEnv
-       ; let gres = lookupGRE_RdrName rdr env
-       ; setErrCtxt [] $ addNameClashErrRn rdr gres}
+       ; case lookupGRE_RdrName rdr env of
+            gre:gres -> setErrCtxt [] $ addNameClashErrRn rdr (gre:|gres)
+            _ -> pure () }
 
 -- Disambiguate the fields in a record update.
 -- See Note [Disambiguating record fields]
@@ -2520,7 +2521,7 @@ addFunResCtxt :: Bool  -- There is at least one argument
 --
 -- Used for naked variables too; but with has_args = False
 addFunResCtxt has_args fun fun_res_ty env_ty
-  = addLandmarkErrCtxtM (\env -> (env, ) <$> mk_msg)
+  = addLandmarkErrCtxtM (lift mk_msg)
       -- NB: use a landmark error context, so that an empty context
       -- doesn't suppress some more useful context
   where

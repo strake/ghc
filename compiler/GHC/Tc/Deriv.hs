@@ -39,7 +39,6 @@ import GHC.Core.TyCo.Ppr ( pprTyVars )
 import GHC.Rename.Names  ( extendGlobalRdrEnvRn )
 import GHC.Rename.Bind
 import GHC.Rename.Env
-import GHC.Rename.Module ( addTcgDUs )
 import GHC.Types.Avail
 
 import GHC.Core.Unify( tcUnifyTy )
@@ -241,7 +240,7 @@ tcDeriving deriv_infos deriv_decls
         ; gbl_env <- tcExtendLocalInstEnv (map iSpec (toList inst_info))
                                           getGblEnv
         ; let all_dus = rn_dus `plusDU` usesOnly (NameSet.mkFVs $ concat fvs)
-        ; return (addTcgDUs gbl_env all_dus, inst_info, rn_binds) } }
+        ; return (over tcg_dusL (`plusDU` all_dus) gbl_env, inst_info, rn_binds) } }
   where
     ddump_deriving :: Bag (InstInfo GhcRn) -> HsValBinds GhcRn
                    -> Bag FamInst             -- ^ Rep type family instances

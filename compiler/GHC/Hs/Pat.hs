@@ -17,6 +17,8 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 
+#include "lens.h"
+
 module GHC.Hs.Pat (
         Pat(..), LPat,
         ConPatTc (..),
@@ -25,7 +27,7 @@ module GHC.Hs.Pat (
         ConLikeP,
 
         HsConPatDetails, hsConPatArgs,
-        HsRecFields(..), HsRecField'(..), LHsRecField',
+        HsRecFields(..), HsRecField'(..), LHsRecField', hsRecFieldLblL, hsRecFieldArgL, hsRecPunL,
         HsRecField, LHsRecField,
         HsRecUpdField, LHsRecUpdField,
         hsRecFields, hsRecFieldSel, hsRecFieldId, hsRecFieldsArgs,
@@ -406,6 +408,9 @@ data HsRecField' id arg = HsRecField {
         hsRecPun      :: Bool           -- ^ Note [Punning]
   } deriving (Data, Functor, Foldable, Traversable)
 
+LENS_FIELD(hsRecFieldLblL, hsRecFieldLbl)
+LENS_FIELD(hsRecFieldArgL, hsRecFieldArg)
+LENS_FIELD(hsRecPunL, hsRecPun)
 
 -- Note [Punning]
 -- ~~~~~~~~~~~~~~

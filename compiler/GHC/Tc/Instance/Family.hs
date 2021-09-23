@@ -627,9 +627,7 @@ tcExtendLocalFamInstEnv fam_insts thing_inside
                                        (tcg_fam_inst_env env, tcg_fam_insts env)
                                        fam_insts
 
-      ; let env' = env { tcg_fam_insts    = fam_insts'
-                       , tcg_fam_inst_env = inst_env' }
-      ; setGblEnv env' thing_inside
+      ; setGblEnv env { tcg_fam_insts = fam_insts', tcg_fam_inst_env = inst_env' } thing_inside
       }
 
 loadDependentFamInstModules :: [FamInst] -> TcM ()

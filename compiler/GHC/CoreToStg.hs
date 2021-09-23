@@ -48,7 +48,6 @@ import GHC.Types.SrcLoc    ( mkGeneralSrcSpan )
 import GHC.Builtin.Names   ( unsafeEqualityProofName )
 
 import Data.List.NonEmpty (nonEmpty, toList)
-import Control.Monad (ap)
 import qualified Data.Set as Set
 
 -- Note [Live vs free]
@@ -873,7 +872,7 @@ thenCts m k = CtsM $ \dflags env
 
 instance Applicative CtsM where
     pure = returnCts
-    (<*>) = ap
+    CtsM x <*> CtsM y = CtsM ((liftA2 . liftA2) id x y)
 
 instance Monad CtsM where
     (>>=)  = thenCts

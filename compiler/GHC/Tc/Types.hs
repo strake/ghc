@@ -827,7 +827,7 @@ LENS_FIELD(tcl_bndrsL, tcl_bndrs)
 LENS_FIELD(tcl_lieL, tcl_lie)
 LENS_FIELD(tcl_errsL, tcl_errs)
 
-type ErrCtxt = (Bool, TidyEnv -> TcM (TidyEnv, MsgDoc))
+type ErrCtxt = (Bool, TidyEnv -> TcM (MsgDoc, TidyEnv))
         -- Monadic so that we have a chance
         -- to deal with bound type variables just before error
         -- message construction

@@ -194,6 +194,7 @@ import GHC.Types.SourceFile
 import qualified GHC.LanguageExtensions as LangExt
 
 import Control.Monad
+import Control.Monad.Trans.State (StateT (..))
 import Data.Functor.Reader.Class
 import Data.IORef
 import qualified Data.Map as Map
@@ -475,16 +476,16 @@ goptM flag = gopt flag <$> getDynFlags
 woptM :: (Functor m, HasDynFlags m) => WarningFlag -> m Bool
 woptM flag = wopt flag <$> getDynFlags
 
-setXOptM :: LangExt.Extension -> TcRnIf gbl lcl a -> TcRnIf gbl lcl a
+setXOptM :: (IsLocal f f, EnvType f ~ Env gbl lcl) => LangExt.Extension -> f a -> f a
 setXOptM flag = locally (env_topL . hsc_dflagsL) (`xopt_set` flag)
 
-unsetXOptM :: LangExt.Extension -> TcRnIf gbl lcl a -> TcRnIf gbl lcl a
+unsetXOptM :: (IsLocal f f, EnvType f ~ Env gbl lcl) => LangExt.Extension -> f a -> f a
 unsetXOptM flag = locally (env_topL . hsc_dflagsL) (`xopt_unset` flag)
 
-unsetGOptM :: GeneralFlag -> TcRnIf gbl lcl a -> TcRnIf gbl lcl a
+unsetGOptM :: (IsLocal f f, EnvType f ~ Env gbl lcl) => GeneralFlag -> f a -> f a
 unsetGOptM flag = locally (env_topL . hsc_dflagsL) (`gopt_unset` flag)
 
-unsetWOptM :: WarningFlag -> TcRnIf gbl lcl a -> TcRnIf gbl lcl a
+unsetWOptM :: (IsLocal f f, EnvType f ~ Env gbl lcl) => WarningFlag -> f a -> f a
 unsetWOptM flag = locally (env_topL . hsc_dflagsL) (`wopt_unset` flag)
 
 -- | Do it flag is true
@@ -577,13 +578,10 @@ newArrowScope
 
 -- Return to the stored environment (from the enclosing proc)
 escapeArrowScope :: (IsLocal f f, EnvType f ~ Env gbl TcLclEnv) => f a -> f a
-escapeArrowScope
-  = updLclEnv $ \ env ->
-    case tcl_arrow_ctxt env of
-      NoArrowCtxt       -> env
-      ArrowCtxt rdr_env lie -> env { tcl_arrow_ctxt = NoArrowCtxt
-                                   , tcl_lie = lie
-                                   , tcl_rdr = rdr_env }
+escapeArrowScope = updLclEnv $ \ env -> case tcl_arrow_ctxt env of
+    NoArrowCtxt       -> env
+    ArrowCtxt rdr_env lie -> env
+      { tcl_arrow_ctxt = NoArrowCtxt, tcl_lie = lie, tcl_rdr = rdr_env }
 
 {-
 ************************************************************************
@@ -978,23 +976,23 @@ setErrCtxt = locally (env_lclL . tcl_ctxtL) . pure
 -- | Add a fixed message to the error context. This message should not
 -- do any tidying.
 addErrCtxt :: (IsLocal f f, EnvType f ~ Env gbl TcLclEnv) => MsgDoc -> f a -> f a
-addErrCtxt msg = addErrCtxtM (pure . flip (,) msg)
+addErrCtxt = addErrCtxtM . pure
 
 -- | Add a message to the error context. This message may do tidying.
-addErrCtxtM :: (IsLocal f f, EnvType f ~ Env gbl TcLclEnv) => (TidyEnv -> TcM (TidyEnv, MsgDoc)) -> f a -> f a
-addErrCtxtM ctxt = locally (env_lclL . tcl_ctxtL) ((False, ctxt) :)
+addErrCtxtM :: (IsLocal f f, EnvType f ~ Env gbl TcLclEnv) => StateT TidyEnv TcM MsgDoc -> f a -> f a
+addErrCtxtM ctxt = locally (env_lclL . tcl_ctxtL) ((False, runStateT ctxt) :)
 
 -- | Add a fixed landmark message to the error context. A landmark
 -- message is always sure to be reported, even if there is a lot of
 -- context. It also doesn't count toward the maximum number of contexts
 -- reported.
 addLandmarkErrCtxt :: (IsLocal f f, EnvType f ~ Env gbl TcLclEnv) => MsgDoc -> f a -> f a
-addLandmarkErrCtxt msg = addLandmarkErrCtxtM (pure . flip (,) msg)
+addLandmarkErrCtxt = addLandmarkErrCtxtM . pure
 
 -- | Variant of 'addLandmarkErrCtxt' that allows for monadic operations
 -- and tidying.
-addLandmarkErrCtxtM :: (IsLocal f f, EnvType f ~ Env gbl TcLclEnv) => (TidyEnv -> TcM (TidyEnv, MsgDoc)) -> f a -> f a
-addLandmarkErrCtxtM ctxt = locally (env_lclL . tcl_ctxtL) ((True, ctxt) :)
+addLandmarkErrCtxtM :: (IsLocal f f, EnvType f ~ Env gbl TcLclEnv) => StateT TidyEnv TcM MsgDoc -> f a -> f a
+addLandmarkErrCtxtM ctxt = locally (env_lclL . tcl_ctxtL) ((True, runStateT ctxt) :)
 
 popErrCtxt :: (IsLocal f f, EnvType f ~ Env gbl TcLclEnv) => f a -> f a
 popErrCtxt = locally (env_lclL . tcl_ctxtL) (drop 1)
@@ -1322,12 +1320,12 @@ add_warn_at reason loc msg extra_info
         Other helper functions
 -}
 
-add_err_tcm :: (HasDynFlags m, IsReader m, MonadIO m, EnvType m ~ Env TcGblEnv TcLclEnv) => a -> MsgDoc -> SrcSpan -> [(Bool, a -> m (a, SDoc))] -> m ()
+add_err_tcm :: (HasDynFlags m, IsReader m, MonadIO m, EnvType m ~ Env TcGblEnv TcLclEnv) => a -> MsgDoc -> SrcSpan -> [(Bool, a -> m (SDoc, a))] -> m ()
 add_err_tcm tidy_env err_msg loc ctxt
  = do { err_info <- mkErrInfo tidy_env ctxt ;
         addLongErrAt loc err_msg err_info }
 
-mkErrInfo :: Monad m => a -> [(Bool, a -> m (a, SDoc))] -> m SDoc
+mkErrInfo :: Monad m => a -> [(Bool, a -> m (SDoc, a))] -> m SDoc
 -- Tidy the error info, trimming excessive contexts
 mkErrInfo
 --  = do
@@ -1337,11 +1335,11 @@ mkErrInfo
 --          else go dbg 0 env ctxts
  = go False 0
  where
-   go :: Monad m => Bool -> Int -> a -> [(Bool, a -> m (a, SDoc))] -> m SDoc
+   go :: Monad m => Bool -> Int -> a -> [(Bool, a -> m (SDoc, a))] -> m SDoc
    go _ _ _   [] = pure empty
    go dbg n env ((is_landmark, ctxt) : ctxts)
      | is_landmark || n < mAX_CONTEXTS -- Too verbose || dbg
-     = do { (env', msg) <- ctxt env
+     = do { (msg, env') <- ctxt env
           ; let n' | is_landmark = n | otherwise = n+1
           ; (msg $$) <$> go dbg n' env' ctxts }
      | otherwise

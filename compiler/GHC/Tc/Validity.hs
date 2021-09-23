@@ -70,6 +70,7 @@ import GHC.Data.Bag      ( emptyBag )
 import qualified GHC.LanguageExtensions as LangExt
 
 import Control.Monad
+import Control.Monad.Trans.State ( StateT (..), gets )
 import Data.List        ( (\\) )
 import qualified Data.List.NonEmpty as NE
 import Lens.Micro ( ix )
@@ -1366,11 +1367,10 @@ Flexibility check:
   generalized actually.
 -}
 
-checkThetaCtxt :: UserTypeCtxt -> ThetaType -> TidyEnv -> TcM (TidyEnv, SDoc)
-checkThetaCtxt ctxt θ env
-  = return ( env
-           , vcat [ text "In the context:" <+> pprTheta (tidyType env <$> θ)
-                  , text "While checking" <+> pprUserTypeCtxt ctxt ] )
+checkThetaCtxt :: UserTypeCtxt -> ThetaType -> StateT TidyEnv TcM SDoc
+checkThetaCtxt ctxt θ = gets \ env ->
+             vcat [ text "In the context:" <+> pprTheta (tidyType env <$> θ)
+                  , text "While checking" <+> pprUserTypeCtxt ctxt ]
 
 eqPredTyErr, predTupleErr, predIrredErr,
    predSuperClassErr, badQuantHeadErr :: TidyEnv -> PredType -> (TidyEnv, SDoc)

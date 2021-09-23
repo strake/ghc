@@ -169,6 +169,7 @@ import Data.Data ( Data )
 import qualified Data.Set as S
 import Control.DeepSeq
 import Control.Monad hiding ( mapAndUnzipM )
+import Control.Monad.Trans.Writer ( WriterT (..) )
 
 {-
 ************************************************************************
@@ -604,10 +605,10 @@ tc_rn_src_decls ds
                ; ev_binds1 <- simplifyTop lie1
 
                  -- Rename the splice expression, and get its supporting decls
-               ; (spliced_decls, splice_fvs) <- rnTopSpliceDecls splice
+               ; (spliced_decls, splice_fvs) <- runWriterT $ rnTopSpliceDecls splice
 
                  -- Glue them on the front of the remaining decls and loop
-               ; (setGblEnv :: _ -> TcRn _ -> TcRn _) (tcg_env `addTcgDUs` usesOnly splice_fvs) $
+               ; (setGblEnv :: _ -> TcRn _ -> TcRn _) (over tcg_dusL (`plusDU` usesOnly splice_fvs) tcg_env) $
                  addTopEvBinds ev_binds1 $ tc_rn_src_decls (spliced_decls ++ rest_ds)
                }
           }
@@ -1748,14 +1749,12 @@ check_main dflags tcg_env explicit_mod_hdr export_ies
         _ -> do    -- The module has one or more main functions in the export spec
           let mains = filterInsMains exportedMains mains_all
           case mains of
-            [] -> do  --
+            [] -> tcg_env <$ do  --
               traceTc "checkMain fail" ppr_mod_mainfn
               complain_no_main
-              return tcg_env
             [main_name] -> use_as_main main_name
-            _ -> do           -- multiple main functions are exported
-              addAmbiguousNameErr main_fn          -- issue error msg
-              return tcg_env
+            _ ->           -- multiple main functions are exported
+              tcg_env <$ addAmbiguousNameErr main_fn          -- issue error msg
   where
     mod         = tcg_mod tcg_env
     main_mod    = mainModIs dflags
@@ -1998,7 +1997,7 @@ runTcInteractive hsc_env thing_inside
                          , tcg_imports      = imports
                          }
 
-             lcl_env' = tcExtendLocalTypeEnv lcl_env lcl_ids
+             lcl_env' = over tcl_envL (`extendNameEnvList` lcl_ids) lcl_env
 
        ; setEnvs (gbl_env', lcl_env') thing_inside }
   where
@@ -2041,8 +2040,7 @@ types have free RuntimeUnk skolem variables, standing for unknown
 types.  If we don't register these free TyVars as global TyVars then
 the typechecker will try to quantify over them and fall over in
 skolemiseQuantifiedTyVar. so we must add any free TyVars to the
-typechecker's global TyVar set.  That is done by using
-tcExtendLocalTypeEnv.
+typechecker's global TyVar set.
 
 We do this by splitting out the Ids with open types, using 'is_closed'
 to do the partition.  The top-level things go in the global TypeEnv;
@@ -2158,7 +2156,7 @@ tcUserStmt :: GhciLStmt GhcPs -> TcM (PlanResult, FixityEnv)
 
 -- An expression typed at the prompt is treated very specially
 tcUserStmt (L loc (BodyStmt _ expr _ _))
-  = do  { (rn_expr, fvs) <- checkNoErrs (rnLExpr expr)
+  = do  { (rn_expr, fvs) <- checkNoErrs ((runWriterT . rnLExpr) expr)
                -- Don't try to typecheck if the renamer fails!
         ; ghciStep <- getGhciStepIO
         ; uniq <- newUnique
@@ -2299,10 +2297,8 @@ But for naked expressions, you will have
 -}
 
 tcUserStmt rdr_stmt@(L loc _)
-  = do { (([rn_stmt], fix_env), fvs) <- checkNoErrs $
-           rnStmts GhciStmtCtxt rnLExpr [rdr_stmt] $ \_ -> do
-             fix_env <- getFixityEnv
-             return (fix_env, emptyFVs)
+  = do { (([rn_stmt], fix_env), fvs) <- checkNoErrs $ runWriterT $
+           rnStmts GhciStmtCtxt rnLExpr [rdr_stmt] \_ -> getFixityEnv
             -- Don't try to typecheck if the renamer fails!
        ; traceRn "tcRnStmt" (vcat [ppr rdr_stmt, ppr rn_stmt, ppr fvs])
        ; rnDump rn_stmt ;
@@ -2460,7 +2456,7 @@ tcRnExpr :: HscEnv
          -> IO (Messages, Maybe Type)
 tcRnExpr hsc_env mode rdr_expr = runTcInteractive hsc_env
   [ snd $ normaliseType fam_envs Nominal ty
-  | (rn_expr, _fvs) <- rnLExpr rdr_expr
+  | (rn_expr, _fvs) <- (runWriterT . rnLExpr) rdr_expr
   , () <- failIfErrsM
 
         -- Now typecheck the expression, and generalise its type
@@ -2545,7 +2541,7 @@ tcRnType hsc_env flexi normalise rdr_type
   = runTcInteractive hsc_env $
     setXOptM LangExt.PolyKinds $   -- See Note [Kind-generalise in tcRnType]
     do { (HsWC { hswc_ext = wcs, hswc_body = rn_type }, _fvs)
-               <- rnHsWcType GHCiCtx (mkHsWildCardBndrs rdr_type)
+               <- runWriterT $ rnHsWcType GHCiCtx (mkHsWildCardBndrs rdr_type)
                   -- The type can have wild cards, but no implicit
                   -- generalisation; e.g.   :kind (T _)
        ; failIfErrsM

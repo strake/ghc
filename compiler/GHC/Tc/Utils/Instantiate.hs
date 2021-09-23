@@ -84,6 +84,8 @@ import GHC.Data.FastString
 
 import Data.List ( sortBy )
 import Control.Monad( unless )
+import Control.Monad.Trans.Class ( lift )
+import Control.Monad.Trans.State ( StateT (..), get )
 
 {-
 ************************************************************************
@@ -106,19 +108,17 @@ newMethodFromName
 -- 'newMethodFromName' is supposed to instantiate just the outer
 -- type variable and constraint
 
-newMethodFromName origin name ty_args
-  = do { id <- tcLookupId name
-              -- Use tcLookupId not tcLookupGlobalId; the method is almost
-              -- always a class op, but with -XRebindableSyntax GHC is
-              -- meant to find whatever thing is in scope, and that may
-              -- be an ordinary function.
+newMethodFromName origin name ty_args =
+  [ mkHsWrap wrap (HsVar noExtField (noLoc id))
+  | id <- tcLookupId name
+    -- Use tcLookupId not tcLookupGlobalId; the method is almost
+    -- always a class op, but with -XRebindableSyntax GHC is
+    -- meant to find whatever thing is in scope, and that may
+    -- be an ordinary function.
 
-       ; let ty = piResultTys (idType id) ty_args
-             (theta, _caller_knows_this) = tcSplitPhiTy ty
-       ; wrap <- assert (not (isForAllTy ty) && isSingleton theta) $
-                 instCall origin ty_args theta
-
-       ; return (mkHsWrap wrap (HsVar noExtField (noLoc id))) }
+  , let ty = piResultTys (idType id) ty_args
+        (theta, _caller_knows_this) = tcSplitPhiTy ty
+  , wrap <- assert (not (isForAllTy ty) && isSingleton theta) $ instCall origin ty_args theta ]
 
 {-
 ************************************************************************
@@ -551,29 +551,25 @@ newNonTrivialOverloadedLit :: CtOrigin
                            -> TcM (HsOverLit GhcTc)
 newNonTrivialOverloadedLit orig
   lit@(OverLit { ol_val = val, ol_witness = HsVar _ (L _ meth_name)
-               , ol_ext = rebindable }) res_ty
-  = do  { hs_lit <- mkOverLit val
-        ; let lit_ty = hsLitType hs_lit
-        ; (_, fi') <- tcSyntaxOp orig (mkRnSyntaxExpr meth_name)
+               , ol_ext = rebindable }) res_ty =
+  [ lit { ol_witness = witness, ol_ext = OverLitTc rebindable res_ty }
+  | hs_lit <- mkOverLit val
+  , let lit_ty = hsLitType hs_lit
+  , (_, fi') <- tcSyntaxOp orig (mkRnSyntaxExpr meth_name)
                                       [synKnownType lit_ty] res_ty $
                       \_ -> return ()
-        ; let L _ witness = nlHsSyntaxApps fi' [nlHsLit hs_lit]
-        ; res_ty <- readExpType res_ty
-        ; return (lit { ol_witness = witness
-                      , ol_ext = OverLitTc rebindable res_ty }) }
+  , let L _ witness = nlHsSyntaxApps fi' [nlHsLit hs_lit]
+  , res_ty <- readExpType res_ty ]
 newNonTrivialOverloadedLit _ lit _
   = pprPanic "newNonTrivialOverloadedLit" (ppr lit)
 
 ------------
 mkOverLit ::OverLitVal -> TcM (HsLit GhcTc)
 mkOverLit (HsIntegral i)
-  = do  { integer_ty <- tcMetaTy integerTyConName
-        ; return (HsInteger (il_text i)
-                            (il_value i) integer_ty) }
+  = HsInteger (il_text i) (il_value i) <$> tcMetaTy integerTyConName
 
 mkOverLit (HsFractional r)
-  = do  { rat_ty <- tcMetaTy rationalTyConName
-        ; return (HsRat noExtField r rat_ty) }
+  = HsRat noExtField r <$> tcMetaTy rationalTyConName
 
 mkOverLit (HsIsString src s) = return (HsString src s)
 
@@ -640,16 +636,15 @@ tcSyntaxName orig ty (std_nm, user_nm_expr) = do
      expr <- tcCheckExpr (L span user_nm_expr) sigma1
      return (std_nm, unLoc expr)
 
-syntaxNameCtxt :: HsExpr GhcRn -> CtOrigin -> Type -> TidyEnv
-               -> TcRn (TidyEnv, SDoc)
-syntaxNameCtxt name orig ty tidy_env
-  = do { inst_loc <- getCtLocM orig (Just TypeLevel)
-       ; let msg = vcat [ text "When checking that" <+> quotes (ppr name)
-                          <+> text "(needed by a syntactic construct)"
-                        , nest 2 (text "has the required type:"
-                                  <+> ppr (tidyType tidy_env ty))
-                        , nest 2 (pprCtLoc inst_loc) ]
-       ; return (tidy_env, msg) }
+syntaxNameCtxt :: HsExpr GhcRn -> CtOrigin -> Type -> StateT TidyEnv TcRn SDoc
+syntaxNameCtxt name orig ty =
+  [ vcat
+      [ text "When checking that" <+> quotes (ppr name)
+        <+> text "(needed by a syntactic construct)"
+      , nest 2 (text "has the required type:" <+> ppr (tidyType tidy_env ty))
+      , nest 2 (pprCtLoc inst_loc) ]
+  | inst_loc <- lift $ getCtLocM orig (Just TypeLevel)
+  , tidy_env <- get ]
 
 {-
 ************************************************************************
@@ -693,10 +688,9 @@ newClsInst overlap_mode dfun_name tvs theta clas tys
 
        ; oflag <- getOverlapFlag overlap_mode
        ; let inst = mkLocalInstance dfun oflag tvs' clas tys'
-       ; warnIfFlag Opt_WarnOrphans
+       ; inst <$ warnIfFlag Opt_WarnOrphans
                     (isOrphan (is_orphan inst))
-                    (instOrphWarn inst)
-       ; return inst }
+                    (instOrphWarn inst) }
 
 instOrphWarn :: ClsInst -> SDoc
 instOrphWarn inst

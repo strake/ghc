@@ -28,7 +28,7 @@ module GHC.Tc.Utils.Env(
         tcExtendTyVarEnv, tcExtendNameTyVarEnv,
         tcExtendLetEnv, tcExtendSigIds, tcExtendRecIds,
         tcExtendIdEnv, tcExtendIdEnv1, tcExtendIdEnv2,
-        tcExtendBinderStack, tcExtendLocalTypeEnv,
+        tcExtendBinderStack,
         isTypeClosedLetBndr,
 
         tcLookup, tcLookupLocated, tcLookupLocalIds,
@@ -561,9 +561,6 @@ tc_extend_local_env top_lvl extra_env thing_inside
                                 -- (GlobalRdrEnv handles the top level)
             , tcl_th_bndrs = extendNameEnvList th_bndrs  -- We only track Ids in tcl_th_bndrs
                                  [(n, thlvl) | (n, ATcId {}) <- pairs] }
-
-tcExtendLocalTypeEnv :: TcLclEnv -> [(Name, TcTyThing)] -> TcLclEnv
-tcExtendLocalTypeEnv = flip $ over tcl_envL . flip extendNameEnvList
 
 {- *********************************************************************
 *                                                                      *

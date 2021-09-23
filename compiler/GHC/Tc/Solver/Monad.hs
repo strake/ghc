@@ -50,7 +50,7 @@ module GHC.Tc.Solver.Monad (
     getSolvedDicts, setSolvedDicts,
 
     getInstEnvs, getFamInstEnvs,                -- Getting the environments
-    getTopEnv, getGblEnv, getLclEnv,
+    getTcEnv, getTopEnv, getGblEnv, getLclEnv,
     getTcEvBindsVar, getTcLevel,
     getTcEvTyCoVars, getTcEvBindsMap, setTcEvBindsMap,
     tcLookupClass, tcLookupId,
@@ -180,12 +180,13 @@ import GHC.Types.Unique.DFM
 import GHC.Data.Maybe
 
 import GHC.Core.Map
+import GHC.Utils.Monad
 import Control.Monad
 import Control.Monad.Trans.Reader (ReaderT (..))
-import GHC.Utils.Monad
 import Data.IORef
 import Data.Foldable (toList)
 import Data.Functor.Compose (Compose (..))
+import Data.Functor.Reader.Class (IsReader (..))
 
 #if defined(DEBUG)
 import GHC.Data.Graph.Directed
@@ -283,6 +284,11 @@ data WorkList
        , wl_implics :: Bag Implication  -- See Note [Residual implications]
     }
 
+LENS_FIELD(wl_eqsL, wl_eqs)
+LENS_FIELD(wl_funeqsL, wl_funeqs)
+LENS_FIELD(wl_restL, wl_rest)
+LENS_FIELD(wl_implicsL, wl_implics)
+
 appendWorkList :: WorkList -> WorkList -> WorkList
 appendWorkList
     (WL { wl_eqs = eqs1, wl_funeqs = funeqs1, wl_rest = rest1
@@ -311,39 +317,38 @@ workListWantedCount (WL { wl_eqs = eqs, wl_rest = rest })
      = isWantedCt ct
 
 extendWorkListEq :: Ct -> WorkList -> WorkList
-extendWorkListEq ct wl = wl { wl_eqs = ct : wl_eqs wl }
+extendWorkListEq = over wl_eqsL . (:)
 
 extendWorkListFunEq :: Ct -> WorkList -> WorkList
-extendWorkListFunEq ct wl = wl { wl_funeqs = ct : wl_funeqs wl }
+extendWorkListFunEq = over wl_funeqsL . (:)
 
 extendWorkListNonEq :: Ct -> WorkList -> WorkList
 -- Extension by non equality
-extendWorkListNonEq ct wl = wl { wl_rest = ct : wl_rest wl }
+extendWorkListNonEq = over wl_restL . (:)
 
 extendWorkListDeriveds :: [CtEvidence] -> WorkList -> WorkList
-extendWorkListDeriveds evs wl
-  = extendWorkListCts (map mkNonCanonical evs) wl
+extendWorkListDeriveds evs = extendWorkListCts (map mkNonCanonical evs)
 
 extendWorkListImplic :: Implication -> WorkList -> WorkList
-extendWorkListImplic implic wl = wl { wl_implics = implic `consBag` wl_implics wl }
+extendWorkListImplic = over wl_implicsL . consBag
 
 extendWorkListCt :: Ct -> WorkList -> WorkList
 -- Agnostic
-extendWorkListCt ct wl
+extendWorkListCt ct
  = case classifyPredType (ctPred ct) of
      EqPred NomEq ty1 _
        | Just tc <- tcTyConAppTyCon_maybe ty1
        , isTypeFamilyTyCon tc
-       -> extendWorkListFunEq ct wl
+       -> extendWorkListFunEq ct
 
      EqPred {}
-       -> extendWorkListEq ct wl
+       -> extendWorkListEq ct
 
      ClassPred cls _  -- See Note [Prioritise class equalities]
        |  isEqPredClass cls
-       -> extendWorkListEq ct wl
+       -> extendWorkListEq ct
 
-     _ -> extendWorkListNonEq ct wl
+     _ -> extendWorkListNonEq ct
 
 extendWorkListCts :: [Ct] -> WorkList -> WorkList
 -- Agnostic
@@ -2383,8 +2388,7 @@ lookupInertDict (IC { inert_dicts = dicts }) loc cls tys
 -- match the input exactly. See Note [Use loose types in inert set].
 lookupSolvedDict :: InertSet -> CtLoc -> Class -> [Type] -> Maybe CtEvidence
 -- Returns just if exactly this predicate type exists in the solved.
-lookupSolvedDict (IS { inert_solved_dicts = solved }) loc cls tys
-  = findDict solved loc cls tys
+lookupSolvedDict IS { inert_solved_dicts = solved } = findDict solved
 
 {- *********************************************************************
 *                                                                      *
@@ -2525,10 +2529,10 @@ findDictsByClass m cls
   | otherwise                  = emptyBag
 
 delDict :: DictMap a -> Class -> [Type] -> DictMap a
-delDict m cls tys = delTcApp m (getUnique cls) tys
+delDict m cls = delTcApp m (getUnique cls)
 
 addDict :: DictMap a -> Class -> [Type] -> a -> DictMap a
-addDict m cls tys item = insertTcApp m (getUnique cls) tys item
+addDict m cls = insertTcApp m (getUnique cls)
 
 addDictsByClass :: DictMap Ct -> Class -> Bag Ct -> DictMap Ct
 addDictsByClass m cls items
@@ -2599,7 +2603,7 @@ partitionFunEqs f m = (yeses, foldr del m yeses)
     del ct _ = pprPanic "partitionFunEqs" (ppr ct)
 
 delFunEq :: FunEqMap a -> TyCon -> [Type] -> FunEqMap a
-delFunEq m tc tys = delTcApp m (getUnique tc) tys
+delFunEq m tc = delTcApp m (getUnique tc)
 
 ------------------------------
 type ExactFunEqMap a = UniqFM TyCon (ListMap TypeMap a)
@@ -2608,8 +2612,7 @@ emptyExactFunEqs :: ExactFunEqMap a
 emptyExactFunEqs = emptyUFM
 
 findExactFunEq :: ExactFunEqMap a -> TyCon -> [Type] -> Maybe a
-findExactFunEq m tc tys = do { tys_map <- lookupUFM m tc
-                             ; lookupTM tys tys_map }
+findExactFunEq m tc tys = do { tys_map <- lookupUFM m tc; lookupTM tys tys_map }
 
 insertExactFunEq :: ExactFunEqMap a -> TyCon -> [Type] -> a -> ExactFunEqMap a
 insertExactFunEq m tc tys val = alterUFM alter_tm m tc
@@ -2659,13 +2662,17 @@ newtype TcS a = TcS { unTcS :: TcSEnv -> TcM a }
   deriving (Applicative, Monad, MonadFail, MonadIO) via ReaderT TcSEnv TcM
 
 instance MonadUnique TcS where
-   getUniqueSupplyM = wrapTcS getUniqueSupplyM
+    getUniqueSupplyM = wrapTcS getUniqueSupplyM
 
 instance HasModule TcS where
-   getModule = wrapTcS getModule
+    getModule = wrapTcS getModule
 
 instance MonadThings TcS where
-   lookupThing n = wrapTcS (lookupThing n)
+    lookupThing n = wrapTcS (lookupThing n)
+
+instance IsReader TcS where
+    type EnvType TcS = TcSEnv
+    ask = TcS pure
 
 -- Basic functionality
 -- ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -3080,6 +3087,9 @@ getGblEnv = wrapTcS $ TcM.getGblEnv
 
 getLclEnv :: TcS TcLclEnv
 getLclEnv = wrapTcS $ TcM.getLclEnv
+
+getTcEnv :: TcS (Env TcGblEnv TcLclEnv)
+getTcEnv = wrapTcS ask
 
 tcLookupClass :: Name -> TcS Class
 tcLookupClass c = wrapTcS $ TcM.tcLookupClass c

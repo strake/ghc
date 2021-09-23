@@ -139,6 +139,7 @@ import Unsafe.Coerce    ( unsafeCoerce )
 #endif
 
 import Control.Monad
+import Control.Monad.Trans.Writer ( WriterT (..) )
 import Data.Binary
 import Data.Binary.Get
 import Data.List        ( find )
@@ -693,7 +694,7 @@ runTopSplice (DelayedSplice lcl_env orig_expr res_ty q_expr)
        ; (res, wcs) <-
             captureConstraints $
               addErrCtxt (spliceResultDoc zonked_q_expr) $ do
-                { (exp3, _fvs) <- rnLExpr expr2
+                { (exp3, _fvs) <- runWriterT $ rnLExpr expr2
                 ; tcLExpr exp3 (mkCheckExpType zonked_ty)}
        ; ev <- simplifyTop wcs
        ; return $ unLoc (mkHsDictLet (EvBinds ev) res)
@@ -1439,9 +1440,8 @@ reifyInstances th_nm th_tys
                              -- must error before proceeding to typecheck the
                              -- renamed type, as that will result in GHC
                              -- internal errors (#13837).
-               rnImplicitBndrs Nothing tv_rdrs $ \ tv_names ->
-               do { (rn_ty, fvs) <- rnLHsType doc rdr_ty
-                  ; return ((tv_names, rn_ty), fvs) }
+               runWriterT $ rnImplicitBndrs Nothing tv_rdrs $ \ tv_names ->
+               (,) tv_names <$> rnLHsType doc rdr_ty
         ; (_tvs, ty)
             <- pushTcLevelM_   $
                solveEqualities $ -- Avoid error cascade if there are unsolved

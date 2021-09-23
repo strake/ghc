@@ -4,7 +4,7 @@
 Extracting imported and top-level names in scope
 -}
 
-{-# LANGUAGE NondecreasingIndentation, MultiWayIf, NamedFieldPuns #-}
+{-# LANGUAGE NondecreasingIndentation #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies #-}
@@ -83,6 +83,7 @@ import GHC.Data.FastString.Env
 import Control.Monad hiding (mapAndUnzipM)
 import Data.Either      ( isRight, rights )
 import Data.Foldable    ( toList )
+import Data.Functor.Reader.Class ( ask )
 import Data.Map         ( Map )
 import qualified Data.Map as Map
 import Data.Ord         ( comparing )
@@ -90,8 +91,8 @@ import Data.List        ( (\\), find, sortBy )
 import Data.List.NonEmpty ( NonEmpty (..), last )
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Set as S
+import Lens.Micro ( _1 )
 import System.FilePath  ((</>))
-
 import System.IO
 
 {-
@@ -494,10 +495,7 @@ calculateAvails dflags iface mod_safe' want_boot imported_by =
         -- There's no boot files to find in external imports
         | otherwise = emptyUFM
 
-      sig_mods =
-        if is_sig
-          then moduleName imp_mod : dep_sig_mods deps
-          else dep_sig_mods deps
+      sig_mods = bool id (moduleName imp_mod :) is_sig $ dep_sig_mods deps
 
 
   in ImportAvails {
@@ -602,8 +600,7 @@ extendGlobalRdrEnvRn :: [AvailInfo]
 -- see Note [Top-level Names in Template Haskell decl quotes]
 
 extendGlobalRdrEnvRn avails new_fixities
-  = do  { (gbl_env, lcl_env) <- getEnvs
-        ; stage <- getStage
+  = do  { Env { env_gbl = gbl_env, env_lcl = lcl_env@TcLclEnv { tcl_th_ctxt = stage } } <- ask
         ; isGHCi <- getIsGHCi
         ; let rdr_env  = tcg_rdr_env gbl_env
               fix_env  = tcg_fix_env gbl_env
@@ -701,9 +698,8 @@ getLocalNonValBinders fixity_env
   = do  { -- Process all type/class decls *except* family instances
         ; let inst_decls = tycl_decls >>= group_instds
         ; overload_ok <- xoptM LangExt.DuplicateRecordFields
-        ; (tc_avails, tc_fldss)
-            <- fmap unzip $ mapM (new_tc overload_ok)
-                                 (tyClGroupTyClDecls tycl_decls)
+        ; (tc_avails, tc_fldss) <-
+              mapAndUnzipM (new_tc overload_ok) (tyClGroupTyClDecls tycl_decls)
         ; traceRn "getLocalNonValBinders 1" (ppr tc_avails)
         ; envs <- extendGlobalRdrEnvRn tc_avails fixity_env
         ; setEnvs envs $ do {
@@ -735,8 +731,7 @@ getLocalNonValBinders fixity_env
         ; let field_env = extendNameEnvList (tcg_field_env tcg_env) flds
               envs      = (tcg_env { tcg_field_env = field_env }, tcl_env)
 
-        ; traceRn "getLocalNonValBinders 3" (vcat [ppr flds, ppr field_env])
-        ; return (envs, new_bndrs) } }
+        ; (envs, new_bndrs) <$ traceRn "getLocalNonValBinders 3" (vcat [ppr flds, ppr field_env]) } }
   where
     ValBinds _ _val_binds val_sigs = binds
 
@@ -751,19 +746,19 @@ getLocalNonValBinders fixity_env
       -- the SrcSpan attached to the input should be the span of the
       -- declaration, not just the name
     new_simple :: Located RdrName -> RnM AvailInfo
-    new_simple rdr_name = do{ nm <- newTopSrcBinder rdr_name
-                            ; return (avail nm) }
+    new_simple = fmap avail . newTopSrcBinder
 
     new_tc :: Bool -> LTyClDecl GhcPs
            -> RnM (AvailInfo, [(Name, [FieldLabel])])
-    new_tc overload_ok tc_decl -- NOT for type/data instances
-        = do { let (bndrs, flds) = hsLTyClDeclBinders tc_decl
-             ; names@(main_name : sub_names) <- mapM newTopSrcBinder bndrs
-             ; flds' <- mapM (newRecordSelector overload_ok sub_names) flds
-             ; let fld_env = case unLoc tc_decl of
+    new_tc overload_ok tc_decl = -- NOT for type/data instances
+      [ (AvailTC main_name names flds', fld_env)
+      | let (bndrs, flds) = hsLTyClDeclBinders tc_decl
+      , names@(main_name : sub_names) <- traverse newTopSrcBinder bndrs
+      , flds' <- traverse (newRecordSelector overload_ok sub_names) flds
+      , let fld_env = case unLoc tc_decl of
                      DataDecl { tcdDataDefn = d } -> mk_fld_env d names flds'
                      _                            -> []
-             ; return (AvailTC main_name names flds', fld_env) }
+      ]
 
 
     -- Calculate the mapping from constructor names to fields, which
@@ -802,8 +797,7 @@ getLocalNonValBinders fixity_env
       -- type instances don't bind new names
 
     new_assoc overload_ok (L _ (DataFamInstD _ d))
-      = do { (avail, flds) <- new_di overload_ok Nothing d
-           ; return ([avail], flds) }
+      = over _1 pure <$> new_di overload_ok Nothing d
     new_assoc overload_ok (L _ (ClsInstD _ (ClsInstDecl { cid_poly_ty = inst_ty
                                                       , cid_datafam_insts = adts })))
       = do -- First, attempt to grab the name of the class from the instance.
@@ -826,10 +820,8 @@ getLocalNonValBinders fixity_env
            -- family instances. If the previous step failed, bail out.
            case mb_cls_nm of
              Nothing -> pure ([], [])
-             Just cls_nm -> do
-               (avails, fldss)
-                 <- mapAndUnzipM (new_loc_di overload_ok (Just cls_nm)) adts
-               pure (avails, concat fldss)
+             Just cls_nm ->
+               fmap concat <$> mapAndUnzipM (new_loc_di overload_ok (Just cls_nm)) adts
 
     new_di :: Bool -> Maybe Name -> DataFamInstDecl GhcPs
                    -> RnM (AvailInfo, [(Name, [FieldLabel])])
@@ -837,8 +829,8 @@ getLocalNonValBinders fixity_env
                                      HsIB { hsib_body = ti_decl }})
         = do { main_name <- lookupFamInstName mb_cls (feqn_tycon ti_decl)
              ; let (bndrs, flds) = hsDataFamInstBinders dfid
-             ; sub_names <- mapM newTopSrcBinder bndrs
-             ; flds' <- mapM (newRecordSelector overload_ok sub_names) flds
+             ; sub_names <- traverse newTopSrcBinder bndrs
+             ; flds' <- traverse (newRecordSelector overload_ok sub_names) flds
              ; let avail    = AvailTC (unLoc main_name) sub_names flds'
                                   -- main_name is not bound here!
                    fld_env  = mk_fld_env (feqn_rhs ti_decl) sub_names flds'
@@ -851,8 +843,7 @@ getLocalNonValBinders fixity_env
 newRecordSelector :: Bool -> [Name] -> LFieldOcc GhcPs -> RnM FieldLabel
 newRecordSelector _ [] _ = error "newRecordSelector: datatype has no constructors!"
 newRecordSelector overload_ok (dc:_) (L loc (FieldOcc _ (L _ fld)))
-  = do { selName <- newTopSrcBinder $ L loc $ field
-       ; return $ qualFieldLbl { flSelector = selName } }
+  = [ qualFieldLbl { flSelector = selName } | selName <- newTopSrcBinder $ L loc field ]
   where
     fieldOccName = occNameFS $ rdrNameOcc fld
     qualFieldLbl = mkFieldLabelOccs fieldOccName (nameOccName dc) overload_ok
@@ -942,7 +933,7 @@ filterImports iface decl_spec Nothing
 
 filterImports iface decl_spec (Just (want_hiding, L l import_items))
   = do  -- check for errors, convert RdrNames to Names
-        items1 <- mapM lookup_lie import_items
+        items1 <- traverse lookup_lie import_items
 
         let items2 :: [(LIE GhcRn, AvailInfo)]
             items2 = concat items1
@@ -978,8 +969,7 @@ filterImports iface decl_spec (Just (want_hiding, L l import_items))
                 (name2, a2@(AvailTC p2 _ _), mp2)
           = assertPpr (name1 == name2 && isNothing mp1 && isNothing mp2)
                       (ppr name1 <+> ppr name2 <+> ppr mp1 <+> ppr mp2) $
-            if p1 == name1 then (name1, a1, Just p2)
-                           else (name1, a2, Just p1)
+            bool (name1, a2, Just p1) (name1, a1, Just p2) (p1 == name1)
         combine x y = pprPanic "filterImports/combine" (ppr x $$ ppr y)
 
     lookup_name :: IE GhcPs -> RdrName -> IELookupM (Name, AvailInfo, Maybe Name)
@@ -995,8 +985,7 @@ filterImports iface decl_spec (Just (want_hiding, L l import_items))
         = do (stuff, warns) <- setSrcSpan loc $
                                liftM (fromMaybe ([],[])) $
                                run_lookup (lookup_ie ieRdr)
-             mapM_ emit_warning warns
-             return [ (L loc ie, avail) | (ie,avail) <- stuff ]
+             [ (L loc ie, avail) | (ie,avail) <- stuff ] <$ traverse_ emit_warning warns
         where
             -- Warn when importing T(..) if T was exported abstractly
             emit_warning (DodgyImport n) = warnIfFlag Opt_WarnDodgyImports True (dodgyImportWarn n)
@@ -1025,7 +1014,7 @@ filterImports iface decl_spec (Just (want_hiding, L l import_items))
         -- different parents).  See Note [Dealing with imports]
     lookup_ie :: IE GhcPs
               -> IELookupM ([(IE GhcRn, AvailInfo)], [IELookupWarning])
-    lookup_ie ie = handle_bad_import $ do
+    lookup_ie ie = handle_bad_import $
       case ie of
         IEVar _ (L l n) -> do
             (name, avail, _) <- lookup_name ie $ ieWrappedName n
@@ -1175,8 +1164,7 @@ gresFromIE decl_spec (L loc ie, avail)
     is_explicit = case ie of
                     IEThingAll _ name -> \n -> n == lieWrappedName name
                     _                 -> \_ -> True
-    prov_fn name
-      = Just (ImpSpec { is_decl = decl_spec, is_item = item_spec })
+    prov_fn name = Just ImpSpec { is_decl = decl_spec, is_item = item_spec }
       where
         item_spec = ImpSome { is_explicit = is_explicit name, is_iloc = loc }
 
@@ -1198,7 +1186,7 @@ to a list of items, rather than a single item.
 -}
 
 mkChildEnv :: [GlobalRdrElt] -> NameEnv [GlobalRdrElt]
-mkChildEnv gres = foldr add emptyNameEnv gres
+mkChildEnv = foldr add emptyNameEnv
   where
     add gre env = case gre_par gre of
         FldParent p _  -> extendNameEnv_Acc (:) singleton env p gre
@@ -1395,8 +1383,8 @@ warnUnusedImportDecls gbl_env
              usage = findImportUsage user_imports uses
 
        ; traceRn "warnUnusedImportDecls" $
-                       (vcat [ text "Uses:" <+> ppr uses
-                             , text "Import usage" <+> ppr usage])
+                        vcat [ text "Uses:" <+> ppr uses
+                             , text "Import usage" <+> ppr usage]
 
        ; whenWOptM Opt_WarnUnusedImports $
          mapM_ (warnUnusedImport Opt_WarnUnusedImports fld_env) usage
@@ -1808,7 +1796,6 @@ addDupDeclErr gres@(gre :| _)
                    vcat (toList $ ppr . nameSrcLoc <$> sorted_names)]
   where
     sorted_names = NE.sortBy (SrcLoc.leftmost_smallest `on` nameSrcSpan) (gre_name <$> gres)
-
 
 
 missingImportListWarn :: ModuleName -> SDoc

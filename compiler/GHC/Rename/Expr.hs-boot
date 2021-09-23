@@ -6,12 +6,14 @@ import GHC.Tc.Types
 import GHC.Types.SrcLoc   ( Located )
 import GHC.Utils.Outputable  ( Outputable )
 
+import Control.Monad.Trans.Writer ( WriterT (..) )
+
 rnLExpr :: LHsExpr GhcPs
-        -> RnM (LHsExpr GhcRn, FreeVars)
+        -> WriterT FreeVars RnM (LHsExpr GhcRn)
 
 rnStmts :: --forall thing body.
            Outputable (body GhcPs) => HsStmtContext GhcRn
-        -> (Located (body GhcPs) -> RnM (Located (body GhcRn), FreeVars))
+        -> (Located (body GhcPs) -> WriterT FreeVars RnM (Located (body GhcRn)))
         -> [LStmt GhcPs (Located (body GhcPs))]
-        -> ([Name] -> RnM (thing, FreeVars))
-        -> RnM (([LStmt GhcRn (Located (body GhcRn))], thing), FreeVars)
+        -> ([Name] -> WriterT FreeVars RnM a)
+        -> WriterT FreeVars RnM ([LStmt GhcRn (Located (body GhcRn))], a)

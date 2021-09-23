@@ -15,6 +15,8 @@
 
 {-# OPTIONS_GHC -Wno-incomplete-record-updates #-}
 
+#include "lens.h"
+
 -- | Abstract syntax of global declarations.
 --
 -- Definitions for: @SynDecl@ and @ConDecl@, @ClassDecl@,
@@ -27,7 +29,7 @@ module GHC.Hs.Decls (
 
   -- ** Class or type declarations
   TyClDecl(..), LTyClDecl, DataDeclRn(..),
-  TyClGroup(..),
+  TyClGroup(..), group_extL, group_tycldsL, group_rolesL, group_kisigsL, group_instdsL,
   tyClGroupTyClDecls, tyClGroupInstDecls, tyClGroupRoleDecls,
   tyClGroupKindSigs,
   isClassDecl, isDataDecl, isSynDecl, tcdName,
@@ -41,9 +43,9 @@ module GHC.Hs.Decls (
 
   -- ** Instance declarations
   InstDecl(..), LInstDecl, FamilyInfo(..),
-  TyFamInstDecl(..), LTyFamInstDecl, instDeclDataFamInsts,
+  TyFamInstDecl(..), LTyFamInstDecl, tfid_eqnL, instDeclDataFamInsts,
   TyFamDefltDecl, LTyFamDefltDecl,
-  DataFamInstDecl(..), LDataFamInstDecl,
+  DataFamInstDecl(..), LDataFamInstDecl, dfid_eqnL,
   pprDataFamInstFlavour, pprTyFamInstDecl, pprHsFamInstLHS,
   FamInstEqn, LFamInstEqn, FamEqn(..),
   TyFamInstEqn, LTyFamInstEqn, HsTyPats,
@@ -89,7 +91,7 @@ module GHC.Hs.Decls (
   -- * Grouping
   HsGroup(..),  emptyRdrGroup, emptyRnGroup, appendGroups, hsGroupInstDecls,
   hsGroupTopLevelFixitySigs,
-
+  hs_extL, hs_valdsL, hs_splcdsL, hs_tycldsL, hs_derivdsL, hs_fixdsL, hs_defdsL, hs_fordsL, hs_warndsL, hs_anndsL, hs_ruledsL, hs_docsL,
     ) where
 
 -- friends:
@@ -256,9 +258,21 @@ data HsGroup p
     }
   | XHsGroup !(XXHsGroup p)
 
+LENS_FIELD(hs_extL, hs_ext)
+LENS_FIELD(hs_valdsL, hs_valds)
+LENS_FIELD(hs_splcdsL, hs_splcds)
+LENS_FIELD(hs_tycldsL, hs_tyclds)
+LENS_FIELD(hs_derivdsL, hs_derivds)
+LENS_FIELD(hs_fixdsL, hs_fixds)
+LENS_FIELD(hs_defdsL, hs_defds)
+LENS_FIELD(hs_fordsL, hs_fords)
+LENS_FIELD(hs_warndsL, hs_warnds)
+LENS_FIELD(hs_anndsL, hs_annds)
+LENS_FIELD(hs_ruledsL, hs_ruleds)
+LENS_FIELD(hs_docsL, hs_docs)
+
 type instance XCHsGroup (GhcPass _) = NoExtField
 type instance XXHsGroup (GhcPass _) = NoExtCon
-
 
 emptyGroup, emptyRdrGroup, emptyRnGroup :: HsGroup (GhcPass p)
 emptyRdrGroup = emptyGroup { hs_valds = emptyValBindsIn }
@@ -958,6 +972,12 @@ data TyClGroup pass  -- See Note [TyClGroups and dependency analysis]
               , group_kisigs :: [LStandaloneKindSig pass]
               , group_instds :: [LInstDecl pass] }
   | XTyClGroup !(XXTyClGroup pass)
+
+LENS_FIELD(group_extL, group_ext)
+LENS_FIELD(group_tycldsL, group_tyclds)
+LENS_FIELD(group_rolesL, group_roles)
+LENS_FIELD(group_kisigsL, group_kisigs)
+LENS_FIELD(group_instdsL, group_instds)
 
 type instance XCTyClGroup (GhcPass _) = NoExtField
 type instance XXTyClGroup (GhcPass _) = NoExtCon
@@ -1777,6 +1797,8 @@ newtype TyFamInstDecl pass = TyFamInstDecl { tfid_eqn :: TyFamInstEqn pass }
 
     -- For details on above see note [Api annotations] in GHC.Parser.Annotation
 
+LENS_FIELD(tfid_eqnL, tfid_eqn)
+
 ----------------- Data family instances -------------
 
 -- | Located Data Family Instance Declaration
@@ -1793,6 +1815,8 @@ newtype DataFamInstDecl pass
     --           'GHC.Parser.Annotation.AnnClose'
 
     -- For details on above see note [Api annotations] in GHC.Parser.Annotation
+
+LENS_FIELD(dfid_eqnL, dfid_eqn)
 
 ----------------- Family instances (common types) -------------
 

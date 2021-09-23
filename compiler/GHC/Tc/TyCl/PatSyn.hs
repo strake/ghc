@@ -60,6 +60,7 @@ import GHC.Data.Bag
 import GHC.Utils.Misc
 import GHC.Utils.Error
 import Control.Monad ( zipWithM )
+import Control.Monad.Trans.State ( StateT (..) )
 
 {-
 ************************************************************************
@@ -606,7 +607,7 @@ tc_patsyn_finish lname dir is_infix lpat'
 
          (ze, univ_tvs') <- zonkTyVarBinders univ_tvs
        ; req_theta'      <- zonkTcTypesToTypesX ze req_theta
-       ; (ze, ex_tvs')   <- zonkTyVarBindersX ze ex_tvs
+       ; (ex_tvs', ze)   <- zonkTyVarBindersX ex_tvs `runStateT` ze
        ; prov_theta'     <- zonkTcTypesToTypesX ze prov_theta
        ; pat_ty'         <- zonkTcTypeToTypeX ze pat_ty
        ; arg_tys'        <- zonkTcTypesToTypesX ze arg_tys

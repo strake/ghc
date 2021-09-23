@@ -2072,6 +2072,12 @@ type instance XApplicativeArgOne GhcTc = FailOperator GhcTc
 type instance XApplicativeArgMany (GhcPass _) = NoExtField
 type instance XXApplicativeArg    (GhcPass _) = NoExtCon
 
+argPatL :: (XXApplicativeArg p ~ NoExtCon) => Lens' (ApplicativeArg p) (LPat p)
+argPatL f = \ case
+     a@ApplicativeArgOne { app_arg_pattern = p } -> f p <₪> \ q -> a { app_arg_pattern = q }
+     a@ApplicativeArgMany { bv_pattern = p } -> f p <₪> \ q -> a { bv_pattern = q }
+     XApplicativeArg x -> noExtCon x
+
 {-
 Note [The type of bind in Stmts]
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

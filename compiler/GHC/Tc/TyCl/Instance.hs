@@ -80,6 +80,7 @@ import GHC.Data.BooleanFormula ( isUnsatisfied, pprBooleanFormulaNice )
 import qualified GHC.LanguageExtensions as LangExt
 
 import Control.Monad
+import Control.Monad.Trans.State (StateT (..))
 import Data.Foldable (toList)
 import Data.Tuple
 import GHC.Data.Maybe
@@ -1845,15 +1846,15 @@ mkMethIds clas tyvars dfun_ev_vars inst_tys sel_id
     poly_meth_ty  = mkSpecSigmaTy tyvars theta local_meth_ty
     theta         = map idType dfun_ev_vars
 
-methSigCtxt :: Name -> TcType -> TcType -> TidyEnv -> TcM (TidyEnv, MsgDoc)
-methSigCtxt sel_name sig_ty meth_ty env0
-  = do { (env1, sig_ty)  <- zonkTidyTcType env0 sig_ty
-       ; (env2, meth_ty) <- zonkTidyTcType env1 meth_ty
-       ; let msg = hang (text "When checking that instance signature for" <+> quotes (ppr sel_name))
+methSigCtxt :: Name -> TcType -> TcType -> StateT TidyEnv TcM MsgDoc
+methSigCtxt sel_name sig_ty meth_ty =
+  [ msg
+  | sig_ty  <- zonkTidyTcType sig_ty
+  , meth_ty <- zonkTidyTcType meth_ty
+  , let msg = hang (text "When checking that instance signature for" <+> quotes (ppr sel_name))
                       2 (vcat [ text "is more general than its signature in the class"
                               , text "Instance sig:" <+> ppr sig_ty
-                              , text "   Class sig:" <+> ppr meth_ty ])
-       ; return (env2, msg) }
+                              , text "   Class sig:" <+> ppr meth_ty ]) ]
 
 misplacedInstSig :: Name -> LHsSigType GhcRn -> SDoc
 misplacedInstSig name hs_ty

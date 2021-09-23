@@ -504,20 +504,18 @@ extendUnitInfoMap (UnitInfoMap pkg_map closure) new_pkgs
 -- | Looks up the package with the given id in the package state, panicing if it is
 -- not found
 unsafeLookupUnit :: HasDebugCallStack => PackageState -> Unit -> UnitInfo
-unsafeLookupUnit pkgs pid =
-    case lookupUnit pkgs pid of
+unsafeLookupUnit pkgs pid = case lookupUnit pkgs pid of
       Just info -> info
       Nothing   -> pprPanic "unsafeLookupUnit" (ppr pid)
 
 lookupInstalledPackage :: PackageState -> UnitId -> Maybe UnitInfo
-lookupInstalledPackage pkgstate uid = lookupInstalledPackage' (unitInfoMap pkgstate) uid
+lookupInstalledPackage pkgstate = lookupInstalledPackage' (unitInfoMap pkgstate)
 
 lookupInstalledPackage' :: UnitInfoMap -> UnitId -> Maybe UnitInfo
 lookupInstalledPackage' (UnitInfoMap db _) uid = lookupUDFM db uid
 
 getInstalledPackageDetails :: HasDebugCallStack => PackageState -> UnitId -> UnitInfo
-getInstalledPackageDetails pkgstate uid =
-    case lookupInstalledPackage pkgstate uid of
+getInstalledPackageDetails pkgstate uid = case lookupInstalledPackage pkgstate uid of
       Just config -> config
       Nothing -> pprPanic "getInstalledPackageDetails" (ppr uid)
 

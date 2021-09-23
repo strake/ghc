@@ -87,6 +87,7 @@ import GHC.TypeLits
 import Data.Kind (Constraint)
 
 import Data.ByteString ( unpack )
+import Control.Applicative ((<**>))
 import Control.Monad hiding ( mapAndUnzipM )
 import Data.Foldable ( toList )
 import Data.List ( sort, sortBy )
@@ -140,14 +141,11 @@ mkMetaWrappers q@(QuoteWrapper quote_var_raw m_var) = do
 
 -- Turn A into m A
 wrapName :: Name -> MetaM Type
-wrapName n = do
-  t <- lookupType n
-  wrap_fn <- asks metaTy
-  return (wrap_fn t)
+wrapName n = lookupType n <**> asks metaTy
 
 -- The local state is always the same, calculated from the passed in
 -- wrapper
-type MetaM a = ReaderT MetaWrappers DsM a
+type MetaM = ReaderT MetaWrappers DsM
 
 getPlatform :: MetaM Platform
 getPlatform = targetPlatform <$> getDynFlags

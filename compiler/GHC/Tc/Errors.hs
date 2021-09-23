@@ -67,8 +67,10 @@ import GHC.Data.Maybe
 import qualified GHC.LanguageExtensions as LangExt
 import GHC.Utils.FV ( fvVarList, unionFV )
 import qualified GHC.Data.Strict as Strict
+import GHC.Utils.Lens.Monad.Zoom ( zoom )
 
 import Control.Monad    ( when )
+import Control.Monad.Trans.State ( StateT (..) )
 import Data.Foldable    ( toList )
 import Data.List        ( sortBy, unfoldr )
 import Lens.Micro.Extras( view )
@@ -1162,8 +1164,8 @@ mkHoleError tidy_simples ctxt hole@(Hole { hole_occ = occ
                                          , hole_ty = hole_ty
                                          , hole_sort = sort
                                          , hole_loc = ct_loc })
-  = do { (ctxt, binds_msg)
-           <- relevant_bindings False ctxt lcl_env (tyCoVarsOfType hole_ty)
+  = do { (binds_msg, ctxt)
+           <- relevant_bindings False lcl_env (tyCoVarsOfType hole_ty) `runStateT` ctxt
                -- The 'False' means "don't filter the bindings"; see Trac #8191
 
        ; show_hole_constraints <- goptM Opt_ShowHoleConstraints
@@ -2843,57 +2845,55 @@ relevantBindings :: Bool  -- True <=> filter by tyvar; False <=> no filtering
                  -> ReportErrCtxt -> Ct
                  -> TcM (ReportErrCtxt, SDoc, Ct)
 -- Also returns the zonked and tidied CtOrigin of the constraint
-relevantBindings want_filtering ctxt ct
-  = do { traceTc "relevantBindings" (ppr ct)
-       ; (env1, tidy_orig) <- zonkTidyOrigin (cec_tidy ctxt) (ctLocOrigin loc)
+relevantBindings want_filtering ctxt ct =
+  (\ ((doc, ct'), st) -> (st, doc, ct')) <$>
+  flip runStateT ctxt
+  [ (doc, ct')
+  | () <- traceTc "relevantBindings" (ppr ct)
+  , tidy_orig <- (zoom cec_tidyL :: StateT TidyEnv TcM _ -> StateT ReportErrCtxt TcM _) $ zonkTidyOrigin (ctLocOrigin loc)
 
              -- For *kind* errors, report the relevant bindings of the
              -- enclosing *type* equality, because that's more useful for the programmer
-       ; let extra_tvs = case tidy_orig of
+  , let extra_tvs = case tidy_orig of
                              KindEqOrigin t1 m_t2 _ _ -> tyCoVarsOfTypes $
                                                          t1 : toList m_t2
                              _                        -> emptyVarSet
-             ct_fvs = tyCoVarsOfCt ct `unionVarSet` extra_tvs
+        ct_fvs = tyCoVarsOfCt ct `unionVarSet` extra_tvs
 
              -- Put a zonked, tidied CtOrigin into the Ct
-             ct'    = set (ctLocL . ctLocOriginL) tidy_orig ct
-             ctxt1  = ctxt { cec_tidy = env1 }
+        ct'    = set (ctLocL . ctLocOriginL) tidy_orig ct
 
-       ; (ctxt2, doc) <- relevant_bindings want_filtering ctxt1 lcl_env ct_fvs
-       ; return (ctxt2, doc, ct') }
+  , doc <- relevant_bindings want_filtering lcl_env ct_fvs ]
   where
     loc     = ctLoc ct
     lcl_env = ctLocEnv loc
 
 -- slightly more general version, to work also with holes
 relevant_bindings :: Bool
-                  -> ReportErrCtxt
                   -> TcLclEnv
                   -> TyCoVarSet
-                  -> TcM (ReportErrCtxt, SDoc)
-relevant_bindings want_filtering ctxt lcl_env ct_tvs
-  = do { dflags <- getDynFlags
-       ; traceTc "relevant_bindings" $
+                  -> StateT ReportErrCtxt TcM SDoc
+relevant_bindings want_filtering lcl_env ct_tvs =
+  [ doc
+  | dflags <- getDynFlags
+  , () <- traceTc "relevant_bindings" $
            vcat [ ppr ct_tvs
                 , pprWithCommas id [ ppr id <+> dcolon <+> ppr (idType id)
                                    | TcIdBndr id _ <- tcl_bndrs lcl_env ]
                 , pprWithCommas id
                     [ ppr id | TcIdBndr_ExpType id _ _ <- tcl_bndrs lcl_env ] ]
 
-       ; (tidy_env', docs, discards)
-              <- go dflags (cec_tidy ctxt) (maxRelevantBinds dflags)
+  , (docs, discards) <- cec_tidyL `zoom` StateT \ env ->
+        (\ (st, a, b) -> ((a, b), st)) <$>
+                 go dflags env (maxRelevantBinds dflags)
                     emptyVarSet [] False
                     (removeBindingShadowing $ tcl_bndrs lcl_env)
          -- tcl_bndrs has the innermost bindings first,
          -- which are probably the most relevant ones
 
-       ; let doc = munless (null docs) $
+  , let doc = munless (null docs) $
                    hang (text "Relevant bindings include")
-                      2 (vcat docs $$ mwhen discards discardMsg)
-
-             ctxt' = ctxt { cec_tidy = tidy_env' }
-
-       ; return (ctxt', doc) }
+                      2 (vcat docs $$ mwhen discards discardMsg) ]
   where
     run_out :: Maybe Int -> Bool
     run_out Nothing = False
@@ -2929,7 +2929,7 @@ relevant_bindings want_filtering ctxt lcl_env ct_tvs
         discard_it = go dflags tidy_env n_left tvs_seen docs
                         discards tc_bndrs
         go2 id_name id_type top_lvl
-          = do { (tidy_env', tidy_ty) <- zonkTidyTcType tidy_env id_type
+          = do { (tidy_ty, tidy_env') <- zonkTidyTcType id_type `runStateT` tidy_env
                ; traceTc "relevantBindings 1" (ppr id_name <+> dcolon <+> ppr tidy_ty)
                ; let id_tvs = tyCoVarsOfType tidy_ty
                      doc = sep [ pprPrefixOcc id_name <+> dcolon <+> ppr tidy_ty

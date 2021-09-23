@@ -60,8 +60,7 @@ data AvailInfo
   -- > AvailTC Eq [Eq, ==, \/=] []
   | AvailTC
        Name         -- ^ The name of the type or class
-       [Name]       -- ^ The available pieces of type or class,
-                    -- excluding field selectors.
+       [Name]       -- ^ The available pieces of type or class, excluding field selectors.
        [FieldLabel] -- ^ The record fields of the type
                     -- (see Note [Representing fields in AvailInfo]).
 

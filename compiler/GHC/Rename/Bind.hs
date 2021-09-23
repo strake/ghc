@@ -40,10 +40,10 @@ import GHC.Rename.Pat
 import GHC.Rename.Names
 import GHC.Rename.Env
 import GHC.Rename.Fixity
-import GHC.Rename.Utils ( HsDocContext(..), mapFvRn
+import GHC.Rename.Utils ( HsDocContext(..)
                         , checkDupRdrNames, warnUnusedLocalBinds
                         , checkUnusedRecordWildcard
-                        , checkDupAndShadowedNames, bindLocalNamesFV )
+                        , checkDupAndShadowedNames, bindLocalNamesFV, bindLocalNamesFVW )
 import GHC.Driver.Session
 import GHC.Unit.Module
 import GHC.Types.Name
@@ -64,7 +64,10 @@ import GHC.Data.OrdList
 import qualified GHC.LanguageExtensions as LangExt
 
 import Control.Monad hiding ( mapAndUnzipM )
+import Control.Monad.Trans.Class ( lift )
+import Control.Monad.Trans.Writer ( WriterT(..) )
 import Data.Foldable      ( toList )
+import Data.Functor.Writer.Class ( censor )
 import Data.List          ( sortBy )
 import Data.List.NonEmpty ( NonEmpty(..) )
 import Lens.Micro ( _1 )
@@ -188,10 +191,10 @@ rnTopBindsBoot :: NameSet -> HsValBindsLR GhcRn GhcPs
                -> RnM (HsValBinds GhcRn, DefUses)
 -- A hs-boot file has no bindings.
 -- Return a single HsBindGroup with empty binds and renamed signatures
-rnTopBindsBoot bound_names (ValBinds _ mbinds sigs) =
-  [ (XValBindsLR (NValBinds [] sigs'), usesOnly fvs)
-  | () <- checkErr (isEmptyLHsBinds mbinds) (bindsInHsBootFile mbinds)
-  , (sigs', fvs) <- renameSigs (HsBootCtxt bound_names) sigs ]
+rnTopBindsBoot bound_names (ValBinds _ mbinds sigs) = runWriterT
+  [ XValBindsLR (NValBinds [] sigs')
+  | () <- lift $ checkErr (isEmptyLHsBinds mbinds) (bindsInHsBootFile mbinds)
+  , sigs' <- usesOnly `censor` renameSigs (HsBootCtxt bound_names) sigs ]
 rnTopBindsBoot _ b = pprPanic "rnTopBindsBoot" (ppr b)
 
 {-
@@ -212,23 +215,18 @@ rnLocalBindsAndThen (EmptyLocalBinds x) thing_inside =
   thing_inside (EmptyLocalBinds x) emptyNameSet
 
 rnLocalBindsAndThen (HsValBinds x val_binds) thing_inside
-  = rnLocalValBindsAndThen val_binds $ \ val_binds' ->
-      thing_inside (HsValBinds x val_binds')
+  = rnLocalValBindsAndThen val_binds $ thing_inside . HsValBinds x
 
-rnLocalBindsAndThen (HsIPBinds x binds) thing_inside = do
-    (binds',fv_binds) <- rnIPBinds binds
-    (thing, fvs_thing) <- thing_inside (HsIPBinds x binds') fv_binds
-    return (thing, fvs_thing `plusFV` fv_binds)
+rnLocalBindsAndThen (HsIPBinds x binds) thing_inside =
+  [ (thing, plusFV fvs_thing fv_binds)
+  | (binds', fv_binds) <- runWriterT $ rnIPBinds binds
+  , (thing, fvs_thing) <- thing_inside (HsIPBinds x binds') fv_binds ]
 
-rnIPBinds :: HsIPBinds GhcPs -> RnM (HsIPBinds GhcRn, FreeVars)
-rnIPBinds (IPBinds _ ip_binds ) = do
-    (ip_binds', fvs_s) <- mapAndUnzipM (wrapLocFstM rnIPBind) ip_binds
-    return (IPBinds noExtField ip_binds', plusFVs fvs_s)
+rnIPBinds :: HsIPBinds GhcPs -> WriterT FreeVars RnM (HsIPBinds GhcRn)
+rnIPBinds (IPBinds _ ip_binds) = IPBinds noExtField <$> traverse (wrapLocM rnIPBind) ip_binds
 
-rnIPBind :: IPBind GhcPs -> RnM (IPBind GhcRn, FreeVars)
-rnIPBind (IPBind _ ~(Left n) expr) = do
-    (expr',fvExpr) <- rnLExpr expr
-    return (IPBind noExtField (Left n) expr', fvExpr)
+rnIPBind :: IPBind GhcPs -> WriterT FreeVars RnM (IPBind GhcRn)
+rnIPBind (IPBind _ ~(Left n) expr) = IPBind noExtField (Left n) <$> rnLExpr expr
 
 {-
 ************************************************************************
@@ -293,12 +291,13 @@ rnValBindsRHS :: HsSigCtxt
               -> HsValBindsLR GhcRn GhcPs
               -> RnM (HsValBinds GhcRn, DefUses)
 
-rnValBindsRHS ctxt (ValBinds _ mbinds sigs)
-  = do { (sigs', sig_fvs) <- renameSigs ctxt sigs
-       ; binds_w_dus <- traverse (rnLBind (mkScopedTvFn sigs')) mbinds
-       ; let !(anal_binds, anal_dus) = depAnalBinds binds_w_dus
+rnValBindsRHS ctxt (ValBinds _ mbinds sigs) =
+  [ (XValBindsLR (NValBinds anal_binds sigs'), valbind'_dus)
+  | (sigs', sig_fvs) <- runWriterT $ renameSigs ctxt sigs
+  , binds_w_dus <- traverse (rnLBind (mkScopedTvFn sigs')) mbinds
+  , let !(anal_binds, anal_dus) = depAnalBinds binds_w_dus
 
-       ; let patsyn_fvs = foldr (unionNameSet . psb_ext) emptyNameSet $
+  , let patsyn_fvs = foldr (unionNameSet . psb_ext) emptyNameSet $
                           getPatSynBinds anal_binds
                 -- The uses in binds_w_dus for PatSynBinds do not include
                 -- variables used in the patsyn builders; see
@@ -307,13 +306,11 @@ rnValBindsRHS ctxt (ValBinds _ mbinds sigs)
                 -- add them back in here to avoid bogus warnings about
                 -- unused variables (#12548)
 
-             valbind'_dus = anal_dus `plusDU` usesOnly sig_fvs
-                                     `plusDU` usesOnly patsyn_fvs
+        valbind'_dus = anal_dus `plusDU` usesOnly sig_fvs `plusDU` usesOnly patsyn_fvs
                             -- Put the sig uses *after* the bindings
                             -- so that the binders are removed from
                             -- the uses in the sigs
-
-        ; return (XValBindsLR (NValBinds anal_binds sigs'), valbind'_dus) }
+  ]
 
 rnValBindsRHS _ b = pprPanic "rnValBindsRHS" (ppr b)
 
@@ -362,12 +359,9 @@ rnLocalValBindsAndThen binds@(ValBinds _ _ sigs) thing_inside
               -- Insert fake uses for variables introduced implicitly by
               -- wildcards (#4404)
               rec_uses = hsValBindsImplicits binds'
-              implicit_uses = mkNameSet $ concatMap snd
-                                        $ rec_uses
-        , () <- for_ rec_uses \(loc, ns) ->
-                    checkUnusedRecordWildcard loc real_uses (Just ns)
-        , () <- warnUnusedLocalBinds bound_names
-                                      (real_uses `unionNameSet` implicit_uses)
+              implicit_uses = mkNameSet $ concatMap snd rec_uses
+        , () <- for_ rec_uses \(loc, ns) -> checkUnusedRecordWildcard loc real_uses (Just ns)
+        , () <- warnUnusedLocalBinds bound_names (real_uses `unionNameSet` implicit_uses)
 
         , let
             -- The variables "used" in the val binds are:
@@ -406,30 +400,31 @@ rnBindLHS :: NameMaker
           -- (i.e., any free variables of the pattern)
           -> RnM (HsBindLR GhcRn GhcPs)
 
-rnBindLHS name_maker _ bind@(PatBind { pat_lhs = pat })
-  = do
-      -- we don't actually use the FV processing of rnPatsAndThen here
-      (pat',pat'_fvs) <- rnBindPat name_maker pat
-      return (bind { pat_lhs = pat', pat_ext = pat'_fvs })
+rnBindLHS name_maker _ bind@(PatBind { pat_lhs = pat }) =
+  [ bind { pat_lhs = pat', pat_ext = pat'_fvs }
                 -- We temporarily store the pat's FVs in bind_fvs;
                 -- gets updated to the FVs of the whole bind
                 -- when doing the RHS below
+  | -- we don't actually use the FV processing of rnPatsAndThen here
+    (pat', pat'_fvs) <- runWriterT $ rnBindPat name_maker pat ]
 
 rnBindLHS name_maker _ bind@(FunBind { fun_id = rdr_name }) =
   [ bind { fun_id = name, fun_ext = noExtField }
   | name <- applyNameMaker name_maker rdr_name ]
 
 rnBindLHS name_maker _ (PatSynBind x psb@PSB{ psb_id = rdrname })
-  | isTopRecNameMaker name_maker
-  = do { addLocM checkConName rdrname
-       ; name <- wrapLocM lookupTopBndrRn rdrname   -- Should be in scope already
-       ; return (PatSynBind x psb{ psb_ext = noExtField, psb_id = name }) }
+  | isTopRecNameMaker name_maker =
+  [ PatSynBind x psb{ psb_ext = noExtField, psb_id = name }
+  | () <- addLocM checkConName rdrname
+  , name <- wrapLocM lookupTopBndrRn rdrname   -- Should be in scope already
+  ]
 
-  | otherwise  -- Pattern synonym, not at top level
-  = do { addErr localPatternSynonymErr  -- Complain, but make up a fake
-                                        -- name so that we can carry on
-       ; name <- applyNameMaker name_maker rdrname
-       ; return (PatSynBind x psb{ psb_ext = noExtField, psb_id = name }) }
+  | otherwise =  -- Pattern synonym, not at top level
+  [ PatSynBind x psb{ psb_ext = noExtField, psb_id = name }
+  | -- Complain, but make up a fake
+    -- name so that we can carry on
+    () <- addErr localPatternSynonymErr
+  , name <- applyNameMaker name_maker rdrname ]
   where
     localPatternSynonymErr :: SDoc
     localPatternSynonymErr
@@ -453,7 +448,7 @@ rnBind _ bind@(PatBind { pat_lhs = pat
                                    -- after processing the LHS
                        , pat_ext = pat_fvs })
   = do  { mod <- getModule
-        ; (grhss', rhs_fvs) <- rnGRHSs PatBindRhs rnLExpr grhss
+        ; (grhss', rhs_fvs) <- runWriterT $ rnGRHSs PatBindRhs rnLExpr grhss
 
                 -- No scoped type variables for pattern bindings
         ; let all_fvs = pat_fvs `plusFV` rhs_fvs
@@ -486,10 +481,9 @@ rnBind sig_fn bind@(FunBind { fun_id = name
        -- invariant: no free vars here when it's a FunBind
   = do  { let plain_name = unLoc name
 
-        ; (matches', rhs_fvs) <- bindSigTyVarsFV (sig_fn plain_name) $
+        ; (matches', rhs_fvs) <- runWriterT $ bindSigTyVarsFV (sig_fn plain_name) $
                                 -- bindSigTyVars tests for LangExt.ScopedTyVars
-                                 rnMatchGroup (mkPrefixFunRhs name)
-                                              rnLExpr matches
+                                 rnMatchGroup (mkPrefixFunRhs name) rnLExpr matches
         ; let is_infix = isInfixFunBind bind
         ; when is_infix $ checkPrecMatch plain_name matches'
 
@@ -613,13 +607,11 @@ mkScopedTvFn sigs = \n -> lookupNameEnv env n `orElse` []
 --       check_sigs below.  But we also use this function at the top level.
 
 makeMiniFixityEnv :: [LFixitySig GhcPs] -> RnM MiniFixityEnv
-
-makeMiniFixityEnv decls = foldlM add_one_sig emptyFsEnv decls
+makeMiniFixityEnv = foldlM add_one_sig emptyFsEnv
  where
    add_one_sig :: MiniFixityEnv -> LFixitySig GhcPs -> RnM MiniFixityEnv
    add_one_sig env (L loc (FixitySig _ names fixity)) =
-     foldlM add_one env [ (loc,name_loc,name,fixity)
-                        | L name_loc name <- names ]
+     foldlM add_one env [ (loc,name_loc,name,fixity) | L name_loc name <- names ]
 
    add_one env (loc, name_loc, name,fixity) = do
      { -- this fixity decl is a duplicate iff
@@ -630,11 +622,9 @@ makeMiniFixityEnv decls = foldlM add_one_sig emptyFsEnv decls
            ; fix_item = L loc fixity };
 
        case lookupFsEnv env fs of
-         Nothing -> return $ extendFsEnv env fs fix_item
-         Just (L loc' _) -> do
-           { setSrcSpan loc $
-             addErrAt name_loc (dupFixityDecl loc' name)
-           ; return env}
+         Nothing -> pure $ extendFsEnv env fs fix_item
+         Just (L loc' _) -> env <$
+           setSrcSpan loc (addErrAt name_loc (dupFixityDecl loc' name))
      }
 
 dupFixityDecl :: SrcSpan -> RdrName -> SDoc
@@ -661,24 +651,22 @@ rnPatSynBind sig_fn bind@(PSB { psb_id = L l name
         ; unless pattern_synonym_ok (addErr patternSynonymErr)
         ; let scoped_tvs = sig_fn name
 
-        ; ((pat', details'), fvs1) <- bindSigTyVarsFV scoped_tvs $
-                                      rnPat PatSyn pat $ \pat' ->
+        ; ((pat', details'), fvs1) <- runWriterT $ bindSigTyVarsFV scoped_tvs $
+                                      rnPat PatSyn pat $ \pat' -> WriterT $
          -- We check the 'RdrName's instead of the 'Name's
          -- so that the binding locations are reported
          -- from the left-hand side
             case details of
                PrefixCon vars ->
                    do { checkDupRdrNames vars
-                      ; names <- mapM lookupPatSynBndr vars
-                      ; return ( (pat', PrefixCon names)
-                               , mkFVs (map unLoc names)) }
+                      ; traverse lookupPatSynBndr vars <₪> \ names ->
+                        ((pat', PrefixCon names), mkFVs (unLoc <$> names)) }
                InfixCon var1 var2 ->
                    do { checkDupRdrNames [var1, var2]
-                      ; name1 <- lookupPatSynBndr var1
-                      ; name2 <- lookupPatSynBndr var2
+                      ; [ ((pat', InfixCon name1 name2), mkFVs (map unLoc [name1, name2]))
+                        | name1 <- lookupPatSynBndr var1, name2 <- lookupPatSynBndr var2 ]
                       -- ; checkPrecMatch -- TODO
-                      ; return ( (pat', InfixCon name1 name2)
-                               , mkFVs (map unLoc [name1, name2])) }
+                      }
                RecCon vars ->
                    do { checkDupRdrNames (map recordPatSynSelectorId vars)
                       ; let rnRecordPatSynField
@@ -688,18 +676,15 @@ rnPatSynBind sig_fn bind@(PSB { psb_id = L l name
                                                   , recordPatSynPatVar = hidden' }
                               | visible' <- wrapLocM lookupTopBndrRn visible
                               , hidden'  <- lookupPatSynBndr hidden ]
-                      ; names <- traverse rnRecordPatSynField vars
-                      ; return ( (pat', RecCon names)
-                               , mkFVs (map (unLoc . recordPatSynPatVar) names)) }
+                      ; traverse rnRecordPatSynField vars <₪> \ names ->
+                        ((pat', RecCon names), mkFVs (map (unLoc . recordPatSynPatVar) names)) }
 
-        ; (dir', fvs2) <- case dir of
-            Unidirectional -> return (Unidirectional, emptyFVs)
-            ImplicitBidirectional -> return (ImplicitBidirectional, emptyFVs)
+        ; (dir', fvs2) <- runWriterT $ case dir of
+            Unidirectional -> pure Unidirectional
+            ImplicitBidirectional -> pure ImplicitBidirectional
             ExplicitBidirectional mg ->
-                do { (mg', fvs) <- bindSigTyVarsFV scoped_tvs $
-                                   rnMatchGroup (mkPrefixFunRhs (L l name))
-                                                rnLExpr mg
-                   ; return (ExplicitBidirectional mg', fvs) }
+                ExplicitBidirectional <$> bindSigTyVarsFV scoped_tvs
+                                   (rnMatchGroup (mkPrefixFunRhs (L l name)) rnLExpr mg)
 
         ; mod <- getModule
         ; let fvs = fvs1 `plusFV` fvs2
@@ -851,18 +836,17 @@ rnMethodBinds is_cls_decl cls ktv_names binds sigs
              bound_nms = mkNameSet (collectHsBindsBinders binds')
              sig_ctxt | is_cls_decl = ClsDeclCtxt cls
                       | otherwise   = InstDeclCtxt bound_nms
-       ; (spec_inst_prags', sip_fvs) <- renameSigs sig_ctxt spec_inst_prags
-       ; (other_sigs',      sig_fvs) <- bindLocalNamesFV ktv_names $
+       ; (spec_inst_prags', sip_fvs) <- runWriterT $ renameSigs sig_ctxt spec_inst_prags
+       ; (other_sigs',      sig_fvs) <- runWriterT $ bindLocalNamesFVW ktv_names $
                                         renameSigs sig_ctxt other_sigs
 
        -- Rename the bindings RHSs.  Again there's an issue about whether the
        -- type variables from the class/instance head are in scope.
        -- Answer no in Haskell 2010, but yes if you have -XScopedTypeVariables
-       ; (binds'', bind_fvs) <- bindSigTyVarsFV ktv_names $
-              do { binds_w_dus <- traverse (rnLBind (mkScopedTvFn other_sigs')) binds'
-                 ; let bind_fvs = foldr (\(_,_,fv1) fv2 -> fv1 `plusFV` fv2)
-                                           emptyFVs binds_w_dus
-                 ; return (fmap fst3 binds_w_dus, bind_fvs) }
+       ; (binds'', bind_fvs) <- runWriterT $ bindSigTyVarsFV ktv_names $ WriterT
+         [ (fmap fst3 binds_w_dus, bind_fvs)
+         | binds_w_dus <- traverse (rnLBind (mkScopedTvFn other_sigs')) binds'
+         , let bind_fvs = foldr (plusFV . thd3) emptyFVs binds_w_dus ]
 
        ; return ( binds'', spec_inst_prags' ++ other_sigs'
                 , sig_fvs `plusFV` sip_fvs `plusFV` bind_fvs) }
@@ -881,8 +865,8 @@ rnMethodBindLHS _ cls (L loc bind@(FunBind { fun_id = name })) rest
 -- Report error for all other forms of bindings
 -- This is why we use a fold rather than map
 rnMethodBindLHS is_cls_decl _ (L loc bind) rest
-  = rest <$ (addErrAt loc $
-         vcat [ what <+> text "not allowed in" <+> decl_sort
+  = rest <$ addErrAt loc
+        (vcat [ what <+> text "not allowed in" <+> decl_sort
               , nest 2 (ppr bind) ])
   where
     decl_sort | is_cls_decl = text "class declaration:"
@@ -912,19 +896,16 @@ signatures.  We'd only need this if we wanted to report unused tyvars.
 
 renameSigs :: HsSigCtxt
            -> [LSig GhcPs]
-           -> RnM ([LSig GhcRn], FreeVars)
+           -> WriterT FreeVars RnM [LSig GhcRn]
 -- Renames the signatures and performs error checks
-renameSigs ctxt sigs
-  = do  { mapM_ dupSigDeclErr (findDupSigs sigs)
-
-        ; checkDupMinimalSigs sigs
-
-        ; (sigs', sig_fvs) <- mapFvRn (wrapLocFstM (renameSig ctxt)) sigs
-
-        ; let (good_sigs, bad_sigs) = partition (okHsSig ctxt) sigs'
-        ; mapM_ misplacedSigErr bad_sigs                 -- Misplaced
-
-        ; return (good_sigs, sig_fvs) }
+renameSigs ctxt sigs =
+  [ good_sigs
+  | () <- lift $ traverse_ dupSigDeclErr (findDupSigs sigs)
+  , () <- lift $ checkDupMinimalSigs sigs
+  , sigs' <- traverse (wrapLocM (renameSig ctxt)) sigs
+  , let (good_sigs, bad_sigs) = partition (okHsSig ctxt) sigs'
+  , () <- lift $ traverse_ misplacedSigErr bad_sigs -- Misplaced
+  ]
 
 ----------------------
 -- We use lookupSigOccRn in the signatures, which is a little bit unsatisfactory
@@ -936,23 +917,19 @@ renameSigs ctxt sigs
 -- is in scope.  (I'm assuming that Baz.op isn't in scope unqualified.)
 -- Doesn't seem worth much trouble to sort this.
 
-renameSig :: HsSigCtxt -> Sig GhcPs -> RnM (Sig GhcRn, FreeVars)
+renameSig :: HsSigCtxt -> Sig GhcPs -> WriterT FreeVars RnM (Sig GhcRn)
 renameSig _ (IdSig _ x)
-  = return (IdSig noExtField x, emptyFVs)    -- Actually this never occurs
+  = pure (IdSig noExtField x)    -- Actually this never occurs
 
 renameSig ctxt sig@(TypeSig _ vs ty)
-  = do  { new_vs <- mapM (lookupSigOccRn ctxt sig) vs
+  = do  { new_vs <- lift $ traverse (lookupSigOccRn ctxt sig) vs
         ; let doc = TypeSigCtx (ppr_sig_bndrs vs)
-        ; (new_ty, fvs) <- rnHsSigWcType doc Nothing ty
-        ; return (TypeSig noExtField new_vs new_ty, fvs) }
+        ; TypeSig noExtField new_vs <$> rnHsSigWcType doc Nothing ty }
 
 renameSig ctxt sig@(ClassOpSig _ is_deflt vs ty)
   = do  { defaultSigs_on <- xoptM LangExt.DefaultSignatures
-        ; when (is_deflt && not defaultSigs_on) $
-          addErr (defaultSigErr sig)
-        ; new_v <- mapM (lookupSigOccRn ctxt sig) vs
-        ; (new_ty, fvs) <- rnHsSigType ty_ctxt TypeLevel inf_msg ty
-        ; return (ClassOpSig noExtField is_deflt new_v new_ty, fvs) }
+        ; lift $ when (is_deflt && not defaultSigs_on) $ addErr (defaultSigErr sig)
+        ; ClassOpSig noExtField is_deflt <$> lift (traverse (lookupSigOccRn ctxt sig) vs) <*> rnHsSigType ty_ctxt TypeLevel inf_msg ty }
   where
     (v1:_) = vs
     ty_ctxt = GenericCtx (text "a class method signature for"
@@ -960,8 +937,7 @@ renameSig ctxt sig@(ClassOpSig _ is_deflt vs ty)
     inf_msg = text "A default type signature cannot contain inferred type variables" <$ guard is_deflt
 
 renameSig _ (SpecInstSig _ src ty)
-  = do  { (new_ty, fvs) <- rnHsSigType SpecInstSigCtx TypeLevel inf_msg ty
-        ; return (SpecInstSig noExtField src new_ty,fvs) }
+  = SpecInstSig noExtField src <$> rnHsSigType SpecInstSigCtx TypeLevel inf_msg ty
   where
     inf_msg = Just (text "Inferred type variables are not allowed")
 
@@ -969,55 +945,44 @@ renameSig _ (SpecInstSig _ src ty)
 -- so, in the top-level case (when mb_names is Nothing)
 -- we use lookupOccRn.  If there's both an imported and a local 'f'
 -- then the SPECIALISE pragma is ambiguous, unlike all other signatures
-renameSig ctxt sig@(SpecSig _ v tys inl)
-  = do  { new_v <- case ctxt of
+renameSig ctxt sig@(SpecSig _ v tys inl) =
+  [ SpecSig noExtField new_v new_tys inl
+  | new_v <- lift case ctxt of
                      TopSigCtxt {} -> wrapLocM lookupOccRn v
                      _             -> lookupSigOccRn ctxt sig v
-        ; (new_ty, fvs) <- foldM do_one ([],emptyFVs) tys
-        ; return (SpecSig noExtField new_v new_ty inl, fvs) }
+  , new_tys <- rnHsSigType ty_ctxt TypeLevel Nothing `traverse` tys ]
   where
-    ty_ctxt = GenericCtx (text "a SPECIALISE signature for"
-                          <+> quotes (ppr v))
-    do_one (tys,fvs) ty
-      = do { (new_ty, fvs_ty) <- rnHsSigType ty_ctxt TypeLevel Nothing ty
-           ; return ( new_ty:tys, fvs_ty `plusFV` fvs) }
+    ty_ctxt = GenericCtx (text "a SPECIALISE signature for" <+> quotes (ppr v))
 
 renameSig ctxt sig@(InlineSig _ v s)
-  = do  { new_v <- lookupSigOccRn ctxt sig v
-        ; return (InlineSig noExtField new_v s, emptyFVs) }
+  = lift $ lookupSigOccRn ctxt sig v <₪> \ new_v -> InlineSig noExtField new_v s
 
 renameSig ctxt (FixSig _ fsig)
-  = do  { new_fsig <- rnSrcFixityDecl ctxt fsig
-        ; return (FixSig noExtField new_fsig, emptyFVs) }
+  = lift $ FixSig noExtField <$> rnSrcFixityDecl ctxt fsig
 
-renameSig ctxt sig@(MinimalSig _ s (L l bf))
-  = do new_bf <- traverse (lookupSigOccRn ctxt sig) bf
-       return (MinimalSig noExtField s (L l new_bf), emptyFVs)
+renameSig ctxt sig@(MinimalSig _ s lbf)
+  = lift $ MinimalSig noExtField s <$> (traverse . traverse) (lookupSigOccRn ctxt sig) lbf
 
-renameSig ctxt sig@(PatSynSig _ vs ty)
-  = do  { new_vs <- mapM (lookupSigOccRn ctxt sig) vs
-        ; (ty', fvs) <- rnHsSigType ty_ctxt TypeLevel Nothing ty
-        ; return (PatSynSig noExtField new_vs ty', fvs) }
+renameSig ctxt sig@(PatSynSig _ vs ty) = PatSynSig noExtField
+    <$> lift (traverse (lookupSigOccRn ctxt sig) vs)
+    <*> rnHsSigType ty_ctxt TypeLevel Nothing ty
   where
-    ty_ctxt = GenericCtx (text "a pattern synonym signature for"
-                          <+> ppr_sig_bndrs vs)
+    ty_ctxt = GenericCtx (text "a pattern synonym signature for" <+> ppr_sig_bndrs vs)
 
 renameSig ctxt sig@(SCCFunSig _ st v s)
-  = do  { new_v <- lookupSigOccRn ctxt sig v
-        ; return (SCCFunSig noExtField st new_v s, emptyFVs) }
+  = lift $ lookupSigOccRn ctxt sig v <₪> \ new_v -> SCCFunSig noExtField st new_v s
 
 -- COMPLETE Sigs can refer to imported IDs which is why we use
--- lookupLocatedOccRn rather than lookupSigOccRn
-renameSig _ctxt sig@(CompleteMatchSig _ s (L l bf) mty)
-  = do new_bf <- traverse (wrapLocM lookupOccRn) bf
-       new_mty  <- traverse (wrapLocM lookupOccRn) mty
+-- lookupOccRn rather than lookupSigOccRn
+renameSig _ctxt sig@(CompleteMatchSig _ s (L l bf) mty) = lift
+  [ CompleteMatchSig noExtField s (L l new_bf) new_mty
+  | new_bf <- traverse (wrapLocM lookupOccRn) bf
+  , new_mty <- traverse (wrapLocM lookupOccRn) mty
 
-       this_mod <- fmap tcg_mod getGblEnv
-       unless (any (nameIsLocalOrFrom this_mod . unLoc) new_bf) $ do
-         -- Why 'any'? See Note [Orphan COMPLETE pragmas]
-         addErrCtxt (text "In" <+> ppr sig) $ failWithTc orphanError
-
-       return (CompleteMatchSig noExtField s (L l new_bf) new_mty, emptyFVs)
+  , this_mod <- tcg_mod <$> getGblEnv
+  , () <- unless (any (nameIsLocalOrFrom this_mod . unLoc) new_bf) $
+        -- Why 'any'? See Note [Orphan COMPLETE pragmas]
+        addErrCtxt (text "In" <+> ppr sig) $ failWithTc orphanError ]
   where
     orphanError :: SDoc
     orphanError =
@@ -1137,35 +1102,33 @@ checkDupMinimalSigs sigs
 -}
 
 rnMatchGroup :: Outputable (body GhcPs) => HsMatchContext GhcRn
-             -> (Located (body GhcPs) -> RnM (Located (body GhcRn), FreeVars))
+             -> (Located (body GhcPs) -> WriterT FreeVars RnM (Located (body GhcRn)))
              -> MatchGroup GhcPs (Located (body GhcPs))
-             -> RnM (MatchGroup GhcRn (Located (body GhcRn)), FreeVars)
+             -> WriterT FreeVars RnM (MatchGroup GhcRn (Located (body GhcRn)))
 rnMatchGroup ctxt rnBody (MG { mg_alts = L _ ms, mg_origin = origin })
   = do { empty_case_ok <- xoptM LangExt.EmptyCase
-       ; when (null ms && not empty_case_ok) (addErr (emptyCaseErr ctxt))
-       ; (new_ms, ms_fvs) <- mapFvRn (rnMatch ctxt rnBody) ms
-       ; return (mkMatchGroup origin new_ms, ms_fvs) }
+       ; lift $ when (null ms && not empty_case_ok) (addErr (emptyCaseErr ctxt))
+       ; mkMatchGroup origin <$> traverse (rnMatch ctxt rnBody) ms }
 
 rnMatch :: Outputable (body GhcPs) => HsMatchContext GhcRn
-        -> (Located (body GhcPs) -> RnM (Located (body GhcRn), FreeVars))
+        -> (Located (body GhcPs) -> WriterT FreeVars RnM (Located (body GhcRn)))
         -> LMatch GhcPs (Located (body GhcPs))
-        -> RnM (LMatch GhcRn (Located (body GhcRn)), FreeVars)
-rnMatch ctxt rnBody = wrapLocFstM (rnMatch' ctxt rnBody)
+        -> WriterT FreeVars RnM (LMatch GhcRn (Located (body GhcRn)))
+rnMatch ctxt = wrapLocM . rnMatch' ctxt
 
 rnMatch' :: Outputable (body GhcPs) => HsMatchContext GhcRn
-         -> (Located (body GhcPs) -> RnM (Located (body GhcRn), FreeVars))
+         -> (Located (body GhcPs) -> WriterT FreeVars RnM (Located (body GhcRn)))
          -> Match GhcPs (Located (body GhcPs))
-         -> RnM (Match GhcRn (Located (body GhcRn)), FreeVars)
+         -> WriterT FreeVars RnM (Match GhcRn (Located (body GhcRn)))
 rnMatch' ctxt rnBody (Match { m_ctxt = mf, m_pats = pats, m_grhss = grhss })
-  = do  { -- Note that there are no local fixity decls for matches
-        ; rnPats ctxt pats      $ \ pats' -> do
-        { (grhss', grhss_fvs) <- rnGRHSs ctxt rnBody grhss
-        ; let mf' = case (ctxt, mf) of
-                      (FunRhs { mc_fun = L _ funid }, FunRhs { mc_fun = L lf _ })
-                                            -> mf { mc_fun = L lf funid }
-                      _                     -> ctxt
-        ; return (Match { m_ext = noExtField, m_ctxt = mf', m_pats = pats'
-                        , m_grhss = grhss'}, grhss_fvs ) }}
+  = -- Note that there are no local fixity decls for matches
+    rnPats ctxt pats $ \ pats' ->
+  [ Match { m_ext = noExtField, m_ctxt = mf', m_pats = pats', m_grhss = grhss' }
+  | grhss' <- rnGRHSs ctxt rnBody grhss
+  , let mf' = case (ctxt, mf) of
+            (FunRhs { mc_fun = L _ funid }, FunRhs { mc_fun = L lf _ }) ->
+                mf { mc_fun = L lf funid }
+            _ -> ctxt ]
 
 emptyCaseErr :: HsMatchContext GhcRn -> SDoc
 emptyCaseErr ctxt = hang (text "Empty list of alternatives in" <+> pp_ctxt)
@@ -1185,33 +1148,30 @@ emptyCaseErr ctxt = hang (text "Empty list of alternatives in" <+> pp_ctxt)
 -}
 
 rnGRHSs :: HsMatchContext GhcRn
-        -> (Located (body GhcPs) -> RnM (Located (body GhcRn), FreeVars))
+        -> (Located (body GhcPs) -> WriterT FreeVars RnM (Located (body GhcRn)))
         -> GRHSs GhcPs (Located (body GhcPs))
-        -> RnM (GRHSs GhcRn (Located (body GhcRn)), FreeVars)
+        -> WriterT FreeVars RnM (GRHSs GhcRn (Located (body GhcRn)))
 rnGRHSs ctxt rnBody (GRHSs _ grhss (L l binds))
-  = rnLocalBindsAndThen binds   $ \ binds' _ -> do
-    (grhss', fvGRHSs) <- mapFvRn (rnGRHS ctxt rnBody) grhss
-    return (GRHSs noExtField grhss' (L l binds'), fvGRHSs)
+  = WriterT $ rnLocalBindsAndThen binds $ \ binds' _ -> runWriterT
+    [ GRHSs noExtField grhss' (L l binds') | grhss' <- traverse (rnGRHS ctxt rnBody) grhss ]
 
 rnGRHS :: HsMatchContext GhcRn
-       -> (Located (body GhcPs) -> RnM (Located (body GhcRn), FreeVars))
+       -> (Located (body GhcPs) -> WriterT FreeVars RnM (Located (body GhcRn)))
        -> LGRHS GhcPs (Located (body GhcPs))
-       -> RnM (LGRHS GhcRn (Located (body GhcRn)), FreeVars)
-rnGRHS ctxt rnBody = wrapLocFstM (rnGRHS' ctxt rnBody)
+       -> WriterT FreeVars RnM (LGRHS GhcRn (Located (body GhcRn)))
+rnGRHS ctxt = wrapLocM . rnGRHS' ctxt
 
 rnGRHS' :: HsMatchContext GhcRn
-        -> (Located (body GhcPs) -> RnM (Located (body GhcRn), FreeVars))
+        -> (Located (body GhcPs) -> WriterT FreeVars RnM (Located (body GhcRn)))
         -> GRHS GhcPs (Located (body GhcPs))
-        -> RnM (GRHS GhcRn (Located (body GhcRn)), FreeVars)
+        -> WriterT FreeVars RnM (GRHS GhcRn (Located (body GhcRn)))
 rnGRHS' ctxt rnBody (GRHS _ guards rhs)
   = do  { pattern_guards_allowed <- xoptM LangExt.PatternGuards
-        ; ((guards', rhs'), fvs) <- rnStmts (PatGuard ctxt) rnLExpr guards $ \ _ ->
-                                    rnBody rhs
+        ; (guards', rhs') <- rnStmts (PatGuard ctxt) rnLExpr guards $ \ _ -> rnBody rhs
 
-        ; unless (pattern_guards_allowed || is_standard_guard guards')
-                 (addWarn NoReason (nonStdGuardErr guards'))
-
-        ; return (GRHS noExtField guards' rhs', fvs) }
+        ; GRHS noExtField guards' rhs' <$
+          unless (pattern_guards_allowed || is_standard_guard guards')
+                 (addWarn NoReason (nonStdGuardErr guards')) }
   where
         -- Standard Haskell 1.4 guards are just a single boolean
         -- expression, rather than a list of qualifiers as in the

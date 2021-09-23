@@ -90,6 +90,7 @@ import GHC.Utils.Panic.Plain
 import GHC.Utils.Misc
 
 import Control.Monad hiding ( mapAndUnzipM )
+import Control.Monad.Trans.State ( StateT (..) )
 import Data.Functor.Identity
 import qualified Data.List.NonEmpty as NE
 import Data.List.NonEmpty ( NonEmpty(..) )
@@ -875,9 +876,9 @@ generaliseTcTyCon (tc, scoped_prs, tc_res_kind)
        -- Step 3: Final zonk (following kind generalisation)
        -- See Note [Swizzling the tyvars before generaliseTcTyCon]
        ; ze <- emptyZonkEnv
-       ; (ze, inferred)        <- zonkTyBndrsX ze inferred
-       ; (ze, sorted_spec_tvs) <- zonkTyBndrsX ze sorted_spec_tvs
-       ; (ze, req_tvs)         <- zonkTyBndrsX ze req_tvs
+       ; (inferred, ze)        <- zonkTyBndrsX inferred `runStateT` ze
+       ; (sorted_spec_tvs, ze) <- zonkTyBndrsX sorted_spec_tvs `runStateT` ze
+       ; (req_tvs, ze)         <- zonkTyBndrsX req_tvs `runStateT` ze
        ; tc_res_kind           <- zonkTcTypeToTypeX ze tc_res_kind
 
        ; traceTc "generaliseTcTyCon: post zonk" $
@@ -917,9 +918,7 @@ generaliseTcTyCon (tc, scoped_prs, tc_res_kind)
        -- Step 7: Check for validity.
        -- We do this here because we're about to put the tycon into the
        -- the environment, and we don't want anything malformed there
-       ; checkTyConTelescope tycon
-
-       ; return tycon }
+       ; tycon <$ checkTyConTelescope tycon }
 
 {- Note [Required, Specified, and Inferred for types]
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -3150,7 +3149,7 @@ tcConDecl rep_tycon tag_map tmpl_bndrs res_kind res_tmpl new_or_data
 
              -- Zonk to Types
        ; (ze, qkvs)          <- zonkTyBndrs kvs
-       ; (ze, user_qtvbndrs) <- zonkTyVarBindersX ze exp_tvbndrs
+       ; (user_qtvbndrs, ze) <- zonkTyVarBindersX exp_tvbndrs `runStateT` ze
        ; let user_qtvs       = binderVars user_qtvbndrs
        ; arg_tys             <- zonkTcTypesToTypesX ze arg_tys
        ; ctxt                <- zonkTcTypesToTypesX ze ctxt

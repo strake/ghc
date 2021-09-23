@@ -1,5 +1,6 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE ExistentialQuantification #-}
 
 {-# OPTIONS_GHC -Wno-incomplete-record-updates #-}
@@ -42,6 +43,7 @@ import GHC.Utils.FV ( fvVarList, fvVarSet, unionFV, mkFVs, FV )
 
 import Control.Arrow ( (&&&) )
 import Control.Monad    ( filterM, replicateM, foldM )
+import Control.Monad.Trans.State ( StateT (..) )
 import Data.List        ( sort, sortOn )
 import Data.Graph       ( graphFromEdges, topSort )
 
@@ -418,10 +420,9 @@ getSortingAlg =
 addDocs :: [HoleFit] -> TcM [HoleFit]
 addDocs fits =
   do { showDocs <- goptM Opt_ShowDocsOfHoleFits
-     ; if showDocs
-       then do { (_, DeclDocMap lclDocs, _) <- extractDocs <$> getGblEnv
-               ; mapM (upd lclDocs) fits }
-       else return fits }
+     ; bool (pure fits)
+       do { (_, DeclDocMap lclDocs, _) <- extractDocs <$> getGblEnv
+          ; traverse (upd lclDocs) fits } showDocs }
   where
    msg = text "GHC.Tc.Errors.Hole addDocs"
    lookupInIface name (ModIface { mi_decl_docs = DeclDocMap dmap })
@@ -430,8 +431,7 @@ addDocs fits =
         do { let name = getName cand
            ; doc <- if hfIsLcl fit
                     then pure (Map.lookup name lclDocs)
-                    else do { mbIface <- loadInterfaceForNameMaybe msg name
-                            ; return $ mbIface >>= lookupInIface name }
+                    else (>>= lookupInIface name) <$> loadInterfaceForNameMaybe msg name
            ; return $ fit {hfDoc = doc} }
    upd _ fit = return fit
 
@@ -495,7 +495,7 @@ pprHoleFit (HFDC sWrp sWrpVars sTy sProv sMs) (HoleFit {..}) =
 
 getLocalBindings :: TidyEnv -> CtLoc -> TcM [Id]
 getLocalBindings tidy_orig ct_loc
- = do { (env1, _) <- zonkTidyOrigin tidy_orig (ctLocOrigin ct_loc)
+ = do { (_, env1) <- zonkTidyOrigin (ctLocOrigin ct_loc) `runStateT` tidy_orig
       ; go env1 [] (removeBindingShadowing $ tcl_bndrs lcl_env) }
   where
     lcl_env = ctLocEnv ct_loc
@@ -555,7 +555,7 @@ findValidHoleFits tidy_env implics simples h@(Hole { hole_sort = ExprHole _
      ; traceTc "numPlugins are:" $ ppr (length candidatePlugins)
      ; (searchDiscards, subs) <-
         tcFilterHoleFits findVLimit hole (hole_ty, []) cands
-     ; (tidy_env, tidy_subs) <- zonkSubs tidy_env subs
+     ; (tidy_subs, tidy_env) <- zonkSubs subs `runStateT` tidy_env
      ; tidy_sorted_subs <- sortFits sortingAlg tidy_subs
      ; plugin_handled_subs <- foldM (flip ($)) tidy_sorted_subs fitPlugins
      ; let (pVDisc, limited_subs) = possiblyDiscard maxVSubs plugin_handled_subs
@@ -573,19 +573,18 @@ findValidHoleFits tidy_env implics simples h@(Hole { hole_sort = ExprHole _
             -- We make a new refinement type for each level of refinement, where
             -- the level of refinement indicates number of additional arguments
             -- to allow.
-            ; ref_tys <- mapM mkRefTy refLvls
+            ; ref_tys <- traverse mkRefTy refLvls
             ; traceTc "ref_tys are" $ ppr ref_tys
             ; let findRLimit = if sortingAlg > NoSorting then Nothing
                                                          else maxRSubs
-            ; refDs <- mapM (flip (tcFilterHoleFits findRLimit hole)
-                              cands) ref_tys
-            ; (tidy_env, tidy_rsubs) <- zonkSubs tidy_env $ concatMap snd refDs
+            ; refDs <- traverse (flip (tcFilterHoleFits findRLimit hole) cands) ref_tys
+            ; (tidy_rsubs, tidy_env) <- zonkSubs (concatMap snd refDs) `runStateT` tidy_env
             ; tidy_sorted_rsubs <- sortFits sortingAlg tidy_rsubs
             -- For refinement substitutions we want matches
             -- like id (_ :: t), head (_ :: [t]), asTypeOf (_ :: t),
             -- and others in that vein to appear last, since these are
             -- unlikely to be the most relevant fits.
-            ; (tidy_env, tidy_hole_ty) <- zonkTidyTcType tidy_env hole_ty
+            ; (tidy_hole_ty, tidy_env) <- zonkTidyTcType hole_ty `runStateT` tidy_env
             ; let hasExactApp = any (tcEqType tidy_hole_ty) . hfWrap
                   (exact, not_exact) = partition hasExactApp tidy_sorted_rsubs
             ; plugin_handled_rsubs <- foldM (flip ($))
@@ -648,8 +647,7 @@ findValidHoleFits tidy_env implics simples h@(Hole { hole_sort = ExprHole _
 
     -- See Note [Relevant constraints]
     relevantCts :: [Ct]
-    relevantCts = if isEmptyVarSet (fvVarSet hole_fvs) then []
-                  else filter isRelevant simples
+    relevantCts | isEmptyVarSet (fvVarSet hole_fvs) = [] | otherwise = filter isRelevant simples
       where ctFreeVarSet :: Ct -> VarSet
             ctFreeVarSet = fvVarSet . tyCoFVsOfType . ctPred
             hole_fv_set = fvVarSet hole_fvs
@@ -659,25 +657,17 @@ findValidHoleFits tidy_env implics simples h@(Hole { hole_sort = ExprHole _
             -- they won't be solved by finding a type for the type variable
             -- representing the hole) and also other holes, since we're not
             -- trying to find hole fits for many holes at once.
-            isRelevant ct = not (isEmptyVarSet (ctFreeVarSet ct))
-                            && anyFVMentioned ct
+            isRelevant ct = not (isEmptyVarSet (ctFreeVarSet ct)) && anyFVMentioned ct
 
     -- We zonk the hole fits so that the output aligns with the rest
     -- of the typed hole error message output.
-    zonkSubs :: TidyEnv -> [HoleFit] -> TcM (TidyEnv, [HoleFit])
-    zonkSubs = zonkSubs' []
-      where zonkSubs' zs env [] = return (env, reverse zs)
-            zonkSubs' zs env (hf:hfs) = do { (env', z) <- zonkSub env hf
-                                           ; zonkSubs' (z:zs) env' hfs }
-
-            zonkSub :: TidyEnv -> HoleFit -> TcM (TidyEnv, HoleFit)
-            zonkSub env hf@RawHoleFit{} = return (env, hf)
-            zonkSub env hf@HoleFit{hfType = ty, hfMatches = m, hfWrap = wrp}
-              = do { (env, ty') <- zonkTidyTcType env ty
-                   ; (env, m') <- zonkTidyTcTypes env m
-                   ; (env, wrp') <- zonkTidyTcTypes env wrp
-                   ; let zFit = hf {hfType = ty', hfMatches = m', hfWrap = wrp'}
-                   ; return (env, zFit ) }
+    zonkSubs :: Traversable t => t HoleFit -> StateT TidyEnv TcM (t HoleFit)
+    zonkSubs = traverse zonkSub
+      where zonkSub :: HoleFit -> StateT TidyEnv TcM HoleFit
+            zonkSub hf@RawHoleFit{} = pure hf
+            zonkSub hf@HoleFit{hfType = ty, hfMatches = m, hfWrap = wrp} =
+              [ hf {hfType = ty', hfMatches = m', hfWrap = wrp'}
+              | ty' <- zonkTidyTcType ty, m' <- zonkTidyTcTypes m, wrp' <- zonkTidyTcTypes wrp ]
 
     -- Based on the flags, we might possibly discard some or all the
     -- fits we've found.
@@ -851,25 +841,21 @@ tcFilterHoleFits limit typed_hole ht@(hole_ty, _) candidates =
          -- variables, i.e. zonk them to read their final value to check for
          -- abstract refinements, and to report what the type of the simulated
          -- holes must be for this to be a match.
-         ; if fits
-           then if null ref_vars
-                then return (Just (z_wrp_tys, []))
-                else do { let -- To be concrete matches, matches have to
-                              -- be more than just an invented type variable.
-                              fvSet = fvVarSet fvs
-                              notAbstract :: TcType -> Bool
-                              notAbstract t = case getTyVar_maybe t of
-                                                Just tv -> tv `elemVarSet` fvSet
-                                                _ -> True
-                              allConcrete = all notAbstract z_wrp_tys
-                        ; z_vars  <- zonkTcTyVars ref_vars
-                        ; let z_mtvs = mapMaybe tcGetTyVar_maybe z_vars
-                        ; allFilled <- not <$> anyM isFlexiTyVar z_mtvs
-                        ; allowAbstract <- goptM Opt_AbstractRefHoleFits
-                        ; if allowAbstract || (allFilled && allConcrete )
-                          then return $ Just (z_wrp_tys, z_vars)
-                          else return Nothing }
-           else return Nothing }
+         ; if
+          | not fits -> pure Nothing
+          | null ref_vars -> pure (Just (z_wrp_tys, []))
+          | otherwise ->
+          [ (z_wrp_tys, z_vars) <$ guard (allowAbstract || allFilled && allConcrete)
+          | let -- To be concrete matches, matches have to
+                -- be more than just an invented type variable.
+                fvSet = fvVarSet fvs
+                notAbstract :: TcType -> Bool
+                notAbstract t = all (`elemVarSet` fvSet) (getTyVar_maybe t)
+                allConcrete = all notAbstract z_wrp_tys
+          , z_vars  <- traverse zonkTcTyVar ref_vars
+          , let z_mtvs = mapMaybe tcGetTyVar_maybe z_vars
+          , allFilled <- not <$> anyM isFlexiTyVar z_mtvs
+          , allowAbstract <- goptM Opt_AbstractRefHoleFits ] }
      where fvs = mkFVs ref_vars `unionFV` hole_fvs `unionFV` tyCoFVsOfType ty
            hole = typed_hole { th_hole = Nothing }
 
@@ -896,10 +882,8 @@ isFlexiTyVar _ = return False
 withoutUnification :: FV -> TcM a -> TcM a
 withoutUnification free_vars action =
   do { flexis <- filterM isFlexiTyVar fuvs
-     ; result <- action
-          -- Reset any mutated free variables
-     ; mapM_ restore flexis
-     ; return result }
+     ; result <- action -- Reset any mutated free variables
+     ; result <$ traverse_ restore flexis }
   where restore tv = do { traceTc "withoutUnification: restore flexi" (ppr tv)
                         ; writeMutVar (metaTyVarRef tv) Flexi }
         fuvs = fvVarList free_vars

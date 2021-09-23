@@ -112,6 +112,7 @@ runIOEnv env (IOEnv m) = m env
 fixM :: (a -> IOEnv env a) -> IOEnv env a
 fixM f = IOEnv (\ env -> fixIO (\ r -> unIOEnv (f r) env))
 
+instance MonadFix (IOEnv env) where mfix = fixM
 
 ---------------------------
 tryM :: IOEnv env r -> IOEnv env (Either IOEnvFailure r)

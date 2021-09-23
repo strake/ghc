@@ -930,9 +930,7 @@ seqBlocks infos blocks = placeNext pullable0 todo0
 
 lookupDeleteUFM :: UniqFM BlockId elt -> BlockId
                 -> Maybe (elt, UniqFM BlockId elt)
-lookupDeleteUFM m k = do -- Maybe monad
-    v <- lookupUFM m k
-    return (v, delFromUFM m k)
+lookupDeleteUFM m k = [ (v, delFromUFM m k) | v <- lookupUFM m k ]
 
 backendMaintainsCfg :: Platform -> Bool
 backendMaintainsCfg platform = case platformArch platform of

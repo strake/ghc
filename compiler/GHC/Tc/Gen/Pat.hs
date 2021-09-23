@@ -62,6 +62,7 @@ import qualified GHC.LanguageExtensions as LangExt
 import GHC.Data.List.SetOps ( getNth )
 import Control.Arrow  ( first )
 import Control.Monad  ( when )
+import Control.Monad.Trans.Class ( lift )
 
 {-
 ************************************************************************
@@ -627,15 +628,13 @@ tcPatSig in_pat_bind sig res_ty = do
         wrap <- addErrCtxtM (mk_msg sig_ty) $ tcSubTypePat PatSigOrigin PatSigCtxt res_ty sig_ty ]
   $ null sig_tvs }
   where
-    mk_msg sig_ty tidy_env
-       = do { (tidy_env, sig_ty) <- zonkTidyTcType tidy_env sig_ty
-            ; res_ty <- readExpType res_ty   -- should be filled in by now
-            ; (tidy_env, res_ty) <- zonkTidyTcType tidy_env res_ty
-            ; let msg = vcat [ hang (text "When checking that the pattern signature:")
-                                  4 (ppr sig_ty)
-                             , nest 2 (hang (text "fits the type of its context:")
-                                          2 (ppr res_ty)) ]
-            ; return (tidy_env, msg) }
+    mk_msg sig_ty =
+      [ vcat
+          [ hang (text "When checking that the pattern signature:") 4 (ppr sig_ty)
+          , nest 2 (hang (text "fits the type of its context:") 2 (ppr res_ty)) ]
+      | sig_ty <- zonkTidyTcType sig_ty
+      , res_ty <- lift $ readExpType res_ty   -- should be filled in by now
+      , res_ty <- zonkTidyTcType res_ty ]
 
 patBindSigErr :: [(Name,TcTyVar)] -> SDoc
 patBindSigErr sig_tvs

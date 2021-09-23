@@ -1861,7 +1861,7 @@ neededEvVars implic@(Implic { ic_given = givens
      | otherwise = evVarsOfTerm rhs `unionVarSet` needs
 
 -------------------------------------------------
-simplifyHoles :: Bag Hole -> TcS (Bag Hole)
+simplifyHoles :: Traversable t => t Hole -> TcS (t Hole)
 simplifyHoles = traverse simpl_hole
   where
     simpl_hole :: Hole -> TcS Hole
@@ -2611,8 +2611,7 @@ disambigGroup (default_ty:default_tys) group@(the_tv, wanteds)
   where
     try_group
       | Just subst <- mb_subst
-      = do { lcl_env <- TcS.getLclEnv
-           ; tc_lvl <- TcS.getTcLevel
+      = do { Env { env_lcl = lcl_env@TcLclEnv { tcl_tclvl = tc_lvl } } <- TcS.getTcEnv
            ; let loc = mkGivenLoc tc_lvl UnkSkol lcl_env
            ; wanted_evs <- mapM (newWantedEvVarNC loc . substTy subst . ctPred)
                                 wanteds

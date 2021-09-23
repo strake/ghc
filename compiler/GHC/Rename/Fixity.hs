@@ -1,5 +1,4 @@
 {-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE ViewPatterns #-}
 
 {-
 
@@ -139,11 +138,12 @@ lookupFixityRn_help' name occ
            Nothing ->
 
     do { this_mod <- getModule
-       ; if nameIsLocalOrFrom this_mod name
-               -- Local (and interactive) names are all in the
-               -- fixity env, and don't have entries in the HPT
-         then pure (False, defaultFixity)
-         else lookup_imported } } }
+       ; bool
+         -- Local (and interactive) names are all in the
+         -- fixity env, and don't have entries in the HPT
+         lookup_imported
+         (pure (False, defaultFixity))
+         (nameIsLocalOrFrom this_mod name) } } }
   where
     lookup_imported =
       -- For imported names, we have to get their fixities by doing a
@@ -197,16 +197,15 @@ lookupFieldFixityRn (Ambiguous _ lrdr) = get_ambiguous_fixity (unLoc lrdr)
       rdr_env <- getGlobalRdrEnv
       let elts =  lookupGRE_RdrName rdr_name rdr_env
 
-      fixities <- groupBy ((==) `on` snd) . zip elts
-                  <$> mapM lookup_gre_fixity elts
+      fixities <- groupBy ((==) `on` snd) <$> traverse (liftA2 fmap (,) lookup_gre_fixity) elts
 
       case fixities of
         -- There should always be at least one fixity.
         -- Something's very wrong if there are no fixity candidates, so panic
         [] -> panic "get_ambiguous_fixity: no candidates for a given RdrName"
         [ (_, fix):_ ] -> return fix
-        ambigs -> addErr (ambiguous_fixity_err rdr_name ambigs)
-                  >> return (Fixity NoSourceText minPrecedence InfixL)
+        ambigs -> Fixity NoSourceText minPrecedence InfixL <$
+            addErr (ambiguous_fixity_err rdr_name ambigs)
 
     lookup_gre_fixity gre = lookupFixityRn' (gre_name gre) (greOccName gre)
 

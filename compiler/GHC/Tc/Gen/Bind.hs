@@ -71,6 +71,7 @@ import qualified GHC.LanguageExtensions as LangExt
 import GHC.Core.ConLike
 
 import Control.Monad hiding (mapAndUnzipM)
+import Control.Monad.Trans.State (StateT (..))
 import Data.Foldable (find, toList)
 
 {-
@@ -1027,17 +1028,18 @@ chooseInferredQuantifiers inferred_theta tau_tvs qtvs
 
 mk_impedance_match_msg :: MonoBindInfo
                        -> TcType -> TcType
-                       -> TidyEnv -> TcM (TidyEnv, SDoc)
+                       -> StateT TidyEnv TcM SDoc
 -- This is a rare but rather awkward error messages
 mk_impedance_match_msg (MBI { mbi_poly_name = name, mbi_sig = mb_sig })
-                       inf_ty sig_ty tidy_env
- = do { (tidy_env1, inf_ty) <- zonkTidyTcType tidy_env  inf_ty
-      ; (tidy_env2, sig_ty) <- zonkTidyTcType tidy_env1 sig_ty
-      ; let msg = vcat [ text "When checking that the inferred type"
-                       , nest 2 $ ppr name <+> dcolon <+> ppr inf_ty
-                       , text "is as general as its" <+> what <+> text "signature"
-                       , nest 2 $ ppr name <+> dcolon <+> ppr sig_ty ]
-      ; return (tidy_env2, msg) }
+                       inf_ty sig_ty =
+  [ msg
+  | inf_ty <- zonkTidyTcType inf_ty
+  , sig_ty <- zonkTidyTcType sig_ty
+  , let msg = vcat
+          [ text "When checking that the inferred type"
+          , nest 2 $ ppr name <+> dcolon <+> ppr inf_ty
+          , text "is as general as its" <+> what <+> text "signature"
+          , nest 2 $ ppr name <+> dcolon <+> ppr sig_ty ] ]
   where
     what = case mb_sig of
              Nothing                     -> text "inferred"
@@ -1045,12 +1047,13 @@ mk_impedance_match_msg (MBI { mbi_poly_name = name, mbi_sig = mb_sig })
                       | otherwise        -> empty
 
 
-mk_inf_msg :: Name -> TcType -> TidyEnv -> TcM (TidyEnv, SDoc)
-mk_inf_msg poly_name poly_ty tidy_env
- = do { (tidy_env1, poly_ty) <- zonkTidyTcType tidy_env poly_ty
-      ; let msg = vcat [ text "When checking the inferred type"
-                       , nest 2 $ ppr poly_name <+> dcolon <+> ppr poly_ty ]
-      ; return (tidy_env1, msg) }
+mk_inf_msg :: Name -> TcType -> StateT TidyEnv TcM SDoc
+mk_inf_msg poly_name poly_ty =
+  [ msg
+  | poly_ty <- zonkTidyTcType poly_ty
+  , let msg = vcat
+          [ text "When checking the inferred type"
+          , nest 2 $ ppr poly_name <+> dcolon <+> ppr poly_ty ] ]
 
 
 -- | Warn the user about polymorphic local binders that lack type signatures.

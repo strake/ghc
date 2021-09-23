@@ -59,20 +59,20 @@ lookupFsEnv        :: FastStringEnv a -> FastString -> Maybe a
 lookupFsEnv_NF     :: FastStringEnv a -> FastString -> a
 
 emptyFsEnv                = emptyUFM
-unitFsEnv x y             = unitUFM x y
-extendFsEnv x y z         = addToUFM x y z
-extendFsEnvList x l       = addListToUFM x l
-lookupFsEnv x y           = lookupUFM x y
+unitFsEnv                 = unitUFM
+extendFsEnv               = addToUFM
+extendFsEnvList           = addListToUFM
+lookupFsEnv               = lookupUFM
 alterFsEnv                = alterUFM
-mkFsEnv     l             = listToUFM l
-elemFsEnv x y             = elemUFM x y
-plusFsEnv x y             = plusUFM x y
-plusFsEnv_C f x y         = plusUFM_C f x y
-extendFsEnv_C f x y z     = addToUFM_C f x y z
-extendFsEnv_Acc x y z a b = addToUFM_Acc x y z a b
-extendFsEnvList_C x y z   = addListToUFM_C x y z
-delFromFsEnv x y          = delFromUFM x y
-delListFromFsEnv x y      = delListFromUFM x y
+mkFsEnv                   = listToUFM
+elemFsEnv                 = elemUFM
+plusFsEnv                 = plusUFM
+plusFsEnv_C               = plusUFM_C
+extendFsEnv_C             = addToUFM_C
+extendFsEnv_Acc           = addToUFM_Acc
+extendFsEnvList_C         = addListToUFM_C
+delFromFsEnv              = delFromUFM
+delListFromFsEnv          = delListFromUFM
 
 lookupFsEnv_NF env n = expectJust "lookupFsEnv_NF" (lookupFsEnv env n)
 
