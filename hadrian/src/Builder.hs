@@ -30,6 +30,7 @@ import Hadrian.Utilities
 import Base
 import Context
 import Oracles.Flag
+import Oracles.Setting (setting, Setting(..))
 import Packages
 
 -- | C compiler can be used in two different modes:
@@ -180,7 +181,11 @@ instance H.Builder Builder where
         Autoreconf dir -> return [dir -/- "configure.ac"]
         Configure  dir -> return [dir -/- "configure"]
 
-        Ghc _ Stage0 -> includesDependencies Stage0
+        Ghc _ Stage0 -> do
+          -- Read the boot GHC version here to make sure we rebuild when it
+          -- changes (#18001).
+          _bootGhcVersion <- setting GhcVersion
+          includesDependencies Stage0
         Ghc _ stage -> do
             root <- buildRoot
             touchyPath <- programPath (vanillaContext Stage0 touchy)
@@ -282,7 +287,7 @@ instance H.Builder Builder where
                   cmd' echo [path] "--no-split" [ "-o", output] [input]
 
                 Xelatex   -> unit $ cmd' [Cwd output] [path] buildArgs
-                Makeindex -> unit $ cmd' [Cwd output] [path] buildArgs
+                Makeindex -> unit $ cmd' [Cwd output] [path] (buildArgs ++ [input])
 
                 Tar _ -> cmd' buildOptions echo [path] buildArgs
                 _  -> cmd' echo [path] buildArgs
