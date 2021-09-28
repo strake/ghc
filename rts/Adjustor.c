@@ -188,12 +188,6 @@ createAdjustor (int cconv,
 #include <string.h>
 #endif
 
-#if defined(LEADING_UNDERSCORE)
-#define UNDERSCORE "_"
-#else 
-#define UNDERSCORE ""
-#endif
-
 #if defined(x86_64_HOST_ARCH)
 /* 
   Now here's something obscure for you:
@@ -215,8 +209,8 @@ createAdjustor (int cconv,
 static void GNUC3_ATTRIBUTE(used) obscure_ccall_wrapper(void)
 {
   __asm__ (
-   ".globl " UNDERSCORE "obscure_ccall_ret_code\n"
-   UNDERSCORE "obscure_ccall_ret_code:\n\t"
+   ".globl " "obscure_ccall_ret_code\n"
+   "obscure_ccall_ret_code:\n\t"
    "addq $0x8, %rsp\n\t"
 #if defined(mingw32_HOST_OS)
    /* On Win64, we had to put the original return address after the

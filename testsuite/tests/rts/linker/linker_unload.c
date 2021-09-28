@@ -40,11 +40,7 @@ int main (int argc, char *argv[])
             errorBelch("resolveObjs failed");
             exit(1);
         }
-#if LEADING_UNDERSCORE
-        f = lookupSymbol("_f");
-#else
         f = lookupSymbol("f");
-#endif
         if (!f) {
             errorBelch("lookupSymbol failed");
             exit(1);
@@ -71,11 +67,7 @@ int main (int argc, char *argv[])
             errorBelch("resolveObjs failed");
             exit(1);
         }
-#if LEADING_UNDERSCORE
-        f = lookupSymbol("_f");
-#else
         f = lookupSymbol("f");
-#endif
         if (!f) {
             errorBelch("lookupSymbol failed");
             exit(1);

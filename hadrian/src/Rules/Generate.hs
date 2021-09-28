@@ -330,7 +330,6 @@ generateSettings = do
         , ("Support SMP", expr $ yesNo <$> targetSupportsSMP)
         , ("RTS ways", unwords . map show <$> getRtsWays)
         , ("Tables next to code", expr $ yesNo <$> flag TablesNextToCode)
-        , ("Leading underscore", expr $ yesNo <$> flag LeadingUnderscore)
         , ("Use LibFFI", expr $ yesNo <$> useLibFFIForAdjustors)
         , ("Use Threads", expr $ yesNo . ghcThreaded <$> flavour)
         , ("Use Debugging", expr $ yesNo . ghcDebugged <$> flavour)

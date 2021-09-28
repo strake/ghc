@@ -45,7 +45,6 @@ solaris-broken-shld  = @SOLARIS_BROKEN_SHLD@
 ghc-unregisterised   = @Unregisterised@
 tables-next-to-code  = @TablesNextToCode@
 ghc-source-path      = @hardtop@
-leading-underscore   = @LeadingUnderscore@
 
 # Information about build, host and target systems:
 #==================================================

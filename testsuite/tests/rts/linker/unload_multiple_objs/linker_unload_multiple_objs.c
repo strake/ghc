@@ -47,11 +47,7 @@ void load_and_resolve_all_objects() {
 
     for (i = 0; i < NUM_OBJS; i++) {
         char sym_name[138] = {0};
-#if LEADING_UNDERSCORE
-        sprintf(sym_name, "_createHeapObject%c", 'A'+i);
-#else
         sprintf(sym_name, "createHeapObject%c", 'A'+i);
-#endif
         void *sym_addr = lookupSymbol(sym_name);
         if (!sym_addr) {
             errorBelch("lookupSymbol(%s) failed", sym_name);
@@ -101,13 +97,8 @@ typedef void freeptrfun_t(HsStablePtr);
 void test_still_has_references_to_unloaded_objects()
 {
     load_and_resolve_all_objects();
-#if LEADING_UNDERSCORE
-    stableptrfun_t *createHeapObject = lookupSymbol("_createHeapObjectD");
-    freeptrfun_t *freeHeapObject = lookupSymbol("_freeHeapObjectD");
-#else
     stableptrfun_t *createHeapObject = lookupSymbol("createHeapObjectD");
     freeptrfun_t *freeHeapObject = lookupSymbol("freeHeapObjectD");
-#endif
     HsStablePtr ptr = createHeapObject();
 
     unloadObj(toPathchar("A.o"));

@@ -242,7 +242,6 @@ getTargetPlatform settingsFile settings constants = do
   targetArchOS <- getTargetArchOS settingsFile settings
   targetWordSize <- readSetting "target word size"
   targetWordBigEndian <- getBooleanSetting "target word big endian"
-  targetLeadingUnderscore <- getBooleanSetting "Leading underscore"
   targetUnregisterised <- getBooleanSetting "Unregisterised"
   targetHasGnuNonexecStack <- getBooleanSetting "target has GNU nonexec stack"
   targetHasIdentDirective <- getBooleanSetting "target has .ident directive"

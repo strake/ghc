@@ -18,7 +18,6 @@ data Flag = ArSupportsAtFile
           | TablesNextToCode
           | GmpInTree
           | GmpFrameworkPref
-          | LeadingUnderscore
           | SolarisBrokenShld
           | WithLibdw
           | WithLibnuma
@@ -38,7 +37,6 @@ flag f = do
             TablesNextToCode     -> "tables-next-to-code"
             GmpInTree            -> "intree-gmp"
             GmpFrameworkPref     -> "gmp-framework-preferred"
-            LeadingUnderscore    -> "leading-underscore"
             SolarisBrokenShld    -> "solaris-broken-shld"
             WithLibdw            -> "with-libdw"
             WithLibnuma          -> "with-libnuma"

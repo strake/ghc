@@ -27,23 +27,14 @@ loadFunction :: Maybe String
            -> IO (Maybe a)
 loadFunction mpkg m valsym = do
     c_initLinker
-    let symbol = prefixUnderscore
-                   ++ maybe "" (\p -> zEncodeString p ++ "_") mpkg
-                   ++ zEncodeString m ++ "_" ++ zEncodeString valsym
-                   ++ "_closure"
+    let symbol = maybe "" (\p -> zEncodeString p ++ "_") mpkg
+              ++ zEncodeString m ++ "_" ++ zEncodeString valsym
+              ++ "_closure"
     ptr@(Ptr addr) <- withCString symbol c_lookupSymbol
     if (ptr == nullPtr)
     then return Nothing
     else case addrToAny# addr of
            (# hval #) -> return ( Just hval )
-  where
-    prefixUnderscore = case (os, arch) of
-                         ("mingw32", "x86_64") -> ""
-                         ("cygwin" , "x86_64") -> ""
-                         ("mingw32", _       ) -> "_"
-                         ("darwin" , _       ) -> "_"
-                         ("cygwin" , _       ) -> "_"
-                         _                     -> ""
 
 foreign import ccall safe "lookupSymbol" c_lookupSymbol :: CString -> IO (Ptr a)
 foreign import ccall safe "initLinker" c_initLinker :: IO ()

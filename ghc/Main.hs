@@ -616,7 +616,6 @@ mode_flags =
           "Unregisterised",
           "Tables next to code",
           "RTS ways",
-          "Leading underscore",
           "Debug on",
           "LibDir",
           "Global Package DB",

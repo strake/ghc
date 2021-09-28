@@ -62,8 +62,7 @@ initObjLinker RetainCAFs = c_initLinker_ 1
 initObjLinker _ = c_initLinker_ 0
 
 lookupSymbol :: String -> IO (Maybe (Ptr a))
-lookupSymbol str_in = do
-   let str = prefixUnderscore str_in
+lookupSymbol str = do
    withCAString str $ \c_str -> do
      addr <- c_lookupSymbol c_str
      if addr == nullPtr
@@ -77,11 +76,6 @@ lookupClosure str = do
     Nothing -> return Nothing
     Just (Ptr addr) -> case addrToAny# addr of
       (# a #) -> Just <$> mkRemoteRef (HValue a)
-
-prefixUnderscore :: String -> String
-prefixUnderscore
- | cLeadingUnderscore = ('_':)
- | otherwise          = id
 
 -- | loadDLL loads a dynamic library using the OS's native linker
 -- (i.e. dlopen() on Unix, LoadLibrary() on Windows).  It takes either
@@ -179,13 +173,6 @@ foreign import ccall unsafe "removeLibrarySearchPath" c_removeLibrarySearchPath 
 -- Configuration
 
 #include "ghcautoconf.h"
-
-cLeadingUnderscore :: Bool
-#if defined(LEADING_UNDERSCORE)
-cLeadingUnderscore = True
-#else
-cLeadingUnderscore = False
-#endif
 
 isWindowsHost :: Bool
 #if defined(mingw32_HOST_OS)

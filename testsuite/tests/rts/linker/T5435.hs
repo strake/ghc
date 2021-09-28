@@ -39,19 +39,12 @@ main = do
     putStrLn "success"
 
 {-
-    f <- withCString (mungeSymbol "do_checks") lookupSymbol
+    f <- withCString "do_checks" lookupSymbol
     when (f == nullFunPtr) $ error "lookupSymbol failed"
     mkIO f
 
 foreign import ccall "lookupSymbol" lookupSymbol :: CString -> IO (FunPtr (IO ()))
 foreign import ccall "dynamic" mkIO :: FunPtr (IO ()) -> IO ()
-
-mungeSymbol :: String -> String
-#if LEADING_UNDERSCORE
-mungeSymbol s = "_" ++ s -- Mac OS X
-#else
-mungeSymbol = id
-#endif
 -}
 
 foreign import ccall "initLinker" initLinker :: IO ()

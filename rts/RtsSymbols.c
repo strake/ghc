@@ -1043,11 +1043,11 @@ RTS_LIBFFI_SYMBOLS
 #undef SymE_NeedsProto
 #undef SymE_NeedsDataProto
 
-#define SymI_HasProto(vvv) { MAYBE_LEADING_UNDERSCORE_STR(#vvv), \
+#define SymI_HasProto(vvv) { (#vvv), \
                     (void*)(&(vvv)), false },
 #define SymI_HasDataProto(vvv) \
                     SymI_HasProto(vvv)
-#define SymE_HasProto(vvv) { MAYBE_LEADING_UNDERSCORE_STR(#vvv), \
+#define SymE_HasProto(vvv) { (#vvv), \
             (void*)DLL_IMPORT_DATA_REF(vvv), false },
 #define SymE_HasDataProto(vvv) \
                     SymE_HasProto(vvv)
@@ -1060,8 +1060,7 @@ RTS_LIBFFI_SYMBOLS
 // SymI_HasProto_redirect allows us to redirect references to one symbol to
 // another symbol.  See newCAF/newRetainedCAF/newGCdCAF for an example.
 #define SymI_HasProto_redirect(vvv,xxx,weak) \
-    { MAYBE_LEADING_UNDERSCORE_STR(#vvv),    \
-      (void*)(&(xxx)), weak },
+    { (#vvv), (void*)(&(xxx)), weak },
 
 // SymI_HasProto_deprecated allows us to redirect references from their deprecated
 // names to the undeprecated ones. e.g. access -> _access.

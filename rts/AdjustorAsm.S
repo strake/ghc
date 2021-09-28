@@ -43,17 +43,12 @@
 #else
 .text
 #endif
-#if LEADING_UNDERSCORE
-    .globl _adjustorCode
-_adjustorCode:
-#else
     .globl adjustorCode
         /* Note that we don't build a function descriptor
            for AIX-derived ABIs here. This will happen at runtime
            in createAdjustor().
         */
 adjustorCode:
-#endif
     /* On entry, r2 will point to the AdjustorStub data structure. */
 
         /* save the link */
@@ -132,13 +127,8 @@ L2:
 #define FRAMESIZE_OFF   (HEADER_BYTES + 2*WS)
 #define ARGWORDS_OFF    (HEADER_BYTES + 3*WS)
 
-#if defined(LEADING_UNDERSCORE)
-    .globl _adjustorCode
-_adjustorCode:
-#else
     .globl adjustorCode
 adjustorCode:
-#endif
     popl    %eax
     subl    $RETVAL_OFF, %eax
     
