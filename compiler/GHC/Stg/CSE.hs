@@ -105,8 +105,11 @@ import GHC.Types.Var.Env
 import GHC.Core (AltCon(..))
 import GHC.Core.Map
 import GHC.Types.Name.Env
+import GHC.Data.Collections
+import GHC.Data.TrieMap (xtf)
 import Control.Category( (>>>) )
 import Control.Monad( (>=>) )
+import Data.Functor.Compose( Compose (..) )
 
 --------------
 -- The Trie --
@@ -119,30 +122,47 @@ data StgArgMap a = SAM
     { sam_var :: DVarEnv a
     , sam_lit :: LiteralMap a
     }
-  deriving (Foldable, Functor)
+  deriving (Foldable, Functor, Traversable)
 
 LENS_FIELD(sam_varL, sam_var)
 LENS_FIELD(sam_litL, sam_lit)
 
-instance TrieMap StgArgMap where
-    type Key StgArgMap = StgArg
-    emptyTM  = SAM { sam_var = emptyTM
-                   , sam_lit = emptyTM }
-    lookupTM (StgVarArg var) = sam_var >>> lkDFreeVar var
-    lookupTM (StgLitArg lit) = sam_lit >>> lookupTM lit
-    alterTM  (StgVarArg var) f = over sam_varL $ xtDFreeVar var f
-    alterTM  (StgLitArg lit) f = over sam_litL $ alterTM lit f
+instance Filtrable StgArgMap where
+    mapMaybe f (SAM as bs) = SAM (mapMaybe f as) (mapMaybe f bs)
+
+instance IsStaticKeylessMap StgArgMap where
+    type KeyOf StgArgMap = StgArg
+    mapLookup = \ case
+        StgVarArg var -> sam_var >>> mapLookup var
+        StgLitArg lit -> sam_lit >>> mapLookup lit
+    mapAdjustLookup = defaultMapAdjustLookup
+    mapIsSubmapOfBy f (SAM xs1 ys1) (SAM xs2 ys2) = mapIsSubmapOfBy f xs1 xs2 && mapIsSubmapOfBy f ys1 ys2
+
+instance IsKeylessMap StgArgMap where
+    mapEmpty  = SAM { sam_var = mapEmpty, sam_lit = mapEmpty }
+    mapAlterF = flip \ case
+        StgVarArg var -> sam_varL . flip mapAlterF var
+        StgLitArg lit -> sam_litL . flip mapAlterF lit
+    mapMergeA f (SAM xs1 ys1) (SAM xs2 ys2) = SAM <$> mapMergeA f xs1 xs2 <*> mapMergeA f ys1 ys2
 
 newtype ConAppMap a = CAM { un_cam :: DNameEnv (ListMap StgArgMap a) }
-  deriving (Foldable, Functor)
+  deriving (Foldable, Functor, Traversable)
 
 LENS_FIELD(un_camL, un_cam)
 
-instance TrieMap ConAppMap where
-    type Key ConAppMap = (DataCon, [StgArg])
-    emptyTM  = CAM emptyTM
-    lookupTM (dataCon, args) = un_cam >>> lkDNamed dataCon >=> lookupTM args
-    alterTM  (dataCon, args) f = over un_camL $ xtDNamed dataCon |>> alterTM args f
+instance Filtrable ConAppMap where
+    mapMaybe f (CAM as) = CAM ((fmap . mapMaybe) f as)
+
+instance IsStaticKeylessMap ConAppMap where
+    type KeyOf ConAppMap = (DataCon, [StgArg])
+    mapLookup (dataCon, args) = un_cam >>> lkDNamed dataCon >=> mapLookup args
+    mapAdjustLookup = defaultMapAdjustLookup
+    mapIsSubmapOfBy f (CAM as) (CAM bs) = mapIsSubmapOfBy (mapIsSubmapOfBy f) as bs
+
+instance IsKeylessMap ConAppMap where
+    mapEmpty  = CAM mapEmpty
+    mapAlterF = flip \ (dataCon, args) -> un_camL . xtDNamedF dataCon . xtf . flip mapAlterF args
+    mapMergeA f (CAM as) (CAM bs) = CAM . getCompose <$> mapMergeA f (Compose as) (Compose bs)
 
 -----------------
 -- The CSE Env --
@@ -203,14 +223,14 @@ as well as the changes to that code.
 
 initEnv :: InScopeSet -> CseEnv
 initEnv in_scope = CseEnv
-    { ce_conAppMap = emptyTM
+    { ce_conAppMap = mapEmpty
     , ce_subst     = emptyVarEnv
     , ce_bndrMap   = emptyVarEnv
     , ce_in_scope  = in_scope
     }
 
 envLookup :: DataCon -> [OutStgArg] -> CseEnv -> Maybe OutId
-envLookup dataCon args env = lookupTM (dataCon, args') (ce_conAppMap env)
+envLookup dataCon args env = mapLookup (dataCon, args') (ce_conAppMap env)
   where args' = map go args -- See Note [Trivial case scrutinee]
         go (StgVarArg v  ) = StgVarArg (fromMaybe v $ lookupVarEnv (ce_bndrMap env) v)
         go (StgLitArg lit) = StgLitArg lit
@@ -218,10 +238,10 @@ envLookup dataCon args env = lookupTM (dataCon, args') (ce_conAppMap env)
 addDataCon :: OutId -> DataCon -> [OutStgArg] -> CseEnv -> CseEnv
 -- do not bother with nullary data constructors, they are static anyways
 addDataCon _ _ [] = id
-addDataCon bndr dataCon args = over ce_conAppMapL $ insertTM (dataCon, args) bndr
+addDataCon bndr dataCon args = over ce_conAppMapL $ mapInsert (dataCon, args) bndr
 
 forgetCse :: CseEnv -> CseEnv
-forgetCse = set ce_conAppMapL emptyTM
+forgetCse = set ce_conAppMapL mapEmpty
     -- See note [Free variables of an StgClosure]
 
 addSubst :: OutId -> OutId -> CseEnv -> CseEnv

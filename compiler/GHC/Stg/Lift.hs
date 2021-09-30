@@ -27,6 +27,7 @@ import GHC.Utils.Panic
 import GHC.Types.Unique.Supply
 import GHC.Types.Var.Set
 import Control.Monad ( when )
+import Data.Foldable ( toList )
 import Data.Maybe ( isNothing )
 
 -- Note [Late lambda lifting in STG]
@@ -206,7 +207,7 @@ liftRhs Nothing (StgRhsClosure _ ccs upd infos body) = do
 liftRhs (Just former_fvs) (StgRhsClosure _ ccs upd infos body) = do
   -- This RHS was lifted. Insert extra binders for @former_fvs@.
   withSubstBndrs (map binderInfoBndr infos) $ \bndrs' -> do
-    let bndrs'' = dVarSetElems former_fvs ++ bndrs'
+    let bndrs'' = toList former_fvs ++ bndrs'
     StgRhsClosure noExtFieldSilent ccs upd bndrs'' <$> liftExpr body
 
 liftArgs :: InStgArg -> LiftM OutStgArg

@@ -38,6 +38,7 @@ import GHC.Core.Opt.Arity     ( etaExpandToJoinPointRule )
 
 import GHC.Builtin.Types.Prim (voidPrimTy)
 
+import GHC.Data.Collections
 import GHC.Data.Maybe     ( isJust )
 import GHC.Data.Bag
 import GHC.Data.FastString
@@ -2394,7 +2395,7 @@ instance Outputable UsageDetails where
                  text "calls" <+> equals <+> ppr calls]))
 
 emptyUDs :: UsageDetails
-emptyUDs = MkUD { ud_binds = emptyBag, ud_calls = emptyDVarEnv }
+emptyUDs = MkUD { ud_binds = emptyBag, ud_calls = mapEmpty }
 
 ------------------------------------------------------------
 type CallDetails  = DIdEnv CallInfoSet
@@ -2463,7 +2464,7 @@ getTheta = fmap tyBinderType . filter isInvisibleBinder . filter (not . isNamedB
 singleCall :: Id -> [SpecArg] -> UsageDetails
 singleCall id args
   = MkUD {ud_binds = emptyBag,
-          ud_calls = unitDVarEnv id $ CIS id $
+          ud_calls = mapSingleton id $ CIS id $
                      unitBag (CI { ci_key  = args -- used to be tys
                                  , ci_fvs  = call_fvs }) }
   where
@@ -2738,8 +2739,8 @@ callsForMe fn (MkUD { ud_binds = orig_dbs, ud_calls = orig_calls })
     (uds_without_me, calls_for_me)
   where
     uds_without_me = MkUD { ud_binds = orig_dbs
-                          , ud_calls = delDVarEnv orig_calls fn }
-    calls_for_me = case lookupDVarEnv orig_calls fn of
+                          , ud_calls = mapDelete fn orig_calls }
+    calls_for_me = case mapLookup fn orig_calls of
                         Nothing -> []
                         Just cis -> filterCalls cis orig_dbs
          -- filterCalls: drop calls that (directly or indirectly)

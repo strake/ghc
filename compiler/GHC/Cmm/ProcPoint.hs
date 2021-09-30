@@ -27,10 +27,11 @@ import GHC.Utils.Panic
 import GHC.Platform
 import GHC.Types.Unique.Supply
 import GHC.Cmm.Dataflow.Block
-import GHC.Cmm.Dataflow.Collections
+import GHC.Data.Collections
 import GHC.Cmm.Dataflow
 import GHC.Cmm.Dataflow.Graph
 import GHC.Cmm.Dataflow.Label
+import Data.Foldable (toList)
 
 -- Compute a minimal set of proc points for a control-flow graph.
 
@@ -262,8 +263,7 @@ splitAtProcPoints platform entry_label callPPs procPoints procMap
                      graph' = mapInsert bid b graph
 
      let liveness = cmmGlobalLiveness platform g
-     let ppLiveness pp = filter isArgReg $
-                         regSetToList $
+     let ppLiveness pp = filter isArgReg $ toList $
                          expectJust "ppLiveness" $ mapLookup pp liveness
 
      let graphEnv = foldlGraphBlocks add_block mapEmpty g

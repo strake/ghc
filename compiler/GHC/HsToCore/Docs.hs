@@ -54,7 +54,7 @@ mkMaps :: [Name]
        -> (Map Name (HsDocString), Map Name (Map Int (HsDocString)))
 mkMaps instances decls =
     ( f' (map (nubByName fst) decls')
-    , f  (filterMapping (not . M.null) args)
+    , f  (filterMapping (not . null) args)
     )
   where
     (decls', args) = unzip (map mappings decls)

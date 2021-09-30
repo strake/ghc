@@ -27,18 +27,11 @@ module GHC.Types.Var.Env (
         DVarEnv, DIdEnv, DTyVarEnv,
 
         -- ** Manipulating these environments
-        emptyDVarEnv, mkDVarEnv,
-        extendDVarEnv, extendDVarEnv_C,
+        extendDVarEnv_C,
         extendDVarEnvList,
-        lookupDVarEnv, elemDVarEnv,
         nonDetStrictFoldDVarEnv,
-        modifyDVarEnv,
-        alterDVarEnv,
-        plusDVarEnv, plusDVarEnv_C,
-        unitDVarEnv,
-        delDVarEnv,
+        plusDVarEnv_C,
         delDVarEnvList,
-        minusDVarEnv,
 
         -- * The InScopeSet type
         InScopeSet,
@@ -544,56 +537,20 @@ type DIdEnv elt = UniqDFM Var elt
 -- | Deterministic Type Variable Environment
 type DTyVarEnv elt = UniqDFM TyVar elt
 
-emptyDVarEnv :: DVarEnv a
-emptyDVarEnv = emptyUDFM
-
-mkDVarEnv :: [(Var, a)] -> DVarEnv a
-mkDVarEnv = listToUDFM
-
-extendDVarEnv :: DVarEnv a -> Var -> a -> DVarEnv a
-extendDVarEnv = addToUDFM
-
-minusDVarEnv :: DVarEnv a -> DVarEnv a' -> DVarEnv a
-minusDVarEnv = minusUDFM
-
-lookupDVarEnv :: DVarEnv a -> Var -> Maybe a
-lookupDVarEnv = lookupUDFM
-
 -- See Note [Deterministic UniqFM] to learn about nondeterminism.
 -- If you use this please provide a justification why it doesn't introduce
 -- nondeterminism.
 nonDetStrictFoldDVarEnv :: (a -> b -> b) -> b -> DVarEnv a -> b
 nonDetStrictFoldDVarEnv = nonDetStrictFoldUDFM
 
-alterDVarEnv :: (Maybe a -> Maybe a) -> DVarEnv a -> Var -> DVarEnv a
-alterDVarEnv = alterUDFM
-
-plusDVarEnv :: DVarEnv a -> DVarEnv a -> DVarEnv a
-plusDVarEnv = plusUDFM
-
 plusDVarEnv_C :: (a -> a -> a) -> DVarEnv a -> DVarEnv a -> DVarEnv a
 plusDVarEnv_C = plusUDFM_C
-
-unitDVarEnv :: Var -> a -> DVarEnv a
-unitDVarEnv = unitUDFM
-
-delDVarEnv :: DVarEnv a -> Var -> DVarEnv a
-delDVarEnv = delFromUDFM
 
 delDVarEnvList :: DVarEnv a -> [Var] -> DVarEnv a
 delDVarEnvList = delListFromUDFM
 
-elemDVarEnv :: Var -> DVarEnv a -> Bool
-elemDVarEnv = elemUDFM
-
 extendDVarEnv_C :: (a -> a -> a) -> DVarEnv a -> Var -> a -> DVarEnv a
 extendDVarEnv_C = addToUDFM_C
-
-modifyDVarEnv :: (a -> a) -> DVarEnv a -> Var -> DVarEnv a
-modifyDVarEnv mangle_fn env key
-  = case lookupDVarEnv env key of
-      Nothing -> env
-      Just xx -> extendDVarEnv env key (mangle_fn xx)
 
 extendDVarEnvList :: DVarEnv a -> [(Var, a)] -> DVarEnv a
 extendDVarEnvList = addListToUDFM

@@ -61,9 +61,10 @@ import GHC.Driver.Flags
 import GHC.Utils.Outputable
 import GHC.Utils.Outputable.Ppr
 import GHC.Utils.Panic
+import GHC.Data.Bag
+import GHC.Data.Collections
 import GHC.Data.FastString
 import GHC.Data.Maybe
-import GHC.Data.Bag
 import GHC.Utils.Constants
 import GHC.Utils.Misc
 import Data.List hiding (filter)
@@ -282,11 +283,11 @@ pprRulesForUser rules
 
 extendRuleInfo :: RuleInfo -> [CoreRule] -> RuleInfo
 extendRuleInfo (RuleInfo rs1 fvs1) rs2
-  = RuleInfo (rs2 ++ rs1) (rulesFreeVarsDSet rs2 `unionDVarSet` fvs1)
+  = RuleInfo (rs2 ++ rs1) (rulesFreeVarsDSet rs2 `setUnion` fvs1)
 
 addRuleInfo :: RuleInfo -> RuleInfo -> RuleInfo
 addRuleInfo (RuleInfo rs1 fvs1) (RuleInfo rs2 fvs2)
-  = RuleInfo (rs1 ++ rs2) (fvs1 `unionDVarSet` fvs2)
+  = RuleInfo (rs1 ++ rs2) (fvs1 `setUnion` fvs2)
 
 addIdSpecialisations :: Id -> [CoreRule] -> Id
 addIdSpecialisations id rules

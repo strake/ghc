@@ -722,13 +722,13 @@ filterAlts _tycon inst_tys imposs_cons alts
 
     imposs_cons_set = Set.fromList imposs_cons
     imposs_deflt_cons =
-      imposs_cons ++ filterOut (`Set.member` imposs_cons_set) alt_cons
+      imposs_cons ++ filterOut (`elem` imposs_cons_set) alt_cons
          -- "imposs_deflt_cons" are handled
          --   EITHER by the context,
          --   OR by a non-DEFAULT branch in this case expression.
 
     impossible_alt :: [Type] -> (AltCon, a, b) -> Bool
-    impossible_alt _ (con, _, _) | con `Set.member` imposs_cons_set = True
+    impossible_alt _ (con, _, _) | elem con imposs_cons_set = True
     impossible_alt inst_tys (DataAlt con, _, _) = dataConCannotMatch inst_tys con
     impossible_alt _  _                         = False
 

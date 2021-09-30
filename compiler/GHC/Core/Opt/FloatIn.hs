@@ -30,6 +30,8 @@ import GHC.Core.FVs
 import GHC.Core.Opt.Monad   ( CoreM )
 import GHC.Core.Type
 
+import GHC.Data.Collections
+
 import GHC.Types.Basic      ( RecFlag(..), isRec )
 import GHC.Types.Id         ( isOneShotBndr, idType, isJoinId, isJoinId_maybe )
 import GHC.Types.Var
@@ -192,7 +194,7 @@ fiExpr platform to_drop ann_expr@(_,AnnApp {})
     (_, extra_fvs) = foldl' add_arg (fun_ty, extra_fvs0) ann_args
     extra_fvs0 = case ann_fun of
                    (_, AnnVar _) -> fun_fvs
-                   _             -> emptyDVarSet
+                   _             -> setEmpty
           -- Don't float the binding for f into f x y z; see Note [Join points]
           -- for why we *can't* do it when f is a join point. (If f isn't a
           -- join point, floating it in isn't especially harmful but it's
@@ -204,7 +206,7 @@ fiExpr platform to_drop ann_expr@(_,AnnApp {})
 
     add_arg (fun_ty, extra_fvs) (arg_fvs, arg)
       | noFloatIntoArg arg arg_ty
-      = (res_ty, extra_fvs `unionDVarSet` arg_fvs)
+      = (res_ty, extra_fvs `setUnion` arg_fvs)
       | otherwise
       = (res_ty, extra_fvs)
       where
@@ -460,10 +462,10 @@ fiExpr platform to_drop (_, AnnCase scrut case_bndr _ [(con,alt_bndrs,rhs)])
   = wrapFloats shared_binds $
     fiExpr platform (case_float : rhs_binds) rhs
   where
-    case_float = FB (mkDVarSet (case_bndr : alt_bndrs)) scrut_fvs
+    case_float = FB (setFromList (case_bndr : alt_bndrs)) scrut_fvs
                     (FloatCase scrut' case_bndr con alt_bndrs)
     scrut'     = fiExpr platform scrut_binds scrut
-    rhs_fvs    = freeVarsOf rhs `delDVarSetList` (case_bndr : alt_bndrs)
+    rhs_fvs    = (case_bndr : alt_bndrs) `setDeleteList` freeVarsOf rhs
     scrut_fvs  = freeVarsOf scrut
 
     [shared_binds, scrut_binds, rhs_binds]
@@ -491,9 +493,9 @@ fiExpr platform to_drop (_, AnnCase scrut case_bndr ty alts)
 
     scrut_fvs    = freeVarsOf scrut
     alts_fvs     = map alt_fvs alts
-    all_alts_fvs = unionDVarSets alts_fvs
+    all_alts_fvs = setUnions alts_fvs
     alt_fvs (_con, args, rhs)
-      = foldl' delDVarSet (freeVarsOf rhs) (case_bndr:args)
+      = foldl' (flip setDelete) (freeVarsOf rhs) (case_bndr:args)
            -- Delete case_bndr and args from free vars of rhs
            -- to get free vars of alt
 
@@ -512,16 +514,16 @@ fiBind :: Platform
 fiBind platform to_drop (AnnNonRec id ann_rhs@(rhs_fvs, rhs)) body_fvs
   = ( extra_binds ++ shared_binds          -- Land these before
                                            -- See Note [extra_fvs (1,2)]
-    , FB (unitDVarSet id) rhs_fvs'         -- The new binding itself
+    , FB (setSingleton id) rhs_fvs'         -- The new binding itself
           (FloatLet (NonRec id rhs'))
     , body_binds )                         -- Land these after
 
   where
-    body_fvs2 = body_fvs `delDVarSet` id
+    body_fvs2 = setDelete id body_fvs
 
     rule_fvs = bndrRuleAndUnfoldingVarsDSet id        -- See Note [extra_fvs (2): free variables of rules]
     extra_fvs | noFloatIntoRhs NonRecursive id rhs
-              = rule_fvs `unionDVarSet` rhs_fvs
+              = rule_fvs `setUnion` rhs_fvs
               | otherwise
               = rule_fvs
         -- See Note [extra_fvs (1): avoid floating into RHS]
@@ -536,12 +538,12 @@ fiBind platform to_drop (AnnNonRec id ann_rhs@(rhs_fvs, rhs)) body_fvs
 
         -- Push rhs_binds into the right hand side of the binding
     rhs'     = fiRhs platform rhs_binds id ann_rhs
-    rhs_fvs' = rhs_fvs `unionDVarSet` floatedBindsFVs rhs_binds `unionDVarSet` rule_fvs
+    rhs_fvs' = rhs_fvs `setUnion` floatedBindsFVs rhs_binds `setUnion` rule_fvs
                         -- Don't forget the rule_fvs; the binding mentions them!
 
 fiBind platform to_drop (AnnRec bindings) body_fvs
   = ( extra_binds ++ shared_binds
-    , FB (mkDVarSet ids) rhs_fvs'
+    , FB (setFromList ids) rhs_fvs'
          (FloatLet (Rec (fi_bind rhss_binds bindings)))
     , body_binds )
   where
@@ -550,8 +552,8 @@ fiBind platform to_drop (AnnRec bindings) body_fvs
 
         -- See Note [extra_fvs (1,2)]
     rule_fvs = mapUnionDVarSet bndrRuleAndUnfoldingVarsDSet ids
-    extra_fvs = rule_fvs `unionDVarSet`
-                unionDVarSets [ rhs_fvs | (bndr, (rhs_fvs, rhs)) <- bindings
+    extra_fvs = rule_fvs `setUnion`
+                setUnions [ rhs_fvs | (bndr, (rhs_fvs, rhs)) <- bindings
                               , noFloatIntoRhs Recursive bndr rhs ]
 
     (shared_binds:extra_binds:body_binds:rhss_binds)
@@ -559,8 +561,8 @@ fiBind platform to_drop (AnnRec bindings) body_fvs
             (extra_fvs:body_fvs:rhss_fvs)
             to_drop
 
-    rhs_fvs' = unionDVarSets rhss_fvs `unionDVarSet`
-               unionDVarSets (map floatedBindsFVs rhss_binds) `unionDVarSet`
+    rhs_fvs' = setUnions rhss_fvs `setUnion`
+               setUnions (map floatedBindsFVs rhss_binds) `setUnion`
                rule_fvs         -- Don't forget the rule variables!
 
     -- Push rhs_binds into the right hand side of the binding
@@ -700,7 +702,7 @@ sepBindsByDropPoint platform is_case drop_pts floaters
 
   | otherwise
   = assert (drop_pts `lengthAtLeast` 2) $
-    go floaters (map (\fvs -> (fvs, [])) (emptyDVarSet : drop_pts))
+    go floaters (map (\fvs -> (fvs, [])) (setEmpty : drop_pts))
   where
     n_alts = length drop_pts
 
@@ -739,7 +741,7 @@ sepBindsByDropPoint platform is_case drop_pts floaters
                                         fork_boxes used_in_flags
 
           insert :: DropBox -> DropBox
-          insert (fvs,drops) = (fvs `unionDVarSet` bind_fvs, bind_w_fvs:drops)
+          insert (fvs,drops) = (fvs `setUnion` bind_fvs, bind_w_fvs:drops)
 
           insert_maybe box True  = insert box
           insert_maybe box False = box

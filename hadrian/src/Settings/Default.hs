@@ -64,6 +64,7 @@ stage0Packages = do
              , compiler
              , deriveConstants
              , dual
+             , either_both
              , exceptions
              , filtrable
              , ftl

@@ -143,13 +143,13 @@ okVarIdOcc :: String -> Bool
 okVarIdOcc str = okIdOcc str &&
                  -- admit "_" as a valid identifier.  Required to support typed
                  -- holes in Template Haskell.  See #10267
-                 (str == "_" || not (str `Set.member` reservedIds))
+                 (str == "_" || not (elem str reservedIds))
 
 -- | Is this an acceptable symbolic variable name, assuming it starts
 -- with an acceptable character?
 okVarSymOcc :: String -> Bool
 okVarSymOcc str = all okSymChar str &&
-                  not (str `Set.member` reservedOps) &&
+                  not (elem str reservedOps) &&
                   not (isDashes str)
 
 -- | Is this an acceptable alphanumeric constructor name, assuming it
@@ -193,7 +193,7 @@ okConIdOcc str = okIdOcc str ||
 okConSymOcc :: String -> Bool
 okConSymOcc ":" = True
 okConSymOcc str = all okSymChar str &&
-                  not (str `Set.member` reservedOps)
+                  not (elem str reservedOps)
 
 ----------------------
 -- Internal functions

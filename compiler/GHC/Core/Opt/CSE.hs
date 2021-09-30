@@ -32,6 +32,7 @@ import GHC.Types.Basic
 import GHC.Core.Map
 import GHC.Utils.Misc
 import GHC.Utils.Panic
+import GHC.Data.Collections
 
 import Control.Monad.Trans.Writer (runWriter, writer)
 
@@ -753,22 +754,22 @@ LENS_FIELD(cs_mapL, cs_map)
 LENS_FIELD(cs_rec_mapL, cs_rec_map)
 
 emptyCSEnv :: CSEnv
-emptyCSEnv = CS { cs_map = emptyTM, cs_rec_map = emptyTM, cs_subst = emptySubst }
+emptyCSEnv = CS { cs_map = mapEmpty, cs_rec_map = mapEmpty, cs_subst = emptySubst }
 
 lookupCSEnv :: CSEnv -> OutExpr -> Maybe OutExpr
-lookupCSEnv (CS { cs_map = csmap }) = flip lookupTM csmap
+lookupCSEnv (CS { cs_map = csmap }) = flip mapLookup csmap
 
 extendCSEnv :: CSEnv -> OutExpr -> OutExpr -> CSEnv
-extendCSEnv = slipl \ expr -> over cs_mapL . insertTM (stripTicksE tickishFloatable expr)
+extendCSEnv = slipl \ expr -> over cs_mapL . mapInsert (stripTicksE tickishFloatable expr)
 
 extendCSRecEnv :: CSEnv -> OutId -> OutExpr -> OutExpr -> CSEnv
 -- See Note [CSE for recursive bindings]
-extendCSRecEnv = slipl4 \ bndr expr -> over cs_rec_mapL . insertTM (Lam bndr expr)
+extendCSRecEnv = slipl4 \ bndr expr -> over cs_rec_mapL . mapInsert (Lam bndr expr)
 
 lookupCSRecEnv :: CSEnv -> OutId -> OutExpr -> Maybe OutExpr
 -- See Note [CSE for recursive bindings]
 lookupCSRecEnv (CS { cs_rec_map = csmap }) bndr expr
-  = lookupTM (Lam bndr expr) csmap
+  = mapLookup (Lam bndr expr) csmap
 
 csEnvSubst :: CSEnv -> Subst
 csEnvSubst = cs_subst

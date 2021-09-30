@@ -37,6 +37,7 @@ import GHC.Utils.Panic
 import GHC.Utils.Panic.Plain
 import GHC.Types.Var.Env
 import GHC.Types.Var.Set
+import GHC.Data.Collections
 
 import Control.Arrow ( second )
 import Control.Monad.Trans.Class
@@ -268,11 +269,11 @@ withLiftedBndr :: DIdSet -> Id -> (Id -> LiftM a) -> LiftM a
 withLiftedBndr abs_ids bndr inner = do
   uniq <- getUniqueM
   let str = "$l" ++ occNameString (getOccName bndr)
-  let ty = mkLamTypes (dVarSetElems abs_ids) (idType bndr)
+  let ty = mkLamTypes (toList abs_ids) (idType bndr)
   let bndr'
         -- See Note [transferPolyIdInfo] in GHC.Types.Id. We need to do this at least
         -- for arity information.
-        = transferPolyIdInfo bndr (dVarSetElems abs_ids)
+        = transferPolyIdInfo bndr (toList abs_ids)
         . mkSysLocal (mkFastString str) uniq
         $ ty
   LiftM $ RWS.local
@@ -303,7 +304,7 @@ formerFreeVars f = LiftM $ do
   expansions <- RWS.asks e_expansions
   pure $ case lookupVarEnv expansions f of
     Nothing -> []
-    Just fvs -> dVarSetElems fvs
+    Just fvs -> toList fvs
 
 -- | Creates an /expander function/ for the current set of lifted binders.
 -- This expander function will replace any 'InId' by their corresponding 'OutId'
@@ -319,7 +320,7 @@ liftedIdsExpander = LiftM $ do
   -- @goodToLift@/@closureGrowth@ before passing it on to @expander@ is too much
   -- trouble.
   let go set fv = case lookupVarEnv expansions fv of
-        Nothing -> extendDVarSet set (noWarnLookupIdSubst fv subst) -- Not lifted
-        Just fvs' -> unionDVarSet set fvs'
-  let expander fvs = foldl' go emptyDVarSet (dVarSetElems fvs)
+        Nothing -> setInsert (noWarnLookupIdSubst fv subst) set -- Not lifted
+        Just fvs' -> setUnion set fvs'
+  let expander fvs = foldl' go setEmpty (toList fvs)
   pure expander

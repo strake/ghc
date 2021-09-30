@@ -131,11 +131,13 @@ import GHC.Types.Unique.Set
 import GHC.Driver.Session
 import qualified GHC.LanguageExtensions as LangExt
 import GHC.Types.Basic ( TypeOrKind(..) )
+import GHC.Data.Collections
 import GHC.Data.Maybe
 
 import Control.Monad
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.State (StateT (..))
+import Data.Foldable (toList)
 import Data.Functor.Reader.Class
 import Data.Functor.State.Class (get)
 import Data.Tuple       ( swap )
@@ -1219,12 +1221,12 @@ data CandidatesQTvs
 instance Semigroup CandidatesQTvs where
    (DV { dv_kvs = kv1, dv_tvs = tv1, dv_cvs = cv1 })
      <> (DV { dv_kvs = kv2, dv_tvs = tv2, dv_cvs = cv2 })
-          = DV { dv_kvs = kv1 `unionDVarSet` kv2
-               , dv_tvs = tv1 `unionDVarSet` tv2
+          = DV { dv_kvs = kv1 `setUnion` kv2
+               , dv_tvs = tv1 `setUnion` tv2
                , dv_cvs = cv1 `unionVarSet` cv2 }
 
 instance Monoid CandidatesQTvs where
-   mempty = DV { dv_kvs = emptyDVarSet, dv_tvs = emptyDVarSet, dv_cvs = emptyVarSet }
+   mempty = DV { dv_kvs = setEmpty, dv_tvs = setEmpty, dv_cvs = emptyVarSet }
 
 instance Outputable CandidatesQTvs where
   ppr (DV {dv_kvs = kvs, dv_tvs = tvs, dv_cvs = cvs })
@@ -1242,7 +1244,7 @@ partitionCandidates dvs@(DV { dv_kvs = kvs, dv_tvs = tvs }) pred
   where
     (extracted_kvs, rest_kvs) = partitionDVarSet pred kvs
     (extracted_tvs, rest_tvs) = partitionDVarSet pred tvs
-    extracted = extracted_kvs `unionDVarSet` extracted_tvs
+    extracted = extracted_kvs `setUnion` extracted_tvs
 
 -- | Gathers free variables to use as quantification candidates (in
 -- 'quantifyTyVars'). This might output the same var
@@ -1259,8 +1261,7 @@ candidateQTyVarsOfType ty = collect_cand_qtvs ty False emptyVarSet mempty ty
 -- The variables to quantify must have a TcLevel strictly greater than
 -- the ambient level. (See Wrinkle in Note [Naughty quantification candidates])
 candidateQTyVarsOfTypes :: [Type] -> TcM CandidatesQTvs
-candidateQTyVarsOfTypes tys = foldlM (\acc ty -> collect_cand_qtvs ty False emptyVarSet acc ty)
-                                     mempty tys
+candidateQTyVarsOfTypes = foldlM (\acc ty -> collect_cand_qtvs ty False emptyVarSet acc ty) mempty
 
 -- | Like 'candidateQTyVarsOfType', but consider every free variable
 -- to be dependent. This is appropriate when generalizing a *kind*,
@@ -1277,9 +1278,9 @@ candidateQTyVarsOfKinds tys = foldM (\acc ty -> collect_cand_qtvs ty True emptyV
 
 delCandidates :: CandidatesQTvs -> [Var] -> CandidatesQTvs
 delCandidates (DV { dv_kvs = kvs, dv_tvs = tvs, dv_cvs = cvs }) vars
-  = DV { dv_kvs = kvs `delDVarSetList` vars
-       , dv_tvs = tvs `delDVarSetList` vars
-       , dv_cvs = cvs `delVarSetList`  vars }
+  = DV { dv_kvs = setDeleteList vars kvs
+       , dv_tvs = setDeleteList vars tvs
+       , dv_cvs = delVarSetList cvs vars }
 
 collect_cand_qtvs
   :: TcType          -- original type that we started recurring into; for errors
@@ -1329,11 +1330,11 @@ collect_cand_qtvs orig_ty is_dep bound dvs ty
 
     -----------------
     go_tv dv@(DV { dv_kvs = kvs, dv_tvs = tvs }) tv
-      | tv `elemDVarSet` kvs
+      | tv `setMember` kvs
       = return dv  -- We have met this tyvar already
 
       | not is_dep
-      , tv `elemDVarSet` tvs
+      , tv `setMember` tvs
       = return dv  -- We have met this tyvar already
 
       | otherwise
@@ -1363,8 +1364,8 @@ collect_cand_qtvs orig_ty is_dep bound dvs ty
 
                 |  otherwise
                 -> do { let tv' = set tyVarKindL tv_kind tv
-                            dv' | is_dep    = dv { dv_kvs = kvs `extendDVarSet` tv' }
-                                | otherwise = dv { dv_tvs = tvs `extendDVarSet` tv' }
+                            dv' | is_dep    = dv { dv_kvs = setInsert tv' kvs }
+                                | otherwise = dv { dv_tvs = setInsert tv' tvs }
                                 -- See Note [Order of accumulation]
 
                         -- See Note [Recurring into kinds for candidateQTyVars]
@@ -1429,7 +1430,7 @@ collect_cand_qtvs_co orig_ty bound = go_co
 {- Note [Order of accumulation]
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 You might be tempted (like I was) to use unitDVarSet and mappend
-rather than extendDVarSet.  However, the union algorithm for
+rather than (flip setInsert).  However, the union algorithm for
 deterministic sets depends on (roughly) the size of the sets. The
 elements from the smaller set end up to the right of the elements from
 the larger one. When sets are equal, the left-hand argument to
@@ -1440,7 +1441,7 @@ variables of (a -> b -> c -> d) are [b, a, c, d], and we then quantify
 over them in that order. (The a comes after the b because we union the
 singleton sets as ({a} `mappend` {b}), producing {b, a}. Thereafter,
 the size criterion works to our advantage.) This is just annoying to
-users, so I use `extendDVarSet`, which unambiguously puts the new
+users, so I use `(flip setInsert)`, which unambiguously puts the new
 element to the right.
 
 Note that the unitDVarSet/mappend implementation would not be wrong
@@ -1577,20 +1578,20 @@ quantifyTyVars
 -- to the restrictions in Note [quantifyTyVars].
 quantifyTyVars dvs@(DV{ dv_kvs = dep_tkvs, dv_tvs = nondep_tkvs })
        -- short-circuit common case
-  | isEmptyDVarSet dep_tkvs
-  , isEmptyDVarSet nondep_tkvs
+  | null dep_tkvs
+  , null nondep_tkvs
   = do { traceTc "quantifyTyVars has nothing to quantify" empty
        ; return [] }
 
   | otherwise
   = do { traceTc "quantifyTyVars 1" (ppr dvs)
 
-       ; let dep_kvs     = scopedSort $ dVarSetElems dep_tkvs
+       ; let dep_kvs     = scopedSort $ toList dep_tkvs
                        -- scopedSort: put the kind variables into
                        --    well-scoped order.
                        --    E.g.  [k, (a::k)] not the other way round
 
-             nondep_tvs  = dVarSetElems (nondep_tkvs `minusDVarSet` dep_tkvs)
+             nondep_tvs  = toList (nondep_tkvs `setDifference` dep_tkvs)
                  -- See Note [Dependent type variables]
                  -- The `minus` dep_tkvs removes any kind-level vars
                  --    e.g. T k (a::k)   Since k appear in a kind it'll
@@ -1972,7 +1973,7 @@ zonkTyCoVarsAndFV tycovars
 
 zonkDTyCoVarSetAndFV :: MonadIO m => DTyCoVarSet -> m DTyCoVarSet
 zonkDTyCoVarSetAndFV tycovars
-  = mkDVarSet <$> zonkTyCoVarsAndFVList (dVarSetElems tycovars)
+  = setFromList <$> zonkTyCoVarsAndFVList (toList tycovars)
 
 -- Takes a list of TyCoVars, zonks them and returns a
 -- deterministically ordered list of their free variables.

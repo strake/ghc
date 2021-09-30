@@ -21,7 +21,6 @@ import GHC.SysTools.Tasks
 
 import GHC.Data.ShortText as ST
 
-import qualified Data.Set as Set
 import System.FilePath
 
 linkDynLib :: DynFlags -> [String] -> [UnitId] -> IO ()
@@ -42,7 +41,7 @@ linkDynLib dflags o_files dep_packages
              osMachOTarget (platformOS (targetPlatform dflags)) ) &&
            dynLibLoader dflags == SystemDependent &&
            -- Only if we want dynamic libraries
-           WayDyn `Set.member` ways dflags &&
+           WayDyn `elem` ways dflags &&
            -- Only use RPath if we explicitly asked for it
            gopt Opt_RPath dflags
             = ["-L" ++ l, "-Xlinker", "-rpath", "-Xlinker", l]

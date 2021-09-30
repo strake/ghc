@@ -38,6 +38,9 @@ import GHC.Utils.Outputable
 import GHC.Utils.Panic
 import GHC.Utils.Misc
 import GHC.Types.Var.Set
+import GHC.Data.Collections
+
+import Data.Foldable ( toList )
 
 -- Note [When to lift]
 -- ~~~~~~~~~~~~~~~~~~~
@@ -116,7 +119,7 @@ type instance XLet         'LiftLams = Skeleton
 type instance XLetNoEscape 'LiftLams = Skeleton
 
 freeVarsOfRhs :: (XRhsClosure pass ~ DIdSet) => GenStgRhs pass -> DIdSet
-freeVarsOfRhs (StgRhsCon _ _ args) = mkDVarSet [ id | StgVarArg id <- args ]
+freeVarsOfRhs (StgRhsCon _ _ args) = setFromList [ id | StgVarArg id <- args ]
 freeVarsOfRhs (StgRhsClosure fvs _ _ _ _) = fvs
 
 -- | Captures details of the syntax tree relevant to the cost model, such as
@@ -400,7 +403,7 @@ goodToLift dflags top_lvl rec_flag expander pairs scope = decide
       -- the lifted binding would abstract over. We have to merge the free
       -- variables of all RHS to get the set of variables that will have to be
       -- passed through parameters.
-      fvs = unionDVarSets (map freeVarsOfRhs rhss)
+      fvs = setUnions (map freeVarsOfRhs rhss)
       -- To lift the binding to top-level, we want to delete the lifted binders
       -- themselves from the free var set. Local let bindings track recursive
       -- occurrences in their free variable set. We neither want to apply our
@@ -409,7 +412,7 @@ goodToLift dflags top_lvl rec_flag expander pairs scope = decide
       -- identifiers we abstract over, thus @abs_ids@. These are all 'OutId's.
       -- We will save the set in 'LiftM.e_expansions' for each of the variables
       -- if we perform the lift.
-      abs_ids = expander (delDVarSetList fvs bndrs)
+      abs_ids = expander ((flip setDeleteList) fvs bndrs)
 
       -- We don't lift updatable thunks or constructors
       any_memoized = any is_memoized_rhs rhss
@@ -426,7 +429,7 @@ goodToLift dflags top_lvl rec_flag expander pairs scope = decide
       is_join_point = any isJoinId bndrs
 
       -- Abstracting over join points/let-no-escapes spoils them.
-      abstracts_join_ids = any isJoinId (dVarSetElems abs_ids)
+      abstracts_join_ids = any isJoinId (toList abs_ids)
 
       -- Abstracting over known local functions that aren't floated themselves
       -- turns a known, fast call into an unknown, slow call:
@@ -445,14 +448,14 @@ goodToLift dflags top_lvl rec_flag expander pairs scope = decide
       -- idArity f > 0 ==> known
       known_fun id = idArity id > 0
       abstracts_known_local_fun
-        = not (liftLamsKnown dflags) && any known_fun (dVarSetElems abs_ids)
+        = not (liftLamsKnown dflags) && any known_fun (toList abs_ids)
 
       -- Number of arguments of a RHS in the current binding group if we decide
       -- to lift it
       n_args
         = length
         . StgToCmm.Closure.nonVoidIds -- void parameters don't appear in Cmm
-        . (dVarSetElems abs_ids ++)
+        . (toList abs_ids ++)
         . rhsLambdaBndrs
       max_n_args
         | isRec rec_flag = liftLamsRecArgs dflags
@@ -475,7 +478,7 @@ goodToLift dflags top_lvl rec_flag expander pairs scope = decide
       -- the entire recursive binding group or none of it.
       closuresSize = sum $ flip map rhss $ \rhs ->
         closureSize profile
-        . dVarSetElems
+        . toList
         . expander
         . flip dVarSetMinusVarSet bndrs_set
         $ freeVarsOfRhs rhs
@@ -540,12 +543,12 @@ closureGrowth expander sizer group abs_ids = go
       -- the closure growth of its RHS.
       | otherwise   = mkIntWithInf cost + go rhs
       where
-        n_occs = sizeDVarSet (clo_fvs' `dVarSetIntersectVarSet` group)
+        n_occs = length (clo_fvs' `dVarSetIntersectVarSet` group)
         -- What we close over considering prior lifting decisions
         clo_fvs' = expander clo_fvs
         -- Variables that would additionally occur free in the closure body if
         -- we lift @f@
-        newbies = abs_ids `minusDVarSet` clo_fvs'
+        newbies = abs_ids `setDifference` clo_fvs'
         -- Lifting @f@ removes @f@ from the closure but adds all @newbies@
         cost = nonDetStrictFoldDVarSet (\id size -> sizer id + size) 0 newbies - n_occs
         -- Using a non-deterministic fold is OK here because addition is commutative.

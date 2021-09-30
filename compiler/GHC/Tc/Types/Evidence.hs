@@ -72,6 +72,7 @@ import GHC.Types.Var.Env
 import GHC.Types.Var.Set
 import GHC.Core.Predicate
 import GHC.Types.Name
+import GHC.Data.Collections
 import GHC.Data.Pair
 
 import GHC.Core
@@ -482,19 +483,17 @@ newtype EvBindMap
             -- @UniqFM@ can lead to nondeterministic order.
 
 emptyEvBindMap :: EvBindMap
-emptyEvBindMap = EvBindMap { ev_bind_varenv = emptyDVarEnv }
+emptyEvBindMap = EvBindMap { ev_bind_varenv = mapEmpty }
 
 extendEvBinds :: EvBindMap -> EvBind -> EvBindMap
 extendEvBinds bs ev_bind
-  = EvBindMap { ev_bind_varenv = extendDVarEnv (ev_bind_varenv bs)
-                                               (eb_lhs ev_bind)
-                                               ev_bind }
+  = EvBindMap { ev_bind_varenv = mapInsert (eb_lhs ev_bind) ev_bind (ev_bind_varenv bs) }
 
 isEmptyEvBindMap :: EvBindMap -> Bool
 isEmptyEvBindMap (EvBindMap m) = null m
 
 lookupEvBind :: EvBindMap -> EvVar -> Maybe EvBind
-lookupEvBind bs = lookupDVarEnv (ev_bind_varenv bs)
+lookupEvBind bs = flip mapLookup (ev_bind_varenv bs)
 
 evBindMapBinds :: EvBindMap -> Bag EvBind
 evBindMapBinds = foldEvBindMap consBag emptyBag

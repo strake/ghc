@@ -17,7 +17,7 @@ import GHC.Cmm.ContFlowOpt
 import GHC.Cmm.Dataflow.Block
 import GHC.Cmm.Dataflow.Graph
 import GHC.Cmm.Dataflow.Label
-import GHC.Cmm.Dataflow.Collections
+import GHC.Data.Collections
 import Data.Bits
 import qualified Data.List as List
 import Data.Word
@@ -25,12 +25,12 @@ import qualified Data.Map as M
 import GHC.Utils.Outputable
 import GHC.Utils.Panic
 import qualified GHC.Data.TrieMap as TM
-import GHC.Types.Unique.FM
 import GHC.Types.Unique
 import Control.Arrow (first, second)
 import Data.Foldable (toList)
 import Data.List.NonEmpty (NonEmpty (..))
 import qualified Data.List.NonEmpty as NEL
+import qualified Data.IntMap as IM
 
 -- -----------------------------------------------------------------------------
 -- Eliminate common blocks
@@ -305,19 +305,16 @@ copyTicks env g
 -- Group by [Label]
 -- See Note [Compressed TrieMap] in GHC.Core.Map about the usage of GenMap.
 groupByLabel :: [(Key, DistinctBlocks)] -> [(Key, NonEmpty DistinctBlocks)]
-groupByLabel =
-  go (TM.emptyTM :: TM.ListMap (TM.GenMap LabelMap) (Key, NonEmpty DistinctBlocks))
+groupByLabel = mapToList . foldl' (flip go) (mapEmpty :: TM.ListMap (TM.GenMap LabelMap) (NonEmpty DistinctBlocks))
     where
-      go !m [] = toList m
-      go !m ((k,v) : entries) = go (TM.alterTM k adjust m) entries
-        where --k' = map (getKey . getUnique) k
-              adjust Nothing       = Just (k, pure v)
-              adjust (Just (_,vs)) = Just (k, v NEL.<| vs)
+      go (k, v) = flip mapAlter k \ case
+          Nothing -> Just (pure v)
+          Just vs -> Just (v NEL.<| vs)
 
 groupByInt :: (a -> Int) -> [a] -> [NonEmpty a]
-groupByInt f xs = nonDetEltsUFM $ List.foldl' go emptyUFM xs
+groupByInt f = toList . List.foldl' (flip go) IM.empty
    -- See Note [Unique Determinism and code generation]
   where
-    go m x = alterUFM addEntry m (f x)
+    go x = mapAlter addEntry (f x)
       where
         addEntry xs = Just $! maybe (pure x) (x NEL.<|) xs

@@ -27,7 +27,7 @@ newtype ExtensibleFields = ExtensibleFields { getExtensibleFields :: Map FieldNa
 
 instance Binary ExtensibleFields where
   put_ bh (ExtensibleFields fs) = do
-    put_ bh (Map.size fs :: Int)
+    put_ bh (length fs :: Int)
 
     -- Put the names of each field, and reserve a space
     -- for a payload pointer after each name:

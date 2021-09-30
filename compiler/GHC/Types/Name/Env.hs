@@ -26,10 +26,6 @@ module GHC.Types.Name.Env (
 
         DNameEnv,
 
-        emptyDNameEnv,
-        lookupDNameEnv,
-        delFromDNameEnv,
-        adjustDNameEnv, alterDNameEnv, extendDNameEnv,
         -- ** Dependency analysis
         depAnal
     ) where
@@ -142,21 +138,3 @@ lookupNameEnv_NF env n = expectJust "lookupNameEnv_NF" (lookupNameEnv env n)
 -- See Note [Deterministic UniqFM] in "GHC.Types.Unique.DFM" for explanation why
 -- we need DNameEnv.
 type DNameEnv a = UniqDFM Name a
-
-emptyDNameEnv :: DNameEnv a
-emptyDNameEnv = emptyUDFM
-
-lookupDNameEnv :: DNameEnv a -> Name -> Maybe a
-lookupDNameEnv = lookupUDFM
-
-delFromDNameEnv :: DNameEnv a -> Name -> DNameEnv a
-delFromDNameEnv = delFromUDFM
-
-adjustDNameEnv :: (a -> a) -> DNameEnv a -> Name -> DNameEnv a
-adjustDNameEnv = adjustUDFM
-
-alterDNameEnv :: (Maybe a -> Maybe a) -> DNameEnv a -> Name -> DNameEnv a
-alterDNameEnv = alterUDFM
-
-extendDNameEnv :: DNameEnv a -> Name -> a -> DNameEnv a
-extendDNameEnv = addToUDFM

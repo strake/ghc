@@ -109,12 +109,14 @@ import GHC.Types.Unique.Supply
 import GHC.Utils.Outputable
 import GHC.Utils.Panic
 import GHC.Utils.Panic.Plain
-import GHC.Data.FastString
 import GHC.Builtin.Names hiding ( wildCardName )
 import GHC.Driver.Session
 import qualified GHC.LanguageExtensions as LangExt
 
+import GHC.Data.Collections
+import GHC.Data.FastString
 import GHC.Data.Maybe
+
 import Data.Foldable ( find, toList )
 import Control.Monad hiding ( mapAndUnzipM )
 
@@ -1954,7 +1956,7 @@ kcCheckDeclHeader_cusk name flav
              -- because they are /already/ skolems
 
        ; let non_tc_candidates = filter (not . isTcTyVar) (nonDetEltsUniqSet (tyCoVarsOfTypes all_kinds))
-             candidates = candidates' { dv_kvs = dv_kvs candidates' `extendDVarSetList` non_tc_candidates }
+             candidates = candidates' { dv_kvs = non_tc_candidates `setInsertList` dv_kvs candidates' }
              inf_candidates = candidates `delCandidates` spec_req_tkvs
 
        ; inferred <- quantifyTyVars inf_candidates
@@ -2871,7 +2873,7 @@ kindGeneralizeSome should_gen kind_or_type
          vcat [ text "Kind or type:" <+> ppr kind_or_type
               , text "dvs:" <+> ppr dvs
               , text "dvs':" <+> ppr dvs'
-              , text "to_promote:" <+> pprTyVars (dVarSetElems to_promote)
+              , text "to_promote:" <+> pprTyVars (toList to_promote)
               , text "promoted:" <+> pprTyVars (nonDetEltsUniqSet promoted)
               , text "qkvs:" <+> pprTyVars qkvs ]
 

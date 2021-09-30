@@ -246,7 +246,7 @@ findCycle graph
     go visited [] qs = go visited qs []
     go visited (((DigraphNode payload key deps), path) : ps) qs
        | key == root_key           = Just (root_payload : reverse path)
-       | key `Set.member` visited  = go visited ps qs
+       | elem key visited  = go visited ps qs
        | key `Map.notMember` env   = go visited ps qs
        | otherwise                 = go (Set.insert key visited)
                                         ps (new_qs ++ qs)

@@ -20,7 +20,6 @@
 -- this compilation.
 module GHC.Platform.Ways
    ( Way(..)
-   , hasWay
    , allowed_combination
    , wayGeneralFlags
    , wayUnsetGeneralFlags
@@ -61,17 +60,11 @@ data Way
   | WayDyn           -- ^ Dynamic linking
   deriving (Eq, Ord, Show)
 
--- | Test if a ways is enabled
-hasWay :: Set Way -> Way -> Bool
-hasWay ws w = Set.member w ws
-
 -- | Check if a combination of ways is allowed
 allowed_combination :: Set Way -> Bool
 allowed_combination ways = not disallowed
   where
-   disallowed = or [ hasWay ways x && hasWay ways y
-                   | (x,y) <- couples
-                   ]
+   disallowed = or [ elem x ways && elem y ways | (x,y) <- couples ]
    -- List of disallowed couples of ways
    couples = [] -- we don't have any disallowed combination of ways nowadays
 

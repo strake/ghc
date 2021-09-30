@@ -162,14 +162,14 @@ import GHC.Data.Bag
 import GHC.Data.List.NonEmpty ( NonEmpty (..), (|:) )
 import qualified GHC.Data.BooleanFormula as BF
 
+import Control.DeepSeq
+import Control.Monad hiding ( mapAndUnzipM )
+import Control.Monad.Trans.Writer ( WriterT (..) )
 import Data.Foldable ( find, toList )
 import Data.List ( sortBy, sort )
 import Data.Ord
 import Data.Data ( Data )
-import qualified Data.Set as S
-import Control.DeepSeq
-import Control.Monad hiding ( mapAndUnzipM )
-import Control.Monad.Trans.Writer ( WriterT (..) )
+import qualified Data.Set as Set
 
 {-
 ************************************************************************
@@ -350,7 +350,7 @@ tcRnImports hsc_env import_decls
                 -- modules batch (@--make@) compiled before this one, but
                 -- which are not below this one.
               ; (home_insts, home_fam_insts) = hptInstancesBelow hsc_env (moduleName this_mod)
-                                                                 (S.fromList (eltsUFM dep_mods))
+                    (Set.fromList (eltsUFM dep_mods))
               } ;
 
                 -- Record boot-file info in the EPS, so that it's
@@ -2853,7 +2853,7 @@ pprTcGblEnv (TcGblEnv { tcg_type_env  = type_env,
          , text "Dependent modules:" <+>
                 pprUFM (imp_direct_dep_mods imports) (ppr . sort)
          , text "Dependent packages:" <+>
-                ppr (S.toList $ imp_dep_direct_pkgs imports)]
+                ppr (toList $ imp_dep_direct_pkgs imports)]
                 -- The use of sort is just to reduce unnecessary
                 -- wobbling in testsuite output
 

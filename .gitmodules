@@ -123,3 +123,6 @@
 [submodule "libraries/ftl"]
 	path = libraries/ftl
 	url = ./libraries/ftl
+[submodule "libraries/either-both"]
+	path = libraries/either-both
+	url = ./libraries/either-both

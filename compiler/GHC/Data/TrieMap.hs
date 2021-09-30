@@ -8,6 +8,7 @@
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE CPP #-}
+{-# OPTIONS_GHC -Werror=missing-methods -Wmissing-signatures #-}
 
 #include "lens.h"
 
@@ -18,31 +19,26 @@ module GHC.Data.TrieMap(
    ListMap,
    -- * Maps over 'Literal's
    LiteralMap,
-   -- * 'TrieMap' class
-   TrieMap(..), insertTM, deleteTM,
-
    -- * Things helpful for adding additional Instances.
-   (|>>), XT,
+   XT, XTF, xtf,
    -- * Map for leaf compression
    GenMap,
-   lkG, xtG,
-   xtList, lkList
-
+   lkG, xtGF,
+   lkList, xtListF,
  ) where
 
 import GHC.Prelude
 
+import GHC.Data.Collections
 import GHC.Types.Literal
-import GHC.Types.Unique.DFM
-import GHC.Types.Unique( Uniquable )
+import GHC.Utils.Misc
+import GHC.Utils.Outputable
 
 import qualified Data.Map    as Map
-import qualified Data.IntMap as IntMap
-import GHC.Utils.Outputable
 import Control.Category ( (>>>) )
 import Control.Monad( (>=>) )
+import Data.Either.Both
 import Data.Foldable( toList )
-import Data.Kind( Type )
 
 {-
 This module implements TrieMaps, which are finite mappings
@@ -57,135 +53,15 @@ described (to my knowledge) in Connelly and Morris's 1995 paper "A
 generalization of the Trie Data Structure"; there is also an accessible
 description of the idea in Okasaki's book "Purely Functional Data
 Structures", Section 10.3.2
-
-************************************************************************
-*                                                                      *
-                   The TrieMap class
-*                                                                      *
-************************************************************************
 -}
 
 type XT a = Maybe a -> Maybe a  -- How to alter a non-existent elt (Nothing)
                                 --               or an existing elt (Just)
 
-class (Functor m, Foldable m) => TrieMap m where
-   type Key m :: Type
-   emptyTM  :: m a
-   lookupTM :: forall b. Key m -> m b -> Maybe b
-   alterTM  :: forall b. Key m -> XT b -> m b -> m b
+type XTF f a = Maybe a -> f (Maybe a)
 
-insertTM :: TrieMap m => Key m -> a -> m a -> m a
-insertTM k v = alterTM k (\_ -> Just v)
-
-deleteTM :: TrieMap m => Key m -> m a -> m a
-deleteTM k = alterTM k (\_ -> Nothing)
-
-----------------------
--- Recall that
---   Control.Monad.(>=>) :: (a -> Maybe b) -> (b -> Maybe c) -> a -> Maybe c
-
-infixr 1 |>>
-
-----------------------
-(|>>) :: TrieMap m2
-      => (XT (m2 a) -> b)
-      -> (m2 a -> m2 a)
-      -> b
-f |>> g = f (Just . g . fromMaybe emptyTM)
-
-{-
-************************************************************************
-*                                                                      *
-                   IntMaps
-*                                                                      *
-************************************************************************
--}
-
-instance TrieMap IntMap.IntMap where
-  type Key IntMap.IntMap = Int
-  emptyTM = IntMap.empty
-  lookupTM k m = IntMap.lookup k m
-  alterTM = flip IntMap.alter
-
-instance Ord k => TrieMap (Map.Map k) where
-  type Key (Map.Map k) = k
-  emptyTM = Map.empty
-  lookupTM = Map.lookup
-  alterTM = flip Map.alter
-
-
-{-
-Note [foldTM determinism]
-~~~~~~~~~~~~~~~~~~~~~~~~~
-We want foldTM to be deterministic, which is why we have an instance of
-TrieMap for UniqDFM, but not for UniqFM. Here's an example of some things that
-go wrong if foldTM is nondeterministic. Consider:
-
-  f a b = return (a <> b)
-
-Depending on the order that the typechecker generates constraints you
-get either:
-
-  f :: (Monad m, Monoid a) => a -> a -> m a
-
-or:
-
-  f :: (Monoid a, Monad m) => a -> a -> m a
-
-The generated code will be different after desugaring as the dictionaries
-will be bound in different orders, leading to potential ABI incompatibility.
-
-One way to solve this would be to notice that the typeclasses could be
-sorted alphabetically.
-
-Unfortunately that doesn't quite work with this example:
-
-  f a b = let x = a <> a; y = b <> b in x
-
-where you infer:
-
-  f :: (Monoid m, Monoid m1) => m1 -> m -> m1
-
-or:
-
-  f :: (Monoid m1, Monoid m) => m1 -> m -> m1
-
-Here you could decide to take the order of the type variables in the type
-according to depth first traversal and use it to order the constraints.
-
-The real trouble starts when the user enables incoherent instances and
-the compiler has to make an arbitrary choice. Consider:
-
-  class T a b where
-    go :: a -> b -> String
-
-  instance (Show b) => T Int b where
-    go a b = show a ++ show b
-
-  instance (Show a) => T a Bool where
-    go a b = show a ++ show b
-
-  f = go 10 True
-
-GHC is free to choose either dictionary to implement f, but for the sake of
-determinism we'd like it to be consistent when compiling the same sources
-with the same flags.
-
-inert_dicts :: DictMap is implemented with a TrieMap. In getUnsolvedInerts it
-gets converted to a bag of (Wanted) Cts using a fold. Then in
-solve_simple_wanteds it's merged with other WantedConstraints. We want the
-conversion to a bag to be deterministic. For that purpose we use UniqDFM
-instead of UniqFM to implement the TrieMap.
-
-See Note [Deterministic UniqFM] in GHC.Types.Unique.DFM for more details on how it's made
-deterministic.
--}
-
-instance forall key. Uniquable key => TrieMap (UniqDFM key) where
-  type Key (UniqDFM key) = key
-  emptyTM = emptyUDFM
-  lookupTM k m = lookupUDFM m k
-  alterTM k f m = alterUDFM f m k
+xtf :: (IsKeylessMap m, Functor f) => (m a -> f (m a)) -> XTF f (m a)
+xtf f = fmap Just . f . fromMaybe mapEmpty
 
 {-
 ************************************************************************
@@ -204,15 +80,35 @@ data MaybeMap m a = MM { mm_nothing  :: Maybe a, mm_just :: m a }
 LENS_FIELD(mm_nothingL, mm_nothing)
 LENS_FIELD(mm_justL, mm_just)
 
-instance TrieMap m => TrieMap (MaybeMap m) where
-   type Key (MaybeMap m) = Maybe (Key m)
-   emptyTM  = MM { mm_nothing = Nothing, mm_just = emptyTM }
-   lookupTM = \ case
-       Nothing -> mm_nothing
-       Just x -> lookupTM x . mm_just
-   alterTM = \ case
-       Nothing -> over mm_nothingL
-       Just x -> over mm_justL . alterTM x
+instance Filtrable m => Filtrable (MaybeMap m) where
+    mapMaybe f (MM xs ys) = MM (mapMaybe f xs) (mapMaybe f ys)
+
+instance IsStaticKeylessMap m => IsStaticKeylessMap (MaybeMap m) where
+    type KeyOf (MaybeMap m) = Maybe (KeyOf m)
+    mapLookup = \ case
+        Nothing -> mm_nothing
+        Just x -> mapLookup x . mm_just
+    mapAdjust = flip \ case
+        Nothing -> over mm_nothingL . fmap
+        Just x -> over mm_justL . flip mapAdjust x
+    mapIsSubmapOfBy f (MM xs1 ys1) (MM xs2 ys2) = mapIsSubmapOfBy f xs1 xs2 && mapIsSubmapOfBy f ys1 ys2
+
+instance IsStaticMap m => IsStaticMap (MaybeMap m) where
+    mapTraverseWithKey f (MM xs ys) = MM <$> traverse (f Nothing) xs <*> mapTraverseWithKey (f . Just) ys
+
+instance IsKeylessMap m => IsKeylessMap (MaybeMap m) where
+    mapEmpty = MM { mm_nothing = Nothing, mm_just = mapEmpty }
+    mapAlter = flip \ case
+        Nothing -> over mm_nothingL
+        Just x -> over mm_justL . flip mapAlter x
+    mapAlterF = flip \ case
+        Nothing -> mm_nothingL
+        Just x -> mm_justL . flip mapAlterF x
+    mapMergeA f (MM xs1 ys1) (MM xs2 ys2) = MM <$> mapMaybeA f (fromMaybes xs1 xs2) <*> mapMergeA f ys1 ys2
+
+instance IsMap m => IsMap (MaybeMap m) where
+    mapTraverseMaybeWithKey f (MM xs ys) = MM <$> mapMaybeA (f Nothing) xs <*> mapTraverseMaybeWithKey (f . Just) ys
+    mapMergeWithKeyA f (MM xs1 ys1) (MM xs2 ys2) = MM <$> mapMaybeA (f Nothing) (fromMaybes xs1 xs2) <*> mapMergeWithKeyA (f . Just) ys1 ys2
 
 {-
 ************************************************************************
@@ -230,24 +126,48 @@ data ListMap m a
 LENS_FIELD(lm_nilL, lm_nil)
 LENS_FIELD(lm_consL, lm_cons)
 
-instance TrieMap m => TrieMap (ListMap m) where
-   type Key (ListMap m) = [Key m]
-   emptyTM  = LM { lm_nil = Nothing, lm_cons = emptyTM }
-   lookupTM = lkList lookupTM
-   alterTM  = xtList alterTM
+instance Filtrable m => Filtrable (ListMap m) where
+    mapMaybe f (LM xs ys) = LM (mapMaybe f xs) (mapMaybe f <$> ys)
 
-instance (TrieMap m, Outputable a) => Outputable (ListMap m a) where
+instance IsStaticKeylessMap m => IsStaticKeylessMap (ListMap m) where
+    type KeyOf (ListMap m) = [KeyOf m]
+    mapAdjust = flip \ case
+        [] -> over lm_nilL . fmap
+        k:ks -> over lm_consL . flip mapAdjust k . flip mapAdjust ks
+    mapLookup = lkList mapLookup
+    mapIsSubmapOfBy f (LM xs1 ys1) (LM xs2 ys2) = mapIsSubmapOfBy f xs1 xs2 && mapIsSubmapOfBy (mapIsSubmapOfBy f) ys1 ys2
+
+instance IsStaticMap m => IsStaticMap (ListMap m) where
+     mapTraverseWithKey f (LM xs ys) = LM <$> traverse (f []) xs <*> mapTraverseWithKey (\ k -> mapTraverseWithKey (f . (k :))) ys
+
+instance IsKeylessMap m => IsKeylessMap (ListMap m) where
+    mapEmpty = LM { lm_nil = Nothing, lm_cons = mapEmpty }
+    mapAlterF = xtListF mapAlterF
+    mapMergeA f (LM xs1 ys1) (LM xs2 ys2) = LM
+        <$> mapMaybeA f (fromMaybes xs1 xs2)
+        <*> mapMergeA (let f' = mapMergeA f in fmap Just . either' (`f'` mapEmpty) (mapEmpty `f'`) f') ys1 ys2
+
+instance IsMap m => IsMap (ListMap m) where
+    mapTraverseMaybeWithKey f (LM xs ys) = LM <$> mapMaybeA (f []) xs <*> mapTraverseWithKey (\ k -> mapTraverseMaybeWithKey (f . (k :))) ys
+    mapMergeWithKeyA f (LM xs1 ys1) (LM xs2 ys2) = LM
+        <$> mapMaybeA (f []) (fromMaybes xs1 xs2)
+        <*> mapMergeWithKeyA (\ k -> let f' = mapMergeWithKeyA (f . (k :)) in fmap Just . either' (`f'` mapEmpty) (mapEmpty `f'`) f') ys1 ys2
+
+instance (Foldable m, Outputable a) => Outputable (ListMap m a) where
   ppr m = text "List elts" <+> ppr (toList m)
 
-lkList :: TrieMap m => (forall b. k -> m b -> Maybe b)
+lkList :: (forall b. k -> m b -> Maybe b)
         -> [k] -> ListMap m a -> Maybe a
 lkList _  []     = lm_nil
 lkList lk (x:xs) = lm_cons >>> lk x >=> lkList lk xs
 
-xtList :: TrieMap m => (forall b. k -> XT b -> m b -> m b)
-        -> [k] -> XT a -> ListMap m a -> ListMap m a
-xtList _  []     f = over lm_nilL f
-xtList tr (x:xs) f = over lm_consL $ tr x |>> xtList tr xs f
+xtListF :: (IsKeylessMap m, Functor f) => (forall b. XTF f b -> k -> m b -> f (m b))
+        -> XTF f a -> [k] -> ListMap m a -> f (ListMap m a)
+xtListF tr = flip go
+  where
+    go = \ case
+        [] -> lm_nilL
+        x:xs -> lm_consL . flip tr x . xtf . go xs
 
 {-
 ************************************************************************
@@ -293,9 +213,15 @@ as INLINEABLE to permit specialization.
 
 data GenMap m a
    = EmptyMap
-   | SingletonMap (Key m) a
+   | SingletonMap (KeyOf m) a
    | MultiMap (m a)
   deriving (Foldable, Functor, Traversable)
+
+instance Filtrable m => Filtrable (GenMap m) where
+    mapMaybe f = \ case
+        EmptyMap -> EmptyMap
+        SingletonMap k a -> maybe EmptyMap (SingletonMap k) (f a)
+        MultiMap as -> MultiMap (mapMaybe f as)
 
 instance (Outputable a, Outputable (m a)) => Outputable (GenMap m a) where
   ppr EmptyMap = text "Empty map"
@@ -303,33 +229,76 @@ instance (Outputable a, Outputable (m a)) => Outputable (GenMap m a) where
   ppr (MultiMap m) = ppr m
 
 -- TODO undecidable instance
-instance (Eq (Key m), TrieMap m) => TrieMap (GenMap m) where
-   type Key (GenMap m) = Key m
-   emptyTM  = EmptyMap
-   lookupTM = lkG
-   alterTM  = xtG
+instance (Eq (KeyOf m), IsStaticKeylessMap m) => IsStaticKeylessMap (GenMap m) where
+    type KeyOf (GenMap m) = KeyOf m
+    mapLookup = lkG
+    mapAdjust f k = \ case
+        EmptyMap -> EmptyMap
+        SingletonMap k' a -> SingletonMap k' (applyWhen (k == k') f a)
+        MultiMap as -> MultiMap (mapAdjust f k as)
+    mapIsSubmapOfBy _ EmptyMap _ = True
+    mapIsSubmapOfBy _ _ EmptyMap = False
+    mapIsSubmapOfBy f (SingletonMap i a) bs = f a `any` mapLookup i bs
+    mapIsSubmapOfBy f as (SingletonMap j b) = length as == 1 && flip f b `any` mapLookup j as
+    mapIsSubmapOfBy f (MultiMap as) (MultiMap bs) = mapIsSubmapOfBy f as bs
+
+-- TODO undecidable instance
+instance (Eq (KeyOf m), IsStaticMap m) => IsStaticMap (GenMap m) where
+    mapTraverseWithKey f = \ case
+        EmptyMap -> pure EmptyMap
+        SingletonMap k a -> SingletonMap k <$> f k a
+        MultiMap as -> MultiMap <$> mapTraverseWithKey f as
+
+-- TODO undecidable instance
+instance (Eq (KeyOf m), IsKeylessMap m) => IsKeylessMap (GenMap m) where
+    mapEmpty = EmptyMap
+    mapAlterF = xtGF
+    mapMergeA f EmptyMap bs = mapMaybeA (f . JustRight) bs
+    mapMergeA f as EmptyMap = mapMaybeA (f . JustLeft) as
+    mapMergeA f (SingletonMap i a) bs = maybe id (mapInsert i)
+        <$> f (maybe (JustLeft  a) (a `Both`) (mapLookup i bs))
+        <*> mapMaybeA (f . JustRight) bs
+    mapMergeA f as (SingletonMap j b) = maybe id (mapInsert j)
+        <$> f (maybe (JustRight b) (`Both` b) (mapLookup j as))
+        <*> mapMaybeA (f . JustLeft) as
+    mapMergeA f (MultiMap as) (MultiMap bs) = MultiMap <$> mapMergeA f as bs
+
+-- TODO undecidable instance
+instance (Eq (KeyOf m), IsMap m) => IsMap (GenMap m) where
+    mapTraverseMaybeWithKey f = \ case
+        EmptyMap -> pure EmptyMap
+        SingletonMap k a -> maybe EmptyMap (SingletonMap k) <$> f k a
+        MultiMap as -> MultiMap <$> mapTraverseMaybeWithKey f as
+    mapMergeWithKeyA f EmptyMap bs = mapTraverseMaybeWithKey (\ k -> f k . JustRight) bs
+    mapMergeWithKeyA f as EmptyMap = mapTraverseMaybeWithKey (\ k -> f k . JustLeft) as
+    mapMergeWithKeyA f (SingletonMap i a) bs = maybe id (mapInsert i)
+        <$> f i (maybe (JustLeft  a) (a `Both`) (mapLookup i bs))
+        <*> mapTraverseMaybeWithKey (\ k -> bool (f k . JustRight) (\ _ -> pure Nothing) (i == k)) bs
+    mapMergeWithKeyA f as (SingletonMap j b) = maybe id (mapInsert j)
+        <$> f j (maybe (JustRight b) (`Both` b) (mapLookup j as))
+        <*> mapTraverseMaybeWithKey (\ k -> bool (f k . JustLeft)  (\ _ -> pure Nothing) (j == k)) as
+    mapMergeWithKeyA f (MultiMap as) (MultiMap bs) = MultiMap <$> mapMergeWithKeyA f as bs
 
 --We want to be able to specialize these functions when defining eg
 --tries over (GenMap CoreExpr) which requires INLINEABLE
 
 {-# INLINEABLE lkG #-}
-lkG :: (Eq (Key m), TrieMap m) => Key m -> GenMap m a -> Maybe a
+lkG :: (Eq (KeyOf m), IsStaticKeylessMap m) => KeyOf m -> GenMap m a -> Maybe a
 lkG _ EmptyMap                         = Nothing
 lkG k (SingletonMap k' v')             = v' <$ guard (k == k')
-lkG k (MultiMap m)                     = lookupTM k m
+lkG k (MultiMap m)                     = mapLookup k m
 
-{-# INLINEABLE xtG #-}
-xtG :: (Eq (Key m), TrieMap m) => Key m -> XT a -> GenMap m a -> GenMap m a
-xtG k f EmptyMap
-    = case f Nothing of
-        Just v  -> SingletonMap k v
-        Nothing -> EmptyMap
-xtG k f m@(SingletonMap k' v')
+{-# INLINEABLE xtGF #-}
+xtGF :: (Eq (KeyOf m), IsKeylessMap m, Functor f) => XTF f a -> KeyOf m -> GenMap m a -> f (GenMap m a)
+xtGF f k EmptyMap = f Nothing <₪> \ case
+    Just v  -> SingletonMap k v
+    Nothing -> EmptyMap
+xtGF f k m@(SingletonMap k' v')
     | k' == k
     -- The new key matches the (single) key already in the tree.  Hence,
     -- apply @f@ to @Just v'@ and build a singleton or empty map depending
     -- on the 'Just'/'Nothing' response respectively.
-    = case f (Just v') of
+    = f (Just v') <₪> \ case
         Just v'' -> SingletonMap k' v''
         Nothing  -> EmptyMap
     | otherwise
@@ -338,9 +307,7 @@ xtG k f m@(SingletonMap k' v')
     -- we can just return the old map. If not, we need a map with *two*
     -- entries. The easiest way to do that is to insert two items into an empty
     -- map of type @m a@.
-    = case f Nothing of
+    = f Nothing <₪> \ case
         Nothing  -> m
-        Just v   -> (alterTM k' (const (Just v'))
-                           >>> alterTM k  (const (Just v))
-                           >>> MultiMap) emptyTM
-xtG k f (MultiMap m) = MultiMap (alterTM k f m)
+        Just v   -> (MultiMap . mapFromList) [(k, v), (k', v')]
+xtGF f k (MultiMap m) = MultiMap <$> mapAlterF f k m

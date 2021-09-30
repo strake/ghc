@@ -102,6 +102,7 @@ import GHC.Types.ForeignCall
 import GHC.Unit.Module
 import GHC.Types.Demand
 import GHC.Types.Cpr
+import GHC.Data.Collections
 
 import GHC.Utils.Misc
 import GHC.Utils.Outputable
@@ -541,7 +542,7 @@ data RuleInfo
 
 -- | Assume that no specializations exist: always safe
 emptyRuleInfo :: RuleInfo
-emptyRuleInfo = RuleInfo [] emptyDVarSet
+emptyRuleInfo = RuleInfo [] setEmpty
 
 isEmptyRuleInfo :: RuleInfo -> Bool
 isEmptyRuleInfo (RuleInfo rs _) = null rs

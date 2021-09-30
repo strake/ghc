@@ -69,7 +69,7 @@ import GHC.Utils.Error
 import GHC.Utils.Misc
 
 import Control.Monad (join)
-import Data.Foldable (foldr')
+import Data.Foldable (foldr', toList)
 import Data.IORef
 import qualified Data.Set as Set
 import Data.Set (Set)
@@ -373,7 +373,7 @@ hptSomeThingsBelowUs extract include_hi_boot hsc_env deps
     in
     [ thing
     |   -- Find each non-hi-boot module below me
-      GWIB { gwib_mod = mod, gwib_isBoot = is_boot } <- Set.toList (hptModulesBelow hsc_env deps)
+      GWIB { gwib_mod = mod, gwib_isBoot = is_boot } <- toList (hptModulesBelow hsc_env deps)
     , include_hi_boot || (is_boot == NotBoot)
 
         -- unsavoury: when compiling the base package with --make, we

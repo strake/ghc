@@ -16,11 +16,9 @@ import GHC.Prelude
 import GHC.Utils.Outputable
 
 -- TODO: This should really just use GHC's Unique and Uniq{Set,FM}
-import GHC.Cmm.Dataflow.Collections
+import GHC.Data.Collections
 
 import GHC.Types.Unique (Uniquable(..))
-import GHC.Data.TrieMap
-
 
 -----------------------------------------------------------------------------
 --              Label
@@ -81,39 +79,55 @@ newtype LabelMap v = LM { unLM :: UniqueMap v }
 instance Filtrable LabelMap where
   mapMaybe f = LM . mapMaybe f . unLM
 
-instance IsMap LabelMap where
+instance IsStaticKeylessMap LabelMap where
   type KeyOf LabelMap = Label
 
   mapMember (Label k) (LM m) = mapMember k m
   mapLookup (Label k) (LM m) = mapLookup k m
   mapFindWithDefault def (Label k) (LM m) = mapFindWithDefault def k m
 
+  mapAdjust f (Label k) (LM m) = LM (mapAdjust f k m)
+  mapAdjustLookup f (Label k) (LM m) = LM <$> mapAdjustLookup f k m
+
+  mapIsSubmapOfBy f (LM x) (LM y) = mapIsSubmapOfBy f x y
+
+instance IsStaticMap LabelMap where
+  mapMapWithKey f (LM m) = LM (mapMapWithKey (f . mkHooplLabel) m)
+  mapFoldlWithKey k z (LM m) =
+      mapFoldlWithKey (\a -> k a . mkHooplLabel) z m
+  mapFoldMapWithKey f (LM m) = mapFoldMapWithKey (f . mkHooplLabel) m
+  mapTraverseWithKey f (LM m) = LM <$> mapTraverseWithKey (f . mkHooplLabel) m
+
+  mapKeys (LM m) = map mkHooplLabel (mapKeys m)
+  {-# INLINEABLE mapToList #-}
+  mapToList (LM m) = [(mkHooplLabel k, v) | (k, v) <- mapToList m]
+
+instance IsKeylessMap LabelMap where
   mapEmpty = LM mapEmpty
   mapSingleton (Label k) v = LM (mapSingleton k v)
   mapInsert (Label k) v (LM m) = LM (mapInsert k v m)
   mapInsertWith f (Label k) v (LM m) = LM (mapInsertWith f k v m)
   mapDelete (Label k) (LM m) = LM (mapDelete k m)
   mapAlter f (Label k) (LM m) = LM (mapAlter f k m)
-  mapAdjust f (Label k) (LM m) = LM (mapAdjust f k m)
+  mapAlterF f (Label k) (LM m) = LM <$> mapAlterF f k m
 
   mapUnion (LM x) (LM y) = LM (mapUnion x y)
-  mapUnionWithKey f (LM x) (LM y) = LM (mapUnionWithKey (f . mkHooplLabel) x y)
   mapDifference (LM x) (LM y) = LM (mapDifference x y)
   mapIntersection (LM x) (LM y) = LM (mapIntersection x y)
-  mapIsSubmapOf (LM x) (LM y) = mapIsSubmapOf x y
 
-  mapMapWithKey f (LM m) = LM (mapMapWithKey (f . mkHooplLabel) m)
-  mapFoldlWithKey k z (LM m) =
-      mapFoldlWithKey (\a v -> k a (mkHooplLabel v)) z m
-  mapFoldMapWithKey f (LM m) = mapFoldMapWithKey (\k v -> f (mkHooplLabel k) v) m
+  mapFromList assocs = LM (mapFromList [(lblToUnique k, v) | (k, v) <- assocs])
+  mapFromListWith f assocs = LM (mapFromListWith f [(lblToUnique k, v) | (k, v) <- assocs])
+
+  mapMergeA f (LM m) (LM n) = LM <$> mapMergeA f m n
+
+instance IsMap LabelMap where
+  mapUnionWithKey f (LM x) (LM y) = LM (mapUnionWithKey (f . mkHooplLabel) x y)
+  mapTraverseMaybeWithKey f (LM x) = LM <$> mapTraverseMaybeWithKey (f . mkHooplLabel) x
+
   {-# INLINEABLE mapFilterWithKey #-}
   mapFilterWithKey f (LM m) = LM (mapFilterWithKey (f . mkHooplLabel) m)
 
-  mapKeys (LM m) = map mkHooplLabel (mapKeys m)
-  {-# INLINEABLE mapToList #-}
-  mapToList (LM m) = [(mkHooplLabel k, v) | (k, v) <- mapToList m]
-  mapFromList assocs = LM (mapFromList [(lblToUnique k, v) | (k, v) <- assocs])
-  mapFromListWith f assocs = LM (mapFromListWith f [(lblToUnique k, v) | (k, v) <- assocs])
+  mapMergeWithKeyA f (LM m) (LM n) = LM <$> mapMergeWithKeyA (f . mkHooplLabel) m n
 
 -----------------------------------------------------------------------------
 -- Instances
@@ -126,12 +140,6 @@ instance Outputable a => Outputable (LabelMap a) where
 
 instance OutputableP env a => OutputableP env (LabelMap a) where
   pdoc env = pdoc env . mapToList
-
-instance TrieMap LabelMap where
-  type Key LabelMap = Label
-  emptyTM = mapEmpty
-  lookupTM k m = mapLookup k m
-  alterTM k f m = mapAlter f k m
 
 -----------------------------------------------------------------------------
 -- FactBase

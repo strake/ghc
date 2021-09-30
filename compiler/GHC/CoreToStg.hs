@@ -47,8 +47,8 @@ import GHC.Builtin.PrimOps ( PrimCall(..) )
 import GHC.Types.SrcLoc    ( mkGeneralSrcSpan )
 import GHC.Builtin.Names   ( unsafeEqualityProofName )
 
-import Data.List.NonEmpty (nonEmpty, toList)
-import qualified Data.Set as Set
+import Data.Foldable (toList)
+import Data.List.NonEmpty (nonEmpty)
 
 -- Note [Live vs free]
 -- ~~~~~~~~~~~~~~~~~~~
@@ -228,7 +228,7 @@ coreToStg dflags this_mod pgm
     (_, (local_ccs, local_cc_stacks), pgm')
       = coreTopBindsToStg dflags this_mod emptyVarEnv emptyCollectedCCs pgm
 
-    prof = WayProf `Set.member` ways dflags
+    prof = WayProf `elem` ways dflags
 
     final_ccs
       | prof && gopt Opt_AutoSccsOnIndividualCafs dflags

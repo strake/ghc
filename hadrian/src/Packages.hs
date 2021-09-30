@@ -2,9 +2,9 @@
 module Packages (
     -- * GHC packages
     array, base, binary, bytestring, cabal, checkApiAnnotations, checkPpr, countDeps,
-    compareSizes, compiler, containers, deepseq, deriveConstants, directory, dual, exceptions,
-    filepath, filtrable, ftl, genapply, genprimopcode, ghc, ghcBignum, ghcBoot, ghcBootTh,
-    ghcCompact, ghcHeap, ghci, ghcPkg, ghcPrim, haddock, haskeline, hs_functors,
+    compareSizes, compiler, containers, deepseq, deriveConstants, directory, dual, either_both,
+    exceptions, filepath, filtrable, ftl, genapply, genprimopcode, ghc, ghcBignum, ghcBoot,
+    ghcBootTh, ghcCompact, ghcHeap, ghci, ghcPkg, ghcPrim, haddock, haskeline, hs_functors,
     hsc2hs, hp2ps, hpc, hpcBin, integerGmp, integerSimple, iserv, iservProxy,
     libffi, libiserv, microlens, mtl, parsec, pretty, primitive, process, remoteIserv, rts,
     runGhc, stm, tagged, templateHaskell, terminfo, text, time, timeout, touchy,
@@ -32,7 +32,7 @@ import Oracles.Setting
 ghcPackages :: [Package]
 ghcPackages =
     [ array, base, binary, bytestring, cabal, checkPpr, checkApiAnnotations, countDeps
-    , compareSizes, compiler, containers, deepseq, deriveConstants, directory, dual
+    , compareSizes, compiler, containers, deepseq, deriveConstants, directory, dual, either_both
     , exceptions, filepath, filtrable, ftl, genapply, genprimopcode, ghc, ghcBignum, ghcBoot, ghcBootTh
     , ghcCompact, ghcHeap, ghci, ghcPkg, ghcPrim, haddock, haskeline, hs_functors, hsc2hs
     , hp2ps, hpc, hpcBin, integerGmp, integerSimple, iserv, libffi, libiserv, microlens, mtl
@@ -60,6 +60,7 @@ deepseq             = lib  "deepseq"
 deriveConstants     = util "deriveConstants"
 directory           = lib  "directory"
 dual                = lib  "dual"
+either_both         = lib  "either-both"
 exceptions          = lib  "exceptions"
 filepath            = lib  "filepath"
 filtrable           = lib  "filtrable"

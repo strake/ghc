@@ -279,7 +279,7 @@ withDumpFileHandle dflags dumpOpt action = case chooseDumpFile dflags dumpOpt of
       Just fileName -> do
         let gdref = generatedDumps dflags
         gd <- readIORef gdref
-        let append = Set.member fileName gd
+        let append = elem fileName gd
             mode = if append then AppendMode else WriteMode
         unless append $
             writeIORef gdref (Set.insert fileName gd)

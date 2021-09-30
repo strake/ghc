@@ -19,7 +19,7 @@ import GHC.Cmm.ProcPoint
 import GHC.Cmm.ContFlowOpt
 import GHC.Cmm.LayoutStack
 import GHC.Cmm.Sink
-import GHC.Cmm.Dataflow.Collections
+import GHC.Data.Collections
 
 import GHC.Types.Unique.Supply
 import GHC.Driver.Session

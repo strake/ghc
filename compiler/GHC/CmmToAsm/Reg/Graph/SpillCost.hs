@@ -22,7 +22,7 @@ import GHC.Platform.Reg
 
 import GHC.Data.Graph.Base
 
-import GHC.Cmm.Dataflow.Collections (mapLookup)
+import GHC.Data.Collections (mapLookup)
 import GHC.Cmm.Dataflow.Label
 import GHC.Cmm
 import GHC.Types.Unique.FM

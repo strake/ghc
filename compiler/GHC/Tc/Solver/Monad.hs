@@ -179,6 +179,7 @@ import GHC.Types.Unique.FM
 import GHC.Types.Unique.DFM
 import GHC.Data.Maybe
 
+import GHC.Data.Collections
 import GHC.Core.Map
 import GHC.Utils.Monad
 import Control.Monad
@@ -466,7 +467,7 @@ instance Outputable InertSet where
 emptyInertCans :: InertCans
 emptyInertCans
   = IC { inert_count    = 0
-       , inert_eqs      = emptyDVarEnv
+       , inert_eqs      = mapEmpty
        , inert_dicts    = emptyDicts
        , inert_safehask = emptyDicts
        , inert_funeqs   = emptyFunEqs
@@ -1475,7 +1476,7 @@ shouldSplitWD inert_eqs (CDictCan { cc_tyargs = tys })
 
 shouldSplitWD inert_eqs (CTyEqCan { cc_tyvar = tv, cc_rhs = ty
                                   , cc_eq_rel = eq_rel })
-  =  tv `elemDVarEnv` inert_eqs
+  =  mapMember tv inert_eqs
   || anyRewritableTyVar False eq_rel (canRewriteTv inert_eqs) ty
   -- NB False: do not ignore casts and coercions
   -- See Note [Splitting WD constraints]
@@ -1495,7 +1496,7 @@ should_split_match_args inert_eqs tys
 
 canRewriteTv :: InertEqs -> EqRel -> TyVar -> Bool
 canRewriteTv inert_eqs eq_rel tv
-  | Just (ct : _) <- lookupDVarEnv inert_eqs tv
+  | Just (ct : _) <- mapLookup tv inert_eqs
   , CTyEqCan { cc_eq_rel = eq_rel1 } <- ct
   = eq_rel1 `eqCanRewrite` eq_rel
   | otherwise
@@ -1525,16 +1526,16 @@ addTyEq old_eqs tv ct
       = ct : old_eqs
 
 findTyEqs :: InertCans -> TyVar -> EqualCtList
-findTyEqs icans tv = lookupDVarEnv (inert_eqs icans) tv `orElse` []
+findTyEqs icans tv = mapLookup tv (inert_eqs icans) `orElse` []
 
 delTyEq :: InertEqs -> TcTyVar -> TcType -> InertEqs
-delTyEq m tv t = modifyDVarEnv (filter (not . isThisOne)) m tv
+delTyEq m tv t = mapAdjust (filter (not . isThisOne)) tv m
   where isThisOne (CTyEqCan { cc_rhs = t1 }) = eqType t t1
         isThisOne _                          = False
 
 lookupInertTyVar :: InertEqs -> TcTyVar -> Maybe TcType
 lookupInertTyVar ieqs tv
-  = case lookupDVarEnv ieqs tv of
+  = case mapLookup tv ieqs of
       Just (CTyEqCan { cc_rhs = rhs, cc_eq_rel = NomEq } : _ ) -> Just rhs
       _                                                        -> Nothing
 
@@ -1741,7 +1742,7 @@ kick_out_rewritable new_fr new_tv
                           ((dicts_out `andCts` irs_out)
                             `extendCtsList` insts_out)
 
-    (tv_eqs_out, tv_eqs_in) = foldr kick_out_eqs ([], emptyDVarEnv) tv_eqs
+    (tv_eqs_out, tv_eqs_in) = foldr kick_out_eqs ([], mapEmpty) tv_eqs
     (feqs_out,   feqs_in)   = partitionFunEqs  kick_out_ct funeqmap
            -- See Note [Kicking out CFunEqCan for fundeps]
     (dicts_out,  dicts_in)  = partitionDicts   kick_out_ct dictmap
@@ -1796,7 +1797,7 @@ kick_out_rewritable new_fr new_tv
     kick_out_eqs eqs (acc_out, acc_in)
       = (eqs_out ++ acc_out, case eqs_in of
                                []      -> acc_in
-                               (eq1:_) -> extendDVarEnv acc_in (cc_tyvar eq1) eqs_in)
+                               (eq1:_) -> mapInsert (cc_tyvar eq1) eqs_in acc_in)
       where
         (eqs_out, eqs_in) = partition kick_out_eq eqs
 
@@ -2123,7 +2124,7 @@ getUnsolvedInerts
 isInInertEqs :: DTyVarEnv EqualCtList -> TcTyVar -> TcType -> Bool
 -- True if (a ~N ty) is in the inert set, in either Given or Wanted
 isInInertEqs eqs tv rhs
-  = case lookupDVarEnv eqs tv of
+  = case mapLookup tv eqs of
       Nothing  -> False
       Just cts -> any (same_pred rhs) cts
   where
@@ -2430,27 +2431,15 @@ emptyTcAppMap = emptyUDFM
 
 findTcApp :: TcAppMap a -> Unique -> [Type] -> Maybe a
 findTcApp m u tys = do { tys_map <- lookupUDFM m u
-                       ; lookupTM tys tys_map }
+                       ; mapLookup tys tys_map }
 
 delTcApp :: TcAppMap a -> Unique -> [Type] -> TcAppMap a
-delTcApp m cls tys = adjustUDFM (deleteTM tys) m cls
+delTcApp m cls tys = adjustUDFM (mapDelete tys) m cls
 
 insertTcApp :: TcAppMap a -> Unique -> [Type] -> a -> TcAppMap a
-insertTcApp m cls tys ct = alterUDFM alter_tm m cls
+insertTcApp m cls tys ct = mapAlter alter_tm cls m
   where
-    alter_tm mb_tm = Just (insertTM tys ct (mb_tm `orElse` emptyTM))
-
-filterTcAppMap :: (Ct -> Bool) -> TcAppMap Ct -> TcAppMap Ct
-filterTcAppMap f = fmap (foldr insert_mb emptyTM)
-  where
-    insert_mb ct
-       | f ct      = insertTM tys ct
-       | otherwise = id
-       where
-         tys = case ct of
-                CFunEqCan { cc_tyargs = tys } -> tys
-                CDictCan  { cc_tyargs = tys } -> tys
-                _ -> pprPanic "filterTcAppMap" (ppr ct)
+    alter_tm = Just . mapInsert tys ct . fromMaybe mapEmpty
 
 toBag :: Foldable f => f a -> Bag a
 toBag = foldr consBag emptyBag
@@ -2536,13 +2525,13 @@ addDict m cls = insertTcApp m (getUnique cls)
 
 addDictsByClass :: DictMap Ct -> Class -> Bag Ct -> DictMap Ct
 addDictsByClass m cls items
-  = addToUDFM_Directly m (getUnique cls) (foldr add emptyTM items)
+  = addToUDFM_Directly m (getUnique cls) (foldr add mapEmpty items)
   where
-    add ct@(CDictCan { cc_tyargs = tys }) tm = insertTM tys ct tm
+    add ct@(CDictCan { cc_tyargs = tys }) tm = mapInsert tys ct tm
     add ct _ = pprPanic "addDictsByClass" (ppr ct)
 
 filterDicts :: (Ct -> Bool) -> DictMap Ct -> DictMap Ct
-filterDicts = filterTcAppMap
+filterDicts f = getCompose . filter f . Compose
 
 partitionDicts :: (Ct -> Bool) -> DictMap Ct -> (Bag Ct, DictMap Ct)
 partitionDicts f = foldr k (emptyBag, emptyDicts) . Compose
@@ -2580,12 +2569,6 @@ findFunEqsByTyCon m tc
   | Just tm <- lookupUDFM m (getUnique tc) = toList tm
   | otherwise                              = []
 
--- mapFunEqs :: (a -> b) -> FunEqMap a -> FunEqMap b
--- mapFunEqs = mapTcApp
-
--- filterFunEqs :: (Ct -> Bool) -> FunEqMap Ct -> FunEqMap Ct
--- filterFunEqs = filterTcAppMap
-
 insertFunEq :: FunEqMap a -> TyCon -> [Type] -> a -> FunEqMap a
 insertFunEq m tc = insertTcApp m (getUnique tc)
 
@@ -2612,11 +2595,11 @@ emptyExactFunEqs :: ExactFunEqMap a
 emptyExactFunEqs = emptyUFM
 
 findExactFunEq :: ExactFunEqMap a -> TyCon -> [Type] -> Maybe a
-findExactFunEq m tc tys = do { tys_map <- lookupUFM m tc; lookupTM tys tys_map }
+findExactFunEq m tc tys = do { tys_map <- lookupUFM m tc; mapLookup tys tys_map }
 
 insertExactFunEq :: ExactFunEqMap a -> TyCon -> [Type] -> a -> ExactFunEqMap a
 insertExactFunEq m tc tys val = alterUFM alter_tm m tc
-  where alter_tm mb_tm = Just (insertTM tys val (mb_tm `orElse` emptyTM))
+  where alter_tm mb_tm = Just (mapInsert tys val (orElse mb_tm mapEmpty))
 
 {-
 ************************************************************************

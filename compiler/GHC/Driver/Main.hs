@@ -221,6 +221,7 @@ import Data.Set (Set)
 import Data.Functor
 import Control.DeepSeq (force)
 import Data.Bifunctor (first)
+import Data.Foldable (toList)
 
 {- **********************************************************************
 %*                                                                      *
@@ -1493,7 +1494,7 @@ hscGenHardCode hsc_env cgguts location output_filename = do
             <- {-# SCC "CoreToStg" #-}
                myCoreToStg dflags this_mod prepd_binds
 
-        let cost_centre_info = (S.toList local_ccs ++ caf_ccs, caf_cc_stacks)
+        let cost_centre_info = (toList local_ccs ++ caf_ccs, caf_cc_stacks)
             platform = targetPlatform dflags
             prof_init
                | sccProfilingEnabled dflags = profilingInitCode platform this_mod cost_centre_info

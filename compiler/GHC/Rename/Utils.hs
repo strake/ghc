@@ -389,7 +389,7 @@ dupNamesErr get_loc names
     vcat [text "Conflicting definitions for" <+> quotes (ppr (NE.head names)),
           locations]
   where
-    locs      = map get_loc (NE.toList names)
+    locs      = get_loc <$> toList names
     big_loc   = foldr1 combineSrcSpans locs
     locations = text "Bound at:" <+> vcat (map ppr (sortBy SrcLoc.leftmost_smallest locs))
 

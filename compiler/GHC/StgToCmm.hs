@@ -41,7 +41,6 @@ import GHC.Types.Id
 import GHC.Types.Id.Info
 import GHC.Types.RepType
 import GHC.Types.Basic
-import GHC.Types.Var.Set ( isEmptyDVarSet )
 import GHC.Types.Unique.FM
 import GHC.Types.Name.Env
 
@@ -190,7 +189,7 @@ cgTopRhs dflags _rec bndr (StgRhsCon _cc con args)
       -- see Note [Post-unarisation invariants] in GHC.Stg.Unarise
 
 cgTopRhs dflags rec bndr (StgRhsClosure fvs cc upd_flag args body)
-  = assert (isEmptyDVarSet fvs)    -- There should be no free variables
+  = assert (null fvs)    -- There should be no free variables
     cgTopRhsClosure (targetPlatform dflags) rec bndr cc upd_flag args body
 
 

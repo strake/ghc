@@ -62,10 +62,11 @@ import GHC.Types.Unique.Supply
 import GHC.Utils.Error
 import qualified GHC.Data.Stream as Stream
 
-import Data.Maybe (fromJust)
 import Control.Monad.Trans.State (StateT (..))
 import Data.Char (isDigit)
+import Data.Foldable (toList)
 import Data.List (sortBy, groupBy, intercalate)
+import Data.Maybe (fromJust)
 import Data.Ord (comparing)
 import qualified Data.List.NonEmpty as NE
 
@@ -290,7 +291,7 @@ llvmVersionStr :: LlvmVersion -> String
 llvmVersionStr = intercalate "." . map show . llvmVersionList
 
 llvmVersionList :: LlvmVersion -> [Int]
-llvmVersionList = NE.toList . llvmVersionNE
+llvmVersionList = toList . llvmVersionNE
 
 -- ----------------------------------------------------------------------------
 -- * Environment Handling

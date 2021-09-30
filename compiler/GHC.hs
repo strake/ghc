@@ -623,8 +623,8 @@ setSessionDynFlags dflags = do
     then do
          let
            prog = pgm_i dflags ++ flavour
-           profiled = ways dflags `hasWay` WayProf
-           dynamic  = ways dflags `hasWay` WayDyn
+           profiled = WayProf `elem` ways dflags
+           dynamic  = WayDyn `elem` ways dflags
            flavour
              | profiled  = "-prof" -- FIXME: can't we have both?
              | dynamic   = "-dyn"

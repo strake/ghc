@@ -28,25 +28,21 @@ module GHC.Types.Var.Set (
         DVarSet, DIdSet, DTyVarSet, DTyCoVarSet,
 
         -- ** Manipulating these sets
-        emptyDVarSet, unitDVarSet, mkDVarSet,
-        extendDVarSet, extendDVarSetList,
-        elemDVarSet, dVarSetElems, subDVarSet,
-        unionDVarSet, unionDVarSets, mapUnionDVarSet,
-        intersectDVarSet, dVarSetIntersectVarSet,
+        mapUnionDVarSet,
+        dVarSetIntersectVarSet,
         intersectsDVarSet, disjointDVarSet,
-        isEmptyDVarSet, delDVarSet, delDVarSetList,
-        minusDVarSet,
         nonDetStrictFoldDVarSet,
-        filterDVarSet, mapDVarSet,
-        dVarSetMinusVarSet, anyDVarSet, allDVarSet,
+        mapDVarSet,
+        dVarSetMinusVarSet,
         transCloDVarSet,
-        sizeDVarSet, seqDVarSet,
+        seqDVarSet,
         partitionDVarSet,
         dVarSetToVarSet,
     ) where
 
 import GHC.Prelude
 
+import GHC.Data.Collections
 import GHC.Types.Var      ( Var, TyVar, CoVar, TyCoVar, Id )
 import GHC.Types.Unique
 import GHC.Types.Name     ( Name )
@@ -219,8 +215,7 @@ pprVarSet :: VarSet          -- ^ The things to be pretty printed
 pprVarSet = pprUFM . getUniqSet
 
 -- Deterministic VarSet
--- See Note [Deterministic UniqFM] in GHC.Types.Unique.DFM for explanation why we need
--- DVarSet.
+-- See Note [Deterministic UniqFM] in GHC.Types.Unique.DFM for explanation why we need DVarSet.
 
 -- | Deterministic Variable Set
 type DVarSet     = UniqDSet Var
@@ -234,40 +229,9 @@ type DTyVarSet   = UniqDSet TyVar
 -- | Deterministic Type or Coercion Variable Set
 type DTyCoVarSet = UniqDSet TyCoVar
 
-emptyDVarSet :: DVarSet
-emptyDVarSet = emptyUniqDSet
-
-unitDVarSet :: Var -> DVarSet
-unitDVarSet = unitUniqDSet
-
-mkDVarSet :: [Var] -> DVarSet
-mkDVarSet = mkUniqDSet
-
--- The new element always goes to the right of existing ones.
-extendDVarSet :: DVarSet -> Var -> DVarSet
-extendDVarSet = addOneToUniqDSet
-
-elemDVarSet :: Var -> DVarSet -> Bool
-elemDVarSet = elementOfUniqDSet
-
-dVarSetElems :: DVarSet -> [Var]
-dVarSetElems = uniqDSetToList
-
-subDVarSet :: DVarSet -> DVarSet -> Bool
-subDVarSet s1 s2 = isEmptyDVarSet (s1 `minusDVarSet` s2)
-
-unionDVarSet :: DVarSet -> DVarSet -> DVarSet
-unionDVarSet = unionUniqDSets
-
-unionDVarSets :: [DVarSet] -> DVarSet
-unionDVarSets = unionManyUniqDSets
-
 -- | Map the function over the list, and union the results
 mapUnionDVarSet  :: (a -> DVarSet) -> [a] -> DVarSet
-mapUnionDVarSet get_set xs = foldr (unionDVarSet . get_set) emptyDVarSet xs
-
-intersectDVarSet :: DVarSet -> DVarSet -> DVarSet
-intersectDVarSet = intersectUniqDSets
+mapUnionDVarSet get_set = foldr (setUnion . get_set) setEmpty
 
 dVarSetIntersectVarSet :: DVarSet -> VarSet -> DVarSet
 dVarSetIntersectVarSet = uniqDSetIntersectUniqSet
@@ -280,15 +244,6 @@ disjointDVarSet s1 s2 = disjointUDFM (getUniqDSet s1) (getUniqDSet s2)
 intersectsDVarSet :: DVarSet -> DVarSet -> Bool
 intersectsDVarSet s1 s2 = not (s1 `disjointDVarSet` s2)
 
-isEmptyDVarSet :: DVarSet -> Bool
-isEmptyDVarSet = isEmptyUniqDSet
-
-delDVarSet :: DVarSet -> Var -> DVarSet
-delDVarSet = delOneFromUniqDSet
-
-minusDVarSet :: DVarSet -> DVarSet -> DVarSet
-minusDVarSet = minusUniqDSet
-
 dVarSetMinusVarSet :: DVarSet -> VarSet -> DVarSet
 dVarSetMinusVarSet = uniqDSetMinusUniqSet
 
@@ -298,35 +253,15 @@ dVarSetMinusVarSet = uniqDSetMinusUniqSet
 nonDetStrictFoldDVarSet :: (Var -> a -> a) -> a -> DVarSet -> a
 nonDetStrictFoldDVarSet = nonDetStrictFoldUniqDSet
 
-anyDVarSet :: (Var -> Bool) -> DVarSet -> Bool
-anyDVarSet p = any p . getUniqDSet
-
-allDVarSet :: (Var -> Bool) -> DVarSet -> Bool
-allDVarSet p = all p . getUniqDSet
-
 mapDVarSet :: Uniquable b => (a -> b) -> UniqDSet a -> UniqDSet b
 mapDVarSet = mapUniqDSet
-
-filterDVarSet :: (Var -> Bool) -> DVarSet -> DVarSet
-filterDVarSet = filterUniqDSet
-
-sizeDVarSet :: DVarSet -> Int
-sizeDVarSet = sizeUniqDSet
 
 -- | Partition DVarSet according to the predicate given
 partitionDVarSet :: (Var -> Bool) -> DVarSet -> (DVarSet, DVarSet)
 partitionDVarSet = partitionUniqDSet
 
--- | Delete a list of variables from DVarSet
-delDVarSetList :: DVarSet -> [Var] -> DVarSet
-delDVarSetList = delListFromUniqDSet
-
 seqDVarSet :: DVarSet -> ()
-seqDVarSet s = sizeDVarSet s `seq` ()
-
--- | Add a list of variables to DVarSet
-extendDVarSetList :: DVarSet -> [Var] -> DVarSet
-extendDVarSetList = addListToUniqDSet
+seqDVarSet s = setSize s `seq` ()
 
 -- | Convert a DVarSet to a VarSet by forgetting the order of insertion
 dVarSetToVarSet :: DVarSet -> VarSet
@@ -353,7 +288,7 @@ transCloDVarSet fn seeds
     -- Specification: go acc vs = acc `union` transClo fn vs
 
     go acc candidates
-       | isEmptyDVarSet new_vs = acc
-       | otherwise            = go (acc `unionDVarSet` new_vs) new_vs
+       | null new_vs = acc
+       | otherwise            = go (setUnion acc new_vs) new_vs
        where
-         new_vs = fn candidates `minusDVarSet` acc
+         new_vs = fn candidates `setDifference` acc

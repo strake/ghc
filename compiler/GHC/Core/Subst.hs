@@ -61,6 +61,7 @@ import GHC.Types.Name     ( Name )
 import GHC.Types.Var hiding (idTypeL)
 import GHC.Types.Id.Info
 import GHC.Types.Unique.Supply
+import GHC.Data.Collections
 import GHC.Data.Maybe
 import GHC.Utils.Misc
 import GHC.Utils.Outputable
@@ -680,8 +681,7 @@ substRule subst subst_ru_fn rule@(Rule { ru_bndrs = bndrs, ru_args = args
 
 ------------------
 substDVarSet :: Subst -> DVarSet -> DVarSet
-substDVarSet subst fvs
-  = mkDVarSet $ fst $ foldr (subst_fv subst) ([], emptyVarSet) $ dVarSetElems fvs
+substDVarSet subst = setFromList . fst . foldr (subst_fv subst) ([], emptyVarSet)
   where
   subst_fv subst fv acc
      | isId fv = expr_fvs (lookupIdSubst subst fv) isLocalVar emptyVarSet $! acc

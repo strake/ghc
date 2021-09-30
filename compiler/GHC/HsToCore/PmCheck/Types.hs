@@ -41,6 +41,7 @@ module GHC.HsToCore.PmCheck.Types (
 import GHC.Prelude
 
 import GHC.Data.Bag
+import GHC.Data.Collections
 import GHC.Data.FastString
 import GHC.Types.Id
 import GHC.Types.Var.Env
@@ -423,10 +424,10 @@ newtype SharedDIdEnv a
   = SDIE { unSDIE :: DIdEnv (Shared a) }
 
 emptySDIE :: SharedDIdEnv a
-emptySDIE = SDIE emptyDVarEnv
+emptySDIE = SDIE mapEmpty
 
 lookupReprAndEntrySDIE :: SharedDIdEnv a -> Id -> (Id, Maybe a)
-lookupReprAndEntrySDIE sdie@(SDIE env) x = case lookupDVarEnv env x of
+lookupReprAndEntrySDIE sdie@(SDIE env) x = case mapLookup x env of
   Nothing           -> (x, Nothing)
   Just (Indirect y) -> lookupReprAndEntrySDIE sdie y
   Just (Entry a)    -> (x, Just a)
@@ -446,13 +447,13 @@ sameRepresentativeSDIE sdie x y =
 -- @x@!
 setIndirectSDIE :: SharedDIdEnv a -> Id -> Id -> SharedDIdEnv a
 setIndirectSDIE sdie@(SDIE env) x y =
-  SDIE $ extendDVarEnv env (fst (lookupReprAndEntrySDIE sdie x)) (Indirect y)
+  SDIE $ mapInsert (fst (lookupReprAndEntrySDIE sdie x)) (Indirect y) env
 
 -- | @setEntrySDIE env x a@ sets the 'Entry' @x@ is associated with to @a@,
 -- thereby modifying its whole equivalence class.
 setEntrySDIE :: SharedDIdEnv a -> Id -> a -> SharedDIdEnv a
 setEntrySDIE sdie@(SDIE env) x a =
-  SDIE $ extendDVarEnv env (fst (lookupReprAndEntrySDIE sdie x)) (Entry a)
+  SDIE $ mapInsert (fst (lookupReprAndEntrySDIE sdie x)) (Entry a) env
 
 traverseSDIE :: forall a b f. Applicative f => (a -> f b) -> SharedDIdEnv a -> f (SharedDIdEnv b)
 traverseSDIE f = fmap (SDIE . listToUDFM_Directly) . traverse g . udfmToList . unSDIE
@@ -542,7 +543,7 @@ instance Outputable VarInfo where
 
 -- | Initial state of the term oracle.
 initTmState :: TmState
-initTmState = TmSt emptySDIE emptyTM
+initTmState = TmSt emptySDIE mapEmpty
 
 -- | The type oracle state. A poor man's 'GHC.Tc.Solver.Monad.InsertSet': The invariant is
 -- that all constraints in there are mutually compatible.

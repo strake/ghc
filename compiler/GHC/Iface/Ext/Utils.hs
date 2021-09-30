@@ -9,6 +9,7 @@ import GHC.Prelude
 import GHC.Core.Map
 import GHC.Driver.Session    ( DynFlags )
 import GHC.Driver.Ppr
+import GHC.Data.Collections
 import GHC.Data.FastString   ( FastString, mkFastString )
 import GHC.Iface.Type
 import GHC.Types.Name hiding (varName)
@@ -125,7 +126,7 @@ getEvidenceTree refmap var = go emptyNameSet var
             Just (sp,dets) -> do
               typ <- identType dets
               (evdet,children) <- getFirst $ foldMap First $ do
-                 det <- S.toList $ identInfo dets
+                 det <- toList $ identInfo dets
                  case det of
                    EvidenceVarBind src@(EvLetBind (getEvBindDeps -> xs)) scp spn ->
                      pure $ Just ((src,scp,spn),mapMaybe (go $ extendNameSet seen var) xs)
@@ -167,7 +168,7 @@ data HieTypeState
     }
 
 initialHTS :: HieTypeState
-initialHTS = HTS emptyTM IM.empty 0
+initialHTS = HTS mapEmpty IM.empty 0
 
 freshTypeIndex :: State HieTypeState TypeIndex
 freshTypeIndex = do
@@ -191,7 +192,7 @@ getTypeIndex :: Type -> State HieTypeState TypeIndex
 getTypeIndex t
   | otherwise = do
       tm <- gets tyMap
-      case lookupTM t tm of
+      case mapLookup t tm of
         Just i -> return i
         Nothing -> do
           ht <- go t
@@ -200,7 +201,7 @@ getTypeIndex t
     extendHTS t ht = do
       i <- freshTypeIndex
       i <$ modify \(HTS tm tt fi) ->
-        HTS (insertTM t i tm) (IM.insert i ht tt) fi
+        HTS (mapInsert t i tm) (IM.insert i ht tt) fi
 
     go (TyVarTy v) = return $ HTyVarTy $ varName v
     go ty@(AppTy _ _) =

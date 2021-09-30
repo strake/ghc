@@ -43,6 +43,7 @@ import GHC.Utils.Fingerprint(Fingerprint(..), fingerprintString, fingerprintFing
 import GHC.Utils.Outputable
 import GHC.Utils.Panic
 import GHC.Data.FastString ( FastString, mkFastString, fsLit )
+import GHC.Data.Collections
 
 import Control.Monad.Trans.State.Strict
 import Control.Monad.Trans.Class (lift)
@@ -471,11 +472,11 @@ builtInKindReps =
     star = liftedTypeKind
 
 initialKindRepEnv :: TcRn KindRepEnv
-initialKindRepEnv = foldlM add_kind_rep emptyTM builtInKindReps
+initialKindRepEnv = foldlM add_kind_rep mapEmpty builtInKindReps
   where
     add_kind_rep acc (k,n) = do
         id <- tcLookupId n
-        return $! insertTM k (id, Nothing) acc
+        return $! mapInsert k (id, Nothing) acc
 
 -- | Performed while compiling "GHC.Types" to generate the built-in 'KindRep's.
 mkExportedKindReps :: TypeableStuff

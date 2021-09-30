@@ -49,7 +49,7 @@ import GHC.Cmm as Cmm
 
 import GHC.Cmm.Utils
 import GHC.Cmm.Switch
-import GHC.Cmm.Dataflow.Collections
+import GHC.Data.Collections
 import GHC.Cmm.Dataflow.Label
 import GHC.Cmm.Dataflow.Block
 import qualified GHC.Cmm.Dataflow.Graph as G
@@ -1126,7 +1126,7 @@ staticBranchPrediction _root (LoopInfo l_backEdges loopLevels l_loops) cfg =
         -- successors
         successors = getSuccessorEdges cfg node
         -- backedges
-        (m,not_m) = partition (\succ -> S.member (node, fst succ) backedges) successors
+        (m,not_m) = partition (\succ -> elem (node, fst succ) backedges) successors
 
         -- Heuristics return nothing if they don't say anything about this branch
         -- or Just (prob_s1) where prob_s1 is the likelihood for s1 to be the
@@ -1139,7 +1139,7 @@ staticBranchPrediction _root (LoopInfo l_backEdges loopLevels l_loops) cfg =
         -- then we will likely not exit the current loop body.
         lehPredicts :: (TargetNodeInfo,TargetNodeInfo) -> Maybe Prob
         lehPredicts ((s1,_s1_info),(s2,_s2_info))
-          | S.member s1 loopHeads || S.member s2 loopHeads
+          | elem s1 loopHeads || elem s2 loopHeads
           = Nothing
 
           | otherwise
@@ -1334,12 +1334,12 @@ calcFreqs graph backEdges loops revPostOrder = runST $ do
                                 vcat (map (\(k,m) -> ppr (k,m :: IM.IntMap Double)) $ IM.toList g)
                             )
 
-    nodeCount = IM.foldl' (\count toMap -> IM.foldlWithKey' countTargets count toMap) (IM.size graph) graph
+    nodeCount = IM.foldl' (IM.foldlWithKey' countTargets) (length graph) graph
       where
         countTargets = (\count k _ -> countNode k + count)
         countNode n = bool 1 0 $ IM.member n graph
 
-    isBackEdge from to = S.member (from,to) backEdgeSet
+    isBackEdge from to = elem (from,to) backEdgeSet
     backEdgeSet = S.fromList backEdges
 
     revGraph :: IntMap IntSet

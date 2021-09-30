@@ -57,9 +57,9 @@ import qualified GHC.LanguageExtensions as LangExt
 import GHC.Core.FamInstEnv ( FamInstEnvs, normaliseType )
 
 import Control.Monad
+import Data.Foldable ( toList )
 import Data.Int
 import Data.List.NonEmpty (NonEmpty(..))
-import qualified Data.List.NonEmpty as NEL
 import Data.Word
 import Data.Proxy
 
@@ -476,7 +476,7 @@ matchLiterals (var :| vars) ty sub_groups
                 ; mrs <- mapM (wrap_str_guard eq_str) alts
                 ; return (foldr1 combineMatchResults mrs) }
           else
-            return (mkCoPrimCaseMatchResult var ty $ NEL.toList alts)
+            return (mkCoPrimCaseMatchResult var ty $ toList alts)
         }
   where
     match_group :: NonEmpty EquationInfo -> DsM (Literal, MatchResult CoreExpr)
@@ -484,7 +484,7 @@ matchLiterals (var :| vars) ty sub_groups
         = do { dflags <- getDynFlags
              ; let platform = targetPlatform dflags
              ; let LitPat _ hs_lit = firstPat firstEqn
-             ; match_result <- match vars ty (NEL.toList $ shiftEqns eqns)
+             ; match_result <- match vars ty (toList $ shiftEqns eqns)
              ; return (hsLitKey platform hs_lit, match_result) }
 
     wrap_str_guard :: Id -> (Literal,MatchResult CoreExpr) -> DsM (MatchResult CoreExpr)

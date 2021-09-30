@@ -71,7 +71,7 @@ import GHC.Cmm.Utils
 import GHC.Cmm.Switch
 import GHC.Cmm
 import GHC.Cmm.Dataflow.Block
-import GHC.Cmm.Dataflow.Collections
+import GHC.Data.Collections
 import GHC.Cmm.Dataflow.Graph
 import GHC.Cmm.Dataflow.Label
 import GHC.Cmm.CLabel
@@ -327,7 +327,7 @@ stmtToInstrs bid stmt = do
         let to_unwind_entry :: (GlobalReg, Maybe CmmExpr) -> UnwindTable
             to_unwind_entry (reg, expr) = M.singleton reg (fmap (toUnwindExpr platform) expr)
         case foldMap to_unwind_entry regs of
-          tbl | M.null tbl -> return nilOL
+          tbl | null tbl -> return nilOL
               | otherwise  -> do
                   lbl <- mkAsmTempLabel <$> getUniqueM
                   return $ unitOL $ UNWIND lbl tbl

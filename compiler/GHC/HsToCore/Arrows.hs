@@ -51,9 +51,12 @@ import GHC.Utils.Outputable
 import GHC.Utils.Panic
 import GHC.Types.Var.Set
 import GHC.Types.SrcLoc
+import GHC.Data.Collections
 import GHC.Data.List.SetOps( assocMaybe )
 import GHC.Utils.Misc
 import GHC.Types.Unique.DSet
+
+import Data.Foldable (toList)
 
 data DsCmdEnv = DsCmdEnv {
         arr_id, compose_id, first_id, app_id, choice_id, loop_id :: CoreExpr
@@ -441,7 +444,7 @@ dsCmd ids local_vars stack_ty res_ty (HsCmdApp _ cmd arg) env_ids = do
                       res_ty
                       core_map
                       core_cmd,
-            free_vars `unionDVarSet`
+            free_vars `setUnion`
               (exprFreeIdsDSet core_arg `uniqDSetIntersectUniqSet` local_vars))
 
 dsCmd ids local_vars stack_ty res_ty
@@ -501,7 +504,7 @@ dsCmd ids local_vars stack_ty res_ty (HsCmdIf _ mb_fun cond then_cmd else_cmd)
     return (do_premap ids in_ty sum_ty res_ty
                 core_if
                 (do_choice ids then_ty else_ty res_ty core_then core_else),
-        fvs_cond `unionDVarSet` fvs_then `unionDVarSet` fvs_else)
+        fvs_cond `setUnion` fvs_then `setUnion` fvs_else)
 
 {-
 Case commands are treated in much the same way as if commands
@@ -656,7 +659,7 @@ dsCmd _ local_vars _stack_ty _res_ty (HsCmdArrForm _ op _ _ args) env_ids = do
     core_op <- dsLExpr op
     (core_args, fv_sets) <- mapAndUnzipM (dsTrimCmdArg local_vars env_ids) args
     return (mkApps (App core_op (Type env_ty)) core_args,
-            unionDVarSets fv_sets)
+            setUnions fv_sets)
 
 dsCmd ids local_vars stack_ty res_ty (XCmd (HsWrap wrap cmd)) env_ids = do
     (core_cmd, env_ids') <- dsCmd ids local_vars stack_ty res_ty cmd env_ids
@@ -721,7 +724,7 @@ trimInput
 trimInput build_arrow
   = fixDs (\ ~(_,_,env_ids) -> do
         (core_cmd, free_vars) <- build_arrow env_ids
-        return (core_cmd, free_vars, dVarSetElems free_vars))
+        return (core_cmd, free_vars, toList free_vars))
 
 -- Desugaring for both HsCmdLam and HsCmdLamCase.
 --
@@ -869,7 +872,7 @@ dsCmdStmt ids local_vars out_ids (BodyStmt c_ty cmd _ _) env_ids = do
                 do_compose ids before_c_ty after_c_ty out_ty
                         (do_first ids in_ty1 c_ty out_ty core_cmd) $
                 do_arr ids after_c_ty out_ty snd_fn,
-              extendDVarSetList fv_cmd out_ids)
+              setInsertList out_ids fv_cmd)
 
 -- D; xs1 |-a c : () --> t
 -- D; xs' |-a do { ss } : t'            xs2 = xs' - defs(p)
@@ -926,7 +929,7 @@ dsCmdStmt ids local_vars out_ids (BindStmt _ pat cmd) env_ids = do
                 do_compose ids before_c_ty after_c_ty out_ty
                         (do_first ids in_ty1 pat_ty in_ty2 core_cmd) $
                 do_arr ids after_c_ty out_ty proj_expr,
-              fv_cmd `unionDVarSet` (mkDVarSet out_ids
+              fv_cmd `setUnion` (setFromList out_ids
                                      `uniqDSetMinusUniqSet` pat_vars))
 
 -- D; xs' |-a do { ss } : t
@@ -969,7 +972,7 @@ dsCmdStmt ids local_vars out_ids
     let
         later_ids_set = mkVarSet later_ids
         env2_ids = filterOut (`elemVarSet` later_ids_set) out_ids
-        env2_id_set = mkDVarSet env2_ids
+        env2_id_set = setFromList env2_ids
         env2_ty = mkBigCoreVarTupTy env2_ids
 
     -- post_loop_fn = \((later_ids),(env2_ids)) -> (out_ids)
@@ -1011,7 +1014,7 @@ dsCmdStmt ids local_vars out_ids
                         (do_arr ids post_pair_ty out_ty
                                 post_loop_fn))
 
-    return (core_body, env1_id_set `unionDVarSet` env2_id_set)
+    return (core_body, env1_id_set `setUnion` env2_id_set)
 
 dsCmdStmt _ _ _ _ s = pprPanic "dsCmdStmt" (ppr s)
 
@@ -1065,7 +1068,7 @@ dsRecCmd ids local_vars stmts later_ids later_rets rec_ids rec_rets = do
     rec_id <- newSysLocalDs rec_ty
     let
         env1_id_set = fv_stmts `uniqDSetMinusUniqSet` rec_id_set
-        env1_ids = dVarSetElems env1_id_set
+        env1_ids = toList env1_id_set
         env1_ty = mkBigCoreVarTupTy env1_ids
         in_pair_ty = mkCorePairTy env1_ty rec_ty
         core_body = mkBigCoreTup (map selectVar env_ids)

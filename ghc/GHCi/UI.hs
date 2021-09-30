@@ -106,6 +106,7 @@ import Data.Bool ( bool )
 import qualified Data.ByteString.Char8 as BS
 import Data.Char
 import Data.Filtrable ( mapEither )
+import Data.Foldable ( toList )
 import Data.Function
 import Data.IORef ( IORef, modifyIORef, newIORef, readIORef, writeIORef )
 import Data.List ( elemIndices, find, group, intercalate, intersperse,
@@ -2354,15 +2355,15 @@ isSafeModule m = do
     -- print info to user...
     liftIO $ putStrLn $ "Trust type is (Module: " ++ trust ++ ", Package: " ++ pkg ++ ")"
     liftIO $ putStrLn $ "Package Trust: " ++ (if packageTrustOn dflags then "On" else "Off")
-    when (not $ S.null good)
+    when (not $ null good)
          (liftIO $ putStrLn $ "Trusted package dependencies (trusted): " ++
-                        (intercalate ", " $ map (showPpr dflags) (S.toList good)))
-    case msafe && S.null bad of
+                        (intercalate ", " $ showPpr dflags <$> toList good))
+    case msafe && null bad of
         True -> liftIO $ putStrLn $ mname ++ " is trusted!"
         False -> do
             when (not $ null bad)
                  (liftIO $ putStrLn $ "Trusted package dependencies (untrusted): "
-                            ++ (intercalate ", " $ map (showPpr dflags) (S.toList bad)))
+                            ++ (intercalate ", " $ showPpr dflags <$> toList bad))
             liftIO $ putStrLn $ mname ++ " is NOT trusted!"
 
   where

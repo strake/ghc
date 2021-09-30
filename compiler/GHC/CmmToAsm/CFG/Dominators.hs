@@ -294,7 +294,7 @@ initEnv (r0,g0) = do
   let (g,rnmap) = renum 1 g0
       pred      = predG g
       r         = rnmap IM.! r0
-      n         = IM.size g
+      n         = length g
       ns        = [0..n]
       m         = n+1
 

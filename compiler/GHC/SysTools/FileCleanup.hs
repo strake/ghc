@@ -17,6 +17,7 @@ import GHC.Utils.Exception as Exception
 import GHC.Driver.Phases
 
 import Control.Monad
+import Data.Foldable (toList)
 import qualified Data.Set as Set
 import qualified Data.Map as Map
 import Data.IORef
@@ -58,7 +59,7 @@ cleanTempFiles dflags
                 { ftcCurrentModule = cm_files
                 , ftcGhcSession = gs_files
                 } -> ( emptyFilesToClean
-                     , Set.toList cm_files ++ Set.toList gs_files)
+                     , toList cm_files ++ toList gs_files)
         removeTmpFiles dflags to_delete
 
 -- | Delete all files in @filesToClean dflags@. That have lifetime
@@ -72,7 +73,7 @@ cleanCurrentModuleTempFiles dflags
    $ do let ref = filesToClean dflags
         to_delete <- atomicModifyIORef' ref $
             \ftc@FilesToClean{ftcCurrentModule = cm_files} ->
-                (ftc {ftcCurrentModule = Set.empty}, Set.toList cm_files)
+                (ftc {ftcCurrentModule = Set.empty}, toList cm_files)
         removeTmpFiles dflags to_delete
 
 -- | Ensure that new_files are cleaned on the next call of
@@ -107,7 +108,7 @@ changeTempFilesLifetime dflags lifetime files = do
   let old_set = case lifetime of
         TFL_CurrentModule -> gs_files
         TFL_GhcSession -> cm_files
-      existing_files = [f | f <- files, f `Set.member` old_set]
+      existing_files = [f | f <- files, elem f old_set]
   addFilesToClean dflags lifetime existing_files
 
 -- Return a unique numeric temp file suffix

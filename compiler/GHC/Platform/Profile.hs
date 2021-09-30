@@ -34,7 +34,7 @@ profileConstants profile = platformConstants (profilePlatform profile)
 -- | Is profiling enabled
 profileIsProfiling :: Profile -> Bool
 {-# INLINE profileIsProfiling #-}
-profileIsProfiling profile = profileWays profile `hasWay` WayProf
+profileIsProfiling profile = WayProf `elem` profileWays profile
 
 -- | Word size in bytes
 profileWordSizeInBytes :: Profile -> Int

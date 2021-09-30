@@ -85,7 +85,6 @@ import GHC.Tc.Types.Evidence
 import Control.Monad    ( zipWithM )
 import Data.Foldable (toList)
 import Data.List.NonEmpty (NonEmpty(..))
-import qualified Data.List.NonEmpty as NEL
 
 {-
 ************************************************************************
@@ -338,7 +337,7 @@ mkDataConCase var ty alts@(alt1 :| _)
     data_cons     = tyConDataCons tycon
 
     sorted_alts :: [ CaseAlt DataCon ]
-    sorted_alts  = sortWith (dataConTag . alt_pat) $ NEL.toList alts
+    sorted_alts  = sortWith (dataConTag . alt_pat) $ toList alts
 
     var_ty       = idType var
     (_, ty_args) = tcSplitTyConApp var_ty -- Don't look through newtypes

@@ -23,7 +23,7 @@ import GHC.Cmm.Liveness
 import GHC.Cmm.ProcPoint
 import GHC.Runtime.Heap.Layout
 import GHC.Cmm.Dataflow.Block
-import GHC.Cmm.Dataflow.Collections
+import GHC.Data.Collections
 import GHC.Cmm.Dataflow
 import GHC.Cmm.Dataflow.Graph
 import GHC.Cmm.Dataflow.Label
@@ -570,7 +570,7 @@ handleLastNode dflags procpoints liveness cont_info stackmaps
         | otherwise = return (l, l, stack1, [])
         where live = mapFindWithDefault (panic "handleBranch") l liveness
               stack1 = stack0 { sm_regs = filter is_live (sm_regs stack0) }
-              is_live (r,_) = r `elemRegSet` live
+              is_live (r,_) = elem r live
 
 
 makeFixupBlock :: DynFlags -> ByteOff -> Label -> StackMap
@@ -726,7 +726,7 @@ allocate platform ret_off live stackmap@StackMap{ sm_sp = sp0
  =
    -- we only have to save regs that are not already in a slot
    let to_save = filter (not . (`elemUFM` regs0)) (Set.elems live)
-       regs1   = filter (\(r,_) -> elemRegSet r live) regs0
+       regs1   = filter (\(r,_) -> elem r live) regs0
    in
 
    -- make a map of the stack
@@ -1091,7 +1091,7 @@ insertReloads platform stackmap live =
                  (CmmLoad (cmmOffset platform spExpr (sp_off - reg_off))
                           (localRegType reg))
      | (reg, reg_off) <- stackSlotRegs stackmap
-     , reg `elemRegSet` live
+     , elem reg live
      ]
    where
      sp_off = sm_sp stackmap

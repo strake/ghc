@@ -1291,7 +1291,7 @@ mergeDatabases dflags = foldM merge (Map.empty, Map.empty) . zip [1..]
     merge (pkg_map, prec_map) (i, PackageDatabase db_path db) = do
       debugTraceMsg dflags 2 $
           text "loading package database" <+> text db_path
-      forM_ (Set.toList override_set) $ \pkg ->
+      for_ override_set $ \pkg ->
           debugTraceMsg dflags 2 $
               text "package" <+> ppr pkg <+>
               text "overrides a previously defined package"
@@ -1565,7 +1565,7 @@ mkPackageState dflags dbs = do
   -- NB: preload IS important even for type-checking, because we
   -- need the correct include path to be set.
   --
-  let preload1 = Map.keys (Map.filter uv_explicit vis_map)
+  let preload1 = Map.keys (filter uv_explicit vis_map)
 
   let pkgname_map = foldl' add Map.empty pkgs2
         where add pn_map p
@@ -1577,8 +1577,7 @@ mkPackageState dflags dbs = do
   -- look for nested unit IDs that are directly fed holes: the requirements
   -- of those units are precisely the ones we need to track
   let explicit_pkgs = Map.keys vis_map
-      req_ctx = Map.map (Set.toList)
-              $ Map.unionsWith Set.union (map uv_requirements (Map.elems vis_map))
+      req_ctx = toList <$> Map.unionsWith Set.union (uv_requirements <$> toList vis_map)
 
 
   let preload2 = preload1

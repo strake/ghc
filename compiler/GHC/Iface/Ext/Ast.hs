@@ -55,6 +55,7 @@ import GHC.Utils.Panic
 import GHC.Data.Maybe
 import GHC.Data.FastString
 import qualified GHC.Data.Strict as Strict
+import GHC.Data.Collections
 
 import GHC.Iface.Ext.Types
 import GHC.Iface.Ext.Utils
@@ -254,7 +255,7 @@ getUnlocatedEvBinds file = do
   pure $ (M.fromList nis, asts)
 
 initState :: HieState
-initState = HieState emptyNameEnv emptyDVarEnv
+initState = HieState emptyNameEnv mapEmpty
 
 class ModifyState a where -- See Note [Name Remapping]
   addSubstitution :: a -> a -> HieState -> HieState

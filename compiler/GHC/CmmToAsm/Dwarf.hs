@@ -32,7 +32,7 @@ import System.FilePath
 import System.Directory ( getCurrentDirectory )
 
 import qualified GHC.Cmm.Dataflow.Label as H
-import qualified GHC.Cmm.Dataflow.Collections as H
+import qualified GHC.Data.Collections as H
 
 -- | Generate DWARF/debug information
 dwarfGen :: DynFlags -> ModLocation -> UniqSupply -> [DebugBlock]

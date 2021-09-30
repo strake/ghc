@@ -25,11 +25,12 @@ module GHC.Tc.Solver(
 import GHC.Prelude
 
 import GHC.Data.Bag
+import GHC.Data.Collections
+import GHC.Data.List.SetOps
 import GHC.Core.Class ( Class, classKey, classTyCon )
 import GHC.Driver.Session
 import GHC.Types.Id   ( idType )
 import GHC.Tc.Utils.Instantiate
-import GHC.Data.List.SetOps
 import GHC.Types.Name
 import GHC.Utils.Outputable
 import GHC.Builtin.Utils
@@ -1155,9 +1156,9 @@ defaultTyVarsAndSimplify rhs_tclvl mono_tvs candidates
 
        ; poly_kinds  <- xoptM LangExt.PolyKinds
        ; default_kvs <- mapM (default_one poly_kinds True)
-                             (dVarSetElems cand_kvs)
+                             (toList cand_kvs)
        ; default_tvs <- mapM (default_one poly_kinds False)
-                             (dVarSetElems (cand_tvs `minusDVarSet` cand_kvs))
+                             (toList (cand_tvs `setDifference` cand_kvs))
        ; let some_default = or default_kvs || or default_tvs
 
        ; case () of

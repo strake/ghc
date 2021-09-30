@@ -937,7 +937,7 @@ getDocs name =
                       , mi_decl_docs = DeclDocMap dmap
                       , mi_arg_docs = ArgDocMap amap
                       } <- liftIO $ hscGetModuleInterface hsc_env mod
-             if isNothing mb_doc_hdr && Map.null dmap && Map.null amap
+             if isNothing mb_doc_hdr && null dmap && null amap
                then pure (Left (NoDocsInIface mod compiled))
                else pure (Right ( Map.lookup name dmap
                                 , Map.findWithDefault Map.empty name amap))

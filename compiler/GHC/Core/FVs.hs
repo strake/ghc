@@ -73,12 +73,15 @@ import GHC.Core.TyCon
 import GHC.Core.Coercion.Axiom
 import GHC.Core.FamInstEnv
 import GHC.Builtin.Types.Prim( funTyConName )
+import GHC.Data.Collections
 import GHC.Data.Maybe( orElse )
 import GHC.Types.Basic( Activation )
 
 import GHC.Utils.FV as FV
 import GHC.Utils.Misc
 import GHC.Utils.Panic.Plain
+
+import Data.Foldable ( toList )
 
 {-
 ************************************************************************
@@ -540,19 +543,10 @@ freeVarsOf (fvs, _) = fvs
 
 -- | Extract the vars reported in a FVAnn
 freeVarsOfAnn :: FVAnn -> DIdSet
-freeVarsOfAnn fvs = fvs
+freeVarsOfAnn = id
 
 noFVs :: VarSet
 noFVs = emptyVarSet
-
-aFreeVar :: Var -> DVarSet
-aFreeVar = unitDVarSet
-
-unionFVs :: DVarSet -> DVarSet -> DVarSet
-unionFVs = unionDVarSet
-
-unionFVss :: [DVarSet] -> DVarSet
-unionFVss = unionDVarSets
 
 delBinderFV :: Var -> DVarSet -> DVarSet
 -- This way round, so we can do it multiple times using foldr
@@ -584,7 +578,7 @@ delBinderFV :: Var -> DVarSet -> DVarSet
 --                        where
 --                          bottom = bottom -- Never evaluated
 
-delBinderFV b s = (s `delDVarSet` b) `unionFVs` dVarTypeTyCoVars b
+delBinderFV b s = setDelete b s `setUnion` dVarTypeTyCoVars b
         -- Include coercion variables too!
 
 varTypeTyCoVars :: Var -> TyCoVarSet
@@ -623,7 +617,7 @@ idRuleVars = fvVarSet . idRuleFVs
 
 idRuleFVs :: Id -> FV
 idRuleFVs id = assert (isId id) $
-  FV.mkFVs (dVarSetElems $ ruleInfoFreeVars (idSpecialisation id))
+  FV.mkFVs (toList $ ruleInfoFreeVars (idSpecialisation id))
 
 idUnfoldingVars :: Id -> VarSet
 -- Produce free vars for an unfolding, but NOT for an ordinary
@@ -664,8 +658,8 @@ freeVarsBind :: CoreBind
              -> (CoreBindWithFVs, DVarSet)  -- Return free vars of binding + scope
 freeVarsBind (NonRec binder rhs) body_fvs
   = ( AnnNonRec binder rhs2
-    , freeVarsOf rhs2 `unionFVs` body_fvs2
-                      `unionFVs` bndrRuleAndUnfoldingVarsDSet binder )
+    , freeVarsOf rhs2 `setUnion` body_fvs2
+                      `setUnion` bndrRuleAndUnfoldingVarsDSet binder )
     where
       rhs2      = freeVars rhs
       body_fvs2 = binder `delBinderFV` body_fvs
@@ -676,10 +670,10 @@ freeVarsBind (Rec binds) body_fvs
   where
     (binders, rhss) = unzip binds
     rhss2        = map freeVars rhss
-    rhs_body_fvs = foldr (unionFVs . freeVarsOf) body_fvs rhss2
+    rhs_body_fvs = foldr (setUnion . freeVarsOf) body_fvs rhss2
     binders_fvs  = fvDVarSet $ mapUnionFV bndrRuleAndUnfoldingFVs binders
                    -- See Note [The FVAnn invariant]
-    all_fvs      = rhs_body_fvs `unionFVs` binders_fvs
+    all_fvs      = rhs_body_fvs `setUnion` binders_fvs
             -- The "delBinderFV" happens after adding the idSpecVars,
             -- since the latter may add some of the binders as fvs
 
@@ -690,15 +684,15 @@ freeVars = go
   where
     go :: CoreExpr -> CoreExprWithFVs
     go (Var v)
-      | isLocalVar v = (aFreeVar v `unionFVs` ty_fvs, AnnVar v)
-      | otherwise    = (emptyDVarSet,                 AnnVar v)
+      | isLocalVar v = (setSingleton v `setUnion` ty_fvs, AnnVar v)
+      | otherwise    = (setEmpty,                 AnnVar v)
       where
         ty_fvs = dVarTypeTyCoVars v
                  -- See Note [The FVAnn invariant]
 
-    go (Lit lit) = (emptyDVarSet, AnnLit lit)
+    go (Lit lit) = (setEmpty, AnnLit lit)
     go (Lam b body)
-      = ( b_fvs `unionFVs` (b `delBinderFV` body_fvs)
+      = ( b_fvs `setUnion` (b `delBinderFV` body_fvs)
         , AnnLam b body' )
       where
         body'@(body_fvs, _) = go body
@@ -707,7 +701,7 @@ freeVars = go
                 -- See Note [The FVAnn invariant]
 
     go (App fun arg)
-      = ( freeVarsOf fun' `unionFVs` freeVarsOf arg'
+      = ( freeVarsOf fun' `setUnion` freeVarsOf arg'
         , AnnApp fun' arg' )
       where
         fun'   = go fun
@@ -715,8 +709,8 @@ freeVars = go
 
     go (Case scrut bndr ty alts)
       = ( (bndr `delBinderFV` alts_fvs)
-           `unionFVs` freeVarsOf scrut2
-           `unionFVs` tyCoVarsOfTypeDSet ty
+           `setUnion` freeVarsOf scrut2
+           `setUnion` tyCoVarsOfTypeDSet ty
           -- Don't need to look at (idType bndr)
           -- because that's redundant with scrut
         , AnnCase scrut2 bndr ty alts2 )
@@ -724,7 +718,7 @@ freeVars = go
         scrut2 = go scrut
 
         (alts_fvs_s, alts2) = mapAndUnzip fv_alt alts
-        alts_fvs            = unionFVss alts_fvs_s
+        alts_fvs            = setUnions alts_fvs_s
 
         fv_alt (con,args,rhs) = (foldr delBinderFV (freeVarsOf rhs2) args,
                                  (con, args, rhs2))
@@ -738,19 +732,19 @@ freeVars = go
         body2             = go body
 
     go (Cast expr co)
-      = ( freeVarsOf expr2 `unionFVs` cfvs
+      = ( freeVarsOf expr2 `setUnion` cfvs
         , AnnCast expr2 (cfvs, co) )
       where
         expr2 = go expr
         cfvs  = tyCoVarsOfCoDSet co
 
     go (Tick tickish expr)
-      = ( tickishFVs tickish `unionFVs` freeVarsOf expr2
+      = ( tickishFVs tickish `setUnion` freeVarsOf expr2
         , AnnTick tickish expr2 )
       where
         expr2 = go expr
-        tickishFVs (Breakpoint _ ids) = mkDVarSet ids
-        tickishFVs _                  = emptyDVarSet
+        tickishFVs (Breakpoint _ ids) = setFromList ids
+        tickishFVs _                  = setEmpty
 
     go (Type ty)     = (tyCoVarsOfTypeDSet ty, AnnType ty)
     go (Coercion co) = (tyCoVarsOfCoDSet co, AnnCoercion co)

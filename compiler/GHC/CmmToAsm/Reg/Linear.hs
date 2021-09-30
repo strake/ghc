@@ -122,7 +122,7 @@ import GHC.CmmToAsm.Types
 import GHC.Platform.Reg
 
 import GHC.Cmm.BlockId
-import GHC.Cmm.Dataflow.Collections
+import GHC.Data.Collections
 import GHC.Cmm hiding (RegSet)
 
 import GHC.Data.Graph.Directed

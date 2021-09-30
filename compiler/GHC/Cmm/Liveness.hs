@@ -18,7 +18,7 @@ import GHC.Cmm.BlockId
 import GHC.Cmm
 import GHC.Cmm.Ppr.Expr () -- For Outputable instances
 import GHC.Cmm.Dataflow.Block
-import GHC.Cmm.Dataflow.Collections
+import GHC.Data.Collections
 import GHC.Cmm.Dataflow
 import GHC.Cmm.Dataflow.Label
 
@@ -42,7 +42,7 @@ liveLattice = DataflowLattice emptyRegSet add
   where
     add (OldFact old) (NewFact new) =
         let !join = plusRegSet old new
-        in changedIf (sizeRegSet join > sizeRegSet old) join
+        in changedIf (length join > length old) join
 
 -- | A mapping from block labels to the variables live on entry
 type BlockEntryLiveness r = LabelMap (CmmLive r)
@@ -65,9 +65,9 @@ cmmGlobalLiveness platform graph =
 
 -- | On entry to the procedure, there had better not be any LocalReg's live-in.
 noLiveOnEntry :: BlockId -> CmmLive LocalReg -> a -> a
-noLiveOnEntry bid in_fact x =
-  if nullRegSet in_fact then x
-  else pprPanic "LocalReg's live-in to graph" (ppr bid <+> ppr in_fact)
+noLiveOnEntry bid in_fact
+  | null in_fact = id
+  | otherwise = pprPanic "LocalReg's live-in to graph" (ppr bid <+> ppr in_fact)
 
 gen_kill
     :: (DefinerOfRegs r n, UserOfRegs r n)

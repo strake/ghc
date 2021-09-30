@@ -226,7 +226,7 @@ match (v:vs) ty eqns    -- Eqns *can* be empty
             PgCo {}   -> matchCoercion   vars ty (dropGroup eqns)
             PgView {} -> matchView       vars ty (dropGroup eqns)
             PgOverloadedList -> matchOverloadedList vars ty (dropGroup eqns)
-      where eqns' = NEL.toList eqns
+      where eqns' = toList eqns
             ne l = case NEL.nonEmpty l of
               Just nel -> nel
               Nothing -> pprPanic "match match_group" $ text "Empty result should be impossible since input was non-empty"
@@ -257,11 +257,11 @@ matchEmpty var res_ty
 matchVariables :: NonEmpty MatchId -> Type -> NonEmpty EquationInfo -> DsM (MatchResult CoreExpr)
 -- Real true variables, just like in matchVar, SLPJ p 94
 -- No binding to do: they'll all be wildcards by now (done in tidy)
-matchVariables (_ :| vars) ty eqns = match vars ty $ NEL.toList $ shiftEqns eqns
+matchVariables (_ :| vars) ty eqns = match vars ty $ toList $ shiftEqns eqns
 
 matchBangs :: NonEmpty MatchId -> Type -> NonEmpty EquationInfo -> DsM (MatchResult CoreExpr)
 matchBangs (var :| vars) ty eqns
-  = do  { match_result <- match (var:vars) ty $ NEL.toList $
+  = do  { match_result <- match (var:vars) ty $ toList $
             decomposeFirstPat getBangPat <$> eqns
         ; return (mkEvalMatchResult var ty match_result) }
 
@@ -271,7 +271,7 @@ matchCoercion (var :| vars) ty (eqns@(eqn1 :| _))
   = do  { let XPat (CoPat co pat _) = firstPat eqn1
         ; let pat_ty' = hsPatType pat
         ; var' <- newUniqueId var pat_ty'
-        ; match_result <- match (var':vars) ty $ NEL.toList $
+        ; match_result <- match (var':vars) ty $ toList $
             decomposeFirstPat getCoPat <$> eqns
         ; core_wrap <- dsHsWrapper co
         ; let bind = NonRec var' (core_wrap (Var var))
@@ -287,7 +287,7 @@ matchView (var :| vars) ty (eqns@(eqn1 :| _))
          -- do the rest of the compilation
         ; let pat_ty' = hsPatType pat
         ; var' <- newUniqueId var pat_ty'
-        ; match_result <- match (var':vars) ty $ NEL.toList $
+        ; match_result <- match (var':vars) ty $ toList $
             decomposeFirstPat getViewPat <$> eqns
          -- compile the view expressions
         ; viewExpr' <- dsLExpr viewExpr
@@ -301,7 +301,7 @@ matchOverloadedList (var :| vars) ty (eqns@(eqn1 :| _))
 -- the code is roughly the same as for matchView
   = do { let ListPat (ListPatTc elt_ty (Just (_,e))) _ = firstPat eqn1
        ; var' <- newUniqueId var (mkListTy elt_ty)  -- we construct the overall type by hand
-       ; match_result <- match (var':vars) ty $ NEL.toList $
+       ; match_result <- match (var':vars) ty $ toList $
            decomposeFirstPat getOLPat <$> eqns -- getOLPat builds the pattern inside as a non-overloaded version of the overloaded list pattern
        ; e' <- dsSyntaxExpr e [Var var]
        ; return (mkViewMatchResult var' e' match_result)

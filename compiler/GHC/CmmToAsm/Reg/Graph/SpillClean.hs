@@ -48,7 +48,7 @@ import GHC.Utils.Monad.State.Strict
 import GHC.Utils.Outputable
 import GHC.Utils.Panic
 import GHC.Platform
-import GHC.Cmm.Dataflow.Collections
+import GHC.Data.Collections
 
 import Data.IntSet              (IntSet)
 import qualified Data.IntSet    as IntSet

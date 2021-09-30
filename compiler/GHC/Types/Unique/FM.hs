@@ -81,6 +81,7 @@ module GHC.Types.Unique.FM (
 
 import GHC.Prelude
 
+import GHC.Data.Collections () -- XXX orphans
 import GHC.Types.Unique ( Uniquable(..), Unique, getKey )
 import GHC.Utils.Outputable
 import GHC.Utils.Panic.Plain (assert)
@@ -108,15 +109,15 @@ newtype UniqFM key a = UFM { unUFM :: M.IntMap a }
   -- See Note [Deterministic UniqFM] in GHC.Types.Unique.DFM to learn about determinism.
 
 instance Filtrable (UniqFM key) where
-    mapMaybe f = UFM . M.mapMaybe f . unUFM
-    filter f = UFM . M.filter f . unUFM
+    mapMaybe f = UFM . mapMaybe f . unUFM
+    filter f = UFM . filter f . unUFM
     partition f = bimap UFM UFM . M.partition f . unUFM
 
 emptyUFM :: UniqFM key elt
 emptyUFM = UFM M.empty
 
 isNullUFM :: UniqFM key elt -> Bool
-isNullUFM (UFM m) = M.null m
+isNullUFM (UFM m) = null m
 
 unitUFM :: Uniquable key => key -> elt -> UniqFM key elt
 unitUFM k v = UFM (M.singleton (getKey $ getUnique k) v)
@@ -327,7 +328,7 @@ filterUFM_Directly :: (Unique -> elt -> Bool) -> UniqFM key elt -> UniqFM key el
 filterUFM_Directly p (UFM m) = UFM (M.filterWithKey (p . getUnique) m)
 
 sizeUFM :: UniqFM key elt -> Int
-sizeUFM (UFM m) = M.size m
+sizeUFM (UFM m) = length m
 
 elemUFM :: Uniquable key => key -> UniqFM key elt -> Bool
 elemUFM k (UFM m) = M.member (getKey $ getUnique k) m

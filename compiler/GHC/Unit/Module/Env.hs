@@ -38,11 +38,12 @@ import GHC.Types.Unique.FM
 import GHC.Types.Unique.DFM
 import GHC.Unit.Types
 import GHC.Utils.Misc
-import Data.List (sortBy, sort)
-import Data.Ord
 
 import Data.Coerce
+import Data.Foldable (toList)
+import Data.List (sortBy, sort)
 import Data.Map (Map)
+import Data.Ord
 import Data.Set (Set)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -157,10 +158,10 @@ emptyModuleSet :: ModuleSet
 emptyModuleSet = Set.empty
 
 moduleSetElts :: ModuleSet -> [Module]
-moduleSetElts = sort . coerce . Set.toList
+moduleSetElts = sort . coerce . toList
 
 elemModuleSet :: Module -> ModuleSet -> Bool
-elemModuleSet = Set.member . coerce
+elemModuleSet = elem . coerce
 
 intersectModuleSet :: ModuleSet -> ModuleSet -> ModuleSet
 intersectModuleSet = coerce Set.intersection

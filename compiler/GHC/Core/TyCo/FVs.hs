@@ -43,6 +43,7 @@ import GHC.Prelude
 
 import {-# SOURCE #-} GHC.Core.Type (coreView, partitionInvisibleTypes)
 
+import Data.Foldable ( toList )
 import Data.Monoid as DM ( Endo(..), All(..) )
 import GHC.Core.TyCo.Rep
 import GHC.Core.TyCon
@@ -515,7 +516,7 @@ closeOverKindsList tvs = fvVarList $ closeOverKindsFV tvs
 -- | Add the kind variables free in the kinds of the tyvars in the given set.
 -- Returns a deterministic set.
 closeOverKindsDSet :: DTyVarSet -> DTyVarSet
-closeOverKindsDSet = fvDVarSet . closeOverKindsFV . dVarSetElems
+closeOverKindsDSet = fvDVarSet . closeOverKindsFV . toList
 
 -- | `tyCoFVsOfType` that returns free variables of a type in a deterministic
 -- set. For explanation of why using `VarSet` is not deterministic see

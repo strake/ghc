@@ -45,7 +45,6 @@ import GHC.Types.Var      (EvVar)
 import GHC.Types.Name
 import GHC.Core
 import GHC.Core.FVs       (exprFreeVars)
-import GHC.Core.Map
 import GHC.Core.SimpleOpt (simpleOptExpr, exprIsConApp_maybe)
 import GHC.Core.Utils     (exprType)
 import GHC.Core.Make      (mkListExpr, mkCharExpr)
@@ -69,6 +68,7 @@ import GHC.Utils.Monad hiding (foldlM)
 import GHC.HsToCore.Monad hiding (foldlM)
 import GHC.Tc.Instance.Family
 import GHC.Core.FamInstEnv
+import GHC.Data.Collections
 
 import Control.Monad (mzero, when)
 import Control.Monad.Trans.Class (lift)
@@ -1628,7 +1628,7 @@ pickMinimalCompleteSet _ NoPM      = pure Nothing
 -- TODO: First prune sets with type info in delta. But this is good enough for
 -- now and less costly. See #17386.
 pickMinimalCompleteSet _ (PM clss) = do
-  tracePm "pickMinimalCompleteSet" (ppr $ NonEmpty.toList clss)
+  tracePm "pickMinimalCompleteSet" (ppr $ toList clss)
   pure (Just (minimumBy (comparing sizeUniqDSet) clss))
 
 -- | Finds a representant of the semantic equality class of the given @e@.
@@ -1637,10 +1637,10 @@ pickMinimalCompleteSet _ (PM clss) = do
 -- there weren't any such constraints.
 representCoreExpr :: Delta -> CoreExpr -> DsM (Delta, Id)
 representCoreExpr delta@MkDelta{ delta_tm_st = ts@TmSt{ ts_reps = reps } } e
-  | Just rep <- lookupTM e reps = pure (delta, rep)
+  | Just rep <- mapLookup e reps = pure (delta, rep)
   | otherwise = do
       rep <- mkPmId (exprType e)
-      let reps'  = insertTM e rep reps
+      let reps'  = mapInsert e rep reps
       let delta' = delta { delta_tm_st = ts{ ts_reps = reps' } }
       pure (delta', rep)
 

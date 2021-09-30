@@ -9,6 +9,7 @@
 -- Basically, the things need to be in class 'Uniquable'.
 
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE TypeFamilies #-}
 
 module GHC.Types.Unique.DSet (
         -- * Unique set type
@@ -42,10 +43,12 @@ import GHC.Utils.Outputable
 import GHC.Types.Unique.DFM
 import GHC.Types.Unique.Set
 import GHC.Types.Unique
+import GHC.Data.Collections
 
+import Control.Monad
 import Data.Coerce
 import Data.Data
-import Data.Foldable (toList)
+import Data.Foldable (Foldable (..))
 
 -- See Note [UniqSet invariant] in GHC.Types.Unique.Set for why we want a newtype here.
 -- Beyond preserving invariants, we may also want to 'override' typeclass
@@ -53,6 +56,31 @@ import Data.Foldable (toList)
 
 newtype UniqDSet a = UniqDSet {getUniqDSet' :: UniqDFM a a}
                    deriving (Data)
+
+instance Foldable UniqDSet where
+    foldMap f (UniqDSet as) = foldMap f as
+    foldr f z (UniqDSet as) = foldr f z as
+    null (UniqDSet as) = null as
+    length (UniqDSet as) = length as
+
+instance Uniquable a => IsSet (UniqDSet a) where
+    type ElemOf (UniqDSet a) = a
+    setNull (UniqDSet as) = null as
+    setSize (UniqDSet as) = length as
+    setMember a (UniqDSet as) = mapMember a as
+    setEmpty = UniqDSet mapEmpty
+    setSingleton = UniqDSet . join mapSingleton
+    setInsert a (UniqDSet as) = UniqDSet (mapInsert a a as)
+    setDelete a (UniqDSet as) = UniqDSet (mapDelete a as)
+    setUnion (UniqDSet as) (UniqDSet bs) = UniqDSet (mapUnion as bs)
+    setDifference (UniqDSet as) (UniqDSet bs) = UniqDSet (mapDifference as bs)
+    setIntersection (UniqDSet as) (UniqDSet bs) = UniqDSet (mapIntersection as bs)
+    setIsSubsetOf (UniqDSet as) (UniqDSet bs) = mapIsSubmapOfBy (\ _ _ -> True) as bs
+    setFilter = filterUniqDSet
+    setFoldl f z (UniqDSet as) = foldl f z as
+    setFoldr f z (UniqDSet as) = foldr f z as
+    setElems (UniqDSet as) = toList as
+    setFromList = mkUniqDSet
 
 emptyUniqDSet :: UniqDSet a
 emptyUniqDSet = UniqDSet emptyUDFM

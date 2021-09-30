@@ -32,7 +32,7 @@ import GHC.Types.ForeignCall
 import GHC.Cmm hiding (pprBBlock)
 import GHC.Cmm.Ppr () -- For Outputable instances
 import GHC.Cmm.Dataflow.Block
-import GHC.Cmm.Dataflow.Collections
+import GHC.Data.Collections
 import GHC.Cmm.Dataflow.Graph
 import GHC.Cmm.Utils
 import GHC.Cmm.Switch

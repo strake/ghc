@@ -1067,7 +1067,7 @@ bindLocals new_ids (TM m)
   where occs = [ nameOccName (idName id) | id <- new_ids ]
 
 isBlackListed :: SrcSpan -> TM Bool
-isBlackListed (RealSrcSpan pos _) = TM $ \ env st -> (Set.member pos (blackList env), noFVs, st)
+isBlackListed (RealSrcSpan pos _) = TM $ \ env st -> (elem pos (blackList env), noFVs, st)
 isBlackListed (UnhelpfulSpan _) = return False
 
 -- the tick application inherits the source position of its

@@ -51,6 +51,7 @@ import GHC.Core    ( Tickish(Breakpoint) )
 import GHC.Utils.Outputable
 import GHC.Utils.Misc
 import GHC.Utils.Panic
+import GHC.Data.Collections
 
 newtype Env
   = Env
@@ -74,7 +75,7 @@ annTopBindingsFreeVars = map go
 
 -- | Annotates an STG binding with its free variables.
 annBindingFreeVars :: StgBinding -> CgStgBinding
-annBindingFreeVars = fst . binding emptyEnv emptyDVarSet
+annBindingFreeVars = fst . binding emptyEnv setEmpty
 
 boundIds :: StgBinding -> [Id]
 boundIds (StgNonRec b _) = [b]
@@ -96,7 +97,7 @@ boundIds (StgRec pairs)  = map fst pairs
 
 -- | This makes sure that only local, non-global free vars make it into the set.
 mkFreeVarSet :: Env -> [Id] -> DIdSet
-mkFreeVarSet env = mkDVarSet . filter (`elemVarSet` locals env)
+mkFreeVarSet env = setFromList . filter (`elemVarSet` locals env)
 
 args :: Env -> [StgArg] -> DIdSet
 args env = mkFreeVarSet env . mapMaybe f
@@ -109,21 +110,21 @@ binding env body_fv (StgNonRec bndr r) = (StgNonRec bndr r', fvs)
   where
     -- See Note [Tracking local binders]
     (r', rhs_fvs) = rhs env r
-    fvs = delDVarSet body_fv bndr `unionDVarSet` rhs_fvs
+    fvs = setDelete bndr body_fv `setUnion` rhs_fvs
 binding env body_fv (StgRec pairs) = (StgRec pairs', fvs)
   where
     -- See Note [Tracking local binders]
     bndrs = map fst pairs
     (rhss, rhs_fvss) = mapAndUnzip (rhs env . snd) pairs
     pairs' = zip bndrs rhss
-    fvs = delDVarSetList (unionDVarSets (body_fv:rhs_fvss)) bndrs
+    fvs = setDeleteList bndrs (setUnions (body_fv:rhs_fvss))
 
 expr :: Env -> StgExpr -> (CgStgExpr, DIdSet)
 expr env = go
   where
     go (StgApp occ as)
-      = (StgApp occ as, unionDVarSet (args env as) (mkFreeVarSet env [occ]))
-    go (StgLit lit) = (StgLit lit, emptyDVarSet)
+      = (StgApp occ as, setUnion (args env as) (mkFreeVarSet env [occ]))
+    go (StgLit lit) = (StgLit lit, setEmpty)
     go (StgConApp dc as tys) = (StgConApp dc as tys, args env as)
     go (StgOpApp op as ty) = (StgOpApp op as ty, args env as)
     go StgLam{} = pprPanic "StgFVs: StgLam" empty
@@ -132,16 +133,16 @@ expr env = go
         (scrut', scrut_fvs) = go scrut
         -- See Note [Tracking local binders]
         (alts', alt_fvss) = mapAndUnzip (alt (addLocals [bndr] env)) alts
-        alt_fvs = unionDVarSets alt_fvss
-        fvs = delDVarSet (unionDVarSet scrut_fvs alt_fvs) bndr
+        alt_fvs = setUnions alt_fvss
+        fvs = setDelete bndr (setUnion scrut_fvs alt_fvs)
     go (StgLet ext bind body) = go_bind (StgLet ext) bind body
     go (StgLetNoEscape ext bind body) = go_bind (StgLetNoEscape ext) bind body
     go (StgTick tick e) = (StgTick tick e', fvs')
       where
         (e', fvs) = go e
-        fvs' = unionDVarSet (tickish tick) fvs
-        tickish (Breakpoint _ ids) = mkDVarSet ids
-        tickish _                  = emptyDVarSet
+        fvs' = setUnion (tickish tick) fvs
+        tickish (Breakpoint _ ids) = setFromList ids
+        tickish _                  = setEmpty
 
     go_bind dc bind body = (dc bind' body', fvs)
       where
@@ -156,7 +157,7 @@ rhs env (StgRhsClosure _ ccs uf bndrs body)
   where
     -- See Note [Tracking local binders]
     (body', body_fvs) = expr (addLocals bndrs env) body
-    fvs = delDVarSetList body_fvs bndrs
+    fvs = setDeleteList bndrs body_fvs
 rhs env (StgRhsCon ccs dc as) = (StgRhsCon ccs dc as, args env as)
 
 alt :: Env -> StgAlt -> (CgStgAlt, DIdSet)
@@ -164,4 +165,4 @@ alt env (con, bndrs, e) = ((con, bndrs, e'), fvs)
   where
     -- See Note [Tracking local binders]
     (e', rhs_fvs) = expr (addLocals bndrs env) e
-    fvs = delDVarSetList rhs_fvs bndrs
+    fvs = setDeleteList bndrs rhs_fvs

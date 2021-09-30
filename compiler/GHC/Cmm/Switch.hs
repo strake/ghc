@@ -127,11 +127,11 @@ mkSwitchTargets signed range@(lo,hi) mbdef ids
     restrict = restrictMap (lo,hi)
 
     -- Drop entries that equal the default, if there is a default
-    dropDefault | Just l <- mbdef = M.filter (/= l)
+    dropDefault | Just l <- mbdef = filter (/= l)
                 | otherwise       = id
 
     -- Check if the default is still needed
-    defaultNeeded = fromIntegral (M.size ids') /= hi-lo+1
+    defaultNeeded = fromIntegral (length ids') /= hi-lo+1
 
 
 -- | Changes all labels mentioned in the SwitchTargets value
@@ -353,7 +353,7 @@ createSwitchPlan (SwitchTargets signed range mbdef m) =
 --- Step 1: Splitting at large holes
 ---
 splitAtHoles :: Integer -> M.Map Integer a -> [M.Map Integer a]
-splitAtHoles _        m | M.null m = []
+splitAtHoles _        m | null m = []
 splitAtHoles holeSize m = map (\range -> restrictMap range m) nonHoles
   where
     holes = filter (\(l,h) -> h - l > holeSize) $ zip (M.keys m) (tail (M.keys m))
@@ -369,7 +369,7 @@ splitAtHoles holeSize m = map (\range -> restrictMap range m) nonHoles
 -- (into singleton maps, for now).
 breakTooSmall :: M.Map Integer a -> [M.Map Integer a]
 breakTooSmall m
-  | M.size m > minJumpTableSize = [m]
+  | length m > minJumpTableSize = [m]
   | otherwise                   = [M.singleton k v | (k,v) <- M.toList m]
 
 ---

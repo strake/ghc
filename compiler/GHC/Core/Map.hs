@@ -29,14 +29,13 @@ module GHC.Core.Map (
    -- * Map for compressing leaves. See Note [Compressed TrieMap]
    GenMap,
    -- * 'TrieMap' class
-   TrieMap(..), insertTM, deleteTM,
-   lkDFreeVar, xtDFreeVar,
-   lkDNamed, xtDNamed,
-   (|>>),
+   IsMap (..),
+   lkDNamed, xtDNamed, xtDNamedF,
  ) where
 
 import GHC.Prelude
 
+import GHC.Data.Collections
 import GHC.Data.TrieMap
 import GHC.Core
 import GHC.Core.Coercion
@@ -57,6 +56,8 @@ import GHC.Types.Name.Env
 import Control.Category( (>>>) )
 import Control.Monad( (>=>) )
 import Data.Foldable( toList )
+import Data.Functor.Compose( Compose (..) )
+import Data.Functor.Identity( Identity (..) )
 
 {-
 This module implements TrieMaps over Core related data structures
@@ -66,8 +67,6 @@ module.
 The code is very regular and boilerplate-like, but there is
 some neat handling of *binders*.  In effect they are deBruijn
 numbered on the fly.
-
-
 -}
 
 ----------------------
@@ -75,18 +74,18 @@ numbered on the fly.
 --   Control.Monad.(>=>) :: (a -> Maybe b) -> (b -> Maybe c) -> a -> Maybe c
 
 -- NB: Be careful about RULES and type families (#5821).  So we should make sure
--- to specify @Key TypeMapX@ (and not @DeBruijn Type@, the reduced form)
+-- to specify @KeyOf TypeMapX@ (and not @DeBruijn Type@, the reduced form)
 
 -- The CoreMap makes heavy use of GenMap. However the CoreMap Types are not
 -- known when defining GenMap so we can only specialize them here.
 
-{-# SPECIALIZE lkG :: Key TypeMapX     -> TypeMapG a     -> Maybe a #-}
-{-# SPECIALIZE lkG :: Key CoercionMapX -> CoercionMapG a -> Maybe a #-}
-{-# SPECIALIZE lkG :: Key CoreMapX     -> CoreMapG a     -> Maybe a #-}
+{-# SPECIALIZE lkG :: KeyOf TypeMapX     -> TypeMapG a     -> Maybe a #-}
+{-# SPECIALIZE lkG :: KeyOf CoercionMapX -> CoercionMapG a -> Maybe a #-}
+{-# SPECIALIZE lkG :: KeyOf CoreMapX     -> CoreMapG a     -> Maybe a #-}
 
-{-# SPECIALIZE xtG :: Key TypeMapX     -> XT a -> TypeMapG a -> TypeMapG a #-}
-{-# SPECIALIZE xtG :: Key CoercionMapX -> XT a -> CoercionMapG a -> CoercionMapG a #-}
-{-# SPECIALIZE xtG :: Key CoreMapX     -> XT a -> CoreMapG a -> CoreMapG a #-}
+{-# SPECIALIZE xtGF :: Functor f => XTF f a -> KeyOf TypeMapX     -> TypeMapG a -> f (TypeMapG a) #-}
+{-# SPECIALIZE xtGF :: Functor f => XTF f a -> KeyOf CoercionMapX -> CoercionMapG a -> f (CoercionMapG a) #-}
+{-# SPECIALIZE xtGF :: Functor f => XTF f a -> KeyOf CoreMapX     -> CoreMapG a -> f (CoreMapG a) #-}
 
 
 {-
@@ -98,10 +97,13 @@ numbered on the fly.
 -}
 
 lkDNamed :: NamedThing n => n -> DNameEnv a -> Maybe a
-lkDNamed n env = lookupDNameEnv env (getName n)
+lkDNamed n = mapLookup (getName n)
 
 xtDNamed :: NamedThing n => n -> XT a -> DNameEnv a -> DNameEnv a
-xtDNamed tc f m = alterDNameEnv f m (getName tc)
+xtDNamed tc f = mapAlter f (getName tc)
+
+xtDNamedF :: Functor f => NamedThing n => n -> XTF f a -> DNameEnv a -> f (DNameEnv a)
+xtDNamedF tc f = mapAlterF f (getName tc)
 
 
 {-
@@ -140,11 +142,18 @@ See also Note [Empty case alternatives] in GHC.Core.
 newtype CoreMap a = CoreMap (CoreMapG a)
   deriving (Foldable, Functor, Traversable)
 
-instance TrieMap CoreMap where
-    type Key CoreMap = CoreExpr
-    emptyTM = CoreMap emptyTM
-    lookupTM k (CoreMap m) = lookupTM (deBruijnize k) m
-    alterTM k f (CoreMap m) = CoreMap (alterTM (deBruijnize k) f m)
+instance Filtrable CoreMap where
+    mapMaybe f (CoreMap x) = CoreMap (mapMaybe f x)
+
+instance IsStaticKeylessMap CoreMap where
+    type KeyOf CoreMap = CoreExpr
+    mapAdjustLookup f k (CoreMap m) = CoreMap <$> mapAdjustLookup f (deBruijnize k) m
+    mapIsSubmapOfBy = defaultMapIsSubmapOfBy
+
+instance IsKeylessMap CoreMap where
+    mapEmpty = CoreMap mapEmpty
+    mapAlterF f k (CoreMap m) = CoreMap <$> mapAlterF f (deBruijnize k) m
+    mapMergeA f (CoreMap m) (CoreMap n) = CoreMap <$> mapMergeA f m n
 
 -- | @CoreMapG a@ is a map from @DeBruijn CoreExpr@ to @a@.  The extended
 -- key makes it suitable for recursive traversal, since it can track binders,
@@ -169,6 +178,9 @@ data CoreMapX a
        , cm_ecase :: CoreMapG (TypeMapG a)    -- Note [Empty case alternatives]
      }
   deriving (Foldable, Functor, Traversable)
+
+instance Filtrable CoreMapX where
+    mapMaybe f (CM as1 as2 as3 as4 as5 as6 as7 as8 as9 as10 as11 as12) = CM (mapMaybe f as1) (mapMaybe f as2) (mapMaybe f as3) (mapMaybe f as4) (mapMaybe f <$> as5) (mapMaybe f <$> as6) (mapMaybe f <$> as7) (mapMaybe f <$> as8) ((fmap . fmap . mapMaybe) f as9) ((fmap . fmap . mapMaybe) f as10) (mapMaybe f <$> as11) (mapMaybe f <$> as12)
 
 LENS_FIELD(cm_varL, cm_var)
 LENS_FIELD(cm_litL, cm_lit)
@@ -224,18 +236,23 @@ instance Eq (DeBruijn CoreExpr) where
     go _ _ = False
 
 emptyE :: CoreMapX a
-emptyE = CM { cm_var = emptyTM, cm_lit = emptyTM
-            , cm_co = emptyTM, cm_type = emptyTM
-            , cm_cast = emptyTM, cm_app = emptyTM
-            , cm_lam = emptyTM, cm_letn = emptyTM
-            , cm_letr = emptyTM, cm_case = emptyTM
-            , cm_ecase = emptyTM, cm_tick = emptyTM }
+emptyE = CM { cm_var = mapEmpty, cm_lit = mapEmpty
+            , cm_co = mapEmpty, cm_type = mapEmpty
+            , cm_cast = mapEmpty, cm_app = mapEmpty
+            , cm_lam = mapEmpty, cm_letn = mapEmpty
+            , cm_letr = mapEmpty, cm_case = mapEmpty
+            , cm_ecase = mapEmpty, cm_tick = mapEmpty }
 
-instance TrieMap CoreMapX where
-   type Key CoreMapX = DeBruijn CoreExpr
-   emptyTM  = emptyE
-   lookupTM = lkE
-   alterTM  = xtE
+instance IsStaticKeylessMap CoreMapX where
+    type KeyOf CoreMapX = DeBruijn CoreExpr
+    mapLookup = lkE
+    mapAdjustLookup = defaultMapAdjustLookup
+    mapIsSubmapOfBy = defaultMapIsSubmapOfBy
+
+instance IsKeylessMap CoreMapX where
+    mapEmpty = emptyE
+    mapAlterF = flip xtEF
+    mapMergeA f (CM as1 as2 as3 as4 as5 as6 as7 as8 as9 as10 as11 as12) (CM bs1 bs2 bs3 bs4 bs5 bs6 bs7 bs8 bs9 bs10 bs11 bs12) = CM <$> mapMergeA f as1 bs1 <*> mapMergeA f as2 bs2 <*> mapMergeA f as3 bs3 <*> mapMergeA f as4 bs4 <*> (getCompose <$> mapMergeA f (Compose as5) (Compose bs5)) <*> (getCompose <$> mapMergeA f (Compose as6) (Compose bs6)) <*> (getCompose <$> mapMergeA f (Compose as7) (Compose bs7)) <*> (getCompose <$> mapMergeA f (Compose as8) (Compose bs8)) <*> (getCompose . getCompose <$> mapMergeA f (Compose (Compose as9)) (Compose (Compose bs9))) <*> (getCompose . getCompose <$> mapMergeA f (Compose (Compose as10)) (Compose (Compose bs10))) <*> (getCompose <$> mapMergeA f (Compose as11) (Compose bs11)) <*> (getCompose <$> mapMergeA f (Compose as12) (Compose bs12))
 
 --------------------------
 instance Outputable a => Outputable (CoreMap a) where
@@ -247,11 +264,11 @@ lkE :: DeBruijn CoreExpr -> CoreMapX a -> Maybe a
 lkE (D env expr) = go expr
   where
     go (Var v)              = cm_var  >>> lkVar env v
-    go (Lit l)              = cm_lit  >>> lookupTM l
+    go (Lit l)              = cm_lit  >>> mapLookup l
     go (Type t)             = cm_type >>> lkG (D env t)
     go (Coercion c)         = cm_co   >>> lkG (D env c)
     go (Cast e c)           = cm_cast >>> lkG (D env e) >=> lkG (D env c)
-    go (Tick tickish e)     = cm_tick >>> lkG (D env e) >=> lookupTM tickish
+    go (Tick tickish e)     = cm_tick >>> lkG (D env e) >=> mapLookup tickish
     go (App e1 e2)          = cm_app  >>> lkG (D env e2) >=> lkG (D env e1)
     go (Lam v e)            = cm_lam  >>> lkG (D (extendCME env v) e) >=> lkBndr env v
     go (Let (NonRec b r) e) = cm_letn >>> lkG (D env r)
@@ -267,26 +284,28 @@ lkE (D env expr) = go expr
                | otherwise  = cm_case >>> lkG (D env e)
                               >=> lkList (lkA (extendCME env b)) as
 
-xtE :: DeBruijn CoreExpr -> XT a -> CoreMapX a -> CoreMapX a
-xtE (D env (Var v))              f = cm_varL `over` xtVar env v f
-xtE (D env (Type t))             f = cm_typeL `over` xtG (D env t) f
-xtE (D env (Coercion c))         f = cm_coL `over` xtG (D env c) f
-xtE (D _   (Lit l))              f = cm_litL `over` alterTM l f
-xtE (D env (Cast e c))           f = over cm_castL $ xtG (D env e) |>> xtG (D env c) f
-xtE (D env (Tick t e))           f = over cm_tickL $ xtG (D env e) |>> Map.alter f t
-xtE (D env (App e1 e2))          f = over cm_appL $ xtG (D env e2) |>> xtG (D env e1) f
-xtE (D env (Lam v e))            f = over cm_lamL $ xtG (D (extendCME env v) e) |>> xtBndr env v f
-xtE (D env (Let (NonRec b r) e)) f = over cm_letnL $ xtG (D (extendCME env b) e) |>> xtG (D env r) |>> xtBndr env b f
-xtE (D env (Let (Rec prs) e))    f = let (bndrs,rhss) = unzip prs
-                                         env1 = foldl' extendCME env bndrs
-                                     in over cm_letrL $ xtList (xtG . D env1) rhss
-                                                 |>> xtG (D env1 e)
-                                                 |>> xtList (xtBndr env1) bndrs f
-xtE (D env (Case e b ty as))     f
-                     | null as   = over cm_ecaseL $ xtG (D env e) |>> xtG (D env ty) f
-                     | otherwise = over cm_caseL $ xtG (D env e)
-                                                 |>> let env1 = extendCME env b
-                                                     in xtList (xtA env1) as f
+xtEF :: Functor f => DeBruijn CoreExpr -> XTF f a -> CoreMapX a -> f (CoreMapX a)
+xtEF (D env (Var v))              = cm_varL . flip (xtVarF env) v
+xtEF (D env (Type t))             = cm_typeL . flip mapAlterF (D env t)
+xtEF (D env (Coercion c))         = cm_coL . flip mapAlterF (D env c)
+xtEF (D _   (Lit l))              = cm_litL . flip mapAlterF l
+xtEF (D env (Cast e c))           = cm_castL . flip mapAlterF (D env e) . xtf . flip mapAlterF (D env c)
+xtEF (D env (Tick t e))           = cm_tickL . flip mapAlterF (D env e) . xtf . flip mapAlterF t
+xtEF (D env (App e1 e2))          = cm_appL . flip mapAlterF (D env e2) . xtf . flip mapAlterF (D env e1)
+xtEF (D env (Lam v e))            = cm_lamL . flip mapAlterF (D (extendCME env v) e) . xtf . xtBndrF env v
+xtEF (D env (Let (NonRec b r) e)) = cm_letnL . flip mapAlterF (D (extendCME env b) e) . xtf . flip mapAlterF (D env r) . xtf . xtBndrF env b
+xtEF (D env (Let (Rec prs) e))    =
+    let (bndrs,rhss) = unzip prs
+        env1 = foldl' extendCME env bndrs
+    in  cm_letrL
+          . flip (xtListF (flip $ flip mapAlterF . D env1)) rhss . xtf
+          . flip mapAlterF (D env1 e) . xtf
+          . flip (xtListF (flip $ xtBndrF env1)) bndrs
+xtEF (D env (Case e b ty as))
+                     | null as   = cm_ecaseL . flip xtGF (D env e) . xtf . flip xtGF (D env ty)
+                     | otherwise = cm_caseL . flip xtGF (D env e) . xtf
+                                                   . let env1 = extendCME env b
+                                                     in flip (xtListF (flip $ xtAF env1)) as
 
 -- TODO: this seems a bit dodgy, see 'eqTickish'
 type TickishMap a = Map.Map (Tickish Id) a
@@ -302,13 +321,21 @@ LENS_FIELD(am_defltL, am_deflt)
 LENS_FIELD(am_dataL, am_data)
 LENS_FIELD(am_litL, am_lit)
 
-instance TrieMap AltMap where
-   type Key AltMap = CoreAlt
-   emptyTM  = AM { am_deflt = emptyTM
-                 , am_data = emptyDNameEnv
-                 , am_lit  = emptyTM }
-   lookupTM = lkA emptyCME
-   alterTM  = xtA emptyCME
+instance Filtrable AltMap where
+    mapMaybe f (AM as bs cs) = AM (mapMaybe f as) ((fmap . mapMaybe) f bs) ((fmap . mapMaybe) f cs)
+
+instance IsStaticKeylessMap AltMap where
+    type KeyOf AltMap = CoreAlt
+    mapLookup = lkA emptyCME
+    mapAdjustLookup = defaultMapAdjustLookup
+    mapIsSubmapOfBy = defaultMapIsSubmapOfBy
+
+instance IsKeylessMap AltMap where
+    mapEmpty = AM { am_deflt = mapEmpty
+                  , am_data = mapEmpty
+                  , am_lit = mapEmpty }
+    mapAlterF = flip $ xtAF emptyCME
+    mapMergeA f (AM as1 bs1 cs1) (AM as2 bs2 cs2) = AM <$> mapMergeA f as1 as2 <*> (getCompose <$> mapMergeA f (Compose bs1) (Compose bs2)) <*> (getCompose <$> mapMergeA f (Compose cs1) (Compose cs2))
 
 instance Eq (DeBruijn CoreAlt) where
   D env1 a1 == D env2 a2 = go a1 a2 where
@@ -323,13 +350,13 @@ instance Eq (DeBruijn CoreAlt) where
 
 lkA :: CmEnv -> CoreAlt -> AltMap a -> Maybe a
 lkA env (DEFAULT,    _, rhs)  = am_deflt >>> lkG (D env rhs)
-lkA env (LitAlt lit, _, rhs)  = am_lit >>> lookupTM lit >=> lkG (D env rhs)
+lkA env (LitAlt lit, _, rhs)  = am_lit >>> mapLookup lit >=> lkG (D env rhs)
 lkA env (DataAlt dc, bs, rhs) = am_data >>> lkDNamed dc >=> lkG (D (foldl' extendCME env bs) rhs)
 
-xtA :: CmEnv -> CoreAlt -> XT a -> AltMap a -> AltMap a
-xtA env (DEFAULT, _, rhs)    f = over am_defltL $ xtG (D env rhs) f
-xtA env (LitAlt l, _, rhs)   f = over am_litL $ alterTM l |>> xtG (D env rhs) f
-xtA env (DataAlt d, bs, rhs) f = over am_dataL $ xtDNamed d |>> xtG (D (foldl' extendCME env bs) rhs) f
+xtAF :: Functor f => CmEnv -> CoreAlt -> XTF f a -> AltMap a -> f (AltMap a)
+xtAF env (DEFAULT, _, rhs)    = am_defltL . flip mapAlterF (D env rhs)
+xtAF env (LitAlt l, _, rhs)   = am_litL . flip mapAlterF l . xtf . flip mapAlterF (D env rhs)
+xtAF env (DataAlt d, bs, rhs) = am_dataL . xtDNamedF d . xtf . flip mapAlterF (D (foldl' extendCME env bs) rhs)
 
 {-
 ************************************************************************
@@ -344,21 +371,37 @@ xtA env (DataAlt d, bs, rhs) f = over am_dataL $ xtDNamed d |>> xtG (D (foldl' e
 newtype CoercionMap a = CoercionMap (CoercionMapG a)
   deriving (Foldable, Functor, Traversable)
 
-instance TrieMap CoercionMap where
-   type Key CoercionMap = Coercion
-   emptyTM                     = CoercionMap emptyTM
-   lookupTM k  (CoercionMap m) = lookupTM (deBruijnize k) m
-   alterTM k f (CoercionMap m) = CoercionMap (alterTM (deBruijnize k) f m)
+instance Filtrable CoercionMap where
+    mapMaybe f (CoercionMap m) = CoercionMap (mapMaybe f m)
+
+instance IsStaticKeylessMap CoercionMap where
+    type KeyOf CoercionMap = Coercion
+    mapLookup k (CoercionMap m) = mapLookup (deBruijnize k) m
+    mapAdjustLookup = defaultMapAdjustLookup
+    mapIsSubmapOfBy = defaultMapIsSubmapOfBy
+
+instance IsKeylessMap CoercionMap where
+    mapEmpty = CoercionMap mapEmpty
+    mapAlterF f k (CoercionMap m) = CoercionMap <$> mapAlterF f (deBruijnize k) m
+    mapMergeA f (CoercionMap m) (CoercionMap n) = CoercionMap <$> mapMergeA f m n
 
 type CoercionMapG = GenMap CoercionMapX
 newtype CoercionMapX a = CoercionMapX (TypeMapX a)
   deriving (Foldable, Functor, Traversable)
 
-instance TrieMap CoercionMapX where
-  type Key CoercionMapX = DeBruijn Coercion
-  emptyTM = CoercionMapX emptyTM
-  lookupTM = lkC
-  alterTM  = xtC
+instance Filtrable CoercionMapX where
+    mapMaybe f (CoercionMapX m) = CoercionMapX (mapMaybe f m)
+
+instance IsStaticKeylessMap CoercionMapX where
+    type KeyOf CoercionMapX = DeBruijn Coercion
+    mapLookup = lkC
+    mapAdjustLookup = defaultMapAdjustLookup
+    mapIsSubmapOfBy = defaultMapIsSubmapOfBy
+
+instance IsKeylessMap CoercionMapX where
+    mapEmpty = CoercionMapX mapEmpty
+    mapAlterF = flip xtCF
+    mapMergeA f (CoercionMapX as) (CoercionMapX bs) = CoercionMapX <$> mapMergeA f as bs
 
 instance Eq (DeBruijn Coercion) where
   D env1 co1 == D env2 co2 = D env1 (coercionType co1) == D env2 (coercionType co2)
@@ -366,8 +409,8 @@ instance Eq (DeBruijn Coercion) where
 lkC :: DeBruijn Coercion -> CoercionMapX a -> Maybe a
 lkC (D env co) (CoercionMapX core_tm) = lkT (D env $ coercionType co) core_tm
 
-xtC :: DeBruijn Coercion -> XT a -> CoercionMapX a -> CoercionMapX a
-xtC (D env co) f (CoercionMapX m) = CoercionMapX (xtT (D env $ coercionType co) f m)
+xtCF :: Functor f => DeBruijn Coercion -> XTF f a -> CoercionMapX a -> f (CoercionMapX a)
+xtCF (D env co) f (CoercionMapX m) = CoercionMapX <$> xtTF (D env $ coercionType co) f m
 
 {-
 ************************************************************************
@@ -423,11 +466,19 @@ trieMapView ty
   | Just ty' <- tcView ty = Just ty'
 trieMapView _ = Nothing
 
-instance TrieMap TypeMapX where
-   type Key TypeMapX = DeBruijn Type
-   emptyTM  = emptyT
-   lookupTM = lkT
-   alterTM  = xtT
+instance Filtrable TypeMapX where
+    mapMaybe f (TM as1 as2 as3 as4 as5 as6) = TM (mapMaybe f as1) ((fmap . mapMaybe) f as2) (mapMaybe f as3) ((fmap . mapMaybe) f as4) (mapMaybe f as5) (mapMaybe f as6)
+
+instance IsStaticKeylessMap TypeMapX where
+    type KeyOf TypeMapX = DeBruijn Type
+    mapLookup = lkT
+    mapAdjustLookup = defaultMapAdjustLookup
+    mapIsSubmapOfBy = defaultMapIsSubmapOfBy
+
+instance IsKeylessMap TypeMapX where
+    mapEmpty = emptyT
+    mapAlterF = flip xtTF
+    mapMergeA f (TM as1 bs1 cs1 ds1 es1 fs1) (TM as2 bs2 cs2 ds2 es2 fs2) = TM <$> mapMergeA f as1 as2 <*> (getCompose <$> mapMergeA f (Compose bs1) (Compose bs2)) <*> mapMergeA f cs1 cs2 <*> (getCompose <$> mapMergeA f (Compose ds1) (Compose ds2)) <*> mapMergeA f es1 es2 <*> mapMergeA f fs1 fs2
 
 instance Eq (DeBruijn Type) where
   env_t@(D env t) == env_t'@(D env' t')
@@ -466,10 +517,10 @@ instance {-# OVERLAPPING #-}
   ppr m = text "TypeMap elts" <+> ppr (toList m)
 
 emptyT :: TypeMapX a
-emptyT = TM { tm_var  = emptyTM
-            , tm_app  = emptyTM
-            , tm_tycon  = emptyDNameEnv
-            , tm_forall = emptyTM
+emptyT = TM { tm_var  = mapEmpty
+            , tm_app  = mapEmpty
+            , tm_tycon  = mapEmpty
+            , tm_forall = mapEmpty
             , tm_tylit  = emptyTyLitMap
             , tm_coerce = Nothing }
 
@@ -491,19 +542,19 @@ lkT (D env ty) m = go ty m
     go (CoercionTy {})             = tm_coerce
 
 -----------------
-xtT :: DeBruijn Type -> XT a -> TypeMapX a -> TypeMapX a
-xtT (D env ty) f | Just ty' <- trieMapView ty = xtT (D env ty') f
+xtTF :: Functor f => DeBruijn Type -> XTF f a -> TypeMapX a -> f (TypeMapX a)
+xtTF (D env ty) | Just ty' <- trieMapView ty = xtTF (D env ty')
 
-xtT (D env (TyVarTy v))       f = over tm_varL $ xtVar env v f
-xtT (D env (AppTy t1 t2))     f = over tm_appL $ xtG (D env t1) |>> xtG (D env t2) f
-xtT (D _   (TyConApp tc []))  f = over tm_tyconL $ xtDNamed tc f
-xtT (D _   (LitTy l))         f = over tm_tylitL $ xtTyLit l f
-xtT (D env (CastTy t _))      f = xtT (D env t) f
-xtT (D _   (CoercionTy {}))   f = over tm_coerceL f
-xtT (D env (ForAllTy (Bndr tv _) ty)) f = over tm_forallL $
-    xtG (D (extendCME env tv) ty) |>> xtBndr env tv f
-xtT (D _   ty@(TyConApp _ (_:_))) _ = pprPanic "xtT TyConApp" (ppr ty)
-xtT (D _   ty@(FunTy {}))         _ = pprPanic "xtT FunTy" (ppr ty)
+xtTF (D env (TyVarTy v))       = tm_varL . flip (xtVarF env) v
+xtTF (D env (AppTy t1 t2))     = tm_appL . flip mapAlterF (D env t1) . xtf . flip mapAlterF (D env t2)
+xtTF (D _   (TyConApp tc []))  = tm_tyconL . xtDNamedF tc
+xtTF (D _   (LitTy l))         = tm_tylitL . xtTyLitF l
+xtTF (D env (CastTy t _))      = xtTF (D env t)
+xtTF (D _   (CoercionTy {}))   = tm_coerceL
+xtTF (D env (ForAllTy (Bndr tv _) ty)) = tm_forallL .
+    flip mapAlterF (D (extendCME env tv) ty) . xtf . xtBndrF env tv
+xtTF (D _   ty@(TyConApp _ (_:_))) = pprPanic "xtT TyConApp" (ppr ty)
+xtTF (D _   ty@(FunTy {}))         = pprPanic "xtT FunTy" (ppr ty)
 
 ------------------------
 data TyLitMap a = TLM { tlm_number :: Map.Map Integer a
@@ -511,11 +562,19 @@ data TyLitMap a = TLM { tlm_number :: Map.Map Integer a
                       }
   deriving (Foldable, Functor, Traversable)
 
-instance TrieMap TyLitMap where
-   type Key TyLitMap = TyLit
-   emptyTM  = emptyTyLitMap
-   lookupTM = lkTyLit
-   alterTM  = xtTyLit
+instance Filtrable TyLitMap where
+    mapMaybe f (TLM as bs) = TLM (mapMaybe f as) (mapMaybe f bs)
+
+instance IsStaticKeylessMap TyLitMap where
+    type KeyOf TyLitMap = TyLit
+    mapLookup = lkTyLit
+    mapAdjustLookup = defaultMapAdjustLookup
+    mapIsSubmapOfBy = defaultMapIsSubmapOfBy
+
+instance IsKeylessMap TyLitMap where
+    mapEmpty = emptyTyLitMap
+    mapAlterF = flip xtTyLitF
+    mapMergeA f (TLM as1 bs1) (TLM as2 bs2) = TLM <$> mapMergeA f as1 as2 <*> mapMergeA f bs1 bs2
 
 emptyTyLitMap :: TyLitMap a
 emptyTyLitMap = TLM { tlm_number = Map.empty, tlm_string = Map.empty }
@@ -528,10 +587,10 @@ lkTyLit = \ case
     NumTyLit n -> tlm_number >>> Map.lookup n
     StrTyLit n -> tlm_string >>> Map.lookup n
 
-xtTyLit :: TyLit -> XT a -> TyLitMap a -> TyLitMap a
-xtTyLit l f = case l of
-    NumTyLit n -> over tlm_numberL $ Map.alter f n
-    StrTyLit n -> over tlm_stringL $ Map.alter f n
+xtTyLitF :: Functor f => TyLit -> XTF f a -> TyLitMap a -> f (TyLitMap a)
+xtTyLitF = \ case
+    NumTyLit n -> tlm_numberL . flip Map.alterF n
+    StrTyLit n -> tlm_stringL . flip Map.alterF n
 
 -------------------------------------------------
 -- | @TypeMap a@ is a map from 'Type' to @a@.  If you are a client, this
@@ -542,16 +601,27 @@ newtype TypeMap a = TypeMap (TypeMapG (TypeMapG a))
 lkTT :: DeBruijn Type -> TypeMap a -> Maybe a
 lkTT (D env ty) (TypeMap m) = lkG (D env $ typeKind ty) m >>= lkG (D env ty)
 
+xtTTF :: Functor f => DeBruijn Type -> XTF f a -> TypeMap a -> f (TypeMap a)
+xtTTF (D env ty) f (TypeMap m) = TypeMap <$> (flip mapAlterF (D env $ typeKind ty) . xtf . flip mapAlterF (D env ty)) f m
+
 xtTT :: DeBruijn Type -> XT a -> TypeMap a -> TypeMap a
-xtTT (D env ty) f (TypeMap m) = TypeMap (xtG (D env $ typeKind ty) |>> xtG (D env ty) f $ m)
+xtTT envd f = runIdentity . xtTTF envd (Identity . f)
 
 -- Below are some client-oriented functions which operate on 'TypeMap'.
 
-instance TrieMap TypeMap where
-    type Key TypeMap = Type
-    emptyTM = TypeMap emptyTM
-    lookupTM k = lkTT (deBruijnize k)
-    alterTM k = xtTT (deBruijnize k)
+instance Filtrable TypeMap where
+    mapMaybe f (TypeMap m) = TypeMap ((fmap . mapMaybe) f m)
+
+instance IsStaticKeylessMap TypeMap where
+    type KeyOf TypeMap = Type
+    mapLookup k = lkTT (deBruijnize k)
+    mapAdjustLookup = defaultMapAdjustLookup
+    mapIsSubmapOfBy = defaultMapIsSubmapOfBy
+
+instance IsKeylessMap TypeMap where
+    mapEmpty = TypeMap mapEmpty
+    mapAlterF = flip $ xtTTF . deBruijnize
+    mapMergeA f (TypeMap as) (TypeMap bs) = TypeMap . getCompose <$> mapMergeA f (Compose as) (Compose bs)
 
 lookupTypeMapWithScope :: TypeMap a -> CmEnv -> Type -> Maybe a
 lookupTypeMapWithScope m cm t = lkTT (D cm t) m
@@ -573,11 +643,18 @@ mkDeBruijnContext = foldl' extendCME emptyCME
 newtype LooseTypeMap a = LooseTypeMap (TypeMapG a)
   deriving (Foldable, Functor, Traversable)
 
-instance TrieMap LooseTypeMap where
-  type Key LooseTypeMap = Type
-  emptyTM = LooseTypeMap emptyTM
-  lookupTM k (LooseTypeMap m) = lookupTM (deBruijnize k) m
-  alterTM k f (LooseTypeMap m) = LooseTypeMap (alterTM (deBruijnize k) f m)
+instance Filtrable LooseTypeMap where
+    mapMaybe f (LooseTypeMap as) = LooseTypeMap (mapMaybe f as)
+
+instance IsStaticKeylessMap LooseTypeMap where
+    type KeyOf LooseTypeMap = Type
+    mapAdjustLookup f k (LooseTypeMap m) = LooseTypeMap <$> mapAdjustLookup f (deBruijnize k) m
+    mapIsSubmapOfBy = defaultMapIsSubmapOfBy
+
+instance IsKeylessMap LooseTypeMap where
+    mapEmpty = LooseTypeMap mapEmpty
+    mapAlterF f k (LooseTypeMap m) = LooseTypeMap <$> mapAlterF f (deBruijnize k) m
+    mapMergeA f (LooseTypeMap as) (LooseTypeMap bs) = LooseTypeMap <$> mapMergeA f as bs
 
 {-
 ************************************************************************
@@ -642,35 +719,36 @@ type BndrMap = TypeMapG
 lkBndr :: CmEnv -> Var -> BndrMap a -> Maybe a
 lkBndr env v = lkG (D env (varType v))
 
-xtBndr :: CmEnv -> Var -> XT a -> BndrMap a -> BndrMap a
-xtBndr env v = xtG (D env (varType v))
+xtBndrF :: Functor f => CmEnv -> Var -> XTF f a -> BndrMap a -> f (BndrMap a)
+xtBndrF env v = flip mapAlterF (D env (varType v))
 
 --------- Variable occurrence -------------
 data VarMap a = VM { vm_bvar   :: BoundVarMap a  -- Bound variable
                    , vm_fvar   :: DVarEnv a }      -- Free variable
   deriving (Foldable, Functor, Traversable)
 
+instance Filtrable VarMap where
+    mapMaybe f (VM xs ys) = VM (mapMaybe f xs) (mapMaybe f ys)
+
 LENS_FIELD(vm_bvarL, vm_bvar)
 LENS_FIELD(vm_fvarL, vm_fvar)
 
-instance TrieMap VarMap where
-   type Key VarMap = Var
-   emptyTM  = VM { vm_bvar = IntMap.empty, vm_fvar = emptyDVarEnv }
-   lookupTM = lkVar emptyCME
-   alterTM  = xtVar emptyCME
+instance IsStaticKeylessMap VarMap where
+    type KeyOf VarMap = Var
+    mapAdjustLookup = defaultMapAdjustLookup
+    mapIsSubmapOfBy = defaultMapIsSubmapOfBy
+
+instance IsKeylessMap VarMap where
+    mapEmpty = VM { vm_bvar = mapEmpty, vm_fvar = mapEmpty }
+    mapAlterF = xtVarF emptyCME
+    mapMergeA f (VM xs1 ys1) (VM xs2 ys2) = VM <$> mapMergeA f xs1 xs2 <*> mapMergeA f ys1 ys2
 
 lkVar :: CmEnv -> Var -> VarMap a -> Maybe a
 lkVar env v
-  | Just bv <- lookupCME env v = vm_bvar >>> lookupTM bv
-  | otherwise                  = vm_fvar >>> lkDFreeVar v
+  | Just bv <- lookupCME env v = vm_bvar >>> mapLookup bv
+  | otherwise                  = vm_fvar >>> mapLookup v
 
-xtVar :: CmEnv -> Var -> XT a -> VarMap a -> VarMap a
-xtVar env v f
-  | Just bv <- lookupCME env v = over vm_bvarL $ alterTM bv f
-  | otherwise                  = over vm_fvarL $ xtDFreeVar v f
-
-lkDFreeVar :: Var -> DVarEnv a -> Maybe a
-lkDFreeVar = flip lookupDVarEnv
-
-xtDFreeVar :: Var -> XT a -> DVarEnv a -> DVarEnv a
-xtDFreeVar v f m = alterDVarEnv f m v
+xtVarF :: Functor f => CmEnv -> XTF f a -> Var -> VarMap a -> f (VarMap a)
+xtVarF env f v
+  | Just bv <- lookupCME env v = vm_bvarL $ mapAlterF f bv
+  | otherwise                  = vm_fvarL $ mapAlterF f v

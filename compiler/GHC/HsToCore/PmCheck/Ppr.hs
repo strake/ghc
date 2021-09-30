@@ -14,6 +14,7 @@ import GHC.Types.Basic
 import GHC.Types.Id
 import GHC.Types.Var.Env
 import GHC.Types.Unique.DFM
+import GHC.Data.Collections
 import GHC.Core.ConLike
 import GHC.Core.DataCon
 import GHC.Builtin.Types
@@ -109,7 +110,7 @@ nameList = map text ["p","q","r","s","t"] ++
             [ text ('t':show u) | u <- [(0 :: Int)..] ]
 
 runPmPpr :: Delta -> PmPprM a -> (a, DIdEnv SDoc)
-runPmPpr delta m = case runRWS m delta (emptyDVarEnv, nameList) of
+runPmPpr delta m = case runRWS m delta (mapEmpty, nameList) of
   (a, (renamings, _), _) -> (a, renamings)
 
 -- | Allocates a new, clean name for the given 'Id' if it doesn't already have
@@ -118,9 +119,9 @@ getCleanName :: Id -> PmPprM SDoc
 getCleanName x = do
   (renamings, name_supply) <- get
   let (clean_name:name_supply') = name_supply
-  case lookupDVarEnv renamings x of
+  case mapLookup x renamings of
     Just nm -> pure nm
-    Nothing -> clean_name <$ put (extendDVarEnv renamings x clean_name, name_supply')
+    Nothing -> clean_name <$ put (mapInsert x clean_name renamings, name_supply')
 
 checkRefuts :: Id -> PmPprM (Maybe SDoc) -- the clean name if it has negative info attached
 checkRefuts x = do

@@ -103,6 +103,7 @@ import GHC.Utils.Outputable
 import GHC.Utils.Outputable.Ppr
 import GHC.Utils.Panic
 import GHC.Utils.Panic.Plain
+import GHC.Data.Collections
 import GHC.Data.FastString
 import GHC.Types.Unique.DFM
 import GHC.Utils.FV
@@ -631,7 +632,7 @@ lvlMFE env strict_ctxt e@(_, AnnCase {})
 lvlMFE env strict_ctxt ann_expr
   |  floatTopLvlOnly env && not (isTopLvl dest_lvl)
          -- Only floating to the top level is allowed.
-  || anyDVarSet isJoinId fvs   -- If there is a free join, don't float
+  || any isJoinId fvs   -- If there is a free join, don't float
                                -- See Note [Free join points]
   || isExprLevPoly expr
          -- We can't let-bind levity polymorphic expressions
@@ -1129,7 +1130,7 @@ lvlBind env (AnnNonRec bndr rhs)
     bndr_ty    = idType bndr
     ty_fvs     = tyCoVarsOfType bndr_ty
     rhs_fvs    = freeVarsOf rhs
-    bind_fvs   = rhs_fvs `unionDVarSet` dIdFreeVars bndr
+    bind_fvs   = rhs_fvs `setUnion` dIdFreeVars bndr
     abs_vars   = abstractVars dest_lvl env bind_fvs
     dest_lvl   = destLevel env bind_fvs ty_fvs (isFunction rhs) is_bot is_join
 
@@ -1223,12 +1224,11 @@ lvlBind env (AnnRec pairs)
     need_zap = dest_lvl `ltLvl` joinCeilingLevel env
 
         -- Finding the free vars of the binding group is annoying
-    bind_fvs = ((unionDVarSets [ freeVarsOf rhs | (_, rhs) <- pairs])
-                `unionDVarSet`
+    bind_fvs = setDeleteList bndrs $
+               ((setUnions [ freeVarsOf rhs | (_, rhs) <- pairs])
+                `setUnion`
                 (fvDVarSet $ unionsFV [ idFVs bndr
                                       | (bndr, (_,_)) <- pairs]))
-               `delDVarSetList`
-                bndrs
 
     ty_fvs   = foldr (unionVarSet . tyCoVarsOfType . idType) emptyVarSet bndrs
     dest_lvl = destLevel env bind_fvs ty_fvs is_fun is_bot is_join
@@ -1637,7 +1637,7 @@ abstractVars dest_lvl (LE { le_subst = subst, le_lvl_env = lvl_env }) in_fvs
   =  -- NB: sortQuantVars might not put duplicates next to each other
     map zap $ sortQuantVars $
     filter abstract_me      $
-    dVarSetElems            $
+    toList            $
     closeOverKindsDSet      $
     substDVarSet subst in_fvs
         -- NB: it's important to call abstract_me only on the OutIds the

@@ -70,6 +70,7 @@ Library
                    template-haskell == 2.17.*,
                    hpc        == 0.6.*,
                    transformers == 0.5.*,
+                   either-both== 0.1.*,
                    exceptions == 0.10.*,
                    filtrable  >= 0.1.5.0 && < 0.2,
                    ftl        >= 0.1 && < 0.2,
@@ -88,10 +89,12 @@ Library
             Build-Depends: terminfo == 0.4.*
         Build-Depends: unix   >= 2.7 && < 2.9
 
-    GHC-Options: -Wall
-                 -Wno-name-shadowing
-                 -Wnoncanonical-monad-instances
-                 -Wnoncanonical-monoid-instances
+    GHC-Options:
+        -Wall
+        -Wno-name-shadowing
+        -Wnoncanonical-monad-instances
+        -Wnoncanonical-monoid-instances
+        -Werror=missing-methods
 
     if flag(ghci)
         CPP-Options: -DHAVE_INTERNAL_INTERPRETER
@@ -191,7 +194,6 @@ Library
         GHC.Cmm.ContFlowOpt
         GHC.Cmm.Dataflow
         GHC.Cmm.Dataflow.Block
-        GHC.Cmm.Dataflow.Collections
         GHC.Cmm.Dataflow.Graph
         GHC.Cmm.Dataflow.Label
         GHC.Cmm.DebugBlock
@@ -359,6 +361,7 @@ Library
         GHC.Data.Bag
         GHC.Data.Bitmap
         GHC.Data.BooleanFormula
+        GHC.Data.Collections
         GHC.Data.EnumSet
         GHC.Data.FastMutInt
         GHC.Data.FastString

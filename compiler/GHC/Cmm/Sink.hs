@@ -11,7 +11,7 @@ import GHC.Cmm.Liveness
 import GHC.Cmm.Utils
 import GHC.Cmm.Dataflow.Block
 import GHC.Cmm.Dataflow.Label
-import GHC.Cmm.Dataflow.Collections
+import GHC.Data.Collections
 import GHC.Cmm.Dataflow.Graph
 import GHC.Platform.Regs
 
@@ -209,7 +209,7 @@ cmmSink platform graph = ofBlockList (g_entry graph) $ sink mapEmpty $ blocks
       -- now live in multiple branches.
       init_live_sets = map getLive nonjoins
       live_in_multi live_sets r =
-         case filter (Set.member r) live_sets of
+         case filter (elem r) live_sets of
            (_one:_two:_) -> True
            _ -> False
 
@@ -220,12 +220,12 @@ cmmSink platform graph = ofBlockList (g_entry graph) $ sink mapEmpty $ blocks
           where
             should_drop =  conflicts platform a final_last
                         || not (isTrivial platform rhs) && live_in_multi live_sets r
-                        || r `Set.member` live_in_joins
+                        || elem r live_in_joins
 
             live_sets' | should_drop = live_sets
                        | otherwise   = map upd live_sets
 
-            upd set | r `Set.member` set = set `Set.union` live_rhs
+            upd set | elem r set = set `Set.union` live_rhs
                     | otherwise          = set
 
             live_rhs = foldRegsUsed platform extendRegSet emptyRegSet rhs
@@ -290,7 +290,7 @@ filterAssignments platform live assigs = reverse (go assigs [])
         go (a@(r,_,_):as) kept | needed    = go as (a:kept)
                                | otherwise = go as kept
            where
-              needed = r `Set.member` live
+              needed = elem r live
                        || any (conflicts platform a) (map toNode kept)
                        --  Note that we must keep assignments that are
                        -- referred to by other assignments we have
@@ -369,7 +369,7 @@ shouldDiscard :: CmmNode e x -> LocalRegSet -> Bool
 shouldDiscard node live
    = case node of
        CmmAssign r (CmmReg r') | r == r' -> True
-       CmmAssign (CmmLocal r) _ -> not (r `Set.member` live)
+       CmmAssign (CmmLocal r) _ -> not (elem r live)
        _otherwise -> False
 
 
@@ -449,7 +449,7 @@ tryToInline platform live node assigs = go usages node emptyLRegSet assigs
                         || not (okToInline platform rhs node)
 
         l_usages = lookupUFM usages l
-        l_live   = l `elemRegSet` live
+        l_live   = elem l live
 
         occurs_once = not l_live && l_usages == Just 1
         occurs_none = not l_live && l_usages == Nothing

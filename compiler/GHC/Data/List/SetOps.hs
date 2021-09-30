@@ -171,6 +171,6 @@ removeDups cmp xs
 
 findDupsEq :: (a->a->Bool) -> [a] -> [NonEmpty a]
 findDupsEq _  [] = []
-findDupsEq eq (x:xs) | L.null eq_xs  = findDupsEq eq xs
+findDupsEq eq (x:xs) | null eq_xs  = findDupsEq eq xs
                      | otherwise     = (x :| eq_xs) : findDupsEq eq neq_xs
     where (eq_xs, neq_xs) = L.partition (eq x) xs

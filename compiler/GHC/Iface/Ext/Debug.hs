@@ -17,6 +17,7 @@ import GHC.Iface.Ext.Types
 import GHC.Iface.Ext.Utils
 import GHC.Types.Name
 
+import Data.Foldable ( toList )
 import qualified Data.Map as M
 import qualified Data.Set as S
 import Data.List        ( sortOn )
@@ -111,7 +112,7 @@ validateScopes mod asts = validScopes ++ validEvs
     -- We use a refmap for most of the computation
 
     evs = M.keys
-      $ M.filter (any isEvidenceContext . concatMap (S.toList . identInfo . snd)) refMap
+      $ filter (any isEvidenceContext . concatMap (toList . identInfo . snd)) refMap
 
     validEvs = do
       i@(Right ev) <- evs
@@ -119,7 +120,7 @@ validateScopes mod asts = validScopes ++ validEvs
         Nothing -> ["Impossible, ev"<+> ppr ev <+> "not found in refmap" ]
         Just refs
           | nameIsLocalOrFrom mod ev
-          , not (any isEvidenceBind . concatMap (S.toList . identInfo . snd) $ refs)
+          , not (any isEvidenceBind . concatMap (toList . identInfo . snd) $ refs)
           -> ["Evidence var" <+> ppr ev <+> "not bound in refmap"]
           | otherwise -> []
 

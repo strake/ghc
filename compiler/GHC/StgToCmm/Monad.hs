@@ -70,7 +70,7 @@ import GHC.Platform.Profile
 import GHC.Cmm
 import GHC.StgToCmm.Closure
 import GHC.Driver.Session
-import GHC.Cmm.Dataflow.Collections
+import GHC.Data.Collections
 import GHC.Cmm.Graph hiding ((<*>))
 import qualified GHC.Cmm.Graph as CmmGraph
 import GHC.Cmm.BlockId

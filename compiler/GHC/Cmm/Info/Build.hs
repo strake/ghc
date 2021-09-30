@@ -23,7 +23,7 @@ import GHC.Cmm.BlockId
 import GHC.Cmm.Dataflow.Block
 import GHC.Cmm.Dataflow.Graph
 import GHC.Cmm.Dataflow.Label
-import GHC.Cmm.Dataflow.Collections
+import GHC.Data.Collections
 import GHC.Cmm.Dataflow
 import GHC.Unit.Module
 import GHC.Data.Graph.Directed
@@ -41,6 +41,7 @@ import GHC.StgToCmm.Heap
 import GHC.CmmToAsm.Monad
 
 import Control.Monad
+import Data.Foldable (toList)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import Data.Set (Set)
@@ -534,7 +535,7 @@ cafLattice = DataflowLattice Set.empty add
   where
     add (OldFact old) (NewFact new) =
         let !new' = old `Set.union` new
-        in changedIf (Set.size new' > Set.size old) new'
+        in changedIf (length new' > length old) new'
 
 
 cafTransfers :: Platform -> LabelSet -> Label -> CLabel -> TransferFun CAFSet
@@ -693,7 +694,7 @@ depAnalSRTs platform cafEnv cafEnv_static decls =
 
   nodes :: [Node SomeLabel (SomeLabel, CAFLabel, Set CAFLabel)]
   nodes = [ DigraphNode (l,lbl,cafs') l
-              (mapMaybe (flip Map.lookup labelToBlock) (Set.toList cafs'))
+              (flip Map.lookup labelToBlock <$?> toList cafs')
           | (l, lbl) <- labelledBlocks
           , Just (cafs :: Set CAFLabel) <-
               [case l of
@@ -964,7 +965,7 @@ oneSRT dflags staticFuns lbls caf_lbls isCAF cafs static_data = do
 
     -- Resolve references to their SRT entries
     resolved :: [SRTEntry]
-    resolved = mapMaybe (resolveCAF platform srtMap) (Set.toList nonRec)
+    resolved = resolveCAF platform srtMap <$?> toList nonRec
 
     -- The set of all SRTEntries in SRTs that we refer to from here.
     allBelow =
@@ -1007,7 +1008,7 @@ oneSRT dflags staticFuns lbls caf_lbls isCAF cafs static_data = do
                  foldl' (\srt_map cafLbl@(CAFLabel clbl) ->
                           -- Only map static data to Nothing (== not CAFFY). For CAFFY
                           -- statics we refer to the static itself instead of a SRT.
-                          if not (Set.member clbl static_data) || isNothing srtEntry then
+                          if not (elem clbl static_data) || isNothing srtEntry then
                             Map.insert cafLbl srtEntry srt_map
                           else
                             srt_map)
@@ -1019,9 +1020,9 @@ oneSRT dflags staticFuns lbls caf_lbls isCAF cafs static_data = do
     this_mod = thisModule topSRT
 
     allStaticData =
-      all (\(CAFLabel clbl) -> Set.member clbl static_data) caf_lbls
+      all (\(CAFLabel clbl) -> elem clbl static_data) caf_lbls
 
-  if Set.null filtered0 then do
+  if null filtered0 then do
     srtTraceM "oneSRT: empty" (pdoc platform caf_lbls)
     updateSRTMap Nothing
     return ([], [], [], False)
@@ -1033,7 +1034,7 @@ oneSRT dflags staticFuns lbls caf_lbls isCAF cafs static_data = do
     let filtered = filtered0 `Set.union` allBelow_funs
     srtTraceM "oneSRT" (text "filtered:"      <+> pdoc platform filtered $$
                         text "allBelow_funs:" <+> pdoc platform allBelow_funs)
-    case Set.toList filtered of
+    case toList filtered of
       [] -> pprPanic "oneSRT" empty -- unreachable
 
       -- [Inline] - when we have only one entry there is no need to

@@ -53,6 +53,7 @@ import GHC.Types.Var.Set
 import GHC.Types.Var.Env
 import GHC.Types.Name
 import GHC.Types.Unique.DFM
+import GHC.Data.Collections
 import GHC.Data.Maybe
 import GHC.Core.Map
 import GHC.Types.Unique
@@ -1728,7 +1729,7 @@ LENS_FIELD(fe_in_scopeL, fe_in_scope)
 
 emptyFlattenEnv :: InScopeSet -> FlattenEnv
 emptyFlattenEnv in_scope
-  = FlattenEnv { fe_type_map = emptyTM
+  = FlattenEnv { fe_type_map = mapEmpty
                , fe_in_scope = in_scope }
 
 flattenTys :: InScopeSet -> [Type] -> [Type]
@@ -1818,14 +1819,14 @@ coreFlattenTyFamApp :: TvSubstEnv -> FlattenEnv
                     -> [Type]        -- args, already flattened
                     -> (FlattenEnv, Type)
 coreFlattenTyFamApp tv_subst env fam_tc fam_args
-  = case lookupTM fam_ty type_map of
+  = case mapLookup fam_ty type_map of
       Just tv -> (env', mkAppTys (mkTyVarTy tv) leftover_args')
       Nothing -> let tyvar_name = mkFlattenFreshTyName fam_tc
                      tv         = uniqAway in_scope $
                                   mkTyVar tyvar_name (typeKind fam_ty)
 
                      ty'   = mkAppTys (mkTyVarTy tv) leftover_args'
-                     env'' = env' { fe_type_map = insertTM fam_ty tv type_map
+                     env'' = env' { fe_type_map = mapInsert fam_ty tv type_map
                                   , fe_in_scope = extendInScopeSet in_scope tv }
                  in (env'', ty')
   where

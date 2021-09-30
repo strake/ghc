@@ -47,7 +47,6 @@ import GHC.Types.Name
 import GHC.Unit.Module
 import GHC.Data.List.SetOps
 import GHC.Utils.Misc
-import GHC.Types.Var.Set
 import GHC.Types.Basic
 import GHC.Utils.Outputable
 import GHC.Utils.Outputable.Ppr
@@ -56,6 +55,7 @@ import GHC.Data.FastString
 import GHC.Driver.Session
 
 import Control.Monad
+import Data.Foldable ( toList )
 
 ------------------------------------------------------------------------
 --              Top-level bindings
@@ -214,7 +214,7 @@ cgRhs id (StgRhsCon cc con args)
 {- See Note [GC recovery] in "GHC.StgToCmm.Closure" -}
 cgRhs id (StgRhsClosure fvs cc upd_flag args body)
   = do profile <- getProfile
-       mkRhsClosure profile id cc (nonVoidIds (dVarSetElems fvs)) upd_flag args body
+       mkRhsClosure profile id cc (nonVoidIds (toList fvs)) upd_flag args body
 
 ------------------------------------------------------------------------
 --              Non-constructor right hand sides

@@ -595,7 +595,7 @@ load' how_much mHscMessage mod_graph = do
                  = findPartiallyCompletedCycles modsDone_names
                       mg2_with_srcimps
           let (mods_to_clean, mods_to_keep) =
-                partition ((`Set.member` mods_to_zap_names).ms_mod) modsDone
+                partition ((`elem` mods_to_zap_names) . ms_mod) modsDone
           hsc_env1 <- getSession
           let hpt4 = hsc_HPT hsc_env1
               -- We must change the lifetime to TFL_CurrentModule for any temp
@@ -760,7 +760,7 @@ findPartiallyCompletedCycles modsDone theGraph
          -- If size mods_in_this_cycle == size names_in_this_cycle,
          -- then this cycle has already been completed and we're not
          -- interested.
-       , Set.size mods_in_this_cycle < Set.size names_in_this_cycle]
+       , length mods_in_this_cycle < length names_in_this_cycle]
 
 
 -- ---------------------------------------------------------------------------
@@ -1110,8 +1110,8 @@ parUpsweep n_jobs mHscMessage old_hpt stable_mods cleanup sccs = do
                   { ftcCurrentModule = cm_files
                   , ftcGhcSession = gs_files
                   } <- readIORef (filesToClean lcl_dflags)
-                addFilesToClean dflags TFL_CurrentModule $ Set.toList cm_files
-                addFilesToClean dflags TFL_GhcSession $ Set.toList gs_files
+                addFilesToClean dflags TFL_CurrentModule $ toList cm_files
+                addFilesToClean dflags TFL_GhcSession $ toList gs_files
 
         -- Kill all the workers, masking interrupts (since killThread is
         -- interruptible). XXX: This is not ideal.
@@ -1268,7 +1268,7 @@ parUpsweep_one mod home_mod_map comp_graph_loops lcl_dflags mHscMessage cleanup 
     -- loop(s) in question.
     let ext_loop_deps = Set.fromList
             [ head loop | loop <- comp_graph_loops
-                        , any (`Set.member` textual_deps) loop
+                        , any (`elem` textual_deps) loop
                         , this_build_mod `notElem` loop ]
 
 
@@ -1276,7 +1276,7 @@ parUpsweep_one mod home_mod_map comp_graph_loops lcl_dflags mHscMessage cleanup 
 
     -- All of the module's home-module dependencies.
     let home_deps_with_idx =
-            [ home_dep | dep <- Set.toList all_deps
+            [ home_dep | dep <- toList all_deps
                        , Just home_dep <- [Map.lookup dep home_mod_map] ]
 
     -- Sort the list of dependencies in reverse-topological order. This way, by
@@ -2270,7 +2270,7 @@ enableCodeGenWhen condition should_modify staticLife dynLife bcknd nodemap =
         , ms_hspp_opts = dflags
         } <- ms
       , should_modify ms
-      , ms_mod `Set.member` needs_codegen_set
+      , ms_mod `elem` needs_codegen_set
       = do
         let new_temp_file suf dynsuf = do
               tn <- newTempName dflags staticLife suf
@@ -2307,7 +2307,7 @@ enableCodeGenWhen condition should_modify staticLife dynLife bcknd nodemap =
     transitive_deps_set modSums = foldl' go Set.empty modSums
       where
         go marked_mods ms@ModSummary{ms_mod}
-          | ms_mod `Set.member` marked_mods = marked_mods
+          | ms_mod `elem` marked_mods = marked_mods
           | otherwise =
             let deps =
                   [ dep_ms

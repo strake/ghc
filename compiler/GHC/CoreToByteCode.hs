@@ -65,6 +65,7 @@ import GHC.Data.Maybe
 import GHC.Types.Var ( varTypeL )
 import GHC.Types.Var.Env
 import GHC.Builtin.Names ( unsafeEqualityProofName )
+import GHC.Data.Collections
 
 import Foreign
 import Control.Monad
@@ -358,7 +359,7 @@ schemeR fvs (nm, rhs)
 {-
    | trace (showSDoc (
               (char ' '
-               $$ (ppr.filter (not.isTyVar).dVarSetElems.fst) rhs
+               $$ (ppr.filter (not.isTyVar).toList.fst) rhs
                $$ pprCoreExpr (deAnnotate rhs)
                $$ char ' '
               ))) False
@@ -475,7 +476,7 @@ fvsToEnv :: BCEnv -> DVarSet -> [Id]
 --
 -- The code that constructs the thunk, and the code that executes
 -- it, have to agree about this layout
-fvsToEnv p fvs = [v | v <- dVarSetElems fvs,
+fvsToEnv p fvs = [v | v <- toList fvs,
                       isId v,           -- Could be a type variable
                       v `Map.member` p]
 
@@ -614,7 +615,7 @@ schemeE d s p exp@(AnnTick (Breakpoint _id _fvs) _rhs)
    | isLiftedTypeKind (typeKind ty)
    = do   id <- newId ty
           -- Todo: is emptyVarSet correct on the next line?
-          let letExp = AnnLet (AnnNonRec id (fvs, exp)) (emptyDVarSet, AnnVar id)
+          let letExp = AnnLet (AnnNonRec id (fvs, exp)) (setEmpty, AnnVar id)
           schemeE d s p letExp
 
    | otherwise
@@ -636,9 +637,9 @@ schemeE d s p exp@(AnnTick (Breakpoint _id _fvs) _rhs)
 
           id <- newId (mkVisFunTy realWorldStatePrimTy ty)
           st <- newId realWorldStatePrimTy
-          let letExp = AnnLet (AnnNonRec id (fvs, AnnLam st (emptyDVarSet, exp)))
-                              (emptyDVarSet, (AnnApp (emptyDVarSet, AnnVar id)
-                                                    (emptyDVarSet, AnnVar realWorldPrimId)))
+          let letExp = AnnLet (AnnNonRec id (fvs, AnnLam st (setEmpty, exp)))
+                              (setEmpty, (AnnApp (setEmpty, AnnVar id)
+                                                    (setEmpty, AnnVar realWorldPrimId)))
           schemeE d s p letExp
 
    where

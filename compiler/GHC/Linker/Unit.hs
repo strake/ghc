@@ -83,7 +83,7 @@ packageHsLibs dflags p = map (mkDynName . addSuffix) (unitLibraries p)
         -- we leave out the _dyn, because it is superfluous
 
         -- debug and profiled RTSs include support for -eventlog
-        ways2 | WayDebug `Set.member` ways1 || WayProf `Set.member` ways1
+        ways2 | WayDebug `elem` ways1 || WayProf `elem` ways1
               = Set.filter (/= WayEventLog) ways1
               | otherwise
               = ways1

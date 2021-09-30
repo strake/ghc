@@ -18,9 +18,8 @@ module GHC.Cmm.Expr
     , foldLocalRegsDefd, foldLocalRegsUsed
 
     , RegSet, LocalRegSet, GlobalRegSet
-    , emptyRegSet, elemRegSet, extendRegSet, deleteFromRegSet, mkRegSet
-    , plusRegSet, minusRegSet, timesRegSet, sizeRegSet, nullRegSet
-    , regSetToList
+    , emptyRegSet, extendRegSet, deleteFromRegSet, mkRegSet
+    , plusRegSet, minusRegSet, timesRegSet
 
     , Area(..)
     , module GHC.Cmm.MachOp
@@ -297,7 +296,7 @@ localRegType (LocalReg _ rep) = rep
 -- These are used for dataflow facts, and a common operation is taking
 -- the union of two RegSets and then asking whether the union is the
 -- same as one of the inputs.  UniqSet isn't good here, because
--- sizeUniqSet is O(n) whereas Set.size is O(1), so we use ordinary
+-- sizeUniqSet is O(n) whereas length is O(1), so we use ordinary
 -- Sets.
 
 type RegSet r     = Set r
@@ -305,26 +304,18 @@ type LocalRegSet  = RegSet LocalReg
 type GlobalRegSet = RegSet GlobalReg
 
 emptyRegSet             :: RegSet r
-nullRegSet              :: RegSet r -> Bool
-elemRegSet              :: Ord r => r -> RegSet r -> Bool
 extendRegSet            :: Ord r => RegSet r -> r -> RegSet r
 deleteFromRegSet        :: Ord r => RegSet r -> r -> RegSet r
 mkRegSet                :: Ord r => [r] -> RegSet r
 minusRegSet, plusRegSet, timesRegSet :: Ord r => RegSet r -> RegSet r -> RegSet r
-sizeRegSet              :: RegSet r -> Int
-regSetToList            :: RegSet r -> [r]
 
 emptyRegSet      = Set.empty
-nullRegSet       = Set.null
-elemRegSet       = Set.member
 extendRegSet     = flip Set.insert
 deleteFromRegSet = flip Set.delete
 mkRegSet         = Set.fromList
 minusRegSet      = Set.difference
 plusRegSet       = Set.union
 timesRegSet      = Set.intersection
-sizeRegSet       = Set.size
-regSetToList     = Set.toList
 
 class Ord r => UserOfRegs r a where
   foldRegsUsed :: Platform -> (b -> r -> b) -> b -> a -> b
@@ -357,10 +348,10 @@ instance DefinerOfRegs GlobalReg CmmReg where
     foldRegsDefd _ f z (CmmGlobal reg) = f z reg
 
 instance Ord r => UserOfRegs r r where
-    foldRegsUsed _ f z r = f z r
+    foldRegsUsed _ = id
 
 instance Ord r => DefinerOfRegs r r where
-    foldRegsDefd _ f z r = f z r
+    foldRegsDefd _ = id
 
 instance (Ord r, UserOfRegs r CmmReg) => UserOfRegs r CmmExpr where
   -- The (Ord r) in the context is necessary here
@@ -374,11 +365,11 @@ instance (Ord r, UserOfRegs r CmmReg) => UserOfRegs r CmmExpr where
           expr z (CmmStackSlot _ _)  = z
 
 instance UserOfRegs r a => UserOfRegs r [a] where
-  foldRegsUsed platform f set as = foldl' (foldRegsUsed platform f) set as
+  foldRegsUsed platform f = foldl' (foldRegsUsed platform f)
   {-# INLINABLE foldRegsUsed #-}
 
 instance DefinerOfRegs r a => DefinerOfRegs r [a] where
-  foldRegsDefd platform f set as = foldl' (foldRegsDefd platform f) set as
+  foldRegsDefd platform f = foldl' (foldRegsDefd platform f)
   {-# INLINABLE foldRegsDefd #-}
 
 -----------------------------------------------------------------------------

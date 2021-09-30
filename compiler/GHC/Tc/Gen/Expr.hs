@@ -2647,7 +2647,7 @@ badFieldsUpd rbinds data_cons
     -- For each field, which constructors contain the field?
     membership :: [(FieldLabelString, [Bool])]
     membership = sortMembership $
-        map (\fld -> (fld, map (Set.member fld) fieldLabelSets)) $
+        map (\fld -> (fld, elem fld <$> fieldLabelSets)) $
           map (occNameFS . rdrNameOcc . rdrNameAmbiguousFieldOcc . unLoc . hsRecFieldLbl . unLoc) rbinds
 
     fieldLabelSets :: [Set.Set FieldLabelString]

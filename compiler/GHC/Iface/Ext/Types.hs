@@ -35,6 +35,7 @@ import Data.Data                  ( Typeable, Data )
 import Data.Word                  ( Word8 )
 import Control.Applicative        ( (<|>) )
 import Data.Coerce                ( coerce )
+import Data.Foldable ( toList )
 
 type Span = RealSrcSpan
 
@@ -347,7 +348,7 @@ instance Monoid (IdentifierDetails a) where
 instance Binary (IdentifierDetails TypeIndex) where
   put_ bh dets = do
     put_ bh $ identType dets
-    put_ bh $ S.toList $ identInfo dets
+    put_ bh $ toList $ identInfo dets
   get bh =  IdentifierDetails
     <$> get bh
     <*> fmap S.fromDistinctAscList (get bh)

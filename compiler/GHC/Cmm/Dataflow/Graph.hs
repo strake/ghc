@@ -24,7 +24,7 @@ import GHC.Utils.Misc
 
 import GHC.Cmm.Dataflow.Label
 import GHC.Cmm.Dataflow.Block
-import GHC.Cmm.Dataflow.Collections
+import GHC.Data.Collections
 
 import Data.Kind
 

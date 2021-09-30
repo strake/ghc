@@ -59,8 +59,10 @@ import GHC.Types.FieldLabel
 import GHC.Data.Bag
 import GHC.Utils.Misc
 import GHC.Utils.Error
+import GHC.Data.Collections
 import Control.Monad ( zipWithM )
 import Control.Monad.Trans.State ( StateT (..) )
+import Data.Foldable ( toList )
 
 {-
 ************************************************************************
@@ -174,9 +176,9 @@ tcInferPatSynDecl (PSB { psb_id = lname@(L _ name), psb_args = details
        -- See Note [Coercions that escape]
        ; args <- mapM zonkId args
        ; let bad_args = [ (arg, bad_cos) | arg <- args ++ prov_dicts
-                              , let bad_cos = filterDVarSet isId $
+                              , let bad_cos = setFilter isId $
                                               (tyCoVarsOfTypeDSet (idType arg))
-                              , not (isEmptyDVarSet bad_cos) ]
+                              , not (null bad_cos) ]
        ; mapM_ dependentArgErr bad_args
 
        ; traceTc "tcInferPatSynDecl }" $ (ppr name $$ ppr ex_tvs)
@@ -229,7 +231,7 @@ dependentArgErr (arg, bad_cos)
          , text "Hint: use -fprint-explicit-coercions to see the coercions"
          , text "Probable fix: add a pattern signature" ]
   where
-    bad_co_list = dVarSetElems bad_cos
+    bad_co_list = toList bad_cos
 
 {- Note [Type variables whose kind is captured]
 ~~-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

@@ -27,6 +27,7 @@ module GHC.Utils.FV (
 
 import GHC.Prelude
 
+import GHC.Data.Collections
 import GHC.Types.Var
 import GHC.Types.Var.Set
 
@@ -95,7 +96,7 @@ fvVarList = fst . fvVarAcc
 -- returns a deterministic list. If you need a list you should use
 -- `fvVarList`.
 fvDVarSet :: FV -> DVarSet
-fvDVarSet = mkDVarSet . fvVarList
+fvDVarSet = setFromList . fvVarList
 
 -- | Run a free variable computation, returning a non-deterministic set of
 -- free variables. Don't use if the set will be later converted to a list

@@ -23,7 +23,7 @@ import GHC.CmmToAsm.Types
 
 import GHC.Cmm.BlockId
 import GHC.Cmm
-import GHC.Cmm.Dataflow.Collections
+import GHC.Data.Collections
 import GHC.Cmm.Dataflow.Label
 
 import GHC.Platform
@@ -720,7 +720,7 @@ sequenceChain  info weights     blocks@((BasicBlock entry _):_) =
         rankedEdges :: [CfgEdge]
         -- Sort descending by weight, remove fused edges
         rankedEdges =
-            filter (\edge -> not (Set.member (edgeFrom edge,edgeTo edge) builtEdges)) $
+            filter (\edge -> not (elem (edgeFrom edge,edgeTo edge) builtEdges))
             directEdges
 
         (neighbourChains, combined)
@@ -735,7 +735,7 @@ sequenceChain  info weights     blocks@((BasicBlock entry _):_) =
                    sortOn (relevantWeight) $ filter (not . deadEdge) $ (infoEdgeList weights)
           where
             deadEdge :: CfgEdge -> Bool
-            deadEdge (CfgEdge from to _) = let e = (from,to) in Set.member e combined || Set.member e builtEdges
+            deadEdge (CfgEdge from to _) = let e = (from,to) in elem e combined || elem e builtEdges
             relevantWeight :: CfgEdge -> EdgeWeight
             relevantWeight (CfgEdge _ _ edgeInfo)
                 | EdgeInfo (CmmSource { trans_cmmNode = CmmCall {}}) _ <- edgeInfo

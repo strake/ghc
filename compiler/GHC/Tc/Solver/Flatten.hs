@@ -26,12 +26,12 @@ import GHC.Core.TyCo.Rep   -- performs delicate algorithm on types
 import GHC.Core.Coercion
 import GHC.Types.Var
 import GHC.Types.Var.Set
-import GHC.Types.Var.Env
 import GHC.Utils.Outputable
 import GHC.Utils.Panic
 import GHC.Utils.Panic.Plain
 import GHC.Tc.Solver.Monad as TcS
 import GHC.Types.Basic( SwapFlag(..) )
+import GHC.Data.Collections
 
 import GHC.Utils.Misc
 import Control.Monad
@@ -1626,7 +1626,7 @@ flatten_tyvar2 :: TcTyVar -> CtFlavourRole -> FlatM FlattenTvResult
 flatten_tyvar2 tv fr@(_, eq_rel)
   = do { ieqs <- liftTcS $ getInertEqs
        ; mode <- getMode
-       ; case lookupDVarEnv ieqs tv of
+       ; case mapLookup tv ieqs of
            Just (ct:_)   -- If the first doesn't work,
                          -- the subsequent ones won't either
              | CTyEqCan { cc_ev = ctev, cc_tyvar = tv

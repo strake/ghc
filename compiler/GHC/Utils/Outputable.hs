@@ -109,7 +109,6 @@ import qualified Data.Map as M
 import Data.Int
 import qualified Data.IntMap as IM
 import Data.Set (Set)
-import qualified Data.Set as Set
 import Data.String
 import Data.Word
 import System.IO        ( Handle )
@@ -119,7 +118,7 @@ import Numeric (showFFloat)
 import Data.Graph (SCC(..))
 import Data.List (intersperse)
 import Data.List.NonEmpty (NonEmpty (..))
-import qualified Data.List.NonEmpty as NEL
+import Data.Foldable (toList)
 
 {-
 ************************************************************************
@@ -812,10 +811,10 @@ instance (Outputable a) => Outputable [a] where
     ppr xs = brackets (fsep (punctuate comma (map ppr xs)))
 
 instance (Outputable a) => Outputable (NonEmpty a) where
-    ppr = ppr . NEL.toList
+    ppr = ppr . toList
 
 instance (Outputable a) => Outputable (Set a) where
-    ppr s = braces (fsep (punctuate comma (map ppr (Set.toList s))))
+    ppr s = braces (fsep (punctuate comma (map ppr (toList s))))
 
 instance (Outputable a, Outputable b) => Outputable (a, b) where
     ppr (x,y) = parens (sep [ppr x <> comma, ppr y])
@@ -1037,7 +1036,7 @@ instance OutputableP env SDoc where
    pdoc _ = id
 
 instance (OutputableP env a) => OutputableP env (Set a) where
-    pdoc env s = braces (fsep (punctuate comma (map (pdoc env) (Set.toList s))))
+    pdoc env s = braces (fsep (punctuate comma (map (pdoc env) (toList s))))
 
 
 {-
