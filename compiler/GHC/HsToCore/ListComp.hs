@@ -503,19 +503,19 @@ dsMcStmt (BindStmt xbs pat rhs) stmts
 dsMcStmt (ApplicativeStmt body_ty args mb_join) stmts = do
     let (pats, rhss) = unzip (do_arg . snd <$> args)
         do_arg = \ case
-            ApplicativeArgOne _ pat expr _ -> (pat, dsLExpr expr)
-            ApplicativeArgMany _ stmts ret pat _ -> (pat, dsMonadComp (stmts ++ [noLoc $ LastStmt noExtField (noLoc ret) Nothing (SyntaxExprTc
+            ApplicativeArgOne fail_op pat expr _ -> ((pat, fail_op), dsLExpr expr)
+            ApplicativeArgMany _ stmts ret pat _ -> ((pat, Nothing), dsMonadComp (stmts ++ [noLoc $ LastStmt noExtField (noLoc ret) Nothing (SyntaxExprTc
               { syn_expr = ret
               , syn_arg_wraps = []
               , syn_res_wrap = WpHole
               })]))
     rhss' <- sequenceA rhss
     body' <- dsLExpr $ noLoc $ HsDo body_ty MonadComp (noLoc stmts)
-    let match_args pat (vs, body) =
+    let match_args (pat, fail_op) (vs, body) =
           [ (var:vs, match_code)
           | var <- selectSimpleMatchVarL pat
           , match <- matchSinglePatVar var (StmtCtxt MonadComp) pat body_ty (cantFailMatchResult body)
-          , match_code <- dsHandleMonadicFailure pat match Nothing
+          , match_code <- dsHandleMonadicFailure pat match fail_op
           ]
     (vars, body) <- foldrM match_args ([], body') pats
     let fun' = mkLams vars body
