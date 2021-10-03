@@ -1105,10 +1105,8 @@ rnMatchGroup :: Outputable (body GhcPs) => HsMatchContext GhcRn
              -> (Located (body GhcPs) -> WriterT FreeVars RnM (Located (body GhcRn)))
              -> MatchGroup GhcPs (Located (body GhcPs))
              -> WriterT FreeVars RnM (MatchGroup GhcRn (Located (body GhcRn)))
-rnMatchGroup ctxt rnBody (MG { mg_alts = L _ ms, mg_origin = origin })
-  = do { empty_case_ok <- xoptM LangExt.EmptyCase
-       ; lift $ when (null ms && not empty_case_ok) (addErr (emptyCaseErr ctxt))
-       ; mkMatchGroup origin <$> traverse (rnMatch ctxt rnBody) ms }
+rnMatchGroup ctxt rnBody MG { mg_alts = L _ ms, mg_origin = origin }
+  = mkMatchGroup origin <$> traverse (rnMatch ctxt rnBody) ms
 
 rnMatch :: Outputable (body GhcPs) => HsMatchContext GhcRn
         -> (Located (body GhcPs) -> WriterT FreeVars RnM (Located (body GhcRn)))
@@ -1129,15 +1127,6 @@ rnMatch' ctxt rnBody (Match { m_ctxt = mf, m_pats = pats, m_grhss = grhss })
             (FunRhs { mc_fun = L _ funid }, FunRhs { mc_fun = L lf _ }) ->
                 mf { mc_fun = L lf funid }
             _ -> ctxt ]
-
-emptyCaseErr :: HsMatchContext GhcRn -> SDoc
-emptyCaseErr ctxt = hang (text "Empty list of alternatives in" <+> pp_ctxt)
-                       2 (text "Use EmptyCase to allow this")
-  where
-    pp_ctxt = case ctxt of
-                CaseAlt    -> text "case expression"
-                LambdaExpr -> text "\\case expression"
-                _ -> text "(unexpected)" <+> pprMatchContextNoun ctxt
 
 {-
 ************************************************************************
