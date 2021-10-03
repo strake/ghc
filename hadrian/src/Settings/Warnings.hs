@@ -9,8 +9,7 @@ import Packages
 -- | Default Haskell warning-related arguments.
 defaultGhcWarningsArgs :: Args
 defaultGhcWarningsArgs = mconcat
-    [ notStage0 ? arg "-Wnoncanonical-monad-instances"
-    , notM (flag CcLlvmBackend) ? arg "-optc-Wno-error=inline"
+    [ notM (flag CcLlvmBackend) ? arg "-optc-Wno-error=inline"
     , flag CcLlvmBackend ? arg "-optc-Wno-unknown-pragmas" ]
 
 -- | Package-specific warnings-related arguments, mostly suppressing various warnings.

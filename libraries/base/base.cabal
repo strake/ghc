@@ -397,4 +397,4 @@ Library
     ghc-options: -this-unit-id base
 
     -- Make sure we don't accidentally regress into anti-patterns
-    ghc-options: -Wcompat -Wnoncanonical-monad-instances
+    ghc-options: -Wcompat

@@ -125,7 +125,6 @@ The following flags are simple ways to select standard "packages" of warnings:
         :columns: 3
 
         * :ghc-flag:`-Wsemigroup`
-        * :ghc-flag:`-Wnoncanonical-monoid-instances`
         * :ghc-flag:`-Wstar-is-type`
         * :ghc-flag:`-Wcompat-unqualified-imports`
 
@@ -447,128 +446,6 @@ of ``-W(no-)*``.
     An alias for :ghc-flag:`-Wwarnings-deprecations`.
 
     This option is on by default.
-
-.. ghc-flag:: -Wnoncanonical-monad-instances
-    :shortdesc: warn when ``Applicative`` or ``Monad`` instances have
-        noncanonical definitions of ``return``, ``pure``, ``(>>)``,
-        or ``(*>)``.
-        See flag description in :ref:`options-sanity` for more details.
-    :type: dynamic
-    :reverse: -Wno-noncanonical-monad-instances
-    :category:
-
-    Warn if noncanonical ``Applicative`` or ``Monad`` instances
-    declarations are detected.
-
-    When this warning is enabled, the following conditions are verified:
-
-    In ``Monad`` instances declarations warn if any of the following
-    conditions does not hold:
-
-     * If ``return`` is defined it must be canonical (i.e. ``return = pure``).
-     * If ``(>>)`` is defined it must be canonical (i.e. ``(>>) = (*>)``).
-
-    Moreover, in ``Applicative`` instance declarations:
-
-     * Warn if ``pure`` is defined backwards (i.e. ``pure = return``).
-     * Warn if ``(*>)`` is defined backwards (i.e. ``(*>) = (>>)``).
-
-    This option is off by default.
-
-.. ghc-flag:: -Wnoncanonical-monadfail-instances
-    :shortdesc: warn when ``Monad`` or ``MonadFail`` instances have
-        noncanonical definitions of ``fail``.
-        See flag description in :ref:`options-sanity` for more details.
-    :type: dynamic
-    :reverse: -Wno-noncanonical-monadfail-instances
-    :category:
-
-    Warn if noncanonical ``Monad`` or ``MonadFail`` instances
-    declarations are detected.
-
-    When this warning is enabled, the following conditions are verified:
-
-    In ``Monad`` instances declarations warn if any of the following
-    conditions does not hold:
-
-     * If ``fail`` is defined it must be canonical
-       (i.e. ``fail = Control.Monad.Fail.fail``).
-
-    Moreover, in ``MonadFail`` instance declarations:
-
-     * Warn if ``fail`` is defined backwards
-       (i.e. ``fail = Control.Monad.fail``).
-
-    See also :ghc-flag:`-Wmissing-monadfail-instances`.
-
-    This option is off by default.
-
-.. ghc-flag:: -Wnoncanonical-monoid-instances
-    :shortdesc: warn when ``Semigroup`` or ``Monoid`` instances have
-        noncanonical definitions of ``(<>)`` or ``mappend``.
-        See flag description in :ref:`options-sanity` for more details.
-    :type: dynamic
-    :reverse: -Wno-noncanonical-monoid-instances
-    :category:
-
-    Warn if noncanonical ``Semigroup`` or ``Monoid`` instances
-    declarations are detected.
-
-    When this warning is enabled, the following conditions are verified:
-
-    In ``Monoid`` instances declarations warn if any of the following
-    conditions does not hold:
-
-     * If ``mappend`` is defined it must be canonical
-       (i.e. ``mappend = (Data.Semigroup.<>)``).
-
-    Moreover, in ``Semigroup`` instance declarations:
-
-     * Warn if ``(<>)`` is defined backwards (i.e. ``(<>) = mappend``).
-
-    This warning is off by default. However, it is part of the
-    :ghc-flag:`-Wcompat` option group.
-
-.. ghc-flag:: -Wmissing-monadfail-instances
-    :shortdesc: Warn when a failable pattern is used in a do-block that does
-        not have a ``MonadFail`` instance.
-    :type: dynamic
-    :reverse: -Wno-missing-monadfail-instances
-    :category:
-
-    .. index::
-       single: MFP
-       single: MonadFail Proposal
-
-    Warn when a failable pattern is used in a do-block that does not have a
-    ``MonadFail`` instance.
-
-    See also :ghc-flag:`-Wnoncanonical-monadfail-instances`.
-
-    Being part of the :ghc-flag:`-Wcompat` option group, this warning is off by
-    default, but will be switched on in a future GHC release, as part of
-    the `MonadFail Proposal (MFP)
-    <https://gitlab.haskell.org/haskell/prime/-/wikis/libraries/proposals/monad-fail>`__.
-
-.. ghc-flag:: -Wsemigroup
-    :shortdesc: warn when a ``Monoid`` is not ``Semigroup``, and on non-
-        ``Semigroup`` definitions of ``(<>)``?
-    :type: dynamic
-    :reverse: -Wno-semigroup
-    :category:
-
-    .. index::
-       single: semigroup; warning
-
-    Warn when definitions are in conflict with the future inclusion of
-    ``Semigroup`` into the standard typeclasses.
-
-     1. Instances of ``Monoid`` should also be instances of ``Semigroup``
-     2. The ``Semigroup`` operator ``(<>)`` will be in ``Prelude``, which
-        clashes with custom local definitions of such an operator
-
-    Being part of the :ghc-flag:`-Wcompat` option group, this warning is off by
-    default, but will be switched on in a future GHC release.
 
 .. ghc-flag:: -Wdeprecated-flags
     :shortdesc: warn about uses of commandline flags that are deprecated
