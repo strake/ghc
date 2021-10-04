@@ -130,7 +130,6 @@ import Data.List        hiding (group, unzip, unzip3, unzip4, unzip5)
 import GHC.Exts
 import GHC.Stack (HasCallStack)
 
-import Control.Applicative ( liftA2 )
 import Control.Monad.IO.Class ( MonadIO, liftIO )
 import System.IO.Error as IO ( isDoesNotExistError )
 import System.Directory ( doesDirectoryExist, getModificationTime, renameFile )
@@ -151,6 +150,8 @@ import Data.Time
 import Lens.Micro (_1, _2, _3, _4, _5)
 import Lens.Micro.Extras (view)
 
+import Util hiding (count, replicate)
+
 #if defined(DEBUG)
 import {-# SOURCE #-} GHC.Utils.Outputable ( text )
 import {-# SOURCE #-} GHC.Utils.Outputable.Ppr ( warnPprTrace )
@@ -167,26 +168,14 @@ infixr 9 `thenCmp`
 ************************************************************************
 -}
 
--- | Apply a function iff some condition is met.
-applyWhen :: Bool -> (a -> a) -> a -> a
-applyWhen True f x = f x
-applyWhen _    _ x = x
-
 -- | A for loop: Compose a function with itself n times.  (nth rather than twice)
 nTimes :: Int -> (a -> a) -> (a -> a)
 nTimes 0 _ = id
 nTimes 1 f = f
 nTimes n f = f . nTimes (n-1) f
 
-fst3   :: (a,b,c) -> a
-snd3   :: (a,b,c) -> b
 thd3   :: (a,b,c) -> c
-fst3      (a,_,_) =  a
-snd3      (_,b,_) =  b
 thd3      (_,_,c) =  c
-
-uncurry3 :: (a -> b -> c -> d) -> (a, b, c) -> d
-uncurry3 f (a, b, c) = f a b c
 
 {-
 ************************************************************************
@@ -746,15 +735,6 @@ cmpList cmp (a:as) (b:bs)
 
 removeSpaces :: String -> String
 removeSpaces = dropWhileEndLE isSpace . dropWhile isSpace
-
--- Boolean operators lifted to Applicative
-(<&&>) :: Applicative f => f Bool -> f Bool -> f Bool
-(<&&>) = liftA2 (&&)
-infixr 3 <&&> -- same as (&&)
-
-(<||>) :: Applicative f => f Bool -> f Bool -> f Bool
-(<||>) = liftA2 (||)
-infixr 2 <||> -- same as (||)
 
 {-
 ************************************************************************
@@ -1329,20 +1309,3 @@ overrideWith :: Bool -> OverridingBool -> Bool
 overrideWith b Auto   = b
 overrideWith _ Always = True
 overrideWith _ Never  = False
-
-mwhen, munless :: Monoid a => Bool -> a -> a
-mwhen False = mempty
-mwhen True = id
-munless = mwhen . not
-
-slipr :: (a -> b -> c -> d) -> b -> c -> a -> d
-slipr φ b c a = φ a b c
-
-slipl :: (a -> b -> c -> d) -> c -> a -> b -> d
-slipl φ c a b = φ a b c
-
-slipr4 :: (a -> b -> c -> d -> e) -> b -> c -> d -> a -> e
-slipr4 φ b c d a = φ a b c d
-
-slipl4 :: (a -> b -> c -> d -> e) -> d -> a -> b -> c -> e
-slipl4 φ d a b c = φ a b c d

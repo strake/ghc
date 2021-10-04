@@ -30,9 +30,10 @@ import Control.Monad hiding (mapAndUnzipM)
 import Control.Monad.Fix
 import Control.Monad.IO.Class
 import Control.Monad.Trans.State
-import Data.Foldable (foldlM, foldrM, toList)
+import Data.Foldable (foldlM, foldrM)
 import Data.List (zipWith4)
 import Data.Tuple (swap)
+import Util
 
 -------------------------------------------------------------------------------
 -- Common functions
@@ -159,20 +160,6 @@ mapAccumLM f s = fmap swap . flip runStateT s . traverse f'
 concatMapM :: (Applicative m, Monad n, Traversable n) => (a -> m (n b)) -> n a -> m (n b)
 concatMapM f = fmap join . traverse f
 
--- | Monadic version of 'any', aborts the computation at the first @True@ value
-anyM :: (Monad m, Foldable f) => (a -> m Bool) -> f a -> m Bool
-anyM f = go . toList
-  where
-    go [] = pure False
-    go (x:xs) = f x >>= bool (go xs) (pure True)
-
--- | Monad version of 'all', aborts the computation at the first @False@ value
-allM :: (Monad m, Foldable f) => (a -> m Bool) -> f a -> m Bool
-allM f = go . toList
-  where
-    go []     = pure True
-    go (b:bs) = f b >>= bool (pure False) (go bs)
-
 -- | Monadic version of or
 orM :: Monad m => m Bool -> m Bool -> m Bool
 orM m1 m2 = m1 >>= bool m2 (pure True)
@@ -184,14 +171,6 @@ andM m1 m2 = m1 >>= bool (pure False) m2
 -- | Monadic version of foldl that discards its result
 foldlM_ :: (Monad m, Foldable t) => (a -> b -> m a) -> a -> t b -> m ()
 foldlM_ = foldM_
-
--- | Monadic version of @when@, taking the condition in the monad
-whenM :: Monad m => m Bool -> m () -> m ()
-whenM mb thing = do { b <- mb; when b thing }
-
--- | Monadic version of @unless@, taking the condition in the monad
-unlessM :: Monad m => m Bool -> m () -> m ()
-unlessM mb thing = do { b <- mb; unless b thing }
 
 -- | Like 'filterM', only it reverses the sense of the test.
 filterOutM :: (Applicative m) => (a -> m Bool) -> [a] -> m [a]
