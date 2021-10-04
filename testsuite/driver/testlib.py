@@ -854,8 +854,6 @@ def test(name: TestName,
     global parallelTests
     global allTestNames
     global thisdir_settings
-    if name in allTestNames:
-        framework_fail(name, None, 'There are multiple tests with this name')
     if not re.match('^[0-9]*[a-zA-Z][a-zA-Z0-9._-]*$', name):
         framework_fail(name, None, 'This test has an invalid name')
 
