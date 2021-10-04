@@ -92,8 +92,6 @@ Library
     GHC-Options:
         -Wall
         -Wno-name-shadowing
-        -Wnoncanonical-monad-instances
-        -Wnoncanonical-monoid-instances
         -Werror=missing-methods
 
     if flag(ghci)

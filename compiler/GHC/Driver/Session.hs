@@ -3282,13 +3282,15 @@ wWarningFlagsDeps = [
   flagSpec "missing-exported-signatures" Opt_WarnMissingExportedSignatures,
   flagSpec "monomorphism-restriction"    Opt_WarnMonomorphism,
   flagSpec "name-shadowing"              Opt_WarnNameShadowing,
-  flagSpec "noncanonical-monad-instances"
-                                         Opt_WarnNonCanonicalMonadInstances,
+  depFlagSpec "noncanonical-monad-instances"
+                                         Opt_WarnNonCanonicalMonadInstances
+    "XXX",
   depFlagSpec "noncanonical-monadfail-instances"
                                          Opt_WarnNonCanonicalMonadInstances
     "fail is no longer a method of Monad",
-  flagSpec "noncanonical-monoid-instances"
-                                         Opt_WarnNonCanonicalMonoidInstances,
+  depFlagSpec "noncanonical-monoid-instances"
+                                         Opt_WarnNonCanonicalMonoidInstances
+    "XXX",
   flagSpec "orphans"                     Opt_WarnOrphans,
   flagSpec "overflowed-literals"         Opt_WarnOverflowedLiterals,
   flagSpec "overlapping-patterns"        Opt_WarnOverlappingPatterns,
