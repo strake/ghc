@@ -1034,7 +1034,7 @@ interactDict inerts workItem@(CDictCan { cc_ev = ev_w, cc_class = cls, cc_tyargs
            KeepInert -> Stop ev_w (text "Dict equal" <+> parens (ppr what_next)) <$
                         setEvBindIfWanted ev_w (ctEvTerm ev_i)
            KeepWork  -> do { setEvBindIfWanted ev_i (ctEvTerm ev_w)
-                           ; updInertDicts $ \ ds -> delDict ds cls tys
+                           ; updInertDicts $ delDict cls tys
                            ; continueWith workItem } } }
 
   | cls `hasKey` ipClassKey
@@ -1101,7 +1101,7 @@ shortCutSolver dflags ev_w ev_i
                        , cir_what      = what }
                  | safeOverlap what
                  , all isTyFamFree preds  -- Note [Shortcut solving: type families]
-                 -> do { let solved_dicts' = addDict solved_dicts cls tys ev
+                 -> do { let solved_dicts' = addDict cls tys ev solved_dicts
                              -- solved_dicts': it is important that we add our goal
                              -- to the cache before we solve! Otherwise we may end
                              -- up in a loop while solving recursive dictionaries.
@@ -1194,7 +1194,7 @@ interactGivenIP :: InertCans -> Ct -> TcS (StopOrContinue Ct)
 -- See Note [Shadowing of Implicit Parameters]
 interactGivenIP inerts workItem@(CDictCan { cc_ev = ev, cc_class = cls
                                           , cc_tyargs = tys@(ip_str:_) })
-  = do { updInertTcS $ set (inert_cansL . inert_dictsL) (addDict filtered_dicts cls tys workItem)
+  = do { updInertTcS $ set (inert_cansL . inert_dictsL) (addDict cls tys workItem filtered_dicts)
        ; stopWith ev "Given IP" }
   where
     dicts           = inert_dicts inerts
@@ -1295,14 +1295,14 @@ interactFunEq inerts work_item@(CFunEqCan { cc_ev = ev, cc_fun = tc
          then do {   -- Rewrite inert using work-item
                    let work_item' | upgrade_flag = upgradeWanted work_item
                                   | otherwise    = work_item
-                 ; updInertFunEqs $ \ feqs -> insertFunEq feqs tc args work_item'
+                 ; updInertFunEqs $ insertFunEq tc args work_item'
                       -- Do the updInertFunEqs before the reactFunEq, so that
                       -- we don't kick out the inertItem as well as consuming it!
                  ; reactFunEq ev fsk ev_i fsk_i
                  ; stopWith ev "Work item rewrites inert" }
          else do {   -- Rewrite work-item using inert
                  ; when upgrade_flag $
-                   updInertFunEqs $ \ feqs -> insertFunEq feqs tc args (upgradeWanted inert_ct)
+                   updInertFunEqs $ insertFunEq tc args (upgradeWanted inert_ct)
                  ; reactFunEq ev_i fsk_i ev fsk
                  ; stopWith ev "Inert rewrites work item" } }
 
