@@ -48,7 +48,6 @@ import GHC.Types.Var.Env
 import GHC.Core.FVs
 import GHC.Data.FastString
 import GHC.Core.Type
-import GHC.Utils.Misc( mapSnd )
 
 import Data.Bifunctor
 import Control.Monad
@@ -95,7 +94,7 @@ exitifyProgram binds = map goTopLvl binds
       where
         is_join_rec = any (isJoinId . fst) pairs
         in_scope'   = in_scope `extendInScopeSetList` bindersOf (Rec pairs)
-        pairs'      = mapSnd (go in_scope') pairs
+        pairs'      = (fmap . fmap) (go in_scope') pairs
         body'       = go in_scope' body
 
 

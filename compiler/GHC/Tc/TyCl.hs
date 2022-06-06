@@ -99,6 +99,7 @@ import GHC.Utils.Constants (debugIsOn)
 import GHC.Utils.Misc
 
 import Control.Monad
+import Data.Bifunctor
 import Data.Functor.Identity
 import Data.List ( partition)
 import Data.List.NonEmpty ( NonEmpty(..) )
@@ -782,13 +783,13 @@ generaliseTyClDecl inferred_tc_env (L _ decl)
       = do { let tc = lookupNameEnv_NF inferred_tc_env tc_name
                       -- This lookup should not fail
            ; skol_info <- mkSkolemInfo (TyConSkol (tyConFlavour tc) tc_name )
-           ; scoped_prs <- mapSndM (zonkAndSkolemise skol_info) (tcTyConScopedTyVars tc)
+           ; scoped_prs <- (traverse . traverse) (zonkAndSkolemise skol_info) (tcTyConScopedTyVars tc)
            ; return (tc, skol_info, scoped_prs) }
 
     zonk_tc_tycon :: (TcTyCon, SkolemInfo, ScopedPairs)
                   -> TcM (TcTyCon, SkolemInfo, ScopedPairs, TcKind)
     zonk_tc_tycon (tc, skol_info, scoped_prs)
-      = do { scoped_prs <- mapSndM zonkTcTyVarToTcTyVar scoped_prs
+      = do { scoped_prs <- (traverse . traverse) zonkTcTyVarToTcTyVar scoped_prs
                            -- We really have to do this again, even though
                            -- we have just done zonkAndSkolemise, so that
                            -- occurrences in the /kinds/ get zonked to the skolem
@@ -817,7 +818,7 @@ swizzleTcTyConBndrs tc_infos
        ; return swizzled_infos }
 
   where
-    swizzled_infos =  [ (tc, skol_info, mapSnd swizzle_var scoped_prs, swizzle_ty kind)
+    swizzled_infos =  [ (tc, skol_info, second swizzle_var <$> scoped_prs, swizzle_ty kind)
                       | (tc, skol_info, scoped_prs, kind) <- tc_infos ]
 
     swizzle_prs :: [(Name,TyVar)]
@@ -1307,7 +1308,7 @@ inferInitialKinds decls
 -- CUSKs, producing a generalized TcTyCon for each.
 checkInitialKinds :: [(LTyClDecl GhcRn, SAKS_or_CUSK)] -> TcM [PolyTcTyCon]
 checkInitialKinds decls
-  = do { traceTc "checkInitialKinds {" $ ppr (mapFst (tcdName . unLoc) decls)
+  = do { traceTc "checkInitialKinds {" $ ppr ((fmap . first) (tcdName . unLoc) decls)
        ; tcs <- concatMapM check_initial_kind decls
        ; traceTc "checkInitialKinds done }" empty
        ; return tcs }

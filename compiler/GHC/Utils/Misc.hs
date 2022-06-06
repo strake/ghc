@@ -26,10 +26,9 @@ module GHC.Utils.Misc (
 
         unzipWith,
 
-        mapFst, mapSnd, chkAppend,
+        chkAppend,
         mapAndUnzip, mapAndUnzip3,
         filterOut, partitionWith,
-        mapAccumM,
 
         dropWhileEndLE, spanEnd, last2, lastMaybe, onJust,
 
@@ -59,10 +58,8 @@ module GHC.Utils.Misc (
 
         -- * Tuples
         fstOf3, sndOf3, thdOf3,
-        firstM, first3M, secondM,
         fst3, snd3, third3,
         uncurry3,
-        liftFst, liftSnd,
 
         -- * List operations controlled by another list
         takeList, dropList, splitAtList, split,
@@ -72,8 +69,7 @@ module GHC.Utils.Misc (
         sortWith, minWith, nubSort, ordNub, ordNubOn,
 
         -- * Comparisons
-        isEqual, eqListBy, eqMaybeBy,
-        thenCmp, cmpList,
+        isEqual,
         removeSpaces,
         (<&&>), (<||>),
 
@@ -142,7 +138,7 @@ import GHC.Exts
 import GHC.Stack (HasCallStack)
 
 import Control.Applicative ( liftA2 )
-import Control.Monad    ( liftM, guard )
+import Control.Monad    ( guard )
 import Control.Monad.IO.Class ( MonadIO, liftIO )
 import System.IO.Error as IO ( isDoesNotExistError )
 import System.Directory ( doesDirectoryExist, getModificationTime, renameFile )
@@ -158,9 +154,6 @@ import qualified Data.IntMap as IM
 import qualified Data.Set as Set
 
 import Data.Time
-
-infixr 9 `thenCmp`
-
 
 {-
 ************************************************************************
@@ -202,21 +195,6 @@ third3 f (a, b, c) = (a, b, f c)
 
 uncurry3 :: (a -> b -> c -> d) -> (a, b, c) -> d
 uncurry3 f (a, b, c) = f a b c
-
-liftFst :: (a -> b) -> (a, c) -> (b, c)
-liftFst f (a,c) = (f a, c)
-
-liftSnd :: (a -> b) -> (c, a) -> (c, b)
-liftSnd f (c,a) = (c, f a)
-
-firstM :: Monad m => (a -> m c) -> (a, b) -> m (c, b)
-firstM f (x, y) = liftM (\x' -> (x', y)) (f x)
-
-first3M :: Monad m => (a -> m d) -> (a, b, c) -> m (d, b, c)
-first3M f (x, y, z) = liftM (\x' -> (x', y, z)) (f x)
-
-secondM :: Monad m => (b -> m c) -> (a, b) -> m (a, c)
-secondM f (x, y) = (x,) <$> f y
 
 {-
 ************************************************************************
@@ -349,12 +327,6 @@ stretchZipWith p z f (x:xs) ys
   | otherwise = case ys of
                 []     -> []
                 (y:ys) -> f x y : stretchZipWith p z f xs ys
-
-mapFst :: (a->c) -> [(a,b)] -> [(c,b)]
-mapSnd :: (b->c) -> [(a,b)] -> [(a,c)]
-
-mapFst f xys = [(f x, y) | (x,y) <- xys]
-mapSnd f xys = [(x, f y) | (x,y) <- xys]
 
 mapAndUnzip :: (a -> (b, c)) -> [a] -> ([b], [c])
 
@@ -541,15 +513,6 @@ mapLastM :: Functor f => (a -> f a) -> [a] -> f [a]
 mapLastM _ [] = panic "mapLastM: empty list"
 mapLastM f [x] = (\x' -> [x']) <$> f x
 mapLastM f (x:xs) = (x:) <$> mapLastM f xs
-
-mapAccumM :: (Monad m) => (r -> a -> m (r, b)) -> r -> [a] -> m (r, [b])
-mapAccumM f = go
-  where
-    go acc [] = pure (acc,[])
-    go acc (x:xs) = do
-      (acc',y) <- f acc x
-      (acc'',ys) <- go acc' xs
-      pure (acc'', y:ys)
 
 whenNonEmpty :: Applicative m => [a] -> (NonEmpty a -> m ()) -> m ()
 whenNonEmpty []     _ = pure ()
@@ -825,30 +788,6 @@ isEqual GT = False
 isEqual EQ = True
 isEqual LT = False
 
-thenCmp :: Ordering -> Ordering -> Ordering
-{-# INLINE thenCmp #-}
-thenCmp EQ       ordering = ordering
-thenCmp ordering _        = ordering
-
-eqListBy :: (a->a->Bool) -> [a] -> [a] -> Bool
-eqListBy _  []     []     = True
-eqListBy eq (x:xs) (y:ys) = eq x y && eqListBy eq xs ys
-eqListBy _  _      _      = False
-
-eqMaybeBy :: (a ->a->Bool) -> Maybe a -> Maybe a -> Bool
-eqMaybeBy _  Nothing  Nothing  = True
-eqMaybeBy eq (Just x) (Just y) = eq x y
-eqMaybeBy _  _        _        = False
-
-cmpList :: (a -> a -> Ordering) -> [a] -> [a] -> Ordering
-    -- `cmpList' uses a user-specified comparer
-
-cmpList _   []     [] = EQ
-cmpList _   []     _  = LT
-cmpList _   _      [] = GT
-cmpList cmp (a:as) (b:bs)
-  = case cmp a b of { EQ -> cmpList cmp as bs; xxx -> xxx }
-
 removeSpaces :: String -> String
 removeSpaces = dropWhileEndLE isSpace . dropWhile isSpace
 
@@ -1007,7 +946,7 @@ fuzzyLookup user_entered possibilites
 -}
 
 unzipWith :: (a -> b -> c) -> [(a, b)] -> [c]
-unzipWith f pairs = map ( \ (a, b) -> f a b ) pairs
+unzipWith = fmap . uncurry
 
 seqList :: [a] -> b -> b
 seqList [] b = b

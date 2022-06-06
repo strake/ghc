@@ -35,7 +35,6 @@ import GHC.Driver.Flags (DumpFlag(..))
 
 import GHC.Utils.Outputable as Outputable
 import GHC.Utils.Panic
-import GHC.Utils.Monad
 import GHC.Utils.Logger
 import GHC.Types.SrcLoc
 import GHC.Types.Basic
@@ -709,7 +708,7 @@ addTickStmt isGuard stmt@(TransStmt { trS_stmts = stmts
                                     , trS_ret = returnExpr, trS_bind = bindExpr
                                     , trS_fmap = liftMExpr }) = do
     t_s <- addTickLStmts isGuard stmts
-    t_y <- fmapMaybeM  addTickLHsExprRHS by
+    t_y <- traverse  addTickLHsExprRHS by
     t_u <- addTickLHsExprRHS using
     t_f <- addTickSyntaxExpr hpcSrcSpan returnExpr
     t_b <- addTickSyntaxExpr hpcSrcSpan bindExpr

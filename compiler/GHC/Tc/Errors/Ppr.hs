@@ -3092,7 +3092,7 @@ tidySkolemInfo env (SkolemInfo u sk_anon) = SkolemInfo u (tidySkolemInfoAnon env
 tidySkolemInfoAnon :: TidyEnv -> SkolemInfoAnon -> SkolemInfoAnon
 tidySkolemInfoAnon env (DerivSkol ty)         = DerivSkol (tidyType env ty)
 tidySkolemInfoAnon env (SigSkol cx ty tv_prs) = tidySigSkol env cx ty tv_prs
-tidySkolemInfoAnon env (InferSkol ids)        = InferSkol (mapSnd (tidyType env) ids)
+tidySkolemInfoAnon env (InferSkol ids)        = InferSkol ((fmap . fmap) (tidyType env) ids)
 tidySkolemInfoAnon env (UnifyForAllSkol ty)   = UnifyForAllSkol (tidyType env ty)
 tidySkolemInfoAnon _   info                   = info
 
@@ -3103,7 +3103,7 @@ tidySigSkol :: TidyEnv -> UserTypeCtxt
 tidySigSkol env cx ty tv_prs
   = SigSkol cx (tidy_ty env ty) tv_prs'
   where
-    tv_prs' = mapSnd (tidyTyCoVarOcc env) tv_prs
+    tv_prs' = (fmap . fmap) (tidyTyCoVarOcc env) tv_prs
     inst_env = mkNameEnv tv_prs'
 
     tidy_ty env (ForAllTy (Bndr tv vis) ty)

@@ -159,6 +159,7 @@ import qualified GHC.Data.Strict as Strict
 
 import Control.Monad
 import Text.ParserCombinators.ReadP as ReadP
+import Data.Bifunctor  ( first )
 import Data.Char
 import Data.Data       ( dataTypeOf, fromConstr, dataTypeConstrs )
 import Data.Kind       ( Type )
@@ -433,7 +434,7 @@ mkRoleAnnotDecl loc tycon roles anns
           Just found_role -> return $ L (noAnnSrcSpan loc_role) $ Just found_role
           Nothing         ->
             let nearby = fuzzyLookup (unpackFS role)
-                  (mapFst unpackFS possible_roles)
+                  (first unpackFS <$> possible_roles)
             in
             addFatalError $ mkPlainErrorMsgEnvelope loc_role $
               (PsErrIllegalRoleName role nearby)

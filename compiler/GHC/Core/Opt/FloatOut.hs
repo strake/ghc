@@ -26,7 +26,6 @@ import GHC.Types.Tickish
 import GHC.Core.Opt.SetLevels
 import GHC.Types.Unique.Supply ( UniqSupply )
 import GHC.Data.Bag
-import GHC.Utils.Misc
 import GHC.Data.Maybe
 import GHC.Utils.Outputable
 import GHC.Utils.Panic
@@ -745,7 +744,7 @@ wrapTick t (FB tops ceils defns)
     wrap_defns = mapBag wrap_one
 
     wrap_bind (NonRec binder rhs) = NonRec binder (maybe_tick rhs)
-    wrap_bind (Rec pairs)         = Rec (mapSnd maybe_tick pairs)
+    wrap_bind (Rec pairs)         = Rec ((fmap . fmap) maybe_tick pairs)
 
     wrap_one (FloatLet bind)      = FloatLet (wrap_bind bind)
     wrap_one (FloatCase e b c bs) = FloatCase (maybe_tick e) b c bs

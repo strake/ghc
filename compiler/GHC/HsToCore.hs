@@ -97,6 +97,7 @@ import GHC.Unit.Module.Deps
 import Data.List (partition)
 import Data.IORef
 import Data.Traversable (for)
+import Data.Bifunctor
 
 {-
 ************************************************************************
@@ -359,8 +360,7 @@ deSugarExpr hsc_env tc_expr = do
 addExportFlagsAndRules
     :: Backend -> NameSet -> NameSet -> [CoreRule]
     -> [(Id, t)] -> [(Id, t)]
-addExportFlagsAndRules bcknd exports keep_alive rules prs
-  = mapFst add_one prs
+addExportFlagsAndRules bcknd exports keep_alive rules = fmap (first add_one)
   where
     add_one bndr = add_rules name (add_export name bndr)
        where

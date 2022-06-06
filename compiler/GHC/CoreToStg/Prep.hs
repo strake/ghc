@@ -2262,7 +2262,7 @@ wrapTicks (Floats flag floats0) expr =
         wrap _ other                     = pprPanic "wrapTicks: unexpected float!"
                                              (ppr other)
         wrapBind t (NonRec binder rhs) = NonRec binder (mkTick t rhs)
-        wrapBind t (Rec pairs)         = Rec (mapSnd (mkTick t) pairs)
+        wrapBind t (Rec pairs)         = Rec ((fmap . fmap) (mkTick t) pairs)
 
 ------------------------------------------------------------------------------
 -- Numeric literals

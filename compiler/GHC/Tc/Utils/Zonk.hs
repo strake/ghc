@@ -1007,7 +1007,7 @@ zonk_cmd_top env (HsCmdTop (CmdTopTc stack_tys ty ids) cmd)
   = do new_cmd <- zonkLCmd env cmd
        new_stack_tys <- zonkTcTypeToTypeX env stack_tys
        new_ty <- zonkTcTypeToTypeX env ty
-       new_ids <- mapSndM (zonkExpr env) ids
+       new_ids <- (traverse . traverse) (zonkExpr env) ids
 
        massert (isLiftedTypeKind (tcTypeKind new_stack_tys))
          -- desugarer assumes that this is not representation-polymorphic...
@@ -1178,7 +1178,7 @@ zonkStmt env _ (TransStmt { trS_stmts = stmts, trS_bndrs = binderMap
     ; (env1, bind_op') <- zonkSyntaxExpr env bind_op
     ; bind_arg_ty' <- zonkTcTypeToTypeX env1 bind_arg_ty
     ; (env2, stmts') <- zonkStmts env1 zonkLExpr stmts
-    ; by'        <- fmapMaybeM (zonkLExpr env2) by
+    ; by'        <- traverse (zonkLExpr env2) by
     ; using'     <- zonkLExpr env2 using
 
     ; (env3, return_op') <- zonkSyntaxExpr env2 return_op

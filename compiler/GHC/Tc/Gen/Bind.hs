@@ -1533,7 +1533,7 @@ tcExtendTyVarEnvFromSig :: TcIdSigInst -> TcM a -> TcM a
 tcExtendTyVarEnvFromSig sig_inst thing_inside
   | TISI { sig_inst_skols = skol_prs, sig_inst_wcs = wcs } <- sig_inst
   = tcExtendNameTyVarEnv wcs $
-    tcExtendNameTyVarEnv (mapSnd binderVar skol_prs) $
+    tcExtendNameTyVarEnv ((fmap . fmap) binderVar skol_prs) $
     thing_inside
 
 tcExtendIdBinderStackForRhs :: [MonoBindInfo] -> TcM a -> TcM a

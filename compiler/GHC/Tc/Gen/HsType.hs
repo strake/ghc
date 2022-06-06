@@ -130,6 +130,7 @@ import GHC.Data.List.SetOps
 import GHC.Data.Maybe
 import GHC.Data.Bag( unitBag )
 
+import Data.Bifunctor ( first )
 import Data.Function ( on )
 import Data.List.NonEmpty as NE( NonEmpty(..), nubBy )
 import Data.List ( find, mapAccumL )
@@ -1059,7 +1060,7 @@ tc_infer_hs_type _ (XHsType ty)
                        | ATyVar nm tv <- nonDetNameEnvElts (tcl_env env) ]
            subst = mkTvSubst
                      (mkInScopeSetList $ map snd subst_prs)
-                     (listToUFM_Directly $ map (liftSnd mkTyVarTy) subst_prs)
+                     (listToUFM_Directly $ map (fmap mkTyVarTy) subst_prs)
            ty' = substTy subst ty
        return (ty', tcTypeKind ty')
 
@@ -3227,14 +3228,14 @@ bindExplicitTKBndrs_Q_Tv
     -> TcM ([TcTyVar], a)
 -- These do not clone: see Note [Cloning for type variable binders]
 bindExplicitTKBndrs_Q_Skol skol_info ctxt_kind hs_bndrs thing_inside
-  = liftFstM binderVars $
+  = (fmap . first) binderVars $
     bindExplicitTKBndrsX (smVanilla { sm_clone = False, sm_parent = True
                                     , sm_kind = ctxt_kind, sm_tvtv = SMDSkolemTv skol_info })
                          hs_bndrs thing_inside
     -- sm_clone=False: see Note [Cloning for type variable binders]
 
 bindExplicitTKBndrs_Q_Tv  ctxt_kind hs_bndrs thing_inside
-  = liftFstM binderVars $
+  = (fmap . first) binderVars $
     bindExplicitTKBndrsX (smVanilla { sm_clone = False, sm_parent = True
                                     , sm_tvtv = SMDTyVarTv, sm_kind = ctxt_kind })
                          hs_bndrs thing_inside
@@ -3995,7 +3996,7 @@ tcHsPartialSigType ctxt sig_ty
        -- Zonk, so that any nested foralls can "see" their occurrences
        -- See Note [Checking partial type signatures], and in particular
        -- Note [Levels for wildcards]
-       ; tv_prs <- mapSndM zonkInvisTVBinder (tv_prs ++ tv_prs')
+       ; tv_prs <- (traverse . traverse) zonkInvisTVBinder (tv_prs ++ tv_prs')
        ; theta  <- mapM    zonkTcType        (theta ++ theta')
        ; tau    <- zonkTcType                tau
 

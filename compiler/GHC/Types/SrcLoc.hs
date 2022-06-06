@@ -130,7 +130,7 @@ import Data.Data
 import Data.List (sortBy, intercalate)
 import Data.Function (on)
 import qualified Data.Map as Map
-import qualified Data.Semigroup
+import qualified Data.Semigroup as S
 
 {-
 ************************************************************************
@@ -639,7 +639,7 @@ srcSpanToRealSrcSpan _ = Nothing
 -- end point.
 instance Ord RealSrcSpan where
   a `compare` b =
-     (realSrcSpanStart a `compare` realSrcSpanStart b) `thenCmp`
+     (realSrcSpanStart a `compare` realSrcSpanStart b) S.<>
      (realSrcSpanEnd   a `compare` realSrcSpanEnd   b)
 
 instance Show RealSrcLoc where
@@ -823,8 +823,7 @@ leftmost_smallest, leftmost_largest, rightmost_smallest :: SrcSpan -> SrcSpan ->
 rightmost_smallest = compareSrcSpanBy (flip compare)
 leftmost_smallest = compareSrcSpanBy compare
 leftmost_largest = compareSrcSpanBy $ \a b ->
-  (realSrcSpanStart a `compare` realSrcSpanStart b)
-    `thenCmp`
+  (realSrcSpanStart a `compare` realSrcSpanStart b) S.<>
   (realSrcSpanEnd b `compare` realSrcSpanEnd a)
 
 compareSrcSpanBy :: (RealSrcSpan -> RealSrcSpan -> Ordering) -> SrcSpan -> SrcSpan -> Ordering

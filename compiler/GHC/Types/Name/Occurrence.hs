@@ -115,6 +115,7 @@ import GHC.Utils.Binary
 import Control.DeepSeq
 import Data.Char
 import Data.Data
+import qualified Data.Semigroup as S
 
 {-
 ************************************************************************
@@ -246,8 +247,7 @@ instance Eq OccName where
 
 instance Ord OccName where
         -- Compares lexicographically, *not* by Unique of the string
-    compare (OccName sp1 s1) (OccName sp2 s2)
-        = (s1  `lexicalCompareFS` s2) `thenCmp` (sp1 `compare` sp2)
+    compare (OccName sp1 s1) (OccName sp2 s2) = lexicalCompareFS s1 s2 S.<> compare sp1 sp2
 
 instance Data OccName where
   -- don't traverse?
