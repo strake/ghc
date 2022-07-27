@@ -2886,6 +2886,7 @@ data PV_Accum =
     }
 
 data PV_Result a = PV_Ok PV_Accum a | PV_Failed PV_Accum
+  deriving (Foldable, Functor, Traversable)
 
 -- During parsing, we make use of several monadic effects: reporting parse errors,
 -- accumulating warnings, adding API annotations, and checking for extensions. These
@@ -2907,9 +2908,7 @@ data PV_Result a = PV_Ok PV_Accum a | PV_Failed PV_Accum
 --   abParser :: forall x. DisambAB x => P (PV x)
 --
 newtype PV a = PV { unPV :: PV_Context -> PV_Accum -> PV_Result a }
-
-instance Functor PV where
-  fmap = liftM
+  deriving (Functor)
 
 instance Applicative PV where
   pure a = a `seq` PV (\_ acc -> PV_Ok acc a)

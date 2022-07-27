@@ -195,21 +195,11 @@ mapOL' f (Two b1 b2) = let !b1' = mapOL' f b1
 mapOL' f (Many xs)   = Many $! strictMap f xs
 
 foldrOL :: (a->b->b) -> b -> OrdList a -> b
-foldrOL _ z None        = z
-foldrOL k z (One x)     = k x z
-foldrOL k z (Cons x xs) = k x (foldrOL k z xs)
-foldrOL k z (Snoc xs x) = foldrOL k (k x z) xs
-foldrOL k z (Two b1 b2) = foldrOL k (foldrOL k z b2) b1
-foldrOL k z (Many xs)   = foldr k z xs
+foldrOL = foldr
 
 -- | Strict left fold.
 foldlOL :: (b->a->b) -> b -> OrdList a -> b
-foldlOL _ z None        = z
-foldlOL k z (One x)     = k z x
-foldlOL k z (Cons x xs) = let !z' = (k z x) in foldlOL k z' xs
-foldlOL k z (Snoc xs x) = let !z' = (foldlOL k z xs) in k z' x
-foldlOL k z (Two b1 b2) = let !z' = (foldlOL k z b1) in foldlOL k z' b2
-foldlOL k z (Many xs)   = foldl' k z xs
+foldlOL = foldl'
 
 toOL :: [a] -> OrdList a
 toOL [] = None

@@ -66,9 +66,7 @@ runStream st = runStreamInternal st pure Done
 data StreamS m a b = Yield a (StreamS m a b)
                    | Done b
                    | Effect (m (StreamS m a b))
-
-instance Monad m => Functor (StreamS m a) where
-  fmap = liftM
+  deriving (Functor)
 
 instance Monad m => Applicative (StreamS m a) where
   pure = Done

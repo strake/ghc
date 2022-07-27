@@ -34,7 +34,6 @@ import Data.Data
 import Data.Maybe( mapMaybe )
 import Data.List ( partition )
 import Data.List.NonEmpty ( NonEmpty(..) )
-import qualified Data.Foldable as Foldable
 import qualified Data.Semigroup ( (<>) )
 
 infixr 3 `consBag`
@@ -45,7 +44,7 @@ data Bag a
   | UnitBag a
   | TwoBags (Bag a) (Bag a) -- INVARIANT: neither branch is empty
   | ListBag (NonEmpty a)
-  deriving (Functor)
+  deriving (Functor, Traversable)
 
 emptyBag :: Bag a
 emptyBag = EmptyBag
@@ -221,7 +220,8 @@ instance Data a => Data (Bag a) where
   dataTypeOf _ = mkNoRepType "Bag"
   dataCast1 x  = gcast1 x
 
-instance Foldable.Foldable Bag where
+-- Alas, we must write this out to override `null`.
+instance Foldable Bag where
   foldr _ z EmptyBag        = z
   foldr k z (UnitBag x)     = k x z
   foldr k z (TwoBags b1 b2) = foldr k (foldr k z b2) b1
@@ -240,12 +240,6 @@ instance Foldable.Foldable Bag where
   null = \ case
       EmptyBag -> True
       _ -> False
-
-instance Traversable Bag where
-  traverse _ EmptyBag        = pure EmptyBag
-  traverse f (UnitBag x)     = UnitBag <$> f x
-  traverse f (TwoBags b1 b2) = TwoBags <$> traverse f b1 <*> traverse f b2
-  traverse f (ListBag xs)    = ListBag <$> traverse f xs
 
 instance IsList (Bag a) where
   type Item (Bag a) = a

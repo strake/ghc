@@ -2446,9 +2446,7 @@ data ALRLayout = ALRLayoutLet
 
 -- | The parsing monad, isomorphic to @StateT PState Maybe@.
 newtype P a = P { unP :: PState -> ParseResult a }
-
-instance Functor P where
-  fmap = liftM
+  deriving (Functor)
 
 instance Applicative P where
   pure = returnP
