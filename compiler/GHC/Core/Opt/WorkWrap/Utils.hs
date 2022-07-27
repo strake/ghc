@@ -156,10 +156,6 @@ type WwResult
      Id -> CoreExpr,        -- Wrapper body, lacking only the worker Id
      CoreExpr -> CoreExpr)  -- Worker body, lacking the original function rhs
 
-nop_fn :: CoreExpr -> CoreExpr
-nop_fn body = body
-
-
 mkWwBodies :: WwOpts
            -> Id             -- ^ The original function
            -> [Var]          -- ^ Manifest args of original function
@@ -810,7 +806,7 @@ mkWWstr opts args str_marks
   = -- pprTrace "mkWWstr" (ppr args) $
     go args str_marks
   where
-    go [] _ = return (badWorker, [], nop_fn, [])
+    go [] _ = return (badWorker, [], id, [])
     go (arg : args) (str:strs)
       = do { (useful1, args1, wrap_fn1, wrap_arg)  <- mkWWstr_one opts arg str
            ; (useful2, args2, wrap_fn2, wrap_args) <- go args strs
@@ -842,7 +838,7 @@ mkWWstr_one opts arg str_mark =
          -- We can't always handle absence for arbitrary
          -- unlifted types, so we need to choose just the cases we can
          -- (that's what mkAbsentFiller does)
-      -> return (goodWorker, [], nop_fn, absent_filler)
+      -> return (goodWorker, [], id, absent_filler)
       | otherwise -> do_nothing
 
     DoUnbox dcpc -> -- pprTrace "mkWWstr_one:1" (ppr (dcpc_dc dcpc) <+> ppr (dcpc_tc_args dcpc) $$ ppr (dcpc_args dcpc)) $
@@ -855,7 +851,7 @@ mkWWstr_one opts arg str_mark =
       , not (isUnliftedType arg_ty) -- Already unlifted!
         -- NB: function arguments have a fixed RuntimeRep,
         -- so it's OK to call isUnliftedType here
-      -> return  (goodWorker, [(arg, MarkedStrict)], nop_fn, varToCoreExpr arg )
+      -> return  (goodWorker, [(arg, MarkedStrict)], id, varToCoreExpr arg )
 
       | otherwise -> do_nothing
 
@@ -865,7 +861,7 @@ mkWWstr_one opts arg str_mark =
     arg_dmd    = idDemandInfo arg
     arg_str    | isTyVar arg = NotMarkedStrict -- Type args don't get stricness marks
                | otherwise   = str_mark
-    do_nothing = return (badWorker, [(arg,arg_str)], nop_fn, varToCoreExpr arg)
+    do_nothing = return (badWorker, [(arg,arg_str)], id, varToCoreExpr arg)
 
 unbox_one_arg :: WwOpts
               -> Var-> DataConPatContext Demand
@@ -1332,11 +1328,11 @@ mkWWcpr_entry
   -> Type                              -- function body
   -> Cpr                               -- CPR analysis results
   -> UniqSM (Bool,            -- Is w/w'ing useful?
-             CoreExpr -> CoreExpr,     -- New wrapper. 'nop_fn' if not useful
-             CoreExpr -> CoreExpr)     -- New worker.  'nop_fn' if not useful
+             CoreExpr -> CoreExpr,     -- New wrapper. 'id' if not useful
+             CoreExpr -> CoreExpr)     -- New worker.  'id' if not useful
 -- ^ Entrypoint to CPR W/W. See Note [Worker/wrapper for CPR] for an overview.
 mkWWcpr_entry opts body_ty body_cpr
-  | not (wo_cpr_anal opts) = return (badWorker, nop_fn, nop_fn)
+  | not (wo_cpr_anal opts) = return (badWorker, id, id)
   | otherwise = do
     -- Part (1)
     res_bndr <- mk_res_bndr body_ty
@@ -1353,7 +1349,7 @@ mkWWcpr_entry opts body_ty body_cpr
     let wrap_fn      = unbox_transit_tup rebuilt_result                 -- 3 2
         work_fn body = bind_res_bndr body (work_unpack_res transit_tup) -- 1 2 3
     return $ if not useful
-                then (badWorker, nop_fn, nop_fn)
+                then (badWorker, id, id)
                 else (goodWorker, wrap_fn, work_fn)
 
 -- | Part (1) of Note [Worker/wrapper for CPR].
@@ -1369,7 +1365,7 @@ mk_res_bndr body_ty = do
 --   1. A Bool capturing whether the transformation did anything useful.
 --   2. The list of transit variables (see the Note).
 --   3. The result builder expression for the wrapper.  The original case binder if not useful.
---   4. The result unpacking expression for the worker. 'nop_fn' if not useful.
+--   4. The result unpacking expression for the worker. 'id' if not useful.
 type CprWwResultOne  = (Bool, OrdList Var,  CoreExpr , CoreExpr -> CoreExpr)
 type CprWwResultMany = (Bool, OrdList Var, [CoreExpr], CoreExpr -> CoreExpr)
 
@@ -1377,7 +1373,7 @@ mkWWcpr :: WwOpts -> [Id] -> [Cpr] -> UniqSM CprWwResultMany
 mkWWcpr _opts vars []   =
   -- special case: No CPRs means all top (for example from FlatConCpr),
   -- hence stop WW.
-  return (badWorker, toOL vars, map varToCoreExpr vars, nop_fn)
+  return (badWorker, toOL vars, map varToCoreExpr vars, id)
 mkWWcpr opts  vars cprs = do
   -- No existentials in 'vars'. 'canUnboxResult' should have checked that.
   massertPpr (not (any isTyVar vars)) (ppr vars $$ ppr cprs)
@@ -1387,7 +1383,7 @@ mkWWcpr opts  vars cprs = do
   return ( or usefuls
          , concatOL varss
          , rebuilt_results
-         , foldl' (.) nop_fn work_unpack_ress )
+         , foldl' (.) id work_unpack_ress )
 
 mkWWcpr_one :: WwOpts -> Id -> Cpr -> UniqSM CprWwResultOne
 -- ^ See if we want to unbox the result and hand off to 'unbox_one_result'.
@@ -1396,7 +1392,7 @@ mkWWcpr_one opts res_bndr cpr
   , DoUnbox dcpc <- canUnboxResult (wo_fam_envs opts) (idType res_bndr) cpr
   = unbox_one_result opts res_bndr dcpc
   | otherwise
-  = return (badWorker, unitOL res_bndr, varToCoreExpr res_bndr, nop_fn)
+  = return (badWorker, unitOL res_bndr, varToCoreExpr res_bndr, id)
 
 unbox_one_result
   :: WwOpts -> Id -> DataConPatContext Cpr -> UniqSM CprWwResultOne
@@ -1425,7 +1421,7 @@ unbox_one_result opts res_bndr
   -- Don't try to WW an unboxed tuple return type when there's nothing inside
   -- to unbox further.
   return $ if isUnboxedTupleDataCon dc && not nested_useful
-              then ( badWorker, unitOL res_bndr, Var res_bndr, nop_fn )
+              then ( badWorker, unitOL res_bndr, Var res_bndr, id )
               else ( goodWorker
                    , transit_vars
                    , rebuilt_result
