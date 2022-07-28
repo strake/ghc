@@ -62,7 +62,7 @@ numbered on the fly.
 
 {-# SPECIALIZE lkG :: Key CoreMapX     -> CoreMapG a     -> Maybe a #-}
 {-# SPECIALIZE xtG :: Key CoreMapX     -> XT a -> CoreMapG a -> CoreMapG a #-}
-{-# SPECIALIZE mapG :: (a -> b) -> CoreMapG a     -> CoreMapG b #-}
+{-# SPECIALIZE fmap :: (a -> b) -> CoreMapG a     -> CoreMapG b #-}
 {-# SPECIALIZE fdG :: (a -> b -> b) -> CoreMapG a     -> b -> b #-}
 
 
@@ -108,6 +108,7 @@ See also Note [Empty case alternatives] in GHC.Core.
 -- | @CoreMap a@ is a map from 'CoreExpr' to @a@.  If you are a client, this
 -- is the type you want.
 newtype CoreMap a = CoreMap (CoreMapG a)
+  deriving (Foldable, Functor)
 
 instance TrieMap CoreMap where
     type Key CoreMap = CoreExpr
@@ -115,7 +116,6 @@ instance TrieMap CoreMap where
     lookupTM k (CoreMap m) = lookupTM (deBruijnize k) m
     alterTM k f (CoreMap m) = CoreMap (alterTM (deBruijnize k) f m)
     foldTM k (CoreMap m) = foldTM k m
-    mapTM f (CoreMap m) = CoreMap (mapTM f m)
     filterTM f (CoreMap m) = CoreMap (filterTM f m)
 
 -- | @CoreMapG a@ is a map from @DeBruijn CoreExpr@ to @a@.  The extended
@@ -139,7 +139,7 @@ data CoreMapX a
        , cm_letr  :: ListMap CoreMapG (CoreMapG (ListMap BndrMap a))
        , cm_case  :: CoreMapG (ListMap AltMap a)
        , cm_ecase :: CoreMapG (TypeMapG a)    -- Note [Empty case alternatives]
-     }
+     } deriving (Functor)
 
 instance Eq (DeBruijn CoreExpr) where
     (==) = eqDeBruijnExpr
@@ -254,24 +254,9 @@ instance TrieMap CoreMapX where
    lookupTM = lkE
    alterTM  = xtE
    foldTM   = fdE
-   mapTM    = mapE
    filterTM = ftE
 
 --------------------------
-mapE :: (a->b) -> CoreMapX a -> CoreMapX b
-mapE f (CM { cm_var = cvar, cm_lit = clit
-           , cm_co = cco, cm_type = ctype
-           , cm_cast = ccast , cm_app = capp
-           , cm_lam = clam, cm_letn = cletn
-           , cm_letr = cletr, cm_case = ccase
-           , cm_ecase = cecase, cm_tick = ctick })
-  = CM { cm_var = mapTM f cvar, cm_lit = mapTM f clit
-       , cm_co = mapTM f cco, cm_type = mapTM f ctype
-       , cm_cast = mapTM (mapTM f) ccast, cm_app = mapTM (mapTM f) capp
-       , cm_lam = mapTM (mapTM f) clam, cm_letn = mapTM (mapTM (mapTM f)) cletn
-       , cm_letr = mapTM (mapTM (mapTM f)) cletr, cm_case = mapTM (mapTM f) ccase
-       , cm_ecase = mapTM (mapTM f) cecase, cm_tick = mapTM (mapTM f) ctick }
-
 ftE :: (a->Bool) -> CoreMapX a -> CoreMapX a
 ftE f (CM { cm_var = cvar, cm_lit = clit
           , cm_co = cco, cm_type = ctype
@@ -281,10 +266,10 @@ ftE f (CM { cm_var = cvar, cm_lit = clit
           , cm_ecase = cecase, cm_tick = ctick })
   = CM { cm_var = filterTM f cvar, cm_lit = filterTM f clit
        , cm_co = filterTM f cco, cm_type = filterTM f ctype
-       , cm_cast = mapTM (filterTM f) ccast, cm_app = mapTM (filterTM f) capp
-       , cm_lam = mapTM (filterTM f) clam, cm_letn = mapTM (mapTM (filterTM f)) cletn
-       , cm_letr = mapTM (mapTM (filterTM f)) cletr, cm_case = mapTM (filterTM f) ccase
-       , cm_ecase = mapTM (filterTM f) cecase, cm_tick = mapTM (filterTM f) ctick }
+       , cm_cast = fmap (filterTM f) ccast, cm_app = fmap (filterTM f) capp
+       , cm_lam = fmap (filterTM f) clam, cm_letn = fmap (fmap (filterTM f)) cletn
+       , cm_letr = fmap (fmap (filterTM f)) cletr, cm_case = fmap (filterTM f) ccase
+       , cm_ecase = fmap (filterTM f) cecase, cm_tick = fmap (filterTM f) ctick }
 
 --------------------------
 lookupCoreMap :: CoreMap a -> CoreExpr -> Maybe a
@@ -393,6 +378,7 @@ data AltMap a   -- A single alternative
   = AM { am_deflt :: CoreMapG a
        , am_data  :: DNameEnv (CoreMapG a)
        , am_lit   :: LiteralMap (CoreMapG a) }
+  deriving (Foldable, Functor)
 
 instance TrieMap AltMap where
    type Key AltMap = CoreAlt
@@ -402,7 +388,6 @@ instance TrieMap AltMap where
    lookupTM = lkA emptyCME
    alterTM  = xtA emptyCME
    foldTM   = fdA
-   mapTM    = mapA
    filterTM = ftA
 
 instance Eq (DeBruijn CoreAlt) where
@@ -416,17 +401,11 @@ instance Eq (DeBruijn CoreAlt) where
           D (extendCMEs env1 bs1) rhs1 == D (extendCMEs env2 bs2) rhs2
     go _ _ = False
 
-mapA :: (a->b) -> AltMap a -> AltMap b
-mapA f (AM { am_deflt = adeflt, am_data = adata, am_lit = alit })
-  = AM { am_deflt = mapTM f adeflt
-       , am_data = mapTM (mapTM f) adata
-       , am_lit = mapTM (mapTM f) alit }
-
 ftA :: (a->Bool) -> AltMap a -> AltMap a
 ftA f (AM { am_deflt = adeflt, am_data = adata, am_lit = alit })
   = AM { am_deflt = filterTM f adeflt
-       , am_data = mapTM (filterTM f) adata
-       , am_lit = mapTM (filterTM f) alit }
+       , am_data = fmap (filterTM f) adata
+       , am_lit = fmap (filterTM f) alit }
 
 lkA :: CmEnv -> CoreAlt -> AltMap a -> Maybe a
 lkA env (Alt DEFAULT      _  rhs) = am_deflt >.> lkG (D env rhs)
