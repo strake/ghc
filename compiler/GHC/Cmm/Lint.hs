@@ -6,6 +6,7 @@
 --
 -----------------------------------------------------------------------------
 {-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs #-}
 module GHC.Cmm.Lint (
@@ -25,7 +26,10 @@ import GHC.Cmm.Liveness
 import GHC.Cmm.Switch (switchTargetsToList)
 import GHC.Utils.Outputable
 
-import Control.Monad (ap, unless)
+import Control.Monad (unless)
+import Control.Monad.Trans.Except (ExceptT (..), Except)
+import Control.Monad.Trans.Reader (ReaderT (..))
+import Data.Functor.Identity (Identity (..))
 
 -- Things to check:
 --     - invariant on CmmBlock in GHC.Cmm.Expr (see comment there)
@@ -260,17 +264,8 @@ checkCond platform expr
 -- just a basic error monad:
 
 newtype CmmLint a = CmmLint { unCL :: Platform -> Either SDoc a }
-    deriving (Functor)
-
-instance Applicative CmmLint where
-      pure a = CmmLint (\_ -> Right a)
-      (<*>) = ap
-
-instance Monad CmmLint where
-  CmmLint m >>= k = CmmLint $ \platform ->
-                                case m platform of
-                                Left e -> Left e
-                                Right a -> unCL (k a) platform
+  deriving stock (Functor)
+  deriving (Applicative, Monad) via ReaderT Platform (Except SDoc)
 
 getPlatform :: CmmLint Platform
 getPlatform = CmmLint $ \platform -> Right platform
