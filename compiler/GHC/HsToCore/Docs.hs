@@ -7,6 +7,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE BangPatterns #-}
+{-# OPTIONS_GHC -Wno-incomplete-record-updates #-}
 
 module GHC.HsToCore.Docs where
 

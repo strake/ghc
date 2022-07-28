@@ -3111,10 +3111,12 @@ tidySigSkol env cx ty tv_prs
       where
         (env', tv') = tidy_tv_bndr env tv
 
-    tidy_ty env ty@(FunTy InvisArg w arg res) -- Look under  c => t
-      = ty { ft_mult = tidy_ty env w,
-             ft_arg = tidyType env arg,
-             ft_res = tidy_ty env res }
+    tidy_ty env FunTy { ft_af = InvisArg, ft_mult = w, ft_arg = arg, ft_res = res } -- Look under  c => t
+      = FunTy
+      { ft_af = InvisArg
+      , ft_mult = tidy_ty env w
+      , ft_arg = tidyType env arg
+      , ft_res = tidy_ty env res }
 
     tidy_ty env ty = tidyType env ty
 
@@ -3315,11 +3317,11 @@ expandSynonymsToMatch ty1 ty2 = (ty1_ret, ty2_ret)
           (t1_2', t2_2') = go t1_2 t2_2
        in (mkAppTy t1_1' t1_2', mkAppTy t2_1' t2_2')
 
-    go ty1@(FunTy _ w1 t1_1 t1_2) ty2@(FunTy _ w2 t2_1 t2_2) | w1 `eqType` w2 =
+    go (FunTy af1 w1 t1_1 t1_2) (FunTy af2 w2 t2_1 t2_2) | w1 `eqType` w2 =
       let (t1_1', t2_1') = go t1_1 t2_1
           (t1_2', t2_2') = go t1_2 t2_2
-       in ( ty1 { ft_arg = t1_1', ft_res = t1_2' }
-          , ty2 { ft_arg = t2_1', ft_res = t2_2' })
+       in ( FunTy af1 w1 t1_1' t1_2'
+          , FunTy af2 w2 t2_1' t2_2' )
 
     go (ForAllTy b1 t1) (ForAllTy b2 t2) =
       -- NOTE: We may have a bug here, but we just can't reproduce it easily.

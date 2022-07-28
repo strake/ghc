@@ -782,6 +782,7 @@ ppr_sig (CompleteMatchSig (_, src) cs mty)
         GhcRn -> ppr n
         GhcTc -> ppr n
 ppr_sig (XSig x) = case ghcPass @p of
+                      GhcPs -> dataConCantHappen x
                       GhcRn | IdSig id <- x -> pprVarSig [id] (ppr (varType id))
                       GhcTc | IdSig id <- x -> pprVarSig [id] (ppr (varType id))
 
@@ -801,7 +802,8 @@ hsSigDoc (FixSig {})            = text "fixity declaration"
 hsSigDoc (MinimalSig {})        = text "MINIMAL pragma"
 hsSigDoc (SCCFunSig {})         = text "SCC pragma"
 hsSigDoc (CompleteMatchSig {})  = text "COMPLETE pragma"
-hsSigDoc (XSig _)               = case ghcPass @p of
+hsSigDoc (XSig x)               = case ghcPass @p of
+                                    GhcPs -> dataConCantHappen x
                                     GhcRn -> text "id signature"
                                     GhcTc -> text "id signature"
 

@@ -6,6 +6,7 @@
 
 
 {-# LANGUAGE MultiWayIf #-}
+{-# OPTIONS_GHC -Wno-incomplete-record-updates #-}
 
 -- | Functions for inferring (and simplifying) the context for derived instances.
 module GHC.Tc.Deriv.Infer

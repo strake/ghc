@@ -7,6 +7,7 @@
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE TypeApplications           #-}
 {-# LANGUAGE TypeFamilies               #-}
+{-# OPTIONS_GHC -Wno-incomplete-record-updates #-}
 
 {- | This module implements 'addHaddockToModule', which inserts Haddock
     comments accumulated during parsing into the AST (#17544).

@@ -50,6 +50,11 @@ Executable ghc
     GHC-Options: -Wall
                  -Wnoncanonical-monad-instances
                  -Wnoncanonical-monoid-instances
+                 -Werror=incomplete-patterns
+                 -Werror=incomplete-uni-patterns
+                 -Werror=incomplete-record-updates
+                 -Werror=missing-fields
+                 -Werror=missing-methods
                  -rtsopts=all
                  "-with-rtsopts=-K512M -H -I5 -T"
 
