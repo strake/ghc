@@ -1785,7 +1785,7 @@ instance DisambECP (HsExpr GhcPs) where
     return $ L (noAnnSrcSpan l) (ExplicitList (EpAnn (spanAsAnchor l) anns cs) xs)
   mkHsSplicePV sp@(L l _) = do
     cs <- getCommentsFor l
-    return $ mapLoc (HsUntypedSplice (EpAnn (spanAsAnchor l) NoEpAnns cs)) sp
+    return $ fmap (HsUntypedSplice (EpAnn (spanAsAnchor l) NoEpAnns cs)) sp
   mkHsRecordPV opts l lrec a (fbinds, ddLoc) anns = do
     cs <- getCommentsFor l
     r <- mkRecConstrOrUpdate opts a lrec (fbinds, ddLoc) (EpAnn (spanAsAnchor l) anns cs)
@@ -2810,7 +2810,7 @@ mkModuleImpExp anns (L l specname) subs = do
     ieNameFromSpec (ImpExpQcType r (L l n)) = IEType r (L l n)
     ieNameFromSpec (ImpExpQcWildcard)  = panic "ieName got wildcard"
 
-    wrapped = map (mapLoc ieNameFromSpec)
+    wrapped = map (fmap ieNameFromSpec)
 
 mkTypeImpExp :: LocatedN RdrName   -- TcCls or Var name space
              -> P (LocatedN RdrName)

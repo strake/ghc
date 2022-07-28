@@ -353,7 +353,7 @@ zonkEnvIds (ZonkEnv { ze_id_env = id_env})
   -- immediately by creating a TypeEnv
 
 zonkLIdOcc :: ZonkEnv -> LocatedN TcId -> LocatedN Id
-zonkLIdOcc env = mapLoc (zonkIdOcc env)
+zonkLIdOcc env = fmap (zonkIdOcc env)
 
 zonkIdOcc :: ZonkEnv -> TcId -> Id
 -- Ids defined in this module should be in the envt;

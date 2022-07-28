@@ -84,9 +84,6 @@ module GHC.Types.SrcLoc (
         pprLocated,
         pprLocatedAlways,
 
-        -- ** Modifying Located
-        mapLoc,
-
         -- ** Combining and comparing Located values
         eqLocated, cmpLocated, cmpBufSpan,
         combineLocs, addCLoc,
@@ -94,8 +91,6 @@ module GHC.Types.SrcLoc (
         spans, isSubspanOf, isRealSubspanOf,
         sortLocated, sortRealLocated,
         lookupSrcLoc, lookupSrcSpan,
-
-        liftL,
 
         -- * Parser locations
         PsLoc(..),
@@ -741,9 +736,6 @@ data GenLocated l e = L l e
 type Located = GenLocated SrcSpan
 type RealLocated = GenLocated RealSrcSpan
 
-mapLoc :: (a -> b) -> GenLocated l a -> GenLocated l b
-mapLoc = fmap
-
 unLoc :: GenLocated l e -> e
 unLoc (L _ e) = e
 
@@ -853,11 +845,6 @@ isRealSubspanOf src parent
     | srcSpanFile parent /= srcSpanFile src = False
     | otherwise = realSrcSpanStart parent <= realSrcSpanStart src &&
                   realSrcSpanEnd parent   >= realSrcSpanEnd src
-
-liftL :: Monad m => (a -> m b) -> GenLocated l a -> m (GenLocated l b)
-liftL f (L loc a) = do
-  a' <- f a
-  return $ L loc a'
 
 getRealSrcSpan :: RealLocated a -> RealSrcSpan
 getRealSrcSpan (L l _) = l
