@@ -69,6 +69,7 @@ import qualified GHC.LanguageExtensions as LangExt
 import Control.Monad
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.Reader
+import Data.Foldable (toList)
 import Data.List (partition, find)
 
 {-
@@ -236,12 +237,12 @@ tcDeriving deriv_infos deriv_decls
 
         ; (inst_info, rn_aux_binds, rn_dus) <- renameDeriv inst_infos aux_binds
 
-        ; unless (isEmptyBag inst_info) $
+        ; unless (null inst_info) $
              liftIO (putDumpFileMaybe logger Opt_D_dump_deriv "Derived instances"
                         FormatHaskell
                         (ddump_deriving inst_info rn_aux_binds famInsts))
 
-        ; gbl_env <- tcExtendLocalInstEnv (map iSpec (bagToList inst_info))
+        ; gbl_env <- tcExtendLocalInstEnv (map iSpec (toList inst_info))
                                           getGblEnv
         ; let all_dus = rn_dus `plusDU` usesOnly (NameSet.mkFVs $ concat fvs)
         ; return (addTcgDUs gbl_env all_dus, inst_info, rn_aux_binds) } }
@@ -251,7 +252,7 @@ tcDeriving deriv_infos deriv_decls
                    -> SDoc
     ddump_deriving inst_infos extra_binds famInsts
       =    hang (text "Derived class instances:")
-              2 (vcat (map (\i -> pprInstInfoDetails i $$ text "") (bagToList inst_infos))
+              2 (vcat (map (\i -> pprInstInfoDetails i $$ text "") (toList inst_infos))
                  $$ ppr extra_binds)
         $$ hangP (text "Derived type family instances:")
              (vcat (map pprRepTy famInsts))
@@ -289,8 +290,8 @@ renameDeriv inst_infos bagBinds
         -- Bring the extra deriving stuff into scope
         -- before renaming the instances themselves
         ; traceTc "rnd" (vcat (map (\i -> pprInstInfoDetails i $$ text "") inst_infos))
-        ; (aux_binds, aux_sigs) <- mapAndUnzipBagM return bagBinds
-        ; let aux_val_binds = ValBinds NoAnnSortKey aux_binds (bagToList aux_sigs)
+        ; let (aux_binds, aux_sigs) = unzip bagBinds
+        ; let aux_val_binds = ValBinds NoAnnSortKey aux_binds (toList aux_sigs)
         -- Importantly, we use rnLocalValBindsLHS, not rnTopBindsLHS, to rename
         -- auxiliary bindings as if they were defined locally.
         -- See Note [Auxiliary binders] in GHC.Tc.Deriv.Generate.

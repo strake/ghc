@@ -53,6 +53,7 @@ import GHC.Types.Name
 import GHC.Utils.Outputable
 import GHC.Utils.Panic
 
+import Data.Foldable (toList)
 import Data.Function
 import Data.List (sortBy)
 import Data.Data (Data)
@@ -437,7 +438,7 @@ pprLHsBinds :: (OutputableBndrId idL, OutputableBndrId idR)
             => LHsBindsLR (GhcPass idL) (GhcPass idR) -> SDoc
 pprLHsBinds binds
   | isEmptyLHsBinds binds = empty
-  | otherwise = pprDeclList (map ppr (bagToList binds))
+  | otherwise = pprDeclList (map ppr (toList binds))
 
 pprLHsBindsForUser :: (OutputableBndrId idL,
                        OutputableBndrId idR,
@@ -455,7 +456,7 @@ pprLHsBindsForUser binds sigs
 
     decls :: [(SrcSpan, SDoc)]
     decls = [(locA loc, ppr sig)  | L loc sig <- sigs] ++
-            [(locA loc, ppr bind) | L loc bind <- bagToList binds]
+            [(locA loc, ppr bind) | L loc bind <- toList binds]
 
     sort_by_loc decls = sortBy (SrcLoc.leftmost_smallest `on` fst) decls
 
@@ -490,7 +491,7 @@ emptyLHsBinds :: LHsBindsLR (GhcPass idL) idR
 emptyLHsBinds = emptyBag
 
 isEmptyLHsBinds :: LHsBindsLR (GhcPass idL) idR -> Bool
-isEmptyLHsBinds = isEmptyBag
+isEmptyLHsBinds = null
 
 ------------
 plusHsValBinds :: HsValBinds (GhcPass a) -> HsValBinds (GhcPass a)

@@ -68,6 +68,7 @@ import GHC.Utils.Panic.Plain
 import GHC.Core.PatSyn
 import Control.Monad
 import GHC.HsToCore.Ticks (stripTicksTopHsExpr)
+import Data.Foldable ( toList )
 
 {-
 ************************************************************************
@@ -112,7 +113,7 @@ ds_val_bind :: (RecFlag, LHsBinds GhcTc) -> CoreExpr -> DsM CoreExpr
 -- a tuple and doing selections.
 -- Silently ignore INLINE and SPECIALISE pragmas...
 ds_val_bind (NonRecursive, hsbinds) body
-  | [L loc bind] <- bagToList hsbinds
+  | [L loc bind] <- toList hsbinds
         -- Non-recursive, non-overloaded bindings only come in ones
         -- ToDo: in some bizarre case it's conceivable that there
         --       could be dict binds in the 'binds'.  (See the notes
@@ -146,9 +147,9 @@ ds_val_bind (NonRecursive, hsbinds) body
 
 
 ds_val_bind (is_rec, binds) _body
-  | anyBag (isUnliftedHsBind . unLoc) binds  -- see Note [Strict binds checks] in GHC.HsToCore.Binds
+  | any (isUnliftedHsBind . unLoc) binds  -- see Note [Strict binds checks] in GHC.HsToCore.Binds
   = assert (isRec is_rec )
-    errDsCoreExpr $ DsRecBindsNotAllowedForUnliftedTys (bagToList binds)
+    errDsCoreExpr $ DsRecBindsNotAllowedForUnliftedTys (toList binds)
 
 -- Ordinary case for bindings; none should be unlifted
 ds_val_bind (is_rec, binds) body

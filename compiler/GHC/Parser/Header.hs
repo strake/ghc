@@ -22,8 +22,6 @@ where
 
 import GHC.Prelude
 
-import GHC.Data.Bag
-
 import GHC.Driver.Errors.Types -- Unfortunate, needed due to the fact we throw exceptions!
 
 import GHC.Parser.Errors.Types
@@ -55,6 +53,7 @@ import Control.Monad
 import System.IO
 import System.IO.Unsafe
 import Data.List (partition)
+import Data.Foldable (toList)
 import Data.Char (isSpace)
 import Text.ParserCombinators.ReadP (readP_to_S, gather)
 import Text.ParserCombinators.ReadPrec (readPrec_to_P)
@@ -176,7 +175,7 @@ getOptionsFromFile opts filename
                   (warns, opts) <- fmap (getOptions' opts)
                                (lazyGetToks opts' filename handle)
                   seqList opts
-                    $ seqList (bagToList $ getMessages warns)
+                    $ seqList (toList $ getMessages warns)
                     $ return (warns, opts))
     where -- We don't need to get haddock doc tokens when we're just
           -- getting the options from pragmas, and lazily lexing them

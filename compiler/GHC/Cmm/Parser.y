@@ -259,7 +259,7 @@ import GHC.Utils.Panic
 import GHC.Settings.Constants
 import GHC.Utils.Outputable
 import GHC.Types.Basic
-import GHC.Data.Bag     ( Bag, emptyBag, unitBag, isEmptyBag )
+import GHC.Data.Bag     ( Bag, emptyBag, unitBag )
 import GHC.Types.Var
 
 import Control.Monad

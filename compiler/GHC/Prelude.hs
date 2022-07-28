@@ -16,6 +16,7 @@ module GHC.Prelude
   (module X
   ,module Bits
   ,shiftL, shiftR
+  ,unzip
   ) where
 
 
@@ -47,7 +48,7 @@ NoImplicitPrelude. There are two motivations for this:
     extensions.
 -}
 
-import Prelude as X hiding ((<>))
+import Prelude as X hiding ((<>), unzip)
 import Data.Foldable as X (foldl')
 
 #if MIN_VERSION_base(4,16,0)
@@ -98,3 +99,6 @@ shiftR = Bits.shiftR
 shiftL = Bits.unsafeShiftL
 shiftR = Bits.unsafeShiftR
 #endif
+
+unzip :: Functor f => f (a, b) -> (f a, f b)
+unzip xs = (fst <$> xs, snd <$> xs)

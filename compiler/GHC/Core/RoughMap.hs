@@ -40,6 +40,7 @@ import GHC.Types.Name.Env
 
 import Control.Monad (join)
 import Data.Data (Data)
+import Data.Foldable ( toList )
 import GHC.Utils.Misc
 import Data.Bifunctor
 import GHC.Utils.Panic
@@ -310,7 +311,7 @@ emptyRM = RMEmpty
 
 -- | Order of result is deterministic.
 lookupRM :: [RoughMatchLookupTc] -> RoughMap a -> [a]
-lookupRM tcs rm = bagToList (fst $ lookupRM' tcs rm)
+lookupRM tcs rm = toList (fst $ lookupRM' tcs rm)
 
 
 -- | N.B. Returns a 'Bag' for matches, which allows us to avoid rebuilding all of the lists
@@ -332,7 +333,7 @@ lookupRM' (RML_KnownTc tc : tcs) rm  =
   let (common_m, common_u) = lookupRM' tcs (rm_unknown rm)
       (m, u) = maybe (emptyBag, []) (lookupRM' tcs) (lookupDNameEnv (rm_known rm) tc)
   in (rm_empty rm `unionBags` common_m `unionBags` m
-     , bagToList (rm_empty rm) ++ common_u ++ u)
+     , toList (rm_empty rm) ++ common_u ++ u)
 -- A RML_NoKnownTC does **not** match any KnownTC but can unify
 lookupRM' (RML_NoKnownTc : tcs)  rm      =
 
@@ -344,7 +345,7 @@ lookupRM' (RML_WildCard : tcs)    rm  =
   let (m, u) = bimap unionManyBags concat (mapAndUnzip (lookupRM' tcs) (eltsDNameEnv $ rm_known rm))
       (u_m, u_u) = lookupRM' tcs (rm_unknown rm)
   in (rm_empty rm `unionBags` u_m `unionBags` m
-     , bagToList (rm_empty rm) ++ u_u ++ u)
+     , toList (rm_empty rm) ++ u_u ++ u)
 
 unionRM :: RoughMap a -> RoughMap a -> RoughMap a
 unionRM RMEmpty a = a
@@ -386,7 +387,7 @@ filterRM pred rm =
 normalise :: RoughMap a -> RoughMap a
 normalise RMEmpty = RMEmpty
 normalise (RM empty known RMEmpty)
-  | isEmptyBag empty
+  | null empty
   , isEmptyDNameEnv known = RMEmpty
 normalise rm = rm
 

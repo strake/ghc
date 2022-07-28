@@ -53,6 +53,7 @@ import GHC.Types.Var.Set
 import Control.Monad
 import Control.Monad.Trans.Class  (lift)
 import Control.Monad.Trans.Reader (ask)
+import Data.Foldable              (toList)
 import Data.Function              (on)
 import Data.Functor.Classes       (liftEq)
 import Data.List                  (sortBy)
@@ -779,7 +780,7 @@ simplifyDeriv skol_info user_ctxt tvs theta
          vcat [ ppr tvs, ppr residual_simple, ppr good ]
 
        -- Return the good unsolved constraints (unskolemizing on the way out.)
-       ; let min_theta = mkMinimalBySCs id (bagToList good)
+       ; let min_theta = mkMinimalBySCs id (toList good)
              -- An important property of mkMinimalBySCs (used above) is that in
              -- addition to removing constraints that are made redundant by
              -- superclass relationships, it also removes _duplicate_

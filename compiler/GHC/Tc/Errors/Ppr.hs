@@ -72,7 +72,6 @@ import GHC.Unit.State (pprWithUnitState, UnitState)
 import GHC.Unit.Module
 import GHC.Unit.Module.Warnings  ( pprWarningTxtForMsg )
 
-import GHC.Data.Bag
 import GHC.Data.FastString
 import GHC.Data.List.SetOps ( nubOrdBy )
 import GHC.Data.Maybe
@@ -84,6 +83,7 @@ import qualified GHC.LanguageExtensions as LangExt
 
 import Data.List.NonEmpty (NonEmpty(..))
 import qualified Data.List.NonEmpty as NE
+import Data.Foldable      ( toList )
 import Data.Function (on)
 import Data.List ( groupBy, sortBy, tails
                  , partition, unfoldr )
@@ -267,7 +267,7 @@ instance Diagnostic TcRnMessage where
     TcRnRecursivePatternSynonym binds
       -> mkSimpleDecorated $
             hang (text "Recursive pattern synonym definition with following bindings:")
-               2 (vcat $ map pprLBind . bagToList $ binds)
+               2 (vcat $ map pprLBind . toList $ binds)
           where
             pprLoc loc = parens (text "defined at" <+> ppr loc)
             pprLBind :: CollectPass GhcRn => GenLocated (SrcSpanAnn' a) (HsBindLR GhcRn idR) -> SDoc

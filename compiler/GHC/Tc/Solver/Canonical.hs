@@ -59,7 +59,7 @@ import GHC.Types.Basic
 
 import qualified Data.Semigroup as S
 import Data.Bifunctor ( bimap )
-import Data.Foldable ( traverse_ )
+import Data.Foldable ( toList, traverse_ )
 
 {-
 ************************************************************************
@@ -1504,7 +1504,7 @@ can_eq_newtype_nc ev swapped ty1 ((gres, co1), ty1') ty2 ps_ty2
                      (mkReflRedn Representational ps_ty2)
        ; can_eq_nc False new_ev ReprEq ty1' ty1' ty2 ps_ty2 }
   where
-    gre_list = bagToList gres
+    gre_list = toList gres
 
 ---------
 -- ^ Decompose a type application.
@@ -1620,7 +1620,7 @@ canTyConApp ev eq_rel tc1 tys1 tc2 tys2
      -- See Note [Decomposing equality]
     can_decompose inerts
       =  isInjectiveTyCon tc1 (eqRelRole eq_rel)
-      || (ctEvFlavour ev /= Given && isEmptyBag (matchableGivens loc pred inerts))
+      || (ctEvFlavour ev /= Given && null (matchableGivens loc pred inerts))
 
 {-
 Note [Use canEqFailure in canDecomposableTyConApp]

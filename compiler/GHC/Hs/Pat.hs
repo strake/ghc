@@ -487,7 +487,7 @@ looksLazyPatBind :: HsBind GhcTc -> Bool
 looksLazyPatBind (PatBind { pat_lhs = p })
   = looksLazyLPat p
 looksLazyPatBind (XHsBindsLR (AbsBinds { abs_binds = binds }))
-  = anyBag (looksLazyPatBind . unLoc) binds
+  = any (looksLazyPatBind . unLoc) binds
 looksLazyPatBind _
   = False
 

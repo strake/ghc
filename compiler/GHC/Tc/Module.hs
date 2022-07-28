@@ -176,6 +176,7 @@ import GHC.Data.List.SetOps
 import GHC.Data.Bag
 import qualified GHC.Data.BooleanFormula as BF
 
+import Data.Foldable ( toList )
 import Data.Functor.Classes ( liftEq )
 import Data.List ( sortBy, sort )
 import Data.Ord
@@ -1557,7 +1558,7 @@ tcTopSrcDecls (HsGroup { hs_tyclds = tycl_decls,
                                  -- tcg_dus: see Note [Newtype constructor usage in foreign declarations]
 
         -- See Note [Newtype constructor usage in foreign declarations]
-        addUsedGREs (bagToList fo_gres) ;
+        addUsedGREs (toList fo_gres) ;
 
         return (tcg_env', tcl_env)
     }}}}}}
@@ -2690,7 +2691,7 @@ tcRnType hsc_env flexi normalise rdr_type
 
        -- Since all the wanteds are equalities, the returned bindings will be empty
        ; empty_binds <- simplifyTop wanted
-       ; massertPpr (isEmptyBag empty_binds) (ppr empty_binds)
+       ; massertPpr (null empty_binds) (ppr empty_binds)
 
        -- Do kind generalisation; see Note [Kind-generalise in tcRnType]
        ; kvs <- kindGeneralizeAll unkSkol kind

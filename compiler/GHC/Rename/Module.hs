@@ -72,6 +72,7 @@ import qualified GHC.LanguageExtensions as LangExt
 
 import Control.Monad
 import Control.Arrow ( first )
+import Data.Foldable ( toList )
 import Data.List ( mapAccumL )
 import qualified Data.List.NonEmpty as NE
 import Data.List.NonEmpty ( NonEmpty(..) )
@@ -470,7 +471,7 @@ checkCanonicalInstances cls poly_ty mbinds = do
     --
     checkCanonicalMonadInstances refURL
       | cls == applicativeClassName =
-          forM_ (bagToList mbinds) $ \(L loc mbind) -> setSrcSpanA loc $
+          forM_ (toList mbinds) $ \(L loc mbind) -> setSrcSpanA loc $
               case mbind of
                   FunBind { fun_id = L _ name
                           , fun_matches = mg }
@@ -485,7 +486,7 @@ checkCanonicalInstances cls poly_ty mbinds = do
                   _ -> return ()
 
       | cls == monadClassName =
-          forM_ (bagToList mbinds) $ \(L loc mbind) -> setSrcSpanA loc $
+          forM_ (toList mbinds) $ \(L loc mbind) -> setSrcSpanA loc $
               case mbind of
                   FunBind { fun_id = L _ name
                           , fun_matches = mg }
@@ -516,7 +517,7 @@ checkCanonicalInstances cls poly_ty mbinds = do
     --
     checkCanonicalMonoidInstances refURL
       | cls == semigroupClassName =
-          forM_ (bagToList mbinds) $ \(L loc mbind) -> setSrcSpanA loc $
+          forM_ (toList mbinds) $ \(L loc mbind) -> setSrcSpanA loc $
               case mbind of
                   FunBind { fun_id      = L _ name
                           , fun_matches = mg }
@@ -527,7 +528,7 @@ checkCanonicalInstances cls poly_ty mbinds = do
                   _ -> return ()
 
       | cls == monoidClassName =
-          forM_ (bagToList mbinds) $ \(L loc mbind) -> setSrcSpanA loc $
+          forM_ (toList mbinds) $ \(L loc mbind) -> setSrcSpanA loc $
               case mbind of
                   FunBind { fun_id = L _ name
                           , fun_matches = mg }

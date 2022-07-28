@@ -82,7 +82,7 @@ import GHC.Data.StringBuffer (atLine, hGetStringBuffer, len, lexemeToString)
 import GHC.Utils.Json
 
 import Data.Bifunctor
-import Data.Foldable    ( fold )
+import Data.Foldable    ( fold, toList )
 import GHC.Types.Hint
 
 {-
@@ -126,13 +126,13 @@ mkMessages = Messages . filterBag interesting
     interesting = (/=) SevIgnore . errMsgSeverity
 
 isEmptyMessages :: Messages e -> Bool
-isEmptyMessages (Messages msgs) = isEmptyBag msgs
+isEmptyMessages (Messages msgs) = null msgs
 
 singleMessage :: MsgEnvelope e -> Messages e
 singleMessage e = addMessage e emptyMessages
 
 instance Diagnostic e => Outputable (Messages e) where
-  ppr msgs = braces (vcat (map ppr_one (bagToList (getMessages msgs))))
+  ppr msgs = braces (vcat (map ppr_one (toList (getMessages msgs))))
      where
        ppr_one :: MsgEnvelope e -> SDoc
        ppr_one envelope = pprDiagnostic (errMsgDiagnostic envelope)
@@ -423,7 +423,7 @@ showMsgEnvelope err =
   renderWithContext defaultSDocContext (vcat (unDecorated . diagnosticMessage $ errMsgDiagnostic err))
 
 pprMessageBag :: Bag SDoc -> SDoc
-pprMessageBag msgs = vcat (punctuate blankLine (bagToList msgs))
+pprMessageBag msgs = vcat (punctuate blankLine (toList msgs))
 
 -- | Make an unannotated error message with location info.
 mkLocMessage :: MessageClass -> SrcSpan -> SDoc -> SDoc

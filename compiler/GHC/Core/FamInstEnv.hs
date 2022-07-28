@@ -55,6 +55,7 @@ import GHC.Types.Var
 import GHC.Types.SrcLoc
 import Control.Monad
 import Data.List( mapAccumL )
+import Data.Foldable( toList )
 import Data.Array( Array, assocs )
 
 import GHC.Utils.Misc
@@ -993,7 +994,7 @@ lookup_fam_inst_env' lookup_mode (FamIE _ ie) fam match_tys
     rm_fun :: (Bag FamInst, [FamInst]) -> [FamInst]
     (rm_fun, check_fun) = case lookup_mode of
                             WantConflicts fam_inst -> (snd, unify_fun fam_inst)
-                            WantMatches -> (bagToList . fst, match_fun)
+                            WantMatches -> (toList . fst, match_fun)
 
     -- Function used for finding unifiers
     unify_fun orig_fam_inst item@(FamInst { fi_axiom = old_axiom, fi_tys = tpl_tys, fi_tvs = tpl_tvs })

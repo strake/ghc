@@ -1806,7 +1806,7 @@ emitImplication ct
 
 emitImplications :: Bag Implication -> TcM ()
 emitImplications ct
-  = unless (isEmptyBag ct) $
+  = unless (null ct) $
     do { lie_var <- getConstraintVar ;
          updTcRef lie_var (`addImplics` ct) }
 

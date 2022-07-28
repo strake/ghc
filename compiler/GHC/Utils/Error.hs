@@ -81,6 +81,7 @@ import GHC.Types.SrcLoc as SrcLoc
 
 import System.Exit      ( ExitCode(..), exitWith )
 import Data.List        ( sortBy )
+import Data.Foldable    ( toList )
 import Data.Function
 import Debug.Trace
 import Control.Monad
@@ -244,7 +245,7 @@ pprLocMsgEnvelope (MsgEnvelope { errMsgSpan      = s
       mkLocMessage (MCDiagnostic sev (diagnosticReason e)) s (formatBulleted ctx $ diagnosticMessage e)
 
 sortMsgBag :: Maybe DiagOpts -> Bag (MsgEnvelope e) -> [MsgEnvelope e]
-sortMsgBag mopts = maybeLimit . sortBy (cmp `on` errMsgSpan) . bagToList
+sortMsgBag mopts = maybeLimit . sortBy (cmp `on` errMsgSpan) . toList
   where
     cmp
       | Just opts <- mopts

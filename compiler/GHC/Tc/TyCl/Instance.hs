@@ -89,6 +89,7 @@ import Control.Monad
 import Data.Tuple
 import GHC.Data.Maybe
 import Data.List( mapAccumL )
+import Data.Foldable( toList )
 
 
 {-
@@ -419,9 +420,9 @@ tcInstDeclsDeriv deriv_infos derivds
   = do th_stage <- getStage -- See Note [Deriving inside TH brackets]
        if isBrackStage th_stage
        then do { gbl_env <- getGblEnv
-               ; return (gbl_env, bagToList emptyBag, emptyValBindsOut) }
+               ; return (gbl_env, toList emptyBag, emptyValBindsOut) }
        else do { (tcg_env, info_bag, valbinds) <- tcDeriving deriv_infos derivds
-               ; return (tcg_env, bagToList info_bag, valbinds) }
+               ; return (tcg_env, toList info_bag, valbinds) }
 
 addClsInsts :: [InstInfo GhcRn] -> TcM a -> TcM a
 addClsInsts infos thing_inside

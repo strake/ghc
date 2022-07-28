@@ -65,6 +65,8 @@ import GHC.Unit.Module( Module )
 import GHC.Unit.Module.ModGuts
 import GHC.Core.Unfold
 
+import Data.Foldable ( toList )
+
 {-
 ************************************************************************
 *                                                                      *
@@ -2978,7 +2980,7 @@ filterCalls (CIS fn call_bag) (FDB { fdb_binds = dbs })
   | otherwise         -- Do not apply it to non-DFuns
   = unfiltered_calls  -- See Note [Avoiding loops (non-DFuns)]
   where
-    unfiltered_calls = bagToList call_bag
+    unfiltered_calls = toList call_bag
 
     dump_set = foldl' go (unitVarSet fn) dbs
       -- This dump-set could also be computed by splitDictBinds

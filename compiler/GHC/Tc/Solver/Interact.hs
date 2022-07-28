@@ -51,6 +51,7 @@ import GHC.Types.Var.Env
 
 import qualified Data.Semigroup as S
 import Control.Monad
+import Data.Foldable (toList, traverse_)
 import GHC.Data.Pair (Pair(..))
 import GHC.Types.Unique( hasKey )
 import GHC.Driver.Session
@@ -120,7 +121,7 @@ solveSimpleWanteds simples
     go n limit wc
       | n `intGtLimit` limit
       = failTcS $ TcRnSimplifierTooManyIterations simples limit wc
-     | isEmptyBag (wc_simple wc)
+     | null (wc_simple wc)
      = return (n,wc)
 
      | otherwise
@@ -201,7 +202,7 @@ runTcPluginsGiven
 -- main solver.
 runTcPluginsWanted :: WantedConstraints -> TcS (Bool, WantedConstraints)
 runTcPluginsWanted wc@(WC { wc_simple = simples1 })
-  | isEmptyBag simples1
+  | null simples1
   = return (False, wc)
   | otherwise
   = do { solvers <- getTcPluginSolvers
@@ -209,7 +210,7 @@ runTcPluginsWanted wc@(WC { wc_simple = simples1 })
 
     do { given <- getInertGivens
        ; wanted <- zonkSimples simples1    -- Plugin requires zonked inputs
-       ; p <- runTcPluginSolvers solvers (given, bagToList wanted)
+       ; p <- runTcPluginSolvers solvers (given, toList wanted)
        ; let (_, solved_wanted)   = pluginSolvedCts p
              (_, unsolved_wanted) = pluginInputCts p
              new_wanted                             = pluginNewCts p
@@ -652,7 +653,7 @@ interactIrred inerts workItem@(CIrredCan { cc_ev = ev_w, cc_reason = reason })
   = continueWith workItem
 
   | let (matching_irreds, others) = findMatchingIrreds (inert_irreds inerts) ev_w
-  , ((ct_i, swap) : _rest) <- bagToList matching_irreds
+  , ((ct_i, swap) : _rest) <- toList matching_irreds
         -- See Note [Multiple matching irreds]
   , let ev_i = ctEvidence ct_i
   = do { what_next <- solveOneFromTheOther ev_i ev_w
@@ -1131,7 +1132,7 @@ shortCutSolver dflags ev_w ev_i
 addFunDepWork :: InertCans -> CtEvidence -> Class -> TcS ()
 -- Add wanted constraints from type-class functional dependencies.
 addFunDepWork inerts work_ev cls
-  = mapBagM_ add_fds (findDictsByClass (inert_dicts inerts) cls)
+  = traverse_ add_fds (findDictsByClass (inert_dicts inerts) cls)
                -- No need to check flavour; fundeps work between
                -- any pair of constraints, regardless of flavour
                -- Importantly we don't throw workitem back in the
@@ -2278,7 +2279,7 @@ matchClassInst dflags inerts clas tys loc
   | not (xopt LangExt.IncoherentInstances dflags)
   , not (naturallyCoherentClass clas)
   , let matchable_givens = matchableGivens loc pred inerts
-  , not (isEmptyBag matchable_givens)
+  , not (null matchable_givens)
   = do { traceTcS "Delaying instance application" $
            vcat [ text "Work item=" <+> pprClassPred clas tys
                 , text "Potential matching givens:" <+> ppr matchable_givens ]

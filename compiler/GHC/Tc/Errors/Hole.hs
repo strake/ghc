@@ -985,18 +985,18 @@ tcCheckHoleFit (TypedHole {..}) hole_ty ty = discardErrs $
                          tcSubTypeSigma orig (ExprSigCtxt NoRRC) ty hole_ty
      ; traceTc "Checking hole fit {" empty
      ; traceTc "wanteds are: " $ ppr wanted
-     ; if isEmptyWC wanted && isEmptyBag th_relevant_cts
+     ; if isEmptyWC wanted && null th_relevant_cts
        then do { traceTc "}" empty
                ; return (True, wrap) }
        else do { fresh_binds <- newTcEvBinds
                 -- The relevant constraints may contain HoleDests, so we must
                 -- take care to clone them as well (to avoid #15370).
-               ; cloned_relevants <- mapBagM cloneWantedCtEv th_relevant_cts
+               ; cloned_relevants <- traverse cloneWantedCtEv th_relevant_cts
                  -- We wrap the WC in the nested implications, for details, see
                  -- Note [Checking hole fits]
                ; let wrapInImpls cts = foldl (flip (setWCAndBinds fresh_binds)) cts th_implics
                      final_wc  = wrapInImpls $ addSimples wanted $
-                                                          mapBag mkNonCanonical cloned_relevants
+                                                          fmap mkNonCanonical cloned_relevants
                  -- We add the cloned relevants to the wanteds generated
                  -- by the call to tcSubType_NC, for details, see
                  -- Note [Relevant constraints]. There's no need to clone

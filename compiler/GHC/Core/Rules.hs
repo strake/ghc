@@ -85,6 +85,7 @@ import GHC.Utils.Constants (debugIsOn)
 
 import Data.List (sortBy, mapAccumL, isPrefixOf)
 import Data.Function    ( on )
+import Data.Foldable    ( toList )
 import Control.Monad    ( guard )
 
 {-
@@ -1518,12 +1519,12 @@ ruleCheckProgram :: RuleOpts                    -- ^ Rule options
                  -> CoreProgram                 -- ^ Bindings to check in
                  -> SDoc                        -- ^ Resulting check message
 ruleCheckProgram ropts phase rule_pat rules binds
-  | isEmptyBag results
+  | null results
   = text "Rule check results: no rule application sites"
   | otherwise
   = vcat [text "Rule check results:",
           line,
-          vcat [ p $$ line | p <- bagToList results ]
+          vcat [ p $$ line | p <- toList results ]
          ]
   where
     env = RuleCheckEnv { rc_is_active = isActive phase

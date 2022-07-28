@@ -96,6 +96,7 @@ import Data.List.NonEmpty ( NonEmpty(..) )
 import Data.Function
 import Control.Monad.Trans.Reader
 import Control.Monad.Trans.Class
+import Data.Foldable ( toList )
 
 data MetaWrappers = MetaWrappers {
       -- Applies its argument to a type argument `m` and dictionary `Quote m`
@@ -970,7 +971,7 @@ rep_meth_sigs_binds sigs binds
   = do { let tvs = concatMap get_scoped_tvs sigs
        ; ss <- mkGenSyms tvs
        ; sigs1 <- addBinds ss $ rep_sigs sigs
-       ; binds1 <- addBinds ss $ rep_binds binds
+       ; binds1 <- addBinds ss $ traverse rep_bind (toList binds)
        ; return (ss, de_loc (sort_by_loc (sigs1 ++ binds1))) }
 
 -------------------------------------------------------
@@ -1864,14 +1865,11 @@ rep_implicit_param_name (HsIPName name) = coreStringLit (unpackFS name)
 rep_val_binds :: HsValBinds GhcRn -> MetaM [(SrcSpan, Core (M TH.Dec))]
 -- Assumes: all the binders of the binding are already in the meta-env
 rep_val_binds (XValBindsLR (NValBinds binds sigs))
- = do { core1 <- rep_binds (unionManyBags (map snd binds))
+ = do { core1 <- traverse rep_bind $ toList $ unionManyBags (map snd binds)
       ; core2 <- rep_sigs sigs
       ; return (core1 ++ core2) }
 rep_val_binds (ValBinds _ _ _)
  = panic "rep_val_binds: ValBinds"
-
-rep_binds :: LHsBinds GhcRn -> MetaM [(SrcSpan, Core (M TH.Dec))]
-rep_binds = mapM rep_bind . bagToList
 
 rep_bind :: LHsBind GhcRn -> MetaM (SrcSpan, Core (M TH.Dec))
 -- Assumes: all the binders of the binding are already in the meta-env

@@ -528,7 +528,7 @@ zonkRecMonoBinds env binds
 
 ---------------------------------------------
 zonkMonoBinds :: ZonkEnv -> LHsBinds GhcTc -> TcM (LHsBinds GhcTc)
-zonkMonoBinds env binds = mapBagM (zonk_lbind env) binds
+zonkMonoBinds env binds = traverse (zonk_lbind env) binds
 
 zonk_lbind :: ZonkEnv -> LHsBind GhcTc -> TcM (LHsBind GhcTc)
 zonk_lbind env = wrapLocMA (zonk_bind env)
@@ -572,7 +572,7 @@ zonk_bind env (XHsBindsLR (AbsBinds { abs_tvs = tyvars, abs_ev_vars = evs
        ; (new_val_bind, new_exports) <- fixM $ \ ~(new_val_binds, _) ->
          do { let env3 = extendIdZonkEnvRec env2 $
                          collectHsBindsBinders CollNoDictBinders new_val_binds
-            ; new_val_binds <- mapBagM (zonk_val_bind env3) val_binds
+            ; new_val_binds <- traverse (zonk_val_bind env3) val_binds
             ; new_exports   <- mapM (zonk_export env3) exports
             ; return (new_val_binds, new_exports) }
        ; return $ XHsBindsLR $
@@ -1617,7 +1617,7 @@ zonkEvBinds env binds
   = {-# SCC "zonkEvBinds" #-}
     fixM (\ ~( _, new_binds) -> do
          { let env1 = extendIdZonkEnvRec env (collect_ev_bndrs new_binds)
-         ; binds' <- mapBagM (zonkEvBind env1) binds
+         ; binds' <- traverse (zonkEvBind env1) binds
          ; return (env1, binds') })
   where
     collect_ev_bndrs :: Bag EvBind -> [EvVar]

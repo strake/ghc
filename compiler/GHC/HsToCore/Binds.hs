@@ -83,6 +83,7 @@ import GHC.Utils.Panic.Plain
 import GHC.Utils.Trace
 
 import Control.Monad
+import Data.Foldable (traverse_)
 
 {-**********************************************************************
 *                                                                      *
@@ -95,9 +96,9 @@ import Control.Monad
 dsTopLHsBinds :: LHsBinds GhcTc -> DsM (OrdList (Id,CoreExpr))
 dsTopLHsBinds binds
      -- see Note [Strict binds checks]
-  | not (isEmptyBag unlifted_binds) || not (isEmptyBag bang_binds)
-  = do { mapBagM_ (top_level_err UnliftedTypeBinds) unlifted_binds
-       ; mapBagM_ (top_level_err StrictBinds)       bang_binds
+  | not (null unlifted_binds) || not (null bang_binds)
+  = do { traverse_ (top_level_err UnliftedTypeBinds) unlifted_binds
+       ; traverse_ (top_level_err StrictBinds)       bang_binds
        ; return nilOL }
 
   | otherwise
@@ -122,7 +123,7 @@ dsTopLHsBinds binds
 -- later be forced in the binding group body, see Note [Desugar Strict binds]
 dsLHsBinds :: LHsBinds GhcTc -> DsM ([Id], [(Id,CoreExpr)])
 dsLHsBinds binds
-  = do { ds_bs <- mapBagM dsLHsBind binds
+  = do { ds_bs <- traverse dsLHsBind binds
        ; return (foldBag (\(a, a') (b, b') -> (a ++ b, a' ++ b'))
                          id ([], []) ds_bs) }
 
@@ -1149,7 +1150,7 @@ dsTcEvBinds (EvBinds bs)   = dsEvBinds bs
 
 dsEvBinds :: Bag EvBind -> DsM [CoreBind]
 dsEvBinds bs
-  = do { ds_bs <- mapBagM dsEvBind bs
+  = do { ds_bs <- traverse dsEvBind bs
        ; return (mk_ev_binds ds_bs) }
 
 mk_ev_binds :: Bag (Id,CoreExpr) -> [CoreBind]

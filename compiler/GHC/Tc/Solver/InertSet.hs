@@ -61,6 +61,7 @@ import GHC.Utils.Misc       ( partitionWith )
 import GHC.Utils.Outputable
 import GHC.Utils.Panic
 
+import Data.Foldable      ( toList )
 import Data.List          ( partition )
 import Data.List.NonEmpty ( NonEmpty(..), (<|) )
 import qualified Data.List.NonEmpty as NE
@@ -203,7 +204,7 @@ extendWorkListCts cts wl = foldr extendWorkListCt wl cts
 
 isEmptyWorkList :: WorkList -> Bool
 isEmptyWorkList (WL { wl_eqs = eqs, wl_rest = rest, wl_implics = implics })
-  = null eqs && null rest && isEmptyBag implics
+  = null eqs && null rest && null implics
 
 emptyWorkList :: WorkList
 emptyWorkList = WL { wl_eqs  = [], wl_rest = [], wl_implics = emptyBag }
@@ -223,8 +224,8 @@ instance Outputable WorkList where
             text "Eqs =" <+> vcat (map ppr eqs)
           , ppUnless (null rest) $
             text "Non-eqs =" <+> vcat (map ppr rest)
-          , ppUnless (isEmptyBag implics) $
-            ifPprDebug (text "Implics =" <+> vcat (map ppr (bagToList implics)))
+          , ppUnless (null implics) $
+            ifPprDebug (text "Implics =" <+> vcat (map ppr (toList implics)))
                        (text "(Implics omitted)")
           ])
 
@@ -273,7 +274,7 @@ instance Outputable InertSet where
              , ppUnless (null dicts) $
                text "Solved dicts =" <+> vcat (map ppr dicts) ]
          where
-           dicts = bagToList (dictsToBag solved_dicts)
+           dicts = toList (dictsToBag solved_dicts)
 
 emptyInertCans :: InertCans
 emptyInertCans

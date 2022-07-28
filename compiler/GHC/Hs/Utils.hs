@@ -147,6 +147,7 @@ import GHC.Utils.Outputable
 import GHC.Utils.Panic
 
 import Data.Either
+import Data.Foldable ( toList )
 import Data.Function
 import Data.List ( partition, deleteBy )
 
@@ -873,14 +874,14 @@ spanHsLocaLBinds (HsValBinds _ (ValBinds _ bs sigs))
   = foldr combineSrcSpans noSrcSpan (bsSpans ++ sigsSpans)
   where
     bsSpans :: [SrcSpan]
-    bsSpans = map getLocA $ bagToList bs
+    bsSpans = map getLocA $ toList bs
     sigsSpans :: [SrcSpan]
     sigsSpans = map getLocA sigs
 spanHsLocaLBinds (HsValBinds _ (XValBindsLR (NValBinds bs sigs)))
   = foldr combineSrcSpans noSrcSpan (bsSpans ++ sigsSpans)
   where
     bsSpans :: [SrcSpan]
-    bsSpans = map getLocA $ concatMap (bagToList . snd) bs
+    bsSpans = map getLocA $ concatMap (toList . snd) bs
     sigsSpans :: [SrcSpan]
     sigsSpans = map getLocA sigs
 spanHsLocaLBinds (HsIPBinds _ (IPBinds _ bs))
@@ -992,7 +993,7 @@ isUnliftedHsBind bind
 -- | Is a binding a strict variable or pattern bind (e.g. @!x = ...@)?
 isBangedHsBind :: HsBind GhcTc -> Bool
 isBangedHsBind (XHsBindsLR (AbsBinds { abs_binds = binds }))
-  = anyBag (isBangedHsBind . unLoc) binds
+  = any (isBangedHsBind . unLoc) binds
 isBangedHsBind (FunBind {fun_matches = matches})
   | [L _ match] <- unLoc $ mg_alts matches
   , FunRhs{mc_strictness = SrcStrict} <- m_ctxt match
@@ -1410,7 +1411,7 @@ getPatSynBinds :: forall id. UnXRec id
                => [(RecFlag, LHsBinds id)] -> [PatSynBind id id]
 getPatSynBinds binds
   = [ psb | (_, lbinds) <- binds
-          , (unXRec @id -> (PatSynBind _ psb)) <- bagToList lbinds ]
+          , (unXRec @id -> (PatSynBind _ psb)) <- toList lbinds ]
 
 -------------------
 hsLInstDeclBinders :: IsPass p

@@ -90,8 +90,7 @@ import Control.Monad (foldM, forM, guard, mzero, when, filterM)
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.State.Strict
 import Data.Coerce
-import Data.Either   (partitionEithers)
-import Data.Foldable (foldlM, minimumBy, toList)
+import Data.Foldable (foldlM, minimumBy)
 import Data.Monoid   (Any(..))
 import Data.List     (sortBy, find)
 import qualified Data.List.NonEmpty as NE
@@ -600,15 +599,14 @@ addPhiCts :: Nabla -> PhiCts -> DsM (Maybe Nabla)
 -- See Note [TmState invariants].
 addPhiCts nabla cts = runMaybeT $ do
   let (ty_cts, tm_cts) = partitionPhiCts cts
-  nabla' <- addTyCts nabla (listToBag ty_cts)
-  nabla'' <- foldlM addPhiTmCt nabla' (listToBag tm_cts)
+  nabla' <- addTyCts nabla ty_cts
+  nabla'' <- foldlM addPhiTmCt nabla' tm_cts
   inhabitationTest initFuel (nabla_ty_st nabla) nabla''
 
-partitionPhiCts :: PhiCts -> ([PredType], [PhiCt])
-partitionPhiCts = partitionEithers . map to_either . toList
-  where
-    to_either (PhiTyCt pred_ty) = Left pred_ty
-    to_either ct                = Right ct
+partitionPhiCts :: PhiCts -> (Bag PredType, Bag PhiCt)
+partitionPhiCts = partitionBagWith $ \ case
+    PhiTyCt pred_ty -> Left pred_ty
+    ct -> Right ct
 
 -----------------------------
 -- ** Adding type constraints
@@ -626,7 +624,7 @@ addTyCts nabla@MkNabla{ nabla_ty_st = ty_st } new_ty_cs = do
 -- See Note [Pattern match warnings with insoluble Givens] in GHC.Tc.Solver.
 tyOracle :: TyState -> Bag PredType -> DsM (Maybe TyState)
 tyOracle ty_st@(TySt n inert) cts
-  | isEmptyBag cts
+  | null cts
   = pure (Just ty_st)
   | otherwise
   = {-# SCC "tyOracle" #-}

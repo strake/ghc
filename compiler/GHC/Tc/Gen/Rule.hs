@@ -38,6 +38,9 @@ import GHC.Utils.Panic
 import GHC.Data.FastString
 import GHC.Data.Bag
 
+import Data.Foldable ( toList )
+import Data.Traversable ( mapAccumL )
+
 {-
 Note [Typechecking rules]
 ~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -424,7 +427,7 @@ simplifyRule name tc_lvl lhs_wanted rhs_wanted
        ; let (quant_cts, residual_lhs_wanted) = getRuleQuantCts lhs_wanted
 
        -- Note [The SimplifyRule Plan] step 3
-       ; quant_evs <- mapM mk_quant_ev (bagToList quant_cts)
+       ; quant_evs <- mapM mk_quant_ev (toList quant_cts)
 
        ; traceTc "simplifyRule" $
          vcat [ text "LHS of rule" <+> doubleQuotes (ftext name)
@@ -476,8 +479,7 @@ getRuleQuantCts wc
         , emptyWC { wc_simple = simple_no, wc_impl = implics_no, wc_errors = errs })
      where
         (simple_yes, simple_no) = partitionBag (rule_quant_ct skol_tvs) simples
-        (implic_yes, implics_no) = mapAccumBagL (float_implic skol_tvs)
-                                                emptyBag implics
+        (implic_yes, implics_no) = mapAccumL (float_implic skol_tvs) emptyBag implics
 
     float_implic :: TcTyCoVarSet -> Cts -> Implication -> (Cts, Implication)
     float_implic skol_tvs yes1 imp

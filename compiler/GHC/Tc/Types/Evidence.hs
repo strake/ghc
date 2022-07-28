@@ -101,6 +101,7 @@ import Data.IORef( IORef )
 import GHC.Types.Unique.Set
 import GHC.Core.Multiplicity
 
+import Data.Foldable ( toList )
 import qualified Data.Semigroup as S
 
 {-
@@ -339,7 +340,7 @@ mkWpLams ids = mk_co_lam_fn WpEvLam ids
 
 mkWpLet :: TcEvBinds -> HsWrapper
 -- This no-op is a quite a common case
-mkWpLet (EvBinds b) | isEmptyBag b = WpHole
+mkWpLet (EvBinds b) | null b = WpHole
 mkWpLet ev_binds                   = WpLet ev_binds
 
 mk_co_lam_fn :: (a -> HsWrapper) -> [a] -> HsWrapper
@@ -879,7 +880,7 @@ emptyTcEvBinds :: TcEvBinds
 emptyTcEvBinds = EvBinds emptyBag
 
 isEmptyTcEvBinds :: TcEvBinds -> Bool
-isEmptyTcEvBinds (EvBinds b)    = isEmptyBag b
+isEmptyTcEvBinds (EvBinds b)    = null b
 isEmptyTcEvBinds (TcEvBinds {}) = panic "isEmptyTcEvBinds"
 
 evTermCoercion_maybe :: EvTerm -> Maybe TcCoercion
@@ -1005,7 +1006,7 @@ no_parens d _ = d
 
 instance Outputable TcEvBinds where
   ppr (TcEvBinds v) = ppr v
-  ppr (EvBinds bs)  = text "EvBinds" <> braces (vcat (map ppr (bagToList bs)))
+  ppr (EvBinds bs)  = text "EvBinds" <> braces (vcat (map ppr (toList bs)))
 
 instance Outputable EvBindsVar where
   ppr (EvBindsVar { ebv_uniq = u })

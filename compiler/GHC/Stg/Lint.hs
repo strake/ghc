@@ -112,9 +112,10 @@ import qualified GHC.Utils.Error as Err
 
 import GHC.Unit.Module            ( Module )
 
-import GHC.Data.Bag         ( Bag, emptyBag, isEmptyBag, snocBag, bagToList )
+import GHC.Data.Bag         ( Bag, emptyBag, snocBag )
 
 import Control.Monad
+import Data.Foldable ( toList )
 import Data.Maybe
 import GHC.Utils.Misc
 import GHC.Core.Multiplicity (scaledThing)
@@ -440,10 +441,10 @@ pp_binders bs
 initL :: Platform -> DiagOpts -> Module -> Bool -> StgPprOpts -> IdSet -> LintM a -> Maybe SDoc
 initL platform diag_opts this_mod unarised opts locals (LintM m) = do
   let (_, errs) = m this_mod (LintFlags unarised platform) diag_opts opts [] locals emptyBag
-  if isEmptyBag errs then
+  if null errs then
       Nothing
   else
-      Just (vcat (punctuate blankLine (bagToList errs)))
+      Just (vcat (punctuate blankLine (toList errs)))
 
 instance Applicative LintM where
       pure a = LintM $ \_mod _lf _df _opts _loc _scope errs -> (a, errs)

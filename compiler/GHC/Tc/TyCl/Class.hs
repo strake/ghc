@@ -69,6 +69,7 @@ import GHC.Data.Bag
 import GHC.Data.BooleanFormula
 
 import Control.Monad
+import Data.Foldable ( toList )
 import Data.List ( mapAccumL, partition )
 
 {-
@@ -156,7 +157,7 @@ tcClassSigs clas sigs def_methods
     gen_sigs :: [Located ([LocatedN Name], LHsSigType GhcRn)] -- AZ temp
     gen_sigs     = [L (locA loc) (nm,ty) | L loc (ClassOpSig _ True  nm ty) <- sigs]
     dm_bind_names :: [Name] -- These ones have a value binding in the class decl
-    dm_bind_names = [op | L _ (FunBind {fun_id = L _ op}) <- bagToList def_methods]
+    dm_bind_names = [op | L _ (FunBind {fun_id = L _ op}) <- toList def_methods]
 
     tc_sig :: NameEnv (SrcSpan, Type) -> ([LocatedN Name], LHsSigType GhcRn)
            -> TcM [TcMethInfo]
@@ -389,7 +390,7 @@ findMethodBind  :: Name                 -- Selector
                 -- site of the method binder, and any inline or
                 -- specialisation pragmas
 findMethodBind sel_name binds prag_fn
-  = foldl' mplus Nothing (mapBag f binds)
+  = foldl' mplus Nothing (fmap f binds)
   where
     prags    = lookupPragEnv prag_fn sel_name
 

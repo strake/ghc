@@ -142,7 +142,6 @@ import GHC.Types.Basic ( TypeOrKind(..)
                        , DefaultingStrategy(..), defaultNonStandardTyVars )
 
 import GHC.Data.FastString
-import GHC.Data.Bag
 import GHC.Data.Pair
 
 import GHC.Utils.Misc
@@ -242,8 +241,8 @@ cloneWC :: WantedConstraints -> TcM WantedConstraints
 -- so that solving the WantedConstraints will not have any visible side
 -- effect, /except/ from causing unifications
 cloneWC wc@(WC { wc_simple = simples, wc_impl = implics })
-  = do { simples' <- mapBagM cloneWanted simples
-       ; implics' <- mapBagM cloneImplication implics
+  = do { simples' <- traverse cloneWanted simples
+       ; implics' <- traverse cloneImplication implics
        ; return (wc { wc_simple = simples', wc_impl = implics' }) }
 
 cloneImplication :: Implication -> TcM Implication
@@ -2353,12 +2352,12 @@ zonkWC wc = zonkWCRec wc
 zonkWCRec :: WantedConstraints -> TcM WantedConstraints
 zonkWCRec (WC { wc_simple = simple, wc_impl = implic, wc_errors = errs })
   = do { simple' <- zonkSimples simple
-       ; implic' <- mapBagM zonkImplication implic
-       ; errs'   <- mapBagM zonkDelayedError errs
+       ; implic' <- traverse zonkImplication implic
+       ; errs'   <- traverse zonkDelayedError errs
        ; return (WC { wc_simple = simple', wc_impl = implic', wc_errors = errs' }) }
 
 zonkSimples :: Cts -> TcM Cts
-zonkSimples cts = do { cts' <- mapBagM zonkCt cts
+zonkSimples cts = do { cts' <- traverse zonkCt cts
                      ; traceTc "zonkSimples done:" (ppr cts')
                      ; return cts' }
 

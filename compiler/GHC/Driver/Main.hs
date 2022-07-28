@@ -1543,7 +1543,7 @@ checkPkgTrust pkgs = do
                      $ mkErrorMsgEnvelope noSrcSpan (pkgQual state)
                      $ GhcDriverMessage
                      $ DriverPackageNotTrusted state pkg
-    if isEmptyBag errors
+    if null errors
       then return ()
       else liftIO $ throwErrors $ mkMessages errors
 

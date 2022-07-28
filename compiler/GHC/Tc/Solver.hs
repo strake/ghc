@@ -126,7 +126,7 @@ simplifyTopImplic implics
   = do { empty_binds <- simplifyTop (mkImplicWC implics)
 
        -- Since all the inputs are implications the returned bindings will be empty
-       ; massertPpr (isEmptyBag empty_binds) (ppr empty_binds)
+       ; massertPpr (null empty_binds) (ppr empty_binds)
 
        ; return () }
 
@@ -280,7 +280,7 @@ floatKindEqualities wc = float_wc emptyVarSet wc
       = Nothing   -- A short cut /plus/ we must keep track of IC_BadTelescope
       | otherwise
       = do { (simples, holes) <- float_wc new_trapping_tvs wanted
-           ; when (not (isEmptyBag simples) && given_eqs == MaybeGivenEqs) $
+           ; when (not (null simples) && given_eqs == MaybeGivenEqs) $
              Nothing
                  -- If there are some constraints to float out, but we can't
                  -- because we don't float out past local equalities
@@ -544,14 +544,14 @@ defaultCallStacks :: WantedConstraints -> TcS WantedConstraints
 -- See Note [Overview of implicit CallStacks] in GHC.Tc.Types.Evidence
 defaultCallStacks wanteds
   = do simples <- handle_simples (wc_simple wanteds)
-       mb_implics <- mapBagM handle_implic (wc_impl wanteds)
+       mb_implics <- traverse handle_implic (wc_impl wanteds)
        return (wanteds { wc_simple = simples
                        , wc_impl = catBagMaybes mb_implics })
 
   where
 
   handle_simples simples
-    = catBagMaybes <$> mapBagM defaultCallStack simples
+    = catBagMaybes <$> traverse defaultCallStack simples
 
   handle_implic :: Implication -> TcS (Maybe Implication)
   -- The Maybe is because solving the CallStack constraint
@@ -950,13 +950,13 @@ tcCheckGivens inerts given_ids = do
     traceTcS "checkGivens {" (ppr inerts <+> ppr given_ids)
     lcl_env <- TcS.getLclEnv
     let given_loc = mkGivenLoc topTcLevel (getSkolemInfo unkSkol) lcl_env
-    let given_cts = mkGivens given_loc (bagToList given_ids)
+    let given_cts = mkGivens given_loc (toList given_ids)
     -- See Note [Superclasses and satisfiability]
     solveSimpleGivens given_cts
     insols <- getInertInsols
     insols <- try_harder insols
     traceTcS "checkGivens }" (ppr insols)
-    return (isEmptyBag insols)
+    return (null insols)
   return $ if sat then Just new_inerts else Nothing
   where
     try_harder :: Cts -> TcS Cts
@@ -964,7 +964,7 @@ tcCheckGivens inerts given_ids = do
     -- an unsatisfiable constraint.  Example: pmcheck/T3927b.
     -- At the moment we try just once
     try_harder insols
-      | not (isEmptyBag insols)   -- We've found that it's definitely unsatisfiable
+      | not (null insols)   -- We've found that it's definitely unsatisfiable
       = return insols             -- Hurrah -- stop now.
       | otherwise
       = do { pending_given <- getPendingGivenScs
@@ -1278,7 +1278,7 @@ emitResidualConstraints rhs_tclvl ev_binds_var
 
 --------------------
 ctsPreds :: Cts -> [PredType]
-ctsPreds cts = [ ctEvPred ev | ct <- bagToList cts
+ctsPreds cts = [ ctEvPred ev | ct <- toList cts
                              , let ev = ctEvidence ct ]
 
 findInferredDiff :: TcThetaType -> TcThetaType -> TcM TcThetaType
@@ -1305,7 +1305,7 @@ findInferredDiff annotated_theta inferred_theta
          -- See `Note [Quantification and partial signatures]` Wrinkle 2
 
        ; return (map (box_pred . ctPred) $
-                 bagToList               $
+                 toList               $
                  wc_simple residual) }
   where
      box_pred :: PredType -> PredType
@@ -2289,7 +2289,7 @@ simplify_loop n limit definitely_redo_implications
   = do { csTraceTcS $
          text "simplify_loop iteration=" <> int n
          <+> (parens $ hsep [ text "definitely_redo =" <+> ppr definitely_redo_implications <> comma
-                            , int (lengthBag simples) <+> text "simples to solve" ])
+                            , int (length simples) <+> text "simples to solve" ])
        ; traceTcS "simplify_loop: wc =" (ppr wc)
 
        ; (unifs1, wc1) <- reportUnifications $  -- See Note [Superclass iteration]
@@ -2299,7 +2299,7 @@ simplify_loop n limit definitely_redo_implications
 
        ; wc2 <- if not definitely_redo_implications  -- See Note [Superclass iteration]
                    && unifs1 == 0                    -- for this conditional
-                   && isEmptyBag (wc_impl wc1)
+                   && null (wc_impl wc1)
                 then return (wc { wc_simple = wc_simple wc1 })  -- Short cut
                 else do { implics2 <- solveNestedImplications $
                                       implics `unionBags` (wc_impl wc1)
@@ -2369,11 +2369,11 @@ solveNestedImplications :: Bag Implication
 -- Precondition: the TcS inerts may contain unsolved simples which have
 -- to be converted to givens before we go inside a nested implication.
 solveNestedImplications implics
-  | isEmptyBag implics
+  | null implics
   = return (emptyBag)
   | otherwise
   = do { traceTcS "solveNestedImplications starting {" empty
-       ; unsolved_implics <- mapBagM solveImplication implics
+       ; unsolved_implics <- traverse solveImplication implics
 
        -- ... and we are back in the original TcS inerts
        -- Notice that the original includes the _insoluble_simples so it was safe to ignore
@@ -2535,7 +2535,7 @@ setImplicationStatus implic@(Implic { ic_status     = status
      | IC_Solved { ics_dead = dead_givens } <- ic_status ic
                           -- Fully solved
      , null dead_givens   -- No redundant givens to report
-     , isEmptyBag (wc_impl (ic_wanted ic))
+     , null (wc_impl (ic_wanted ic))
            -- And no children that might have things to report
      = False       -- Tnen we don't need to keep it
      | otherwise
@@ -2643,7 +2643,7 @@ neededEvVars implic@(Implic { ic_given = givens
 
 -------------------------------------------------
 simplifyDelayedErrors :: Bag DelayedError -> TcS (Bag DelayedError)
-simplifyDelayedErrors = mapBagM simpl_err
+simplifyDelayedErrors = traverse simpl_err
   where
     simpl_err :: DelayedError -> TcS DelayedError
     simpl_err (DE_Hole hole) = DE_Hole <$> simpl_hole hole
@@ -3138,7 +3138,7 @@ findDefaultableGroups (default_tys, (ovl_strings, extended_defaults)) wanteds
     , defaultable_classes (map sndOf3 group) ]
   where
     simples                = approximateWC True wanteds
-    (unaries, non_unaries) = partitionWith find_unary (bagToList simples)
+    (unaries, non_unaries) = partitionWith find_unary (toList simples)
     unary_groups           = equivClasses cmp_tv unaries
 
     unary_groups :: [NonEmpty (Ct, Class, TcTyVar)] -- (C tv) constraints

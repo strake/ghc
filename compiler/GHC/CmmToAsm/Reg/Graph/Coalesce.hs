@@ -16,6 +16,7 @@ import GHC.Types.Unique.FM
 import GHC.Types.Unique.Set
 import GHC.Types.Unique.Supply
 
+import Data.Foldable ( toList )
 
 -- | Do register coalescing on this top level thing
 --
@@ -34,7 +35,7 @@ regCoalesce code
                         $ map slurpJoinMovs code
 
         let alloc       = foldl' buildAlloc emptyUFM
-                        $ bagToList joins
+                        $ toList joins
 
         let patched     = map (patchEraseLive (sinkReg alloc)) code
 

@@ -33,6 +33,7 @@ import GHC.Utils.Json
 
 import GHC.Types.Error ( DiagnosticReason(..) )
 
+import Data.Foldable (toList)
 import Data.Function
 import Data.List (sortBy, intercalate, stripPrefix)
 
@@ -191,7 +192,7 @@ processArgs :: Monad m
                    [Warn] ) -- warnings
 processArgs spec args handleRespFile = do
     (errs, warns, spare) <- runEwM action
-    return (spare, bagToList errs, bagToList warns)
+    return (spare, toList errs, toList warns)
   where
     action = process args []
 

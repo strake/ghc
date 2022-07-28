@@ -80,7 +80,7 @@ import GHC.Data.Maybe
 import qualified GHC.Data.Strict as Strict
 
 import Control.Monad    ( unless, when, foldM, forM_ )
-import Data.Foldable    ( toList )
+import Data.Foldable    ( toList, traverse_ )
 import Data.Function    ( on )
 import Data.List        ( partition, sort, sortBy )
 import Data.List.NonEmpty ( NonEmpty(..), (<|) )
@@ -562,7 +562,7 @@ reportWanteds ctxt tc_lvl wc@(WC { wc_simple = simples, wc_impl = implics
                  \have not been reported to the user:"
            $$ ppr leftovers)
 
-       ; mapBagM_ (reportImplic ctxt2) implics
+       ; traverse_ (reportImplic ctxt2) implics
             -- NB ctxt2: don't suppress inner insolubles if there's only a
             -- wanted insoluble here; but do suppress inner insolubles
             -- if there's a *given* insoluble here (= inaccessible code)
@@ -576,8 +576,8 @@ reportWanteds ctxt tc_lvl wc@(WC { wc_simple = simples, wc_impl = implics
             ; massertPpr (null more_leftovers) (ppr more_leftovers) } }
  where
     env       = cec_tidy ctxt
-    tidy_cts  = bagToList (mapBag (tidyCt env)   simples)
-    tidy_errs = bagToList (mapBag (tidyDelayedError env) errs)
+    tidy_cts  = toList (fmap (tidyCt env)   simples)
+    tidy_errs = toList (fmap (tidyDelayedError env) errs)
 
     partition_errors :: [DelayedError] -> ([Hole], [Hole], [NotConcreteError])
     partition_errors = go [] [] []
@@ -1400,7 +1400,7 @@ zonkAndGroupSkolTvs hole_ty = do
     (skol_tvs, other_tvs) = partition (\tv -> isTcTyVar tv && isSkolemTyVar tv) tvs
 
     group_skolems :: UM.UniqMap SkolemInfo ([(TcTyVar, Int)])
-    group_skolems = bagToList <$> UM.listToUniqMap_C unionBags [(skolemSkolInfo tv, unitBag (tv, n)) | tv <- skol_tvs | n <- [0..]]
+    group_skolems = toList <$> UM.listToUniqMap_C unionBags [(skolemSkolInfo tv, unitBag (tv, n)) | tv <- skol_tvs | n <- [0..]]
 
     skolem_list = sortBy (comparing (sort . map snd . snd)) (UM.nonDetEltsUniqMap group_skolems)
 

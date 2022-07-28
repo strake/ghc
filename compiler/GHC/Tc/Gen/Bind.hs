@@ -82,7 +82,7 @@ import GHC.Types.Unique.Set
 import qualified GHC.LanguageExtensions as LangExt
 
 import Control.Monad
-import Data.Foldable (find)
+import Data.Foldable (find, toList)
 
 {-
 ************************************************************************
@@ -373,7 +373,7 @@ tc_group top_lvl sig_fn prag_fn (NonRecursive, binds) closed thing_inside
         -- A single non-recursive binding
         -- We want to keep non-recursive things non-recursive
         -- so that we desugar unlifted bindings correctly
-  = do { let bind = case bagToList binds of
+  = do { let bind = case toList binds of
                  [bind] -> bind
                  []     -> panic "tc_group: empty list of binds"
                  _      -> panic "tc_group: NonRecursive binds is not a singleton bag"
@@ -467,7 +467,7 @@ mkEdges sig_fn binds
     no_sig :: Name -> Bool
     no_sig n = not (hasCompleteSig sig_fn n)
 
-    keyd_binds = bagToList binds `zip` [0::BKey ..]
+    keyd_binds = toList binds `zip` [0::BKey ..]
 
     key_map :: NameEnv BKey     -- Which binding it comes from
     key_map = mkNameEnv [(bndr, key) | (L _ bind, key) <- keyd_binds
@@ -970,8 +970,8 @@ chooseInferredQuantifiers residual inferred_theta tau_tvs qtvs
         m_unif_ty = listToMaybe
                       [ rhs
                       -- recall that residuals are always implications
-                      | residual_implic <- bagToList $ wc_impl residual
-                      , residual_ct <- bagToList $ wc_simple (ic_wanted residual_implic)
+                      | residual_implic <- toList $ wc_impl residual
+                      , residual_ct <- toList $ wc_simple (ic_wanted residual_implic)
                       , let residual_pred = ctPred residual_ct
                       , Just (Nominal, lhs, rhs) <- [ getEqPredTys_maybe residual_pred ]
                       , Just lhs_tv <- [ tcGetTyVar_maybe lhs ]

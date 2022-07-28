@@ -132,6 +132,8 @@ import qualified Data.Semigroup as S
 import Control.Monad ( msum, when )
 import Data.Maybe ( mapMaybe )
 import Data.List.NonEmpty ( NonEmpty )
+import Data.Traversable ( mapAccumL )
+import Data.Foldable ( toList )
 
 -- these are for CheckTyEqResult
 import Data.Word  ( Word8 )
@@ -917,7 +919,7 @@ superClassesMightHelp :: WantedConstraints -> Bool
 -- expose more equalities or functional dependencies) might help to
 -- solve this constraint.  See Note [When superclasses help]
 superClassesMightHelp (WC { wc_simple = simples, wc_impl = implics })
-  = anyBag might_help_ct simples || anyBag might_help_implic implics
+  = any might_help_ct simples || any might_help_implic implics
   where
     might_help_implic ic
        | IC_Unsolved <- ic_status ic = superClassesMightHelp (ic_wanted ic)
@@ -929,8 +931,7 @@ superClassesMightHelp (WC { wc_simple = simples, wc_impl = implics })
     is_ip _                             = False
 
 getPendingWantedScs :: Cts -> ([Ct], Cts)
-getPendingWantedScs simples
-  = mapAccumBagL get [] simples
+getPendingWantedScs = mapAccumL get []
   where
     get acc ct | Just ct' <- isPendingScDict ct
                = (ct':acc, ct')
@@ -984,7 +985,7 @@ listToCts :: [Ct] -> Cts
 listToCts = listToBag
 
 ctsElts :: Cts -> [Ct]
-ctsElts = bagToList
+ctsElts = toList
 
 consCts :: Ct -> Cts -> Cts
 consCts = consBag
@@ -1003,10 +1004,10 @@ emptyCts :: Cts
 emptyCts = emptyBag
 
 isEmptyCts :: Cts -> Bool
-isEmptyCts = isEmptyBag
+isEmptyCts = null
 
 pprCts :: Cts -> SDoc
-pprCts cts = vcat (map ppr (bagToList cts))
+pprCts cts = vcat (map ppr (toList cts))
 
 {-
 ************************************************************************
@@ -1037,14 +1038,14 @@ mkImplicWC implic
 
 isEmptyWC :: WantedConstraints -> Bool
 isEmptyWC (WC { wc_simple = f, wc_impl = i, wc_errors = errors })
-  = isEmptyBag f && isEmptyBag i && isEmptyBag errors
+  = null f && null i && null errors
 
 -- | Checks whether a the given wanted constraints are solved, i.e.
 -- that there are no simple constraints left and all the implications
 -- are solved.
 isSolvedWC :: WantedConstraints -> Bool
 isSolvedWC WC {wc_simple = wc_simple, wc_impl = wc_impl, wc_errors = errors} =
-  isEmptyBag wc_simple && allBag (isSolvedStatus . ic_status) wc_impl && isEmptyBag errors
+  null wc_simple && all (isSolvedStatus . ic_status) wc_impl && null errors
 
 andWC :: WantedConstraints -> WantedConstraints -> WantedConstraints
 andWC (WC { wc_simple = f1, wc_impl = i1, wc_errors = e1 })
@@ -1070,7 +1071,7 @@ addInsols wc cts
 
 addHoles :: WantedConstraints -> Bag Hole -> WantedConstraints
 addHoles wc holes
-  = wc { wc_errors = mapBag DE_Hole holes `unionBags` wc_errors wc }
+  = wc { wc_errors = fmap DE_Hole holes `unionBags` wc_errors wc }
 
 addNotConcreteError :: WantedConstraints -> NotConcreteError -> WantedConstraints
 addNotConcreteError wc err
@@ -1087,14 +1088,14 @@ dropMisleading :: WantedConstraints -> WantedConstraints
 --   and the implications differently.  Sigh.
 dropMisleading (WC { wc_simple = simples, wc_impl = implics, wc_errors = errors })
   = WC { wc_simple = filterBag insolubleWantedCt simples
-       , wc_impl   = mapBag drop_implic implics
+       , wc_impl   = fmap drop_implic implics
        , wc_errors = filterBag keep_delayed_error errors }
   where
     drop_implic implic
       = implic { ic_wanted = drop_wanted (ic_wanted implic) }
     drop_wanted (WC { wc_simple = simples, wc_impl = implics, wc_errors = errors })
       = WC { wc_simple = filterBag keep_ct simples
-           , wc_impl   = mapBag drop_implic implics
+           , wc_impl   = fmap drop_implic implics
            , wc_errors  = filterBag keep_delayed_error errors }
 
     keep_ct ct = case classifyPredType (ctPred ct) of
@@ -1165,9 +1166,9 @@ nonDefaultableTyVarsOfWC (WC { wc_simple = simples, wc_impl = implics, wc_errors
 
 insolubleWC :: WantedConstraints -> Bool
 insolubleWC (WC { wc_impl = implics, wc_simple = simples, wc_errors = errors })
-  =  anyBag insolubleWantedCt simples
-  || anyBag insolubleImplic implics
-  || anyBag is_insoluble errors
+  =  any insolubleWantedCt simples
+  || any insolubleImplic implics
+  || any is_insoluble errors
 
     where
       is_insoluble (DE_Hole hole) = isOutOfScopeHole hole -- See Note [Insoluble holes]
@@ -1246,7 +1247,7 @@ instance Outputable WantedConstraints where
 
 ppr_bag :: Outputable a => SDoc -> Bag a -> SDoc
 ppr_bag doc bag
- | isEmptyBag bag = empty
+ | null bag = empty
  | otherwise      = hang (doc <+> equals)
                        2 (foldr (($$) . ppr) empty bag)
 

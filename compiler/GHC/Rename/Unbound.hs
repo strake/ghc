@@ -51,11 +51,11 @@ import GHC.Unit.Module
 import GHC.Unit.Module.Imported
 import GHC.Unit.Home.ModInfo
 
-import GHC.Data.Bag
 import GHC.Utils.Outputable (empty)
 
 import Data.List (sortBy, partition, nub)
 import Data.List.NonEmpty ( pattern (:|), NonEmpty )
+import Data.Foldable ( toList )
 import Data.Function ( on )
 import qualified Data.Semigroup as S
 
@@ -248,7 +248,7 @@ similarNameSuggestions looking_for@(LF what_look where_look) dflags global_env
     unquals_in_scope (gre@GRE { gre_lcl = lcl, gre_imp = is })
       | lcl       = [ LocallyBoundAt (greDefinitionSrcSpan gre) ]
       | otherwise = [ ImportedBy ispec
-                    | i <- bagToList is, let ispec = is_decl i
+                    | i <- toList is, let ispec = is_decl i
                     , not (is_qual ispec) ]
 
 
@@ -257,7 +257,7 @@ similarNameSuggestions looking_for@(LF what_look where_look) dflags global_env
     -- Ones for which *only* the qualified version is in scope
     quals_only (gre@GRE { gre_imp = is })
       = [ (SimilarRdrName (mkRdrQual (is_as ispec) (greOccName gre)) (ImportedBy ispec))
-        | i <- bagToList is, let ispec = is_decl i, is_qual ispec ]
+        | i <- toList is, let ispec = is_decl i, is_qual ispec ]
 
 
 -- | Generate errors and helpful suggestions if a qualified name Mod.foo is not in scope.
@@ -350,7 +350,7 @@ qualsInScope gre@GRE { gre_lcl = lcl, gre_imp = is }
                 Nothing -> []
                 Just m  -> [(moduleName m, LocallyBoundAt (greDefinitionSrcSpan gre))]
       | otherwise = [ (is_as ispec, ImportedBy ispec)
-                    | i <- bagToList is, let ispec = is_decl i ]
+                    | i <- toList is, let ispec = is_decl i ]
 
 isGreOk :: LookingFor -> GlobalRdrElt -> Bool
 isGreOk (LF what_look where_look) gre = what_ok && where_ok

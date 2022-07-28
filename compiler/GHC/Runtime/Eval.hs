@@ -127,6 +127,7 @@ import Control.Monad.Catch as MC
 import Data.Array
 import GHC.Utils.Exception
 import Unsafe.Coerce ( unsafeCoerce )
+import Data.Foldable ( toList )
 
 import GHC.Tc.Module ( runTcInteractive, tcRnType, loadUnqualIfaces )
 import GHC.Tc.Utils.Zonk ( ZonkFlexi (SkolemiseFlexi) )
@@ -1122,7 +1123,7 @@ checkForExistence clsInst mb_inst_tys = do
   -- The simples might contain superclasses. This clutters up the output
   -- (we want e.g. instance Ord a => Ord (Maybe a), not
   -- instance (Ord a, Eq a) => Ord (Maybe a)). So we use mkMinimalBySCs
-  let simple_preds = map ctPred (bagToList simples)
+  let simple_preds = map ctPred (toList simples)
   let minimal_simples = mkMinimalBySCs id simple_preds
 
   if all allowedSimple minimal_simples && solvedImplics impls
@@ -1134,7 +1135,7 @@ checkForExistence clsInst mb_inst_tys = do
   allowedSimple pred = isSatisfiablePred pred
 
   solvedImplics :: Bag Implication -> Bool
-  solvedImplics impls = allBag (isSolvedStatus . ic_status) impls
+  solvedImplics impls = all (isSolvedStatus . ic_status) impls
 
   -- Stricter version of isTyVarClassPred that requires all TyConApps to have at least
   -- one argument or for the head to be a TyVar. The reason is that we want to ensure

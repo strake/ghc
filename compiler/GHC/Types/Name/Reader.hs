@@ -94,6 +94,7 @@ import GHC.Utils.Panic
 import GHC.Types.Name.Env
 
 import Data.Data
+import Data.Foldable ( toList )
 import Data.List( sortBy )
 import qualified Data.Semigroup as S
 import GHC.Data.Bag
@@ -718,7 +719,7 @@ greQualModName gre@(GRE { gre_lcl = lcl, gre_imp = iss })
 
 greRdrNames :: GlobalRdrElt -> [RdrName]
 greRdrNames gre@GRE{ gre_lcl = lcl, gre_imp = iss }
-  = bagToList $ (if lcl then unitBag unqual else emptyBag) `unionBags` concatMapBag do_spec (mapBag is_decl iss)
+  = toList $ (if lcl then unitBag unqual else emptyBag) `unionBags` concatMapBag do_spec (fmap is_decl iss)
   where
     occ    = greOccName gre
     unqual = Unqual occ
@@ -895,7 +896,7 @@ getGRE_NameQualifier_maybes env name
   where
     qualifier_maybe (GRE { gre_lcl = lcl, gre_imp = iss })
       | lcl       = Nothing
-      | otherwise = Just $ map (is_as . is_decl) (bagToList iss)
+      | otherwise = Just $ map (is_as . is_decl) (toList iss)
 
 isLocalGRE :: GlobalRdrElt -> Bool
 isLocalGRE (GRE {gre_lcl = lcl }) = lcl
@@ -1337,7 +1338,7 @@ pprNameProvenance gre@(GRE { gre_lcl = lcl, gre_imp = iss })
                (head pp_provs)
   where
     name = greMangledName gre
-    pp_provs = pp_lcl ++ map pp_is (bagToList iss)
+    pp_provs = pp_lcl ++ map pp_is (toList iss)
     pp_lcl = if lcl then [text "defined at" <+> ppr (nameSrcLoc name)]
                     else []
     pp_is is = sep [ppr is, ppr_defn_site is name]

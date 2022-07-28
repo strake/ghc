@@ -298,7 +298,7 @@ rnValBindsLHS :: NameMaker
               -> HsValBinds GhcPs
               -> RnM (HsValBindsLR GhcRn GhcPs)
 rnValBindsLHS topP (ValBinds x mbinds sigs)
-  = do { mbinds' <- mapBagM (wrapLocMA (rnBindLHS topP doc)) mbinds
+  = do { mbinds' <- traverse (wrapLocMA (rnBindLHS topP doc)) mbinds
        ; return $ ValBinds x mbinds' sigs }
   where
     bndrs = collectHsBindsBinders CollNoDictBinders mbinds
@@ -316,7 +316,7 @@ rnValBindsRHS :: HsSigCtxt
 
 rnValBindsRHS ctxt (ValBinds _ mbinds sigs)
   = do { (sigs', sig_fvs) <- renameSigs ctxt sigs
-       ; binds_w_dus <- mapBagM (rnLBind (mkScopedTvFn sigs')) mbinds
+       ; binds_w_dus <- traverse (rnLBind (mkScopedTvFn sigs')) mbinds
        ; let !(anal_binds, anal_dus) = depAnalBinds binds_w_dus
 
        ; let patsyn_fvs = foldr (unionNameSet . psb_ext) emptyNameSet $
@@ -591,7 +591,7 @@ depAnalBinds binds_w_dus
                    (\(_, _, uses) -> nonDetEltsUniqSet uses)
                    -- It's OK to use nonDetEltsUniqSet here as explained in
                    -- Note [depAnal determinism] in GHC.Types.Name.Env.
-                   (bagToList binds_w_dus)
+                   (toList binds_w_dus)
 
     get_binds (AcyclicSCC (bind, _, _)) = (NonRecursive, unitBag bind)
     get_binds (CyclicSCC  binds_w_dus)  = (Recursive, listToBag [b | (b,_,_) <- binds_w_dus])
@@ -891,10 +891,10 @@ rnMethodBinds is_cls_decl cls ktv_names binds sigs
        -- type variables from the class/instance head are in scope.
        -- Answer no in Haskell 2010, but yes if you have -XScopedTypeVariables
        ; (binds'', bind_fvs) <- bindSigTyVarsFV ktv_names $
-              do { binds_w_dus <- mapBagM (rnLBind (mkScopedTvFn other_sigs')) binds'
+              do { binds_w_dus <- traverse (rnLBind (mkScopedTvFn other_sigs')) binds'
                  ; let bind_fvs = foldr (\(_,_,fv1) fv2 -> fv1 `plusFV` fv2)
                                            emptyFVs binds_w_dus
-                 ; return (mapBag fstOf3 binds_w_dus, bind_fvs) }
+                 ; return (fmap fstOf3 binds_w_dus, bind_fvs) }
 
        ; return ( binds'', spec_inst_prags' ++ other_sigs'
                 , sig_fvs `plusFV` sip_fvs `plusFV` bind_fvs) }

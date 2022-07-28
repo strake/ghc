@@ -74,6 +74,7 @@ import qualified Data.Semigroup as Semi
 import Data.List.NonEmpty ( NonEmpty(..) )
 import qualified Data.List.NonEmpty as NE
 import Data.Coerce
+import Data.Foldable ( toList )
 
 --
 -- * Exported entry points to the checker
@@ -388,7 +389,7 @@ reportWarnings dflags report_mode (DsMatchContext kind loc) vars
     maxPatterns = maxUncoveredPatterns dflags
 
 getNFirstUncovered :: GenerateInhabitingPatternsMode -> [Id] -> Int -> Nablas -> DsM [Nabla]
-getNFirstUncovered mode vars n (MkNablas nablas) = go n (bagToList nablas)
+getNFirstUncovered mode vars n (MkNablas nablas) = go n (toList nablas)
   where
     go 0 _              = pure []
     go _ []             = pure []

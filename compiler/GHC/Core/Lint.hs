@@ -384,7 +384,7 @@ displayLintResults :: Logger
                    -> WarnsAndErrs
                    -> IO ()
 displayLintResults logger display_warnings pp_what pp_pgm (warns, errs)
-  | not (isEmptyBag errs)
+  | not (null errs)
   = do { logMsg logger Err.MCDump noSrcSpan
            $ withPprStyle defaultDumpStyle
            (vcat [ lint_banner "errors" pp_what, Err.pprMessageBag errs
@@ -393,14 +393,14 @@ displayLintResults logger display_warnings pp_what pp_pgm (warns, errs)
                  , text "*** End of Offense ***" ])
        ; Err.ghcExit logger 1 }
 
-  | not (isEmptyBag warns)
+  | not (null warns)
   , log_enable_debug (logFlags logger)
   , display_warnings
   -- If the Core linter encounters an error, output to stderr instead of
   -- stdout (#13342)
   = logMsg logger Err.MCInfo noSrcSpan
       $ withPprStyle defaultDumpStyle
-        (lint_banner "warnings" pp_what $$ Err.pprMessageBag (mapBag ($$ blankLine) warns))
+        (lint_banner "warnings" pp_what $$ Err.pprMessageBag (fmap ($$ blankLine) warns))
 
   | otherwise = return ()
 
@@ -467,7 +467,7 @@ lintUnfolding :: Bool             -- ^ True <=> is a compulsory unfolding
               -> Maybe (Bag SDoc) -- Nothing => OK
 
 lintUnfolding is_compulsory cfg locn expr
-  | isEmptyBag errs = Nothing
+  | null errs = Nothing
   | otherwise       = Just errs
   where
     (_warns, errs) = initL cfg $
@@ -483,7 +483,7 @@ lintExpr :: LintConfig
          -> Maybe (Bag SDoc)  -- Nothing => OK
 
 lintExpr cfg expr
-  | isEmptyBag errs = Nothing
+  | null errs = Nothing
   | otherwise       = Just errs
   where
     (_warns, errs) = initL cfg linter
@@ -2852,7 +2852,7 @@ initL :: LintConfig
 initL cfg m
   = case unLintM m env (emptyBag, emptyBag) of
       (Just _, errs) -> errs
-      (Nothing, errs@(_, e)) | not (isEmptyBag e) -> errs
+      (Nothing, errs@(_, e)) | not (null e) -> errs
                              | otherwise -> pprPanic ("Bug in Lint: a failure occurred " ++
                                                       "without reporting an error message") empty
   where

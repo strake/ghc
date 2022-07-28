@@ -20,7 +20,6 @@ import GHC.HsToCore.Pmc.Types
 import GHC.HsToCore.Pmc.Utils
 import GHC.Core (Expr(Var,App))
 import GHC.Data.FastString (unpackFS, lengthFS)
-import GHC.Data.Bag (bagToList)
 import GHC.Driver.Session
 import GHC.Hs
 import GHC.Tc.Utils.Zonk (shortCutLit)
@@ -48,6 +47,7 @@ import qualified GHC.LanguageExtensions as LangExt
 import GHC.Utils.Monad (concatMapM)
 import GHC.Types.SourceText (FractionalLit(..))
 import Control.Monad (zipWithM)
+import Data.Foldable (toList)
 import Data.List (elemIndex)
 import Data.List.NonEmpty ( NonEmpty(..) )
 import qualified Data.List.NonEmpty as NE
@@ -378,7 +378,7 @@ desugarGuard guard = case guard of
 -- See Note [Long-distance information for HsLocalBinds].
 desugarLocalBinds :: HsLocalBinds GhcTc -> DsM [PmGrd]
 desugarLocalBinds (HsValBinds _ (XValBindsLR (NValBinds binds _))) =
-  concatMapM (concatMapM go . bagToList) (map snd binds)
+  concatMapM (concatMapM go . toList) (map snd binds)
   where
     go :: LHsBind GhcTc -> DsM [PmGrd]
     go (L _ FunBind{fun_id = L _ x, fun_matches = mg})
@@ -403,7 +403,7 @@ desugarLocalBinds (HsValBinds _ (XValBindsLR (NValBinds binds _))) =
             | otherwise
             = Nothing
       let exps = mapMaybe go_export exports
-      bs <- concatMapM go (bagToList binds)
+      bs <- concatMapM go (toList binds)
       return (exps ++ bs)
     go _ = return []
 desugarLocalBinds _binds = return []
