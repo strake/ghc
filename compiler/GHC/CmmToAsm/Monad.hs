@@ -20,7 +20,6 @@ module GHC.CmmToAsm.Monad (
         addImmediateSuccessorNat,
         updateCfgNat,
         getUniqueNat,
-        mapAccumLNat,
         setDeltaNat,
         getConfig,
         getPlatform,
@@ -172,18 +171,6 @@ thenNat expr cont
 returnNat :: a -> NatM a
 returnNat result
         = NatM $ \st ->  (result, st)
-
-mapAccumLNat :: (acc -> x -> NatM (acc, y))
-                -> acc
-                -> [x]
-                -> NatM (acc, [y])
-
-mapAccumLNat _ b []
-  = return (b, [])
-mapAccumLNat f b (x:xs)
-  = do (b__2, x__2)  <- f b x
-       (b__3, xs__2) <- mapAccumLNat f b__2 xs
-       return (b__3, x__2:xs__2)
 
 getUniqueNat :: NatM Unique
 getUniqueNat = NatM $ \ st ->
