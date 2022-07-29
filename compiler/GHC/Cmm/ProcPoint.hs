@@ -324,7 +324,7 @@ splitAtProcPoints platform entry_label callPPs procPoints procMap cmmProc = do
   let add_jumps :: LabelMap CmmGraph -> (Label, LabelMap CmmBlock) -> UniqSM (LabelMap CmmGraph)
       add_jumps newGraphEnv (ppId, blockEnv) = do
         -- find which procpoints we currently branch to
-        let needed_jumps = mapFoldr add_if_branch_to_pp [] blockEnv
+        let needed_jumps = foldr add_if_branch_to_pp [] blockEnv
 
         (jumpEnv, jumpBlocks) <-
            foldM add_jump_block (mapEmpty, []) needed_jumps
@@ -391,7 +391,7 @@ splitAtProcPoints platform entry_label callPPs procPoints procMap cmmProc = do
 replaceBranches :: LabelMap BlockId -> CmmGraph -> CmmGraph
 replaceBranches env cmmg
   = {-# SCC "replaceBranches" #-}
-    ofBlockMap (g_entry cmmg) $ mapMap f $ toBlockMap cmmg
+    ofBlockMap (g_entry cmmg) $ fmap f $ toBlockMap cmmg
   where
     f block = replaceLastNode block $ last (lastNode block)
 

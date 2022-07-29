@@ -543,7 +543,7 @@ buildChains edges blocks
                         , Set.Set (BlockId, BlockId) --List of fused edges
                         )
     buildNext placed _chainStarts chainEnds  [] linked = do
-        ends' <- sequence $ mapMap readSTRef chainEnds :: ST s (LabelMap BlockChain)
+        ends' <- sequence $ fmap readSTRef chainEnds :: ST s (LabelMap BlockChain)
         -- Any remaining blocks have to be made to singleton chains.
         -- They might be combined with other chains later on outside this function.
         let unplaced = filter (\x -> not (setMember x placed)) blocks

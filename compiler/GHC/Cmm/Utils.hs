@@ -546,14 +546,14 @@ mapGraphNodes :: ( CmmNode C O -> CmmNode C O
               -> CmmGraph -> CmmGraph
 mapGraphNodes funs@(mf,_,_) g =
   ofBlockMap (entryLabel $ mf $ CmmEntry (g_entry g) GlobalScope) $
-  mapMap (mapBlock3' funs) $ toBlockMap g
+  fmap (mapBlock3' funs) $ toBlockMap g
 
 mapGraphNodes1 :: (forall e x. CmmNode e x -> CmmNode e x) -> CmmGraph -> CmmGraph
 mapGraphNodes1 f = modifyGraph (mapGraph f)
 
 
 foldlGraphBlocks :: (a -> CmmBlock -> a) -> a -> CmmGraph -> a
-foldlGraphBlocks k z g = mapFoldl k z $ toBlockMap g
+foldlGraphBlocks k z = foldl k z . toBlockMap
 
 -------------------------------------------------
 -- Tick utilities

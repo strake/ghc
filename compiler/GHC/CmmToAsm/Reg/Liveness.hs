@@ -625,7 +625,7 @@ patchEraseLive patchF cmm
          = let
                 patchRegSet set = mkUniqSet $ map patchF $ nonDetEltsUFM set
                   -- See Note [Unique Determinism and code generation]
-                blockMap'       = mapMap (patchRegSet . getUniqSet) blockMap
+                blockMap'       = fmap (patchRegSet . getUniqSet) blockMap
 
                 info'           = LiveInfo static id blockMap' mLiveSlots
            in   CmmProc info' label live $ map patchSCC sccs

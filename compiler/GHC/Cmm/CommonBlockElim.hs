@@ -272,7 +272,7 @@ eqLastWith _ _ _ = False
 copyTicks :: LabelMap BlockId -> CmmGraph -> CmmGraph
 copyTicks env g
   | mapNull env = g
-  | otherwise   = ofBlockMap (g_entry g) $ mapMap copyTo blockMap
+  | otherwise   = ofBlockMap (g_entry g) $ fmap copyTo blockMap
   where -- Reverse block merge map
         blockMap = toBlockMap g
         revEnv = mapFoldlWithKey insertRev M.empty env

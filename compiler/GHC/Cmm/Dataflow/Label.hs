@@ -103,10 +103,7 @@ instance IsMap LabelMap where
   mapIntersection (LM x) (LM y) = LM (mapIntersection x y)
   mapIsSubmapOf (LM x) (LM y) = mapIsSubmapOf x y
 
-  mapMap f (LM m) = LM (mapMap f m)
   mapMapWithKey f (LM m) = LM (mapMapWithKey (f . mkHooplLabel) m)
-  mapFoldl k z (LM m) = mapFoldl k z m
-  mapFoldr k z (LM m) = mapFoldr k z m
   mapFoldlWithKey k z (LM m) =
       mapFoldlWithKey (\a v -> k a (mkHooplLabel v)) z m
   mapFoldMapWithKey f (LM m) = mapFoldMapWithKey (\k v -> f (mkHooplLabel k) v) m
@@ -139,7 +136,7 @@ instance TrieMap LabelMap where
   emptyTM = mapEmpty
   lookupTM k m = mapLookup k m
   alterTM k f m = mapAlter f k m
-  foldTM k m z = mapFoldr k z m
+  foldTM = flip . foldr
   filterTM f m = mapFilter f m
 
 -----------------------------------------------------------------------------

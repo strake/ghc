@@ -110,7 +110,7 @@ mapGraphBlocks f = map
   where map :: Graph' block n e x -> Graph' block' n' e x
         map GNil = GNil
         map (GUnit b) = GUnit (f b)
-        map (GMany e b x) = GMany (fmap f e) (mapMap f b) (fmap f x)
+        map (GMany e b x) = GMany (fmap f e) (fmap f b) (fmap f x)
 
 -- -----------------------------------------------------------------------------
 -- Extracting Labels from graphs
